@@ -138,6 +138,17 @@ func (db *DB) DeleteAuditLogsByUsername(username string) error {
 	return err
 }
 
+func (db *DB) ClearGlobalAuditLogs() error {
+	if db == nil || db.SQLDB == nil {
+		return nil
+	}
+	now := time.Now()
+	retirementCutoff := now.UnixMilli() - core.AccountAuditRetentionMillis
+	unprotected := `(username NOT IN (SELECT name FROM tokens WHERE deleted_at > ? AND audit_purged_at = 0) AND operator NOT IN (SELECT name FROM tokens WHERE deleted_at > ? AND audit_purged_at = 0) AND initiator NOT IN (SELECT name FROM tokens WHERE deleted_at > ? AND audit_purged_at = 0))`
+	_, err := db.Exec("DELETE FROM audit_logs WHERE "+unprotected, retirementCutoff, retirementCutoff, retirementCutoff)
+	return err
+}
+
 func (db *DB) CleanExpiredAuditLogs(retentionDays int, maxRows int) error {
 	if db == nil || db.SQLDB == nil {
 		return nil

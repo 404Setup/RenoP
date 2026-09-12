@@ -9,6 +9,10 @@
  */
 
 export default Object.freeze({
+    "common.add": "Añadir",
+    "updater.containerDisabled": "Gestionado por el contenedor",
+    "updater.containerManaged": "El entorno de contenedores gestiona las actualizaciones y los reinicios. Descarga una imagen nueva y vuelve a crear el contenedor.",
+    "nav.backPrevious": "Volver a la página anterior",
     "resourceLock.inheritedNotice": "Los bloqueos heredados siguen activos hasta que se eliminen del recurso principal.",
     "resourceLock.manage": "Gestionar bloqueo",
     "resourceLock.mode": "Tipo de bloqueo",
@@ -69,6 +73,8 @@ export default Object.freeze({
     "common.ok": "Aceptar",
     "common.yes": "Sí",
     "common.no": "No",
+    "common.active": "Activo",
+    "common.inactive": "Inactivo",
     "common.none": "Ninguno",
     "common.remove": "Quitar",
     "common.loading": "Cargando…",

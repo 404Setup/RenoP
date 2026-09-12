@@ -10,9 +10,9 @@ description: Configure Microsoft, Google, GitLab, Cloudflare, Stack Exchange, an
 ## Configure providers
 
 In administrator settings, open **Third-party login** to configure GitHub and other providers. GitHub is the built-in
-entry with the fixed ID `github`; enable or disable it there. Add up to 32 other clients with unique lowercase IDs of up
+entry with the fixed ID `github`; enable or disable it there. Add up to 12 other clients with unique lowercase IDs of up
 to 32 characters, starting with a letter and using letters, digits, underscores, or hyphens. Saved IDs identify existing
-bindings and cannot be edited. Each account supports one GitHub binding and up to 32 other provider bindings.
+bindings and cannot be edited. Each account supports one GitHub binding and up to 12 other provider bindings.
 
 GitHub retains `server.github_oauth` and the callback `/api/auth/github/callback` for compatibility. Existing settings
 and bindings appear automatically in the unified interface. Its client ID is limited to 128 bytes and secret to 512
@@ -293,7 +293,7 @@ provider login.
 | GET    | `/api/auth/profile/oauth`            | Private connection states, display login, authorization timestamp, and permitted actions |
 | DELETE | `/api/auth/profile/oauth/:provider`  | Disconnect; `204`, or `409` with `oauth_last_login_method`                               |
 | GET    | `/api/settings/oauth-providers`      | Administrator view: `providers` and `presets`, without secrets                           |
-| PUT    | `/api/settings/oauth-providers`      | Administrator JSON `{providers:[...]}`; replaces the provider list; body limit 128 KiB   |
+| PUT    | `/api/settings/oauth-providers`      | Binary protobuf `OAuthSettings`: `providers`, `replace_providers: true`; 128 KiB |
 
 Profile operations require the current browser session. A provider callback returns a stable result marker in `oauth`
 and its ID in `provider`; the SPA translates and removes the markers. Failures never display raw provider responses.
@@ -315,11 +315,7 @@ the signature, issuer, audience, subject, nonce, time bounds, and token hash whe
 algorithms are RS256 and ES256. Provider responses are limited to 1 MiB and requests have bounded timeouts. The
 configured outbound proxy applies.
 
-RenoP stores stable subjects under an authority derived from the provider type, client, endpoints, and verified issuer.
-Changing that authority does not transfer existing bindings to a different identity service. Access tokens are not
-retained for login. A protected avatar may keep an encrypted token only inside the pending registration until
-confirmation or expiry; the private `mfa_encryption_key` protects this temporary value. It is never returned to the
-browser.
+RenoP binds a stable subject to its provider type, client, endpoints, and verified issuer. Changing this authority does not transfer existing bindings. Access and refresh tokens used for browser login are encrypted for that specific session with the private `mfa_encryption_key` and are deleted with the session. They never appear in public sessions, API responses, or logs. Keep that key across restarts. Protected registration avatars retain their existing temporary encrypted token until confirmation or expiry.
 
 Account retirement releases every third-party binding atomically. Another live account may bind the released identity,
 while the retired username remains reserved permanently, the email remains held for 14 days, and activity retention
@@ -328,3 +324,9 @@ remains 30 days. Retired accounts cannot recreate their bindings through a delay
 Provider identities and every captured contact email must be available together before a new binding can commit. A
 released identity cannot bypass another account's retained email ownership.
 See [login email aliases](./email-verification.md) for verification, removal, and retention rules.
+
+## Provider logout and revocation
+
+Logout revocation is built in for GitHub app tokens, Google, GitLab (including the configured instance), and Stack Exchange. For a custom client, Cloudflare, or Microsoft, set `revocation_url` only if that authorization service publishes an RFC 7009 endpoint. No endpoint is guessed, and provider-wide administrative sign-out is not used. Some providers revoke the entire grant even when one token is supplied. Sessions created before token retention was available must sign in again to obtain a revocable grant.
+
+Public provider discovery and private connection status use binary protobuf. The unified settings API uses `OAuthSettings`; writes require `replace_providers: true`. Refer to [authentication API](../api/authentication.md) for the signed callback formats.

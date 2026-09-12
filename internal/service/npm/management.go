@@ -691,7 +691,7 @@ func searchUsersAPI(c fiber.Ctx, state *core.AppState) error {
 	if err != nil || !administrator && level < core.NPMPermissionTeam {
 		return npmAPIError(c, fiber.StatusForbidden, "permission_denied", "Package team permission is required")
 	}
-	users, err := state.GetDB().SearchTokenNames(strings.TrimSpace(c.Query("q")), 10, time.Now().UnixMilli())
+	users, err := state.GetDB().SearchTokenNames(strings.TrimSpace(c.Query("q")), 10, time.Now().UnixMilli(), user.CanViewPrivateProfiles())
 	if err != nil {
 		return npmAPIError(c, fiber.StatusInternalServerError, "internal_error", "Failed to search users")
 	}

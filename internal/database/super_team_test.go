@@ -133,7 +133,7 @@ func TestSuperTeamInvitationAndOwnerInvariants(t *testing.T) {
 	details, err := db.GetSuperTeamDetails("release", "charlie", false, false)
 	require.NoError(t, err)
 	assert.Equal(t, core.SuperTeamRoleRead, details.Team.RoleLevel)
-	storedMessage, err := db.GetUserMessage(id, "charlie", now+2)
+	storedMessage, err := db.GetUserMessage(id, "charlie", now+2, "")
 	require.NoError(t, err)
 	require.NotNil(t, storedMessage)
 	assert.Equal(t, core.MessageActionAccepted, storedMessage.ActionStatus)

@@ -22,6 +22,9 @@ import (
 func accountRetirementPlanTx(tx *Tx, username, userID string,
 	token *core.AccessToken) (*core.AccountRetirementPlan, error) {
 	plan := &core.AccountRetirementPlan{Username: username, ProtectedRole: protectedAccountRole(token.Permissions)}
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM native_members WHERE user_id = ? AND permission_level = ?`, userID, core.NativePermissionOwner).Scan(&plan.PackageOwnerCount); err != nil {
+		return nil, fmt.Errorf("count native resource ownerships: %w", err)
+	}
 	if err := tx.QueryRow(`SELECT COUNT(*) FROM super_team_members WHERE user_id = ? AND role_level = ?`,
 		userID, core.SuperTeamRoleOwner).Scan(&plan.SuperTeamOwnerCount); err != nil {
 		return nil, fmt.Errorf("count global-team ownerships: %w", err)
@@ -162,6 +165,9 @@ func (db *DB) ReleaseRetiredAccountEmail(username string, releasedAt int64) erro
 	if _, err := tx.Exec(`DELETE FROM user_email_addresses WHERE user_id = ?`, userID); err != nil {
 		return fmt.Errorf("release retired account email ownership: %w", err)
 	}
+	if _, err := tx.Exec(`DELETE FROM user_primary_email_history WHERE user_id = ?`, userID); err != nil {
+		return fmt.Errorf("release retired account email history: %w", err)
+	}
 	if _, err := tx.Exec(`UPDATE user_account_security SET email = NULL, password_login_enabled = 0, updated_at = ?
 		WHERE user_id = ?`, releasedAt, userID); err != nil {
 		return fmt.Errorf("release retired account email: %w", err)
@@ -218,7 +224,8 @@ func (db *DB) PurgeRetiredAccountAuditLogs(username string, purgedAt int64) erro
 	return nil
 }
 
-// CleanupRetiredAccountData processes a bounded batch of expired email and audit retention periods.
+// CleanupRetiredAccountData processes bounded account retention batches, including
+// former primary-email reservations on active accounts.
 func (db *DB) CleanupRetiredAccountData(now int64, limit int) error {
 	if db == nil || db.SQLDB == nil || now <= 0 {
 		return nil
@@ -261,5 +268,5 @@ func (db *DB) CleanupRetiredAccountData(now int64, limit int) error {
 			return err
 		}
 	}
-	return nil
+	return db.cleanupExpiredPrimaryEmails(now, limit)
 }

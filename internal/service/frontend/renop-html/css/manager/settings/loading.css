@@ -1,0 +1,194 @@
+/*
+ * Copyright (c) 2026 404Setup. All rights reserved.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
+ *
+ * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
+ */
+
+.skeleton-bone {
+    display: block;
+    width: 100%;
+    height: 1rem;
+    background: linear-gradient(
+            90deg,
+            rgba(0, 0, 0, 0.03) 25%,
+            rgba(0, 0, 0, 0.07) 37%,
+            rgba(0, 0, 0, 0.03) 63%
+    );
+    background-size: 400% 100%;
+    animation: renopSkeletonShimmer 1.4s ease-in-out infinite;
+    border-radius: 6px;
+}
+
+html.dark .skeleton-bone {
+    background: linear-gradient(
+            90deg,
+            rgba(255, 255, 255, 0.04) 25%,
+            rgba(255, 255, 255, 0.1) 37%,
+            rgba(255, 255, 255, 0.04) 63%
+    );
+    background-size: 400% 100%;
+}
+
+@keyframes renopSkeletonShimmer {
+    0% {
+        background-position: 100% 50%;
+    }
+    100% {
+        background-position: 0% 50%;
+    }
+}
+
+.stat-value.is-loading-skeleton {
+    display: inline-block;
+    min-width: 60px;
+    height: 1.5rem;
+    border-radius: 4px;
+    opacity: 0.7;
+}
+
+.skeleton-row-tr td {
+    padding: 1rem 0.75rem !important;
+}
+
+.is-content-entering {
+    animation: skeletonContentEnter 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes skeletonContentEnter {
+    0% {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+#language-modal .modal-content {
+    display: flex;
+    flex-direction: column;
+    max-height: 85vh;
+    max-height: 85dvh;
+    overflow: hidden;
+    padding: 0 !important;
+}
+
+#language-modal .modal-header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: color-mix(in srgb, var(--card-bg) 40%, transparent);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    padding: 1.5rem 1.5rem 1rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+    flex-shrink: 0;
+}
+
+html.dark #language-modal .modal-header,
+html:not(.light) #language-modal .modal-header {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+#language-modal .close-btn {
+    z-index: 101;
+}
+
+#language-modal .modal-body {
+    overflow-y: auto;
+    flex: 1;
+    padding: 1.5rem;
+}
+
+.language-load-progress {
+    height: 3px;
+    flex: 0 0 3px;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--link-hover-color) 14%, transparent);
+}
+
+.language-load-progress[hidden] {
+    display: none;
+}
+
+.language-load-progress > span {
+    display: block;
+    width: 42%;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--link-hover-color);
+    animation: languageLoadProgress 0.9s ease-in-out infinite;
+}
+
+@keyframes languageLoadProgress {
+    from {
+        transform: translateX(-110%);
+    }
+    to {
+        transform: translateX(260%);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .language-load-progress > span {
+        width: 100%;
+        animation: none;
+    }
+}
+
+.settings-subtabs-container .tab {
+    transition: color 0.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease, transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+    will-change: transform;
+}
+
+.settings-subtabs-container .tab:active {
+    transform: scale(0.95);
+}
+
+.settings-subtabs-container .tab-indicator {
+    transition: transform 0.36s cubic-bezier(0.2, 0.9, 0.2, 1.05), width 0.36s cubic-bezier(0.2, 0.9, 0.2, 1.05);
+    will-change: transform, width;
+}
+
+.tab.is-loading {
+    position: relative;
+    opacity: 0.7;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.tab.is-loading::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--link-hover-color), transparent);
+    animation: tabPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes tabPulse {
+    0% {
+        transform: translateX(-100%);
+        opacity: 0.2;
+    }
+    50% {
+        opacity: 1;
+    }
+    100% {
+        transform: translateX(100%);
+        opacity: 0.2;
+    }
+}
+
+.cfg-page-content .cfg-section,
+.cfg-page-content .skeleton-loader-card {
+    contain: content;
+}
+

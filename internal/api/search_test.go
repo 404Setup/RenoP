@@ -11,6 +11,7 @@
 package api
 
 import (
+	"fmt"
 	"path/filepath"
 	"testing"
 
@@ -21,12 +22,53 @@ import (
 	"renop/internal/testutil"
 )
 
+func TestFileSearchRetainsLateExactMatchesAndUnicode(t *testing.T) {
+	state := core.NewAppState()
+	state.Inner.FileIndex = index.NewFileIndex()
+	repo := &config.Repository{Name: "files", Format: config.RepositoryFormatFiles, Visibility: "PUBLIC"}
+	root := filepath.Join("storage", repo.Name)
+	for i := range 700 {
+		path := filepath.Join(root, fmt.Sprintf("prefix-target-%04d", i))
+		state.Inner.FileIndex.EnsureParentDirs(path)
+		state.Inner.FileIndex.InsertFile(path, index.FileInfo{Size: 1})
+	}
+	state.Inner.FileIndex.InsertFile(filepath.Join(root, "target"), index.FileInfo{Size: 2})
+	state.Inner.FileIndex.InsertFile(filepath.Join(root, "ÄPFEL.jar"), index.FileInfo{Size: 3})
+	viewer := &config.User{Username: "guest"}
+	response, err := searchFileTreeRepository(state, "storage", repo, viewer, "target", 1)
+	if err != nil || len(response.Results) != 1 || response.Results[0].Name != "target" || response.Total != 701 || !response.HasMore {
+		t.Fatalf("late exact match lost: %+v, %v", response, err)
+	}
+	response, err = searchFileTreeRepository(state, "storage", repo, viewer, "äpfel", 1)
+	if err != nil || len(response.Results) != 1 || response.Results[0].Name != "ÄPFEL.jar" {
+		t.Fatalf("Unicode case-insensitive match lost: %+v, %v", response, err)
+	}
+}
+
+func BenchmarkFileRepositorySearch(b *testing.B) {
+	state := core.NewAppState()
+	state.Inner.FileIndex = index.NewFileIndex()
+	repo := &config.Repository{Name: "files", Format: config.RepositoryFormatFiles, Visibility: "PUBLIC"}
+	for i := range 10000 {
+		path := filepath.Join("storage", repo.Name, fmt.Sprintf("group-%02d", i%100), fmt.Sprintf("demo-package-%05d.jar", i))
+		state.Inner.FileIndex.EnsureParentDirs(path)
+		state.Inner.FileIndex.InsertFile(path, index.FileInfo{Size: 1024})
+	}
+	viewer := &config.User{Username: "guest"}
+	b.ReportAllocs()
+	for b.Loop() {
+		if _, err := searchFileTreeRepository(state, "storage", repo, viewer, "demo", 20); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
 func TestSearchClassicMavenRepositoryUsesIndexAndOmitsBlockedFiles(t *testing.T) {
 	storagePath := testutil.TempDir(t)
 	repo := &config.Repository{Name: "releases", Format: config.RepositoryFormatMavenClassic, Visibility: "PUBLIC"}
 	state := core.NewAppState()
 	initMavenReadTestDB(t, state)
-	state.Inner.FileIndex = index.NewFileIndexCustom(true)
+	state.Inner.FileIndex = index.NewFileIndex()
 	root := filepath.Join(storagePath, repo.Name)
 	artifact := filepath.Join(root, "org", "example", "demo", "1.0.0", "demo-1.0.0.jar")
 	blocked := filepath.Join(root, "org", "example", "demo", "1.0.0", "demo-1.0.0.pom")
@@ -212,5 +254,57 @@ func TestRepositorySearchRank(t *testing.T) {
 	}
 	if r := repositorySearchRank("other", "exact"); r != 2 {
 		t.Errorf("expected 2 for other match, got %d", r)
+	}
+}
+
+func TestSearchNativeRepositoryReturnsResourcePathAndAccessFilter(t *testing.T) {
+	db, err := database.InitDB(config.DatabaseConfig{
+		Driver: "sqlite", Dsn: filepath.Join(testutil.TempDir(t), "native-search.db"),
+		MaxOpenConns: 1, MaxIdleConns: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	now := int64(1000)
+	if err := db.SaveToken(&core.AccessToken{Name: "alice", Permissions: []string{"base", "canupdate:apk-repo"}}); err != nil {
+		t.Fatal(err)
+	}
+	res1, err := db.CreateNativeResource("apk-repo", config.RepositoryFormatAPK, "alpine-base", "alice", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = db.CreateNativeResource("apk-repo", config.RepositoryFormatAPK, "alpine-extra", "alice", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// res1 published, res2 reserved only
+	if err := db.SaveNativeArtifact(core.NativeArtifact{
+		Repository: "apk-repo", ResourceID: res1.ID, Name: res1.Name, Version: "1.0",
+		Path: "x86_64/alpine-base-1.0.apk", Size: 100, CreatedAt: now,
+	}, "alice", true); err != nil {
+		t.Fatal(err)
+	}
+
+	state := core.NewAppState()
+	state.Inner.DB = db
+	repo := &config.Repository{Name: "apk-repo", Format: config.RepositoryFormatAPK}
+
+	// Guest should only find published resource
+	guestResp, err := searchNativeRepository(state, repo, &config.User{Username: "guest"}, "alpine", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if guestResp.Total != 1 || len(guestResp.Results) != 1 || guestResp.Results[0].Path != "~/alpine-base" {
+		t.Fatalf("unexpected guest search response: %+v", guestResp)
+	}
+
+	// Alice (owner) should find both published and reserved
+	aliceResp, err := searchNativeRepository(state, repo, &config.User{Username: "alice"}, "alpine", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if aliceResp.Total != 2 || len(aliceResp.Results) != 2 {
+		t.Fatalf("unexpected alice search response: %+v", aliceResp)
 	}
 }

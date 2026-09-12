@@ -9,6 +9,26 @@
  */
 
 export default Object.freeze({
+    "repos.formatConan": "Conan",
+    "repos.formatConanDesc": "Рецепты Conan, двоичные пакеты, ревизии и загрузка через родной клиент.",
+    "repos.formatConda": "Conda",
+    "repos.formatCondaNative": "Conda native",
+    "repos.formatApk": "Alpine APK",
+    "repos.formatApt": "apt",
+    "repos.formatRpm": "rpm / yum",
+    "repos.formatCondaDesc": "Автоматические индексы пакетов, загрузка штатными клиентами и импорт готовых индексов и подписей.",
+    "repos.formatCondaNativeDesc": "Автоматические индексы пакетов, загрузка штатными клиентами и импорт готовых индексов и подписей.",
+    "repos.formatApkDesc": "Автоматические индексы пакетов, загрузка штатными клиентами и импорт готовых индексов и подписей.",
+    "repos.formatAptDesc": "Автоматические индексы пакетов, загрузка штатными клиентами и импорт готовых индексов и подписей.",
+    "repos.formatRpmDesc": "Автоматические индексы пакетов, загрузка штатными клиентами и импорт готовых индексов и подписей.",
+    "details.nativeTitle": "Настройка клиента",
+    "details.nativeSubtitle": "Зарегистрируйте ресурс и публикуйте через родной клиент. Индексы создаются из опубликованных файлов.",
+    "details.nativeClientTab": "Клиент",
+
+    "repos.capacityLimit": "Лимит объёма (MiB)",
+    "repos.capacityHint": "0 означает отсутствие лимита. Учитываются сохранённые артефакты, зеркала и контрольные суммы; временные копии исключены.",
+    "repos.capacityInvalid": "Введите неотрицательный объём в MiB.",
+    "repos.capacityExceeded": "Этот репозиторий достиг лимита объёма. Удалите артефакты или увеличьте лимит.",
     "common.create": "Создать",
     "repos.title": "Репозитории",
     "repos.addRepoBtn": "Добавить репозиторий",

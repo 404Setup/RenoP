@@ -10,8 +10,8 @@ description: 配置 Microsoft、Google、GitLab、Cloudflare、Stack Exchange �
 ## 配置服务
 
 在管理员设置中打开 **第三方登录**，统一配置 GitHub 和其他服务。GitHub 是内置条目，固定 ID 为 `github`，可在此启用或关闭。还可添加最多
-32 个其他客户端，ID 最长 32 个字符，以小写字母开头，可包含小写字母、数字、下划线和连字符。已保存的 ID 用于识别现有绑定，不可编辑。每个账号支持一个
-GitHub 绑定和最多 32 个其他服务绑定。
+12 个其他客户端，ID 最长 32 个字符，以小写字母开头，可包含小写字母、数字、下划线和连字符。已保存的 ID 用于识别现有绑定，不可编辑。每个账号支持一个
+GitHub 绑定和最多 12 个其他服务绑定。
 
 为保持兼容，GitHub 继续使用 `server.github_oauth` 和回调 `/api/auth/github/callback`。现有配置和绑定自动显示在统一界面中。客户端
 ID 最长 128 字节，密钥最长 512 字节；只有客户端 ID 不变时，空白密钥才保留原值。GitHub 用户与组织授权、已验证邮箱及手动同步头像功能继续可用。
@@ -251,7 +251,7 @@ true 时，即使服务返回了未验证的建议地址，用户仍须填写并
 | GET    | `/api/auth/profile/oauth`            | 私有绑定状态、显示名称、授权时间和允许的操作                                      |
 | DELETE | `/api/auth/profile/oauth/:provider`  | 解绑返回 `204`；移除最后登录方式时返回 `409` 和 `oauth_last_login_method`         |
 | GET    | `/api/settings/oauth-providers`      | 管理员读取 `providers` 和 `presets`，不含密钥                                     |
-| PUT    | `/api/settings/oauth-providers`      | 管理员发送 JSON `{providers:[...]}` 替换服务列表；请求体上限为 128 KiB            |
+| PUT    | `/api/settings/oauth-providers`      | 二进制 protobuf `OAuthSettings`: `providers`, `replace_providers: true`; 128 KiB |
 
 个人资料操作需要当前浏览器会话。回调在 `oauth` 中返回稳定的结果标识，在 `provider` 中返回服务 ID；SPA
 翻译提示后移除这些参数。失败时不会显示原始服务响应。会话登录方式为 `oauth:<provider-id>`，可附加 `+totp` 或 `+passkey`。
@@ -268,10 +268,15 @@ OAuth 回调使用十分钟 HttpOnly Cookie、服务器保存的一次性状态�
 会验证签名、签发者、受众、用户标识、nonce、时间范围，以及提供时的令牌哈希；支持 RS256 和 ES256 签名。服务响应限制为 1
 MiB，请求有明确超时，并遵循配置的出站代理。
 
-RenoP 将稳定用户标识与服务类型、客户端、端点和已验证签发者共同确定的授权主体绑定。变更这些身份边界不会把现有绑定转交给其他服务。登录不会保留访问令牌。受保护头像所需令牌仅可加密保存在待确认注册中，直到确认或过期；临时值由私有
-`mfa_encryption_key` 保护，绝不会返回浏览器。
+RenoP 将稳定用户标识与服务类型、客户端、端点和已验证签发者确定的授权来源绑定，变更来源不会转移现有绑定。浏览器登录使用的访问令牌和刷新令牌会由私有 `mfa_encryption_key` 加密并绑定到该会话，随会话删除，不会出现在公开会话、API 响应或日志中。重启时必须保留此密钥。受保护注册头像仍仅在确认或过期前保留临时加密令牌。
 
 账号注销会原子释放全部第三方绑定。其他有效账号可以绑定被释放的身份，但原用户名仍永久保留，邮箱仍占用 14 天，行为记录仍保留
 30 天。延迟回调或刷新不能为已注销账号重建绑定。
 
 新的绑定提交前，第三方身份和取得的全部联系邮箱必须同时可用。身份被释放不代表可以绕过其他账号仍然保留的邮箱归属。验证、移除和保留规则见[登录邮箱别名](./email-verification.md)。
+
+## 第三方登出与撤销
+
+GitHub 应用令牌、Google、GitLab（含配置的自托管实例）和 Stack Exchange 内置支持登出撤销。自定义客户端、Cloudflare 或 Microsoft 仅在其授权服务公开 RFC 7009 端点时配置 `revocation_url`；系统不会猜测端点，也不会调用面向整个平台账号的管理员登出操作。有的平台即使只收到一个令牌，也会撤销整个授权。此功能启用前建立的会话需要重新登录，才能取得可撤销的授权。
+
+公开服务商列表与私有绑定状态使用二进制 protobuf，统一设置 API 使用 `OAuthSettings`，写入必须包含 `replace_providers: true`。签名回调格式见[认证 API](../api/authentication.md)。

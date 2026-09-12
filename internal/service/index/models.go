@@ -12,15 +12,12 @@
 package index
 
 import (
-	"bufio"
-	"bytes"
 	"errors"
 	"io"
 	"os"
 	"path"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -29,6 +26,7 @@ import (
 	"github.com/goccy/go-json"
 	"github.com/llxisdsh/pb"
 
+	"renop/internal/cache/ttl"
 	"renop/internal/utils"
 )
 
@@ -46,10 +44,16 @@ func cleanPathFast(pathStr string) string {
 type FileInfo struct {
 	Size    int64 `json:"size"`
 	ModTime int64 `json:"mod_time"`
+	// Revision distinguishes observed replacements even when storage reports
+	// identical sizes and timestamps. It is local to one index lifetime.
+	Revision uint64 `json:"-"`
 }
+
+func sameFileMetadata(a, b FileInfo) bool { return a.Size == b.Size && a.ModTime == b.ModTime }
 
 func (idx *FileIndex) ReadJSONFrom(r io.Reader) error {
 	decoder := json.NewDecoder(r)
+	version := 0
 	opening, err := decoder.Token()
 	if err != nil {
 		return err
@@ -68,6 +72,13 @@ func (idx *FileIndex) ReadJSONFrom(r io.Reader) error {
 			return errors.New("index field name must be a string")
 		}
 		switch key {
+		case "version":
+			if err := decoder.Decode(&version); err != nil {
+				return err
+			}
+			if version != 2 {
+				return errors.New("unsupported index stream version")
+			}
 		case "files":
 			if err := readFilesFromJSON(decoder, idx); err != nil {
 				return err
@@ -80,6 +91,10 @@ func (idx *FileIndex) ReadJSONFrom(r io.Reader) error {
 			if err := readNotFoundFromJSON(decoder, idx); err != nil {
 				return err
 			}
+		case "content", "content_garbage":
+			if err := idx.readContentJSON(decoder, key == "content_garbage"); err != nil {
+				return err
+			}
 		default:
 			var ignored json.RawMessage
 			if err := decoder.Decode(&ignored); err != nil {
@@ -88,6 +103,9 @@ func (idx *FileIndex) ReadJSONFrom(r io.Reader) error {
 		}
 	}
 	_, err = decoder.Token()
+	if err == nil && version == 2 {
+		return idx.readJSONStream(decoder)
+	}
 	return err
 }
 
@@ -184,25 +202,29 @@ func readNotFoundFromJSON(decoder *json.Decoder, idx *FileIndex) error {
 }
 
 type FileIndex struct {
-	Files         pb.MapOf[string, FileInfo]              `json:"-"`
-	Dirs          pb.MapOf[string, bool]                  `json:"-"`
-	Blocked       pb.MapOf[string, bool]                  `json:"-"`
-	Children      map[string][]string                     `json:"-"`
-	ChildrenMutex sync.RWMutex                            `json:"-"`
-	FilesCount    atomic.Uint64                           `json:"-"`
-	DirsCount     atomic.Uint64                           `json:"-"`
-	TotalBytes    atomic.Int64                            `json:"-"` // sum of FileInfo.Size; O(1) disk usage
-	NotFound      atomic.Pointer[pb.MapOf[string, int64]] `json:"-"`
-	NotFoundCount atomic.Uint64                           `json:"-"`
-	IsDirty       atomic.Bool                             `json:"-"`
+	contentMu           sync.RWMutex
+	contents            pb.MapOf[string, ContentInfo]
+	contentRefs         map[string]int
+	contentVerifiedRefs map[string]int
+	contentGarbage      pb.MapOf[string, int64]
+	Files               pb.MapOf[string, FileInfo] `json:"-"`
+	Dirs                pb.MapOf[string, bool]     `json:"-"`
+	Blocked             pb.MapOf[string, bool]     `json:"-"`
+	Children            map[string][]string        `json:"-"`
+	ChildrenMutex       sync.RWMutex               `json:"-"`
+	FilesCount          atomic.Uint64              `json:"-"`
+	DirsCount           atomic.Uint64              `json:"-"`
+	TotalBytes          atomic.Int64               `json:"-"` // sum of FileInfo.Size; O(1) disk usage
+	fileRevision        atomic.Uint64
+	negativeOnce        sync.Once
+	negative            *ttl.TTLCache[string, int64]
+	IsDirty             atomic.Bool `json:"-"`
 
-	isSync         bool                        `json:"-"`
-	OpChan         chan IndexOp                `json:"-"`
-	SnapChan       chan chan FileIndexSnapshot `json:"-"`
-	metadataLock   sync.Mutex                  `json:"-"`
-	rebuildMu      sync.Mutex                  `json:"-"`
-	rebuildRunning bool                        `json:"-"`
-	rebuildNext    *indexRebuildRequest        `json:"-"`
+	mutationMu     sync.Mutex
+	metadataLock   sync.Mutex           `json:"-"`
+	rebuildMu      sync.Mutex           `json:"-"`
+	rebuildRunning bool                 `json:"-"`
+	rebuildNext    *indexRebuildRequest `json:"-"`
 }
 
 func internString(s string) string {
@@ -276,52 +298,7 @@ func (idx *FileIndex) removeChild(filePath string) {
 	delete(idx.Children, filePath)
 }
 
-type IndexOpType int
-
-const (
-	OpInsertFile IndexOpType = iota
-	OpInsertDir
-	OpRemoveFile
-	OpRemoveDir
-	OpInsertNotFound
-	OpPruneNotFound
-	OpUpdateMetadata
-)
-
-type IndexOp struct {
-	Type     IndexOpType
-	Path     string
-	Info     FileInfo
-	ExpireAt int64
-	Callback func() error
-	ErrChan  chan error
-}
-
-func NewFileIndex() *FileIndex {
-	return NewFileIndexCustom(true)
-}
-
-func NewFileIndexCustom(isSync bool) *FileIndex {
-	idx := &FileIndex{
-		isSync:   isSync,
-		OpChan:   make(chan IndexOp, 100),
-		SnapChan: make(chan chan FileIndexSnapshot),
-	}
-	idx.FilesCount.Store(0)
-	idx.DirsCount.Store(0)
-	idx.TotalBytes.Store(0)
-	idx.NotFoundCount.Store(0)
-	idx.IsDirty.Store(false)
-
-	initialNotFound := pb.NewMapOf[string, int64]()
-	idx.NotFound.Store(initialNotFound)
-
-	if !isSync {
-		go idx.consumerLoop()
-	}
-
-	return idx
-}
+func NewFileIndex() *FileIndex { return &FileIndex{} }
 
 // putFile stores or replaces a file entry and maintains FilesCount / TotalBytes.
 func (idx *FileIndex) putFile(pathSlash string, info FileInfo) {
@@ -329,6 +306,7 @@ func (idx *FileIndex) putFile(pathSlash string, info FileInfo) {
 	if idx.IsBlocked(pathSlash) {
 		return
 	}
+	info.Revision = idx.fileRevision.Add(1)
 	if _, loaded := idx.Dirs.LoadAndDelete(pathSlash); loaded {
 		idx.removeDescendants(pathSlash)
 		idx.DirsCount.Add(^uint64(0))
@@ -349,6 +327,9 @@ func (idx *FileIndex) putFile(pathSlash string, info FileInfo) {
 		idx.TotalBytes.Add(info.Size - old.Size)
 	}
 	idx.Files.Store(pathSlash, info)
+	if !sameFileMetadata(old, info) {
+		idx.IsDirty.Store(true)
+	}
 	idx.addChild(pathSlash)
 }
 
@@ -389,105 +370,6 @@ func (idx *FileIndex) TotalFileBytes() uint64 {
 	return uint64(n)
 }
 
-func (idx *FileIndex) consumerLoop() {
-	for {
-		select {
-		case op := <-idx.OpChan:
-			pathSlash := utils.Intern(filepath.ToSlash(op.Path))
-			switch op.Type {
-			case OpInsertFile:
-				idx.putFile(pathSlash, op.Info)
-				idx.clearNotFound(pathSlash)
-			case OpInsertDir:
-				idx.putDir(pathSlash)
-				idx.clearNotFound(pathSlash)
-			case OpRemoveFile:
-				if idx.deleteFile(pathSlash) {
-					idx.IsDirty.Store(true)
-				}
-				idx.clearNotFound(pathSlash)
-			case OpRemoveDir:
-				// Purge descendants first while Children[path] still lists them.
-				idx.removeDescendants(pathSlash)
-				if _, loaded := idx.Dirs.LoadAndDelete(pathSlash); loaded {
-					idx.DirsCount.Add(^uint64(0))
-					idx.IsDirty.Store(true)
-				}
-				idx.removeChild(pathSlash)
-				idx.clearNotFound(pathSlash)
-			case OpPruneNotFound:
-				currentTime := time.Now().Unix()
-				removedCount := 0
-				currentNotFound := idx.NotFound.Load()
-				if currentNotFound != nil {
-					currentNotFound.Range(func(k string, v int64) bool {
-						if v <= currentTime {
-							currentNotFound.Delete(k)
-							removedCount++
-						}
-						return true
-					})
-					if removedCount > 0 {
-						idx.NotFoundCount.Add(^uint64(removedCount - 1))
-					}
-				}
-			case OpInsertNotFound:
-				currentNotFound := idx.NotFound.Load()
-				if idx.NotFoundCount.Load() >= 10000 {
-					newNotFound := pb.NewMapOf[string, int64]()
-					idx.NotFound.Store(newNotFound)
-					idx.NotFoundCount.Store(0)
-					currentNotFound = newNotFound
-				}
-				if currentNotFound != nil {
-					if _, loaded := currentNotFound.LoadOrStore(pathSlash, op.ExpireAt); !loaded {
-						idx.NotFoundCount.Add(1)
-					} else {
-						currentNotFound.Store(pathSlash, op.ExpireAt)
-					}
-				}
-			case OpUpdateMetadata:
-				if op.Callback != nil {
-					err := op.Callback()
-					if op.ErrChan != nil {
-						op.ErrChan <- err
-					}
-				}
-			}
-		case respCh := <-idx.SnapChan:
-			files := make(map[string]FileInfo)
-			idx.Files.Range(func(k string, v FileInfo) bool {
-				if idx.IsBlocked(k) {
-					return true
-				}
-				files[k] = v
-				return true
-			})
-
-			var dirs []string
-			idx.Dirs.Range(func(k string, _ bool) bool {
-				dirs = append(dirs, k)
-				return true
-			})
-
-			notFounds := make(map[string]int64)
-			currentNotFound := idx.NotFound.Load()
-			if currentNotFound != nil {
-				currentNotFound.Range(func(k string, v int64) bool {
-					notFounds[k] = v
-					return true
-				})
-			}
-
-			respCh <- FileIndexSnapshot{
-				Files:    files,
-				Dirs:     dirs,
-				NotFound: notFounds,
-			}
-		}
-	}
-}
-
 func (idx *FileIndex) HasFile(pathStr string) bool {
 	pathStr = toSlashFast(pathStr)
 	if idx.IsBlocked(pathStr) {
@@ -517,15 +399,6 @@ func (idx *FileIndex) GetPathState(pathStr string) (isDir bool, info FileInfo, o
 		return false, FileInfo{}, false, true
 	}
 
-	currentNotFound := idx.NotFound.Load()
-	if currentNotFound != nil {
-		if val, exists := currentNotFound.Load(pathStr); exists {
-			if time.Now().Unix() < val {
-				return false, FileInfo{}, false, true
-			}
-		}
-	}
-
 	if val, exists := idx.Files.Load(pathStr); exists {
 		return false, val, true, false
 	}
@@ -534,24 +407,29 @@ func (idx *FileIndex) GetPathState(pathStr string) (isDir bool, info FileInfo, o
 		return true, FileInfo{}, true, false
 	}
 
-	return false, FileInfo{}, false, false
+	return false, FileInfo{}, false, idx.IsNotFound(pathStr)
 }
 
 func (idx *FileIndex) InsertFile(pathStr string, info ...FileInfo) {
+	idx.mutationMu.Lock()
 	pathStr = toSlashFast(pathStr)
 	if idx.IsBlocked(pathStr) {
+		idx.mutationMu.Unlock()
 		return
 	}
 	var fileInfo FileInfo
 	if len(info) > 0 {
 		fileInfo = info[0]
 	}
-	if idx.isSync {
-		idx.putFile(pathStr, fileInfo)
+
+	wasDir := idx.HasDir(pathStr)
+	idx.putFile(pathStr, fileInfo)
+	idx.mutationMu.Unlock()
+	if wasDir {
+		idx.clearNotFoundTree(pathStr)
+	} else {
 		idx.clearNotFound(pathStr)
-		return
 	}
-	idx.OpChan <- IndexOp{Type: OpInsertFile, Path: pathStr, Info: fileInfo}
 }
 
 // BlockFile hides a physical object from every index insertion path until it
@@ -562,8 +440,13 @@ func (idx *FileIndex) BlockFile(pathStr string) {
 		return
 	}
 	pathStr = utils.Intern(toSlashFast(pathStr))
+	idx.mutationMu.Lock()
 	idx.Blocked.Store(pathStr, true)
-	idx.RemoveFile(pathStr)
+	if idx.deleteFile(pathStr) {
+		idx.IsDirty.Store(true)
+	}
+	idx.mutationMu.Unlock()
+	idx.clearNotFound(pathStr)
 }
 
 // UnblockFile permits a successfully published or fully cleaned path to be
@@ -575,62 +458,71 @@ func (idx *FileIndex) UnblockFile(pathStr string) {
 	idx.Blocked.Delete(utils.Intern(toSlashFast(pathStr)))
 }
 
+// UnblockTree releases a deleted publication tree after its durable records
+// have been removed. Watcher removals must not call this: pending jobs may still
+// need their blocks even when the physical directory temporarily disappears.
+func (idx *FileIndex) UnblockTree(pathStr string) {
+	if idx == nil || pathStr == "" {
+		return
+	}
+	pathStr = cleanPathFast(pathStr)
+	prefix := pathStr + "/"
+	idx.mutationMu.Lock()
+	defer idx.mutationMu.Unlock()
+	idx.Blocked.Range(func(key string, _ bool) bool {
+		if key == pathStr || strings.HasPrefix(key, prefix) {
+			idx.Blocked.Delete(key)
+		}
+		return true
+	})
+}
+
 func (idx *FileIndex) IsBlocked(pathStr string) bool {
 	if idx == nil || pathStr == "" {
 		return false
 	}
-	_, blocked := idx.Blocked.Load(utils.Intern(toSlashFast(pathStr)))
+	_, blocked := idx.Blocked.Load(toSlashFast(pathStr))
 	return blocked
 }
 
 func (idx *FileIndex) InsertDir(pathStr string) {
+	idx.mutationMu.Lock()
 	pathStr = utils.Intern(toSlashFast(pathStr))
-	if idx.isSync {
-		idx.putDir(pathStr)
-		idx.clearNotFound(pathStr)
-		return
-	}
-	idx.OpChan <- IndexOp{Type: OpInsertDir, Path: pathStr}
+
+	idx.putDir(pathStr)
+	idx.mutationMu.Unlock()
+	idx.clearNotFound(pathStr)
 }
 
 func (idx *FileIndex) RemoveFile(pathStr string) {
+	idx.mutationMu.Lock()
 	pathStr = toSlashFast(pathStr)
-	if idx.isSync {
-		if idx.deleteFile(pathStr) {
-			idx.IsDirty.Store(true)
-		}
-		idx.clearNotFound(pathStr)
-		return
+
+	if idx.deleteFile(pathStr) {
+		idx.IsDirty.Store(true)
 	}
-	idx.OpChan <- IndexOp{Type: OpRemoveFile, Path: pathStr}
+	idx.mutationMu.Unlock()
+	idx.clearNotFound(pathStr)
 }
 
 func (idx *FileIndex) RemoveDir(pathStr string) {
+	idx.mutationMu.Lock()
 	pathStr = toSlashFast(pathStr)
-	if idx.isSync {
-		// Purge descendants first while Children[path] still lists them.
-		// removeChild deletes that entry, so it must run after removeDescendants.
-		idx.removeDescendants(pathStr)
-		if _, loaded := idx.Dirs.LoadAndDelete(pathStr); loaded {
-			idx.DirsCount.Add(^uint64(0))
-			idx.IsDirty.Store(true)
-		}
-		idx.removeChild(pathStr)
-		idx.clearNotFound(pathStr)
-		return
+
+	// Purge descendants first while Children[path] still lists them.
+	// removeChild deletes that entry, so it must run after removeDescendants.
+	idx.removeDescendants(pathStr)
+	if _, loaded := idx.Dirs.LoadAndDelete(pathStr); loaded {
+		idx.DirsCount.Add(^uint64(0))
+		idx.IsDirty.Store(true)
 	}
-	idx.OpChan <- IndexOp{Type: OpRemoveDir, Path: pathStr}
+	idx.removeChild(pathStr)
+	idx.mutationMu.Unlock()
+	idx.clearNotFoundTree(pathStr)
 }
 
 func (idx *FileIndex) clearNotFound(pathStr string) {
-	currentNotFound := idx.NotFound.Load()
-	if currentNotFound == nil {
-		return
-	}
-	if _, loaded := currentNotFound.LoadAndDelete(pathStr); loaded {
-		idx.NotFoundCount.Add(^uint64(0))
-		idx.IsDirty.Store(true)
-	}
+	idx.negativeCache().Delete(pathStr)
 }
 
 func (idx *FileIndex) removeDescendants(dirPath string) {
@@ -638,80 +530,35 @@ func (idx *FileIndex) removeDescendants(dirPath string) {
 	children := idx.GetChildren(dirCleaned)
 	for _, child := range children {
 		childPath := dirCleaned + "/" + child
-		_ = idx.deleteFile(childPath)
+		if idx.deleteFile(childPath) {
+			idx.IsDirty.Store(true)
+		}
 		if _, loaded := idx.Dirs.LoadAndDelete(childPath); loaded {
 			idx.DirsCount.Add(^uint64(0))
 			idx.removeDescendants(childPath)
 			idx.removeChild(childPath)
 		}
-		idx.clearNotFound(childPath)
 	}
 
-	currentNotFound := idx.NotFound.Load()
-	if currentNotFound == nil {
-		return
-	}
+}
+
+func (idx *FileIndex) clearNotFoundTree(dirPath string) {
+	dirCleaned := cleanPathFast(dirPath)
+
 	prefix := dirCleaned + "/"
-	currentNotFound.Range(func(k string, _ int64) bool {
-		if k == dirCleaned || strings.HasPrefix(k, prefix) {
-			if _, loaded := currentNotFound.LoadAndDelete(k); loaded {
-				idx.NotFoundCount.Add(^uint64(0))
-				idx.IsDirty.Store(true)
-			}
-		}
-		return true
+	idx.negativeCache().DeleteFunc(func(k string, _ int64) bool {
+		return k == dirCleaned || strings.HasPrefix(k, prefix)
 	})
 }
 
 func (idx *FileIndex) InsertNotFound(pathStr string, expireAt int64) {
-	pathStr = utils.Intern(toSlashFast(pathStr))
-	if idx.isSync {
-		currentNotFound := idx.NotFound.Load()
-		if idx.NotFoundCount.Load() >= 10000 {
-			idx.PruneNotFound()
-			currentNotFound = idx.NotFound.Load()
-			if idx.NotFoundCount.Load() >= 10000 {
-				newNotFound := pb.NewMapOf[string, int64]()
-				if idx.NotFound.CompareAndSwap(currentNotFound, newNotFound) {
-					idx.NotFoundCount.Store(0)
-					currentNotFound = newNotFound
-				} else {
-					currentNotFound = idx.NotFound.Load()
-				}
-			}
-		}
-		if currentNotFound != nil {
-			if _, loaded := currentNotFound.LoadOrStore(pathStr, expireAt); !loaded {
-				idx.NotFoundCount.Add(1)
-			} else {
-				currentNotFound.Store(pathStr, expireAt)
-			}
-		}
-		return
-	}
-	idx.OpChan <- IndexOp{Type: OpInsertNotFound, Path: pathStr, ExpireAt: expireAt}
+	pathStr = toSlashFast(pathStr)
+
+	idx.storeNotFound(pathStr, expireAt)
 }
 
 func (idx *FileIndex) PruneNotFound() {
-	if idx.isSync {
-		currentTime := time.Now().Unix()
-		removedCount := 0
-		currentNotFound := idx.NotFound.Load()
-		if currentNotFound != nil {
-			currentNotFound.Range(func(k string, v int64) bool {
-				if v <= currentTime {
-					currentNotFound.Delete(k)
-					removedCount++
-				}
-				return true
-			})
-			if removedCount > 0 {
-				idx.NotFoundCount.Add(^uint64(removedCount - 1))
-			}
-		}
-		return
-	}
-	idx.OpChan <- IndexOp{Type: OpPruneNotFound}
+	idx.negativeCache().EvictExpired()
 }
 
 func (idx *FileIndex) UpdateMetadataCallback(cb func() error) error {
@@ -720,109 +567,11 @@ func (idx *FileIndex) UpdateMetadataCallback(cb func() error) error {
 	return cb()
 }
 
-func appendFastQuote(buf []byte, s string) []byte {
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if c == '"' || c == '\\' || c < 0x20 || c >= 0x7f {
-			return strconv.AppendQuote(buf, s)
-		}
-	}
-	buf = append(buf, '"')
-	buf = append(buf, s...)
-	buf = append(buf, '"')
-	return buf
-}
+// WriteJSONTo emits versioned JSON records without assembling the full index.
+func (idx *FileIndex) WriteJSONTo(w io.Writer) error { return idx.writeJSONStream(w, false) }
 
-func (idx *FileIndex) WriteJSONTo(w io.Writer) (returnErr error) {
-	bw, ok := w.(*bufio.Writer)
-	if !ok {
-		bw = bufio.NewWriterSize(w, 64*1024)
-		defer func() {
-			if flushErr := bw.Flush(); returnErr == nil {
-				returnErr = flushErr
-			}
-		}()
-	}
-
-	if _, err := bw.WriteString(`{"files":{`); err != nil {
-		return err
-	}
-
-	first := true
-	var rangeErr error
-	valBuf := make([]byte, 0, 128)
-	quoteBuf := make([]byte, 0, 256)
-
-	idx.Files.Range(func(k string, v FileInfo) bool {
-		if idx.IsBlocked(k) {
-			return true
-		}
-		if !first {
-			if _, err := bw.WriteString(","); err != nil {
-				rangeErr = err
-				return false
-			}
-		}
-		first = false
-
-		quoteBuf = appendFastQuote(quoteBuf[:0], k)
-		if _, err := bw.Write(quoteBuf); err != nil {
-			rangeErr = err
-			return false
-		}
-		if err := bw.WriteByte(':'); err != nil {
-			rangeErr = err
-			return false
-		}
-
-		valBuf = valBuf[:0]
-		valBuf = append(valBuf, `{"size":`...)
-		valBuf = strconv.AppendInt(valBuf, v.Size, 10)
-		valBuf = append(valBuf, `,"mod_time":`...)
-		valBuf = strconv.AppendInt(valBuf, v.ModTime, 10)
-		valBuf = append(valBuf, '}')
-
-		if _, err := bw.Write(valBuf); err != nil {
-			rangeErr = err
-			return false
-		}
-		return true
-	})
-	if rangeErr != nil {
-		return rangeErr
-	}
-
-	if _, err := bw.WriteString(`},"dirs":[`); err != nil {
-		return err
-	}
-
-	first = true
-	idx.Dirs.Range(func(k string, _ bool) bool {
-		if !first {
-			if _, err := bw.WriteString(","); err != nil {
-				rangeErr = err
-				return false
-			}
-		}
-		first = false
-
-		quoteBuf = appendFastQuote(quoteBuf[:0], k)
-		if _, err := bw.Write(quoteBuf); err != nil {
-			rangeErr = err
-			return false
-		}
-		return true
-	})
-	if rangeErr != nil {
-		return rangeErr
-	}
-
-	if _, err := bw.WriteString(`]}`); err != nil {
-		return err
-	}
-
-	return nil
-}
+// WritePersistentJSONTo also saves private content metadata for backend reuse.
+func (idx *FileIndex) WritePersistentJSONTo(w io.Writer) error { return idx.writeJSONStream(w, true) }
 
 type FileIndexSnapshot struct {
 	Files    map[string]FileInfo `json:"files"`
@@ -831,17 +580,12 @@ type FileIndexSnapshot struct {
 }
 
 func (idx *FileIndex) IsNotFound(pathStr string) bool {
-	currentNotFound := idx.NotFound.Load()
-	if currentNotFound == nil {
+	pathStr = toSlashFast(pathStr)
+	if idx.HasFile(pathStr) || idx.HasDir(pathStr) {
 		return false
 	}
-	val, exists := currentNotFound.Load(toSlashFast(pathStr))
-	if !exists {
-		return false
-	}
-	expireAt := val
-	currentTime := time.Now().Unix()
-	return currentTime < expireAt
+	expires, ok := idx.negativeCache().Get(pathStr)
+	return ok && time.Now().Unix() < expires
 }
 
 func (idx *FileIndex) EnsureParentDirs(basePath string) {
@@ -865,48 +609,42 @@ func (idx *FileIndex) EnsureParentDirs(basePath string) {
 }
 
 func (idx *FileIndex) Snapshot() FileIndexSnapshot {
-	if idx.isSync {
-		files := make(map[string]FileInfo)
-		idx.Files.Range(func(k string, v FileInfo) bool {
-			if idx.IsBlocked(k) {
-				return true
-			}
-			files[k] = v
+	idx.mutationMu.Lock()
+	defer idx.mutationMu.Unlock()
+	files := make(map[string]FileInfo)
+	idx.Files.Range(func(k string, v FileInfo) bool {
+		if idx.IsBlocked(k) {
 			return true
-		})
-
-		var dirs []string
-		idx.Dirs.Range(func(k string, _ bool) bool {
-			dirs = append(dirs, k)
-			return true
-		})
-
-		notFounds := make(map[string]int64)
-		currentNotFound := idx.NotFound.Load()
-		if currentNotFound != nil {
-			currentNotFound.Range(func(k string, v int64) bool {
-				notFounds[k] = v
-				return true
-			})
 		}
+		files[k] = v
+		return true
+	})
 
-		return FileIndexSnapshot{
-			Files:    files,
-			Dirs:     dirs,
-			NotFound: notFounds,
-		}
+	var dirs []string
+	idx.Dirs.Range(func(k string, _ bool) bool {
+		dirs = append(dirs, k)
+		return true
+	})
+
+	notFounds := make(map[string]int64)
+	idx.negativeCache().RangeIndex(func(k string, v int64) bool {
+		notFounds[k] = v
+		return true
+	})
+
+	return FileIndexSnapshot{
+		Files:    files,
+		Dirs:     dirs,
+		NotFound: notFounds,
 	}
-	respCh := make(chan FileIndexSnapshot)
-	idx.SnapChan <- respCh
-	return <-respCh
 }
 
 func (idx *FileIndex) MarshalJSON() ([]byte, error) {
-	var buf bytes.Buffer
-	if err := idx.WriteJSONTo(&buf); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
+	snapshot := idx.Snapshot()
+	return json.Marshal(struct {
+		Files map[string]FileInfo `json:"files"`
+		Dirs  []string            `json:"dirs"`
+	}{snapshot.Files, snapshot.Dirs})
 }
 
 type fileIndexWire struct {
@@ -929,15 +667,8 @@ func (idx *FileIndex) UnmarshalJSON(data []byte) error {
 		idx.addChild(dirSlash)
 	}
 
-	currentNotFound := idx.NotFound.Load()
-	if currentNotFound == nil {
-		currentNotFound = pb.NewMapOf[string, int64]()
-		idx.NotFound.Store(currentNotFound)
-	}
 	for pathStr, expireAt := range raw.NotFound {
-		pathSlash := utils.Intern(filepath.ToSlash(pathStr))
-		currentNotFound.Store(pathSlash, expireAt)
-		idx.NotFoundCount.Add(1)
+		idx.storeNotFound(toSlashFast(pathStr), expireAt)
 	}
 
 	if len(raw.Files) > 0 {

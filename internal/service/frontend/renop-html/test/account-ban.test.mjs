@@ -22,9 +22,13 @@ const source = relative => readFileSync(join(repositoryRoot, relative), 'utf8');
 test('ban editor loads current protection and submits the explicit IP choice', async () => {
     const alerts = [];
     const fields = new Map(), requests = [];
-    let status = {ban: null, protected_role: true, ip_count: 0}, dialog, refreshed = 0;
+    let status = {ban: null, protected_role: true, ip_count: 0}, dialog, refreshed = 0, chooseReason;
     const context = vm.createContext({
         Date, encodeURIComponent,
+        makeCustomSelect: (_options, _value, change) => {
+            chooseReason = change;
+            return {querySelector: () => ({setAttribute() {}, focus() {}})};
+        },
         t: key => key, showAlert: (message, tone) => alerts.push({message, tone}),
         apiRequest: async (url, options = {}) => {
             requests.push({url, ...options});
@@ -47,6 +51,7 @@ test('ban editor loads current protection and submits the explicit IP choice', a
             }
         },
     });
+    vm.runInContext(source('internal/service/frontend/renop-html/js/users/ban-reasons.js').replace(/^import .*;\r?\n/gm, '').replaceAll('export ', ''), context);
     vm.runInContext(source('internal/service/frontend/renop-html/js/users/ban.js')
         .replace(/^import .*;\r?\n/gm, '').replaceAll('export ', ''), context);
     await context.openUserBanDialog({name: 'staff', permissions: ['base']});
@@ -74,12 +79,58 @@ test('ban editor loads current protection and submits the explicit IP choice', a
         }
     });
     assert.equal(JSON.parse(requests.at(-1).body).ban_ip, false);
+    chooseReason('security_rules');
+    assert.equal(fields.get('user-ban-reason').disabled, true);
+    await dialog.form.onSubmit({preventDefault() {}}, {close() {}});
+    assert.deepEqual(JSON.parse(requests.at(-1).body), {reason: '', reason_code: 'security_rules', expires_at: null, ban_ip: false});
+    assert.equal(context.accountBanReasonLabel({reason_code: 'security_rules', reason: 'Fallback'}), 'users.banReason.security_rules');
+    chooseReason('other');
+    fields.get('user-ban-reason').value = 'users.banReason.security_rules';
+    await dialog.form.onSubmit({preventDefault() {}}, {close() {}});
+    assert.equal(JSON.parse(requests.at(-1).body).reason, 'users.banReason.security_rules');
+    assert.equal(JSON.parse(requests.at(-1).body).reason_code, '');
+    assert.equal(context.accountBanReasonLabel({reason_code: '', reason: '<literal custom reason>'}), '<literal custom reason>');
     await dialog.footer.find(button => button.text === 'users.unban').onClick({currentTarget: {}}, {
         close() {
         }
     });
     assert.equal(requests.at(-1).method, 'DELETE');
-    assert.equal(refreshed, 3);
+    assert.equal(refreshed, 5);
+});
+
+test('profile suspension action enforces live role protection and refreshes after a decision', async () => {
+    let status = {ban: null, protected_role: true}, opened = 0;
+    const context = vm.createContext({
+        cachedIsManager: false, t: key => key, encodeURIComponent,
+        apiRequest: async () => ({ok: true, json: async () => status}),
+        createIcon: () => ({}), runButtonAction: (_button, action) => action(),
+        openUserBanDialog: async (user, refresh) => {
+            assert.equal(user.name, 'alice');
+            opened++;
+            await refresh();
+        },
+        el: (_tag, attributes, ...children) => ({...attributes, children, isConnected: true,
+            addEventListener(type, handler) { this[type] = handler; },
+            replaceChildren(...nodes) { this.children = nodes; }}),
+    });
+    vm.runInContext(source('internal/service/frontend/renop-html/js/users/profile-ban.js')
+        .replace(/^import .*;\r?\n/gm, '').replaceAll('export ', ''), context);
+    assert.equal(context.createProfileBanAction({username: 'alice'}), null);
+    context.cachedIsManager = true;
+    assert.equal(context.createProfileBanAction({username: 'alice', own_profile: true}), null);
+    const button = context.createProfileBanAction({username: 'alice'});
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(button.disabled, true);
+    assert.equal(button.title, 'users.banProtected');
+    status = {ban: {reason_code: 'spam_misleading'}, protected_role: false};
+    button.click();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(opened, 1);
+    assert.equal(button.disabled, false);
+    assert.equal(button.children[1].children[0], 'users.unban');
+    context.cachedIsManager = false;
+    button.click();
+    assert.equal(opened, 1, 'a stale profile button cannot invoke the editor after authority is lost');
 });
 
 test('administrator account bans are modular, bounded, and reversible', () => {

@@ -1,7 +1,10 @@
 /*
  * Copyright (c) 2026 404Setup. All rights reserved.
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
- * If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
+ *
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
@@ -40,6 +43,20 @@ func checkTickets(db *DB, suffix string, now int64) error {
 	}
 	if _, err := db.GetTicket(task.ID, target); !errors.Is(err, core.ErrReviewPermissionDenied) {
 		return fmt.Errorf("reported administrator privacy: %v", err)
+	}
+	for i := range 3 {
+		if err := db.AddTicketMessage(&core.TicketMessage{TaskID: task.ID, Body: fmt.Sprintf("Detail %d", i), CreatedAt: now},
+			reporter, reporter+"-session"); err != nil {
+			return err
+		}
+	}
+	messages, next, err := db.ListTicketMessages(task.ID, "", 2)
+	if err != nil || len(messages) != 2 || next == "" {
+		return errorsOrMissing(err, "ticket newest message page")
+	}
+	older, last, err := db.ListTicketMessages(task.ID, next, 2)
+	if err != nil || len(older) != 1 || last != "" || older[0].ID == messages[0].ID || older[0].ID == messages[1].ID {
+		return errorsOrMissing(err, "ticket equal-timestamp cursor")
 	}
 	act := func(actor, action string, force bool) (*core.ReviewTask, error) {
 		return db.TransitionTicket(task.ID, actor, actor+"-session", core.TicketAction{

@@ -8,6 +8,7 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
+import {renderHTML} from '../../../../../scripts/render-shell-test.mjs';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {dirname, join, resolve} from 'node:path';
@@ -20,7 +21,7 @@ const repositoryRoot = resolve(frontendRoot, '..', '..', '..', '..');
 
 test('GitHub shares the provider connection list while legacy private profile fields remain available', () => {
     const profile = readFileSync(join(frontendRoot, 'js/profile.js'), 'utf8');
-    const page = readFileSync(join(frontendRoot, 'index.html'), 'utf8');
+    const page = renderHTML(join(frontendRoot, 'index.html'));
     const backend = readFileSync(join(repositoryRoot, 'internal/service/auth/user_profile.go'), 'utf8');
     assert.match(backend, /GitHub\s+\*githubProfileStatus\s+`json:"github,omitempty"`/);
     assert.match(profile, /refreshOAuthProfile\(profile\.username\)/);
@@ -50,7 +51,7 @@ test('mobile public profiles keep identity copy above the edit action', () => {
 });
 
 test('password controls live inside the account security card', () => {
-    const page = readFileSync(join(frontendRoot, 'index.html'), 'utf8');
+    const page = renderHTML(join(frontendRoot, 'index.html'));
     const security = readFileSync(join(frontendRoot, 'js/account-security.js'), 'utf8');
     const securityStart = page.indexOf('id="profile-account-security-section"');
     const securityEnd = page.indexOf('id="profile-api-token-section"');
@@ -63,7 +64,7 @@ test('password controls live inside the account security card', () => {
 });
 
 test('authorized private panels render on the profile home instead of the editor', () => {
-    const page = readFileSync(join(frontendRoot, 'index.html'), 'utf8');
+    const page = renderHTML(join(frontendRoot, 'index.html'));
     const profile = readFileSync(join(frontendRoot, 'js/profile.js'), 'utf8');
     const styles = readFileSync(join(frontendRoot, 'css/manager/profile.css'), 'utf8');
     const backend = readFileSync(join(repositoryRoot, 'internal/service/auth/user_profile.go'), 'utf8');

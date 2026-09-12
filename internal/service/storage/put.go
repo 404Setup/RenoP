@@ -12,16 +12,18 @@ package storage
 
 import (
 	"bufio"
+	"context"
 	"crypto/md5"
 	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/sha512"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
+	"renop/pkg/hex"
 	"strings"
 	"sync"
 	syncv2 "sync/v2"
@@ -30,13 +32,16 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 
+	"renop/internal/artifactstore"
 	"renop/internal/config"
 	"renop/internal/core"
+	"renop/internal/repositorycapacity"
 	"renop/internal/service/audit"
 	"renop/internal/service/auth"
 	"renop/internal/service/gpg"
 	"renop/internal/service/index"
 	"renop/internal/service/javadocs"
+	"renop/internal/service/nativepkg"
 	"renop/internal/service/publicationquota"
 	"renop/internal/service/repositorygate"
 	"renop/internal/service/status"
@@ -65,7 +70,10 @@ func WriteChecksumFile(parent string, baseName string, ext string, hash string, 
 	name := baseName + ext
 	path := filepath.Join(parent, name)
 
-	err := os.WriteFile(path, []byte(hash), 0644)
+	if err := os.MkdirAll(parent, 0755); err != nil {
+		return err
+	}
+	err := artifactstore.DefaultDisk.WriteFile(path, []byte(hash), 0644)
 	if err != nil {
 		return err
 	}
@@ -113,8 +121,11 @@ func HandlePut(c fiber.Ctx, state *core.AppState, repo *config.Repository, local
 		estimatedSize = int64(len(bodyData))
 	}
 	estimatedRequired := EstimateUploadDiskSpace(localFilePath, estimatedSize)
-	isFileRepository := repo.NormalizedFormat() == config.RepositoryFormatFiles
-	if _, isSignature := gpg.ArtifactForDetachedSignature(filepath.ToSlash(localFilePath)); !isFileRepository && isSignature && estimatedSize > gpg.MaxDetachedSignatureSize {
+	if repo.Engine().ManagedNative && estimatedSize > nativepkg.MaxArtifactBytes {
+		return c.SendStatus(fiber.StatusRequestEntityTooLarge)
+	}
+	isMavenRepository := repo.Engine().GPG
+	if _, isSignature := gpg.ArtifactForDetachedSignature(filepath.ToSlash(localFilePath)); isMavenRepository && isSignature && estimatedSize > gpg.MaxDetachedSignatureSize {
 		return c.Status(fiber.StatusRequestEntityTooLarge).SendString("GPG detached signature exceeds the size limit")
 	}
 
@@ -125,15 +136,21 @@ func HandlePut(c fiber.Ctx, state *core.AppState, repo *config.Repository, local
 	}
 
 	exists := PathExistsForUpload(state, localFilePath)
-	if repo.NormalizedFormat() != config.RepositoryFormatFiles && !repo.AllowRedeployment &&
-		exists && !isMutableMavenMetadataPath(localFilePath) {
-		return c.Status(fiber.StatusConflict).SendString("Conflict")
+	if exists {
+		allowed, err := CanReplaceUpload(state, auth.GetUser(c), repo, localFilePath)
+		if err != nil {
+			return NativeErrorResponse(c, err)
+		}
+		if !allowed {
+			return c.Status(fiber.StatusConflict).SendString("Conflict")
+		}
 	}
 
-	generateChecksums := !isFileRepository && c.Get("X-Generate-Checksums") == "true"
+	generateChecksums := isMavenRepository && c.Get("X-Generate-Checksums") == "true"
 
 	parentDir := filepath.Dir(localFilePath)
 	if err := os.MkdirAll(parentDir, 0755); err != nil {
+		log.Printf("[upload] failed to create parent directory %s: %v", parentDir, err)
 		return c.Status(fiber.StatusInternalServerError).SendString("Internal Server Error")
 	}
 
@@ -142,6 +159,7 @@ func HandlePut(c fiber.Ctx, state *core.AppState, repo *config.Repository, local
 
 	file, err := os.Create(tmpPath)
 	if err != nil {
+		log.Printf("[upload] failed to create temp file %s: %v", tmpPath, err)
 		return c.Status(fiber.StatusInternalServerError).SendString("Internal Server Error")
 	}
 
@@ -178,19 +196,29 @@ func HandlePut(c fiber.Ctx, state *core.AppState, repo *config.Repository, local
 
 	if bodyReader == nil {
 		if _, err := writeDest.Write(bodyData); err != nil {
+			log.Printf("[upload] failed writing body data to %s: %v", tmpPath, err)
 			return c.Status(fiber.StatusInternalServerError).SendString("Internal Server Error")
 		}
 	} else {
+		if repo.Engine().ManagedNative {
+			bodyReader = io.LimitReader(bodyReader, nativepkg.MaxArtifactBytes+1)
+		}
 		bufPtr := bufferPool128k.Get()
 		buf := *bufPtr
 		_, err := io.CopyBuffer(writeDest, bodyReader, buf)
 		bufferPool128k.Put(bufPtr)
 		if err != nil && err != io.EOF {
+			if errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, context.Canceled) {
+				log.Printf("[upload] client cancelled or closed connection prematurely for %s: %v", localFilePath, err)
+				return c.Status(fiber.StatusBadRequest).SendString("Upload interrupted")
+			}
+			log.Printf("[upload] streaming read/write failed for %s: %v", localFilePath, err)
 			return c.Status(fiber.StatusInternalServerError).SendString("Internal Server Error")
 		}
 	}
 
 	if err := bufWriter.Flush(); err != nil {
+		log.Printf("[upload] failed flushing buffer for %s: %v", tmpPath, err)
 		return c.Status(fiber.StatusInternalServerError).SendString("Internal Server Error")
 	}
 
@@ -203,9 +231,13 @@ func HandlePut(c fiber.Ctx, state *core.AppState, repo *config.Repository, local
 
 	if err := file.Close(); err != nil {
 		fileClosed = true
+		log.Printf("[upload] failed closing temp file %s: %v", tmpPath, err)
 		return c.Status(fiber.StatusInternalServerError).SendString("Internal Server Error")
 	}
 	fileClosed = true
+	if repo.Engine().ManagedNative && fileSize > nativepkg.MaxArtifactBytes {
+		return c.SendStatus(fiber.StatusRequestEntityTooLarge)
+	}
 
 	var digests *ContentDigests
 	if generateChecksums {
@@ -226,11 +258,15 @@ func HandlePut(c fiber.Ctx, state *core.AppState, repo *config.Repository, local
 		LocalFilePath: localFilePath, TempPath: tmpPath, Username: username,
 		FileSize: fileSize, ModTime: modTime, Existed: exists,
 		GenerateChecksums: generateChecksums,
-		SignatureExpected: !isFileRepository && strings.EqualFold(c.Get("X-RenoP-GPG-Signature-Expected"), "true"),
+		SignatureExpected: isMavenRepository && strings.EqualFold(c.Get("X-RenoP-GPG-Signature-Expected"), "true"),
 		Digests:           digests,
 	})
 	if err != nil {
-		if errors.Is(err, core.ErrPublicationFileLimit) || errors.Is(err, core.ErrPublicationByteLimit) ||
+		log.Printf("[upload] processUploadedFile error for %s: %v", localFilePath, err)
+		if repo.Engine().ManagedNative {
+			return NativeErrorResponse(c, err)
+		}
+		if errors.Is(err, core.ErrRepositoryCapacity) || errors.Is(err, core.ErrPublicationFileLimit) || errors.Is(err, core.ErrPublicationByteLimit) ||
 			errors.Is(err, core.ErrPublicationCountLimit) {
 			c.Set("X-Renop-Error-Code", publicationquota.ErrorCode(err))
 		}
@@ -257,6 +293,8 @@ func HandlePut(c fiber.Ctx, state *core.AppState, repo *config.Repository, local
 	action := audit.ActionUpload
 	if result.ReviewPending {
 		action = audit.ActionUploadQueuedReview
+	} else if result.NativePending {
+		action = audit.ActionUploadQueuedNative
 	} else if result.Pending {
 		action = audit.ActionUploadQueuedGPG
 	}
@@ -271,6 +309,9 @@ func HandlePut(c fiber.Ctx, state *core.AppState, repo *config.Repository, local
 	})
 
 	if result.Pending {
+		if result.NativePending {
+			return c.Status(fiber.StatusAccepted).SendString("Awaiting native signature and publication files")
+		}
 		if result.ReleaseID != "" {
 			c.Set("X-RenoP-Release-ID", result.ReleaseID)
 		}
@@ -324,7 +365,14 @@ func HashFile(path string) (*ContentDigests, int64, error) {
 // CommitUploadedFile places a closed temp file at localFilePath and runs the same
 // post-upload bookkeeping as a normal PUT.
 func CommitUploadedFile(state *core.AppState, localFilePath, tmpPath string, fileSize, modTime int64, existed, generateChecksums bool, digests *ContentDigests) error {
-	repository, _, err := repositoryArtifactPath(state, localFilePath)
+	return commitUploadedFile(state, localFilePath, tmpPath, fileSize, modTime, existed, generateChecksums, digests, nil)
+}
+
+func commitUploadedFile(state *core.AppState, localFilePath, tmpPath string, fileSize, modTime int64, existed, generateChecksums bool, digests *ContentDigests, nativeRecord []byte) error {
+	if state.IsDemo() {
+		return core.ErrDemoReadOnly
+	}
+	repository, relativePath, err := repositoryArtifactPath(state, localFilePath)
 	if err != nil {
 		return err
 	}
@@ -332,22 +380,38 @@ func CommitUploadedFile(state *core.AppState, localFilePath, tmpPath string, fil
 	if repo == nil {
 		return ErrGPGRepositoryMissing
 	}
+	if nativeRecord == nil {
+		nativeRecord, err = prepareNativePackage(repo, relativePath, tmpPath)
+		if err != nil {
+			return err
+		}
+	}
 	isMaven := repo.NormalizedFormat() == config.RepositoryFormatMaven
 	generateChecksums = generateChecksums && isMaven
 	if generateChecksums && digests == nil {
 		return errors.New("missing content digests")
 	}
 
-	if IsS3Enabled(localFilePath) {
-		s3Key := utils.GetS3Key(localFilePath)
-		if err := UploadToS3(tmpPath, s3Key); err != nil {
-			return fmt.Errorf("failed to upload to S3: %w", err)
-		}
-		_ = os.Remove(tmpPath)
-	} else {
-		if err := utils.SafeRename(tmpPath, localFilePath); err != nil {
-			return err
-		}
+	actual, err := os.Stat(tmpPath)
+	if err != nil {
+		return err
+	}
+	fileSize = actual.Size()
+	objects := []repositorycapacity.Object{{Path: localFilePath, Size: fileSize}}
+	if generateChecksums {
+		objects = append(objects, repositorycapacity.Object{Path: localFilePath + ".md5", Size: int64(len(digests.MD5))},
+			repositorycapacity.Object{Path: localFilePath + ".sha1", Size: int64(len(digests.SHA1))},
+			repositorycapacity.Object{Path: localFilePath + ".sha256", Size: int64(len(digests.SHA256))},
+			repositorycapacity.Object{Path: localFilePath + ".sha512", Size: int64(len(digests.SHA512))})
+	}
+	capacity, err := reserveRepositoryCapacity(state, objects...)
+	if err != nil {
+		return err
+	}
+	defer capacity.Release()
+
+	if err := backendFor(localFilePath).Commit(tmpPath, localFilePath); err != nil {
+		return fmt.Errorf("commit artifact: %w", err)
 	}
 
 	state.Inner.FileIndex.EnsureParentDirs(localFilePath)
@@ -355,6 +419,12 @@ func CommitUploadedFile(state *core.AppState, localFilePath, tmpPath string, fil
 		Size:    fileSize,
 		ModTime: modTime,
 	})
+	if nativeRecord != nil {
+		if info, ok := state.Inner.FileIndex.GetFileInfo(localFilePath); ok {
+			key := nativeRecordKey(state, repo, nativeArtifact{Path: localFilePath, Info: info})
+			_ = state.Inner.NativeIndexCache.Set(key, nativeRecord)
+		}
+	}
 	status.MarkStorageUpdated()
 
 	if isMaven && isSnapshotArtifactPath(localFilePath) && !isArtifactCompanionPath(localFilePath) {
@@ -384,7 +454,7 @@ func CommitUploadedFile(state *core.AppState, localFilePath, tmpPath string, fil
 			idx := i
 			go func() {
 				defer wg.Done()
-				if err := SaveAndUploadChecksum(state, localFilePath, checksums[idx].Ext, checksums[idx].Hash); err != nil {
+				if err := saveAndUploadChecksum(state, localFilePath, checksums[idx].Ext, checksums[idx].Hash); err != nil {
 					errOnce.Do(func() { firstErr = err })
 				}
 			}()
@@ -411,6 +481,7 @@ func CommitUploadedFile(state *core.AppState, localFilePath, tmpPath string, fil
 	}
 
 	state.InvalidateFileCache(localFilePath)
+	capacity.Commit()
 	return nil
 }
 
@@ -445,4 +516,11 @@ func isMutableMavenMetadataPath(path string) bool {
 		return false
 	}
 	return isArtifactCompanionPath(name)
+}
+
+// CanReplaceArtifact is shared by single-shot and resumable uploads.
+func CanReplaceArtifact(repo *config.Repository, path string) bool {
+	return repo.NormalizedFormat() == config.RepositoryFormatFiles || repo.AllowRedeployment ||
+		(repo.Engine().Protocol == config.RepositoryFormatMaven && isMutableMavenMetadataPath(path)) ||
+		repo.IsNativeMetadata(path)
 }

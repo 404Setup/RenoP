@@ -308,10 +308,10 @@ export function makeCustomSelect(options, current, onChange) {
     wrap.setOptions = (nextOptions, preferredValue) => {
         normalized = normalizeOptions(nextOptions);
         const keep =
-            normalized.find((o) => o.value === currentVal) ||
             (preferredValue
                 ? normalized.find((o) => o.value === preferredValue)
                 : undefined) ||
+            normalized.find((o) => o.value === currentVal) ||
             normalized[0];
         applySelection(keep);
         closeDropdown(true);

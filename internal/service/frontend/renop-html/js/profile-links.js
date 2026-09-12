@@ -9,7 +9,7 @@
  */
 
 import {el} from '@renop/ui/dom';
-import {createIcon} from './components.js';
+import {createIcon, createToggleRow} from './components.js';
 import {t} from './i18n.js';
 
 /**
@@ -20,6 +20,9 @@ import {t} from './i18n.js';
  */
 function externalProfileLink(label, href) {
     if (!label || !href) return null;
+    try {
+        if (!['https:', 'http:'].includes(new URL(href).protocol)) return null;
+    } catch { return null; }
     return el('a', {
         class: 'public-profile-link', href, target: '_blank', rel: 'noopener noreferrer nofollow'
     }, createIcon('network'), el('span', {}, label));
@@ -34,6 +37,7 @@ export function createPublicProfileLinks(links) {
     const items = [
         externalProfileLink(t('profile.linkWebsite'), links?.website),
         externalProfileLink(t('profile.linkGitHub'), links?.github),
+        ...(links?.providers || []).map(provider => externalProfileLink(provider.name, provider.url)),
         externalProfileLink(t('profile.linkDiscord'), links?.discord),
         externalProfileLink(String(links?.custom_name || ''), links?.custom_url),
     ].filter(Boolean);
@@ -43,9 +47,10 @@ export function createPublicProfileLinks(links) {
 /**
  * Build the shared public-link editor used by user and global-team profiles.
  * @param {object|null|undefined} links - Existing public links.
+ * @param {{boundProviders?: boolean}} [options={}] - Derive account provider links; teams keep their URL field.
  * @returns {{element: HTMLElement, value: function(): object|null}} Editor and validated value reader.
  */
-export function createPublicProfileLinksEditor(links) {
+export function createPublicProfileLinksEditor(links, {boundProviders = false} = {}) {
     /**
      * Build one bounded editor input.
      * @param {'text'|'url'} type - Native input type.
@@ -57,27 +62,36 @@ export function createPublicProfileLinksEditor(links) {
         class: 'profile-input', type, value: value || '', maxlength: String(maxLength), autocomplete: 'url'
     });
     const website = input('url', links?.website);
-    const github = input('url', links?.github);
+    const github = boundProviders ? null : input('url', links?.github);
+    const visibility = {github: links?.visibility?.github === true, gitlab: links?.visibility?.gitlab === true};
     const discord = input('url', links?.discord);
     const customName = input('text', links?.custom_name, 40);
     customName.autocomplete = 'off';
     const customURL = input('url', links?.custom_url);
-    const inputs = [website, github, discord, customName, customURL];
+    const inputs = [website, github, discord, customName, customURL].filter(Boolean);
     return {
         element: el('div', {class: 'profile-links-editor'},
             el('label', {}, el('span', {}, t('profile.linkWebsite')), website),
-            el('label', {}, el('span', {}, t('profile.linkGitHub')), github),
+            github ? el('label', {}, el('span', {}, t('profile.linkGitHub')), github) : null,
             el('label', {}, el('span', {}, t('profile.linkDiscord')), discord),
             el('label', {}, el('span', {}, t('profile.customLinkName')), customName),
-            el('label', {}, el('span', {}, t('profile.customLinkURL')), customURL)
+            el('label', {}, el('span', {}, t('profile.customLinkURL')), customURL),
+            boundProviders ? el('div', {class: 'profile-provider-visibility'},
+                el('p', {class: 'profile-section-desc'}, t('profile.providerLinksHint')),
+                ...['github', 'gitlab'].map(provider => createToggleRow(
+                    t(provider === 'github' ? 'profile.showGitHub' : 'profile.showGitLab'),
+                    '', visibility[provider], value => { visibility[provider] = value; }
+                ))) : null
         ),
         /** @returns {object|null} Validated link payload. */
         value() {
             if (inputs.some(field => !field.reportValidity())) return null;
             const value = {
-                website: website.value.trim(), github: github.value.trim(), discord: discord.value.trim(),
+                website: website.value.trim(), discord: discord.value.trim(),
                 custom_name: customName.value.trim(), custom_url: customURL.value.trim()
             };
+            if (github) value.github = github.value.trim();
+            if (boundProviders) value.visibility = {...visibility};
             return Boolean(value.custom_name) === Boolean(value.custom_url) ? value : null;
         }
     };

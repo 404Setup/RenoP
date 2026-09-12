@@ -105,8 +105,12 @@ test('email recovery gates mail, submits once, polls privately, and clears stale
         },
     });
     context.captchaFetch = context.fetch;
+    context.document.documentElement = {lang: 'en-US'};
+    context.localizedResponseError = async response => new LocalizedResponseError(await context.responseErrorMessage(response), response.status);
+    const apiSource = readFileSync(new URL('../js/api.js', import.meta.url), 'utf8');
+    vm.runInContext(apiSource.replace(/^import .*;$/gm, '').replace(/^export /gm, ''), context);
     const buttonSource = readFileSync(new URL('../js/components/button.js', import.meta.url), 'utf8');
-    const action = vm.runInContext(buttonSource.slice(buttonSource.indexOf('export async function runButtonAction')).replace('export ', '') + '; runButtonAction', context);
+    const action = vm.runInContext(buttonSource.slice(buttonSource.indexOf('export async function runButtonAction')).replaceAll('export ', '') + '; runButtonAction', context);
     const pending = [];
     context.runButtonAction = (button, fn) => {
         const promise = action(button, fn);

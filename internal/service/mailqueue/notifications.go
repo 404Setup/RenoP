@@ -72,9 +72,7 @@ func (w *worker) notifications(control mail.Control, now time.Time) error {
 		case audit.ActionReviewRequest:
 			// Do not send emails for review/ticket submissions.
 		case audit.ActionPublicationQuotaUpdate:
-			if strings.HasPrefix(entry.Details, "Owner type: user,") {
-				scene = "quota_changed"
-			}
+			// Do not send emails for quota updates.
 		case audit.ActionLogin:
 			previous, err := db.PreviousMailLoginIP(entry.Username, entry.ID)
 			if err != nil {

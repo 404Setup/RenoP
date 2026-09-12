@@ -101,12 +101,12 @@ func TestUserProfileRenameIsDurableAndPreservesReferences(t *testing.T) {
 	require.Equal(t, 0, profile.UsernameChangeCount)
 	stableUserID := profile.UserID
 	require.NotEmpty(t, stableUserID)
-	profile, err = db.UpdateUserProfileLinks("alice", core.PublicLinks{
-		Website: "https://alice.example", GitHub: "https://github.com/alice",
-		Discord: "https://discord.gg/alice", CustomName: "Docs", CustomURL: "https://docs.alice.example",
-	}, changedAt+1)
+	profile, err = db.UpdateUserProfileLinks("alice", core.UserProfileLinks{
+		Website: "https://alice.example",
+		Discord: "https://discord.gg/alice", CustomName: "Docs", CustomURL: "https://docs.alice.example", Visibility: &core.ProfileLinkVisibility{GitHub: true}}, changedAt+1)
 	require.NoError(t, err)
-	require.Equal(t, "https://github.com/alice", profile.Links.GitHub)
+	require.Empty(t, profile.Links.GitHub)
+	require.True(t, profile.Links.Visibility.GitHub)
 
 	session := &core.Session{
 		PublicID: "public-session", Username: "alice", IP: "127.0.0.1",
@@ -192,7 +192,7 @@ func TestUserProfileRenameIsDurableAndPreservesReferences(t *testing.T) {
 	require.Equal(t, "alice_one", auditUsername)
 	require.Equal(t, "alice_one", auditOperator)
 	require.Equal(t, "alice_one", auditInitiator)
-	message, err := db.GetUserMessage("profile-message", "alice_one", changedAt+2)
+	message, err := db.GetUserMessage("profile-message", "alice_one", changedAt+2, "")
 	require.NoError(t, err)
 	require.Equal(t, "alice_one", message.Sender)
 

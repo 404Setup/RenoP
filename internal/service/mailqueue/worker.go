@@ -3,6 +3,8 @@
  *
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
  *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
+ *
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
@@ -23,14 +25,13 @@ import (
 	"time"
 
 	"github.com/goccy/go-json"
-	"go.yaml.in/yaml/v3"
 
 	"renop/internal/config"
+	"renop/internal/configstore"
 	"renop/internal/core"
 	"renop/internal/mail"
 	"renop/internal/service/audit"
 	"renop/internal/service/outboundproxy"
-	"renop/internal/utils"
 )
 
 type completion struct {
@@ -43,19 +44,22 @@ type completion struct {
 
 type worker struct {
 	state           *core.AppState
-	owner           string
 	client          *mail.Client
-	proxyHash       [32]byte
-	recovered       bool
 	pending         *completion
 	calibrationDue  map[string]int64
+	owner           string
 	lastMaintenance int64
 	lastDiagnostic  int64
+	proxyHash       [32]byte
+	recovered       bool
 	calibrateNext   bool
 }
 
 // Start starts exactly one queue worker and returns an idempotent, bounded shutdown function.
 func Start(state *core.AppState, configPath string) (func(), error) {
+	if state.IsDemo() {
+		return func() {}, nil
+	}
 	if state == nil || state.GetDB() == nil {
 		return nil, core.ErrDatabaseUnavailable
 	}
@@ -67,10 +71,7 @@ func Start(state *core.AppState, configPath string) (func(), error) {
 			state.Inner.ConfigWriteLock.Unlock()
 			return nil, err
 		}
-		data, err := yaml.Marshal(next)
-		if err == nil {
-			err = utils.WritePrivateFile(configPath, data)
-		}
+		err := configstore.Save(configPath, next)
 		if err != nil {
 			state.Inner.ConfigWriteLock.Unlock()
 			return nil, err
@@ -95,17 +96,23 @@ func Start(state *core.AppState, configPath string) (func(), error) {
 			}
 			_ = state.GetDB().ReleaseMailLease(w.owner)
 		}()
-		ticker := time.NewTicker(time.Second)
-		defer ticker.Stop()
 		for {
 			if err := w.step(ctx, time.Now()); err != nil && !errors.Is(err, context.Canceled) {
 				w.diagnostic(err)
 			}
+			cfg := state.Inner.Config.Load()
+			pollInterval := time.Second
+			if cfg != nil && !cfg.Mail.Enabled && w.pending == nil {
+				pollInterval = time.Hour
+			}
+			timer := time.NewTimer(pollInterval)
 			select {
 			case <-ctx.Done():
+				timer.Stop()
 				return
-			case <-ticker.C:
+			case <-timer.C:
 			case <-state.Inner.MailWake:
+				timer.Stop()
 			}
 		}
 	}()
@@ -469,8 +476,7 @@ func (w *worker) complete(cfg mail.Config) error {
 }
 
 func errorCode(err error) string {
-	var failure *mail.SendError
-	if errors.As(err, &failure) {
+	if failure, ok := errors.AsType[*mail.SendError](err); ok {
 		return failure.Code
 	}
 	return "mail_provider_error"

@@ -12,6 +12,7 @@ package core
 
 import (
 	"errors"
+	"renop/internal/repositorycapacity"
 	"time"
 )
 
@@ -25,6 +26,7 @@ const (
 )
 
 var (
+	ErrRepositoryCapacity          = repositorycapacity.ErrExceeded
 	ErrPublicationQuotaInvalid     = errors.New("publication quota request is invalid")
 	ErrPublicationFileLimit        = errors.New("publication file quota exceeded")
 	ErrPublicationByteLimit        = errors.New("publication byte quota exceeded")

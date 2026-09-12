@@ -75,4 +75,9 @@ export default Object.freeze({
     "updaterNotice.spaceBody": "システム更新を準備するためのディスク空き容量が不足しています。",
     "updaterNotice.restartFailedTitle": "更新の再起動に失敗しました",
     "updaterNotice.restartFailedBody": "準備済みの更新を適用するために RenoP を再起動できませんでした。サーバーログを確認してください。",
+    "messages.sessionTarget": "配信先",
+    "messages.allSessions": "すべてのセッション",
+    "messages.sessionsLoading": "有効なセッションを読み込み中…",
+    "messages.sessionsEmpty": "有効なブラウザーセッションはありません。",
+    "messages.sessionsFailed": "セッションを読み込めません。宛先を入力し直してください。",
 });

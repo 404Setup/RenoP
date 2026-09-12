@@ -9,6 +9,26 @@
  */
 
 export default Object.freeze({
+    "repos.formatConan": "Conan",
+    "repos.formatConanDesc": "Receitas Conan, pacotes binários, revisões e envios com o cliente nativo.",
+    "repos.formatConda": "Conda",
+    "repos.formatCondaNative": "Conda native",
+    "repos.formatApk": "Alpine APK",
+    "repos.formatApt": "apt",
+    "repos.formatRpm": "rpm / yum",
+    "repos.formatCondaDesc": "Índices automáticos de pacotes, transferências nativas e envio de índices e assinaturas existentes.",
+    "repos.formatCondaNativeDesc": "Índices automáticos de pacotes, transferências nativas e envio de índices e assinaturas existentes.",
+    "repos.formatApkDesc": "Índices automáticos de pacotes, transferências nativas e envio de índices e assinaturas existentes.",
+    "repos.formatAptDesc": "Índices automáticos de pacotes, transferências nativas e envio de índices e assinaturas existentes.",
+    "repos.formatRpmDesc": "Índices automáticos de pacotes, transferências nativas e envio de índices e assinaturas existentes.",
+    "details.nativeTitle": "Configuração do cliente",
+    "details.nativeSubtitle": "Reserve um recurso e publique com o cliente nativo. Os índices são gerados a partir dos ficheiros publicados.",
+    "details.nativeClientTab": "Cliente",
+
+    "repos.capacityLimit": "Limite de capacidade (MiB)",
+    "repos.capacityHint": "0 significa ilimitado. Inclui artefactos guardados, espelhos e somas de verificação; exclui cópias temporárias.",
+    "repos.capacityInvalid": "Introduza uma capacidade não negativa em MiB.",
+    "repos.capacityExceeded": "Este repositório atingiu o limite de capacidade. Elimine artefactos ou aumente o limite.",
     "common.create": "Criar",
     "repos.title": "Repositórios",
     "repos.addRepoBtn": "Adicionar repositório",

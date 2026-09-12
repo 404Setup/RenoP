@@ -10,10 +10,10 @@ description: Configurer Microsoft, Google, GitLab, Cloudflare, Stack Exchange et
 ## Configurer les fournisseurs
 
 Dans les paramètres administrateur, ouvrez **Connexion tierce** pour configurer GitHub et les autres fournisseurs.
-GitHub est une entrée intégrée avec l’ID fixe `github`, que vous pouvez activer ou désactiver. Ajoutez jusqu’à 32 autres
+GitHub est une entrée intégrée avec l’ID fixe `github`, que vous pouvez activer ou désactiver. Ajoutez jusqu’à 12 autres
 clients avec des ID uniques de 32 caractères maximum, commençant par une lettre minuscule et contenant des lettres
 minuscules, chiffres, traits de soulignement ou traits d’union. Les ID enregistrés identifient les associations
-existantes et ne sont pas modifiables. Chaque compte accepte une association GitHub et jusqu’à 32 autres associations.
+existantes et ne sont pas modifiables. Chaque compte accepte une association GitHub et jusqu’à 12 autres associations.
 
 Pour la compatibilité, GitHub conserve `server.github_oauth` et le rappel `/api/auth/github/callback`. Les paramètres et
 associations existants apparaissent automatiquement dans l’interface unifiée. L’ID client est limité à 128 octets et le
@@ -307,7 +307,7 @@ s’appliquent aux connexions externes.
 | GET     | `/api/auth/profile/oauth`            | États privés, identifiant affiché, date d’autorisation et actions permises             |
 | DELETE  | `/api/auth/profile/oauth/:provider`  | Dissociation : `204`, ou `409` avec `oauth_last_login_method`                          |
 | GET     | `/api/settings/oauth-providers`      | Vue administrateur : `providers` et `presets`, sans secrets                            |
-| PUT     | `/api/settings/oauth-providers`      | JSON administrateur `{providers:[...]}` remplaçant la liste ; corps limité à 128 KiB   |
+| PUT     | `/api/settings/oauth-providers`      | Protobuf binaire `OAuthSettings`: `providers`, `replace_providers: true`; 128 KiB |
 
 Les opérations de profil exigent la session actuelle du navigateur. Le rappel renvoie un marqueur stable dans `oauth` et
 l’ID dans `provider` ; la SPA traduit puis supprime ces paramètres. Les erreurs n’affichent jamais les réponses brutes
@@ -330,11 +330,7 @@ inscriptions en attente. OIDC vérifie la signature, l’émetteur, l’audience
 du jeton lorsqu’il est fourni ; RS256 et ES256 sont pris en charge. Les réponses sont limitées à 1 MiB et les requêtes
 ont des délais bornés. Le proxy sortant configuré s’applique.
 
-RenoP rattache les sujets stables à une autorité dérivée du type de fournisseur, du client, des points de terminaison et
-de l’émetteur vérifié. Modifier cette autorité ne transfère pas les associations à un autre service d’identité. Les
-jetons d’accès ne sont pas conservés pour la connexion. Une photo protégée peut nécessiter un jeton chiffré, conservé
-uniquement dans l’inscription en attente jusqu’à confirmation ou expiration ; la clé privée `mfa_encryption_key` protège
-cette valeur temporaire, qui n’est jamais renvoyée au navigateur.
+RenoP lie le sujet stable au type de fournisseur, au client, aux endpoints et à l’émetteur vérifié. Changer cette autorité ne transfère aucune liaison. Les jetons d’accès et de renouvellement de connexion sont chiffrés pour la session concernée avec la clé privée `mfa_encryption_key`, puis supprimés avec elle. Ils ne figurent jamais dans les sessions publiques, réponses API ou journaux. Conservez cette clé lors des redémarrages. Les photos protégées d’inscription gardent leur jeton chiffré temporaire jusqu’à confirmation ou expiration.
 
 La fermeture d’un compte libère atomiquement toutes les associations externes. Un autre compte actif peut les récupérer,
 mais le nom d’utilisateur reste réservé définitivement, l’e-mail pendant 14 jours et l’activité pendant 30 jours. Un
@@ -343,3 +339,9 @@ rappel ou une actualisation tardive ne peut pas recréer les associations d’un
 Une nouvelle liaison exige la disponibilité simultanée de l’identité externe et de toutes les adresses de contact
 récupérées. Une identité libérée ne permet pas de contourner la propriété des adresses conservées par un autre compte.
 Consultez les [alias de connexion](./email-verification.md) pour les règles de vérification, suppression et rétention.
+
+## Déconnexion et révocation du fournisseur
+
+La révocation à la déconnexion est intégrée pour les jetons d’application GitHub, Google, GitLab avec l’instance configurée et Stack Exchange. Pour un client personnalisé, Cloudflare ou Microsoft, renseignez `revocation_url` uniquement si le service publie un endpoint RFC 7009. Aucun endpoint n’est deviné et aucune déconnexion administrative du compte entier n’est utilisée. Certains fournisseurs révoquent toute l’autorisation même pour un seul jeton. Les sessions antérieures à cette conservation des jetons nécessitent une nouvelle connexion.
+
+La découverte publique et l’état privé des connexions utilisent le protobuf binaire. L’API de configuration unifiée emploie `OAuthSettings` ; les écritures exigent `replace_providers: true`. Les formats de rappel signés sont décrits dans l’[API d’authentification](../api/authentication.md).

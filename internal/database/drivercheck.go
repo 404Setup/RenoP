@@ -13,9 +13,9 @@ package database
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
+	"renop/pkg/hex"
 	"strings"
 	"time"
 
@@ -55,7 +55,7 @@ func RunDriverCheck(ctx context.Context, db *DB) ([]DriverCheckResult, error) {
 	suffix := uuid.NewString()[:8]
 	username := "dbcheck-" + suffix
 	now := time.Now().UnixMilli()
-	results := make([]DriverCheckResult, 0, 21)
+	results := make([]DriverCheckResult, 0, 22)
 	run := func(name string, check func() error) error {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -295,6 +295,18 @@ func RunDriverCheck(ctx context.Context, db *DB) ([]DriverCheckResult, error) {
 	}); err != nil {
 		return results, err
 	}
+	if err := run("profile link preferences", func() error {
+		profile, err := db.UpdateUserProfileLinks(username, core.UserProfileLinks{
+			Website:    "https://example.test",
+			Visibility: &core.ProfileLinkVisibility{GitHub: true, GitLab: true},
+		}, now)
+		if err != nil || profile.Links.Visibility == nil || !profile.Links.Visibility.GitHub || !profile.Links.Visibility.GitLab || profile.Links.GitHub != "" {
+			return errorsOrMissing(err, "profile provider visibility persistence")
+		}
+		return nil
+	}); err != nil {
+		return results, err
+	}
 	if err := run("profile avatars", func() error {
 		data := []byte("driver-check-sanitized-avatar")
 		sum := sha256.Sum256(data)
@@ -313,6 +325,9 @@ func RunDriverCheck(ctx context.Context, db *DB) ([]DriverCheckResult, error) {
 		}
 		return nil
 	}); err != nil {
+		return results, err
+	}
+	if err := run("scoped session notifications", func() error { return checkScopedSessionNotifications(db, username, now) }); err != nil {
 		return results, err
 	}
 	if err := run("message deduplication", func() error {
@@ -481,6 +496,9 @@ func RunDriverCheck(ctx context.Context, db *DB) ([]DriverCheckResult, error) {
 	mavenRepository := "maven-" + suffix
 	mavenDomain := "io.renop." + suffix
 	npmRepository := "npm-" + suffix
+	if err := run("native resources and review", func() error { return checkNativeResources(db, suffix) }); err != nil {
+		return results, err
+	}
 	if err := run("package catalogs", func() error {
 		if err := db.RecordCargoPublication(&core.CargoPackage{
 			Repository: cargoRepository, Name: "demo", NormalizedName: "demo", Description: "Driver check",
@@ -947,6 +965,11 @@ func RunDriverCheck(ctx context.Context, db *DB) ([]DriverCheckResult, error) {
 		if _, err = db.QueueMailJob(makeJob("driver-mail-limit-"+suffix), cfg.EncryptionKey, "192.0.2.99", cfg.ManualRate); !errors.Is(err, mail.ErrRateLimited) {
 			return errorsOrMissing(err, "mail IP rate limit")
 		}
+		rotated := makeJob("driver-mail-rotation-" + suffix)
+		rotated.UserID = ""
+		if _, err = db.QueueMailJob(rotated, cfg.EncryptionKey, "192.0.2.100", cfg.ManualRate); !errors.Is(err, mail.ErrRateLimited) {
+			return errorsOrMissing(err, "mail recipient rate limit across IP addresses")
+		}
 		queued, err := db.NextMailJob(cfg.EncryptionKey, now)
 		if err != nil || queued == nil || queued.ID != job.ID {
 			return errorsOrMissing(err, "due mail selection")
@@ -1087,17 +1110,14 @@ func RunDriverCheck(ctx context.Context, db *DB) ([]DriverCheckResult, error) {
 		}
 		unknown := makeJob("reset-unknown-"+suffix, "unknown-"+email)
 		created, err = db.QueueEmailPasswordReset(unknown, hash, cfg.EncryptionKey, "192.0.2.101", cfg.ManualRate)
-		if err != nil || !created {
-			return errorsOrMissing(err, "unknown email ownership verification")
-		}
-		if _, err = db.ResetPasswordWithEmailCode(unknown.Message.To, hash, "new-password", now+2); !errors.Is(err, core.ErrEmailCodeInvalid) {
-			return errorsOrMissing(err, "unknown account reset rejection")
+		if !errors.Is(err, core.ErrEmailCodeInvalid) || created {
+			return errorsOrMissing(err, "unknown email rejection")
 		}
 		if err = db.CleanMailData(now+600000, nil); err != nil {
 			return err
 		}
 		var count int
-		if err = db.QueryRow(`SELECT COUNT(*) FROM user_password_resets WHERE email = ?`, unknown.Message.To).Scan(&count); err != nil {
+		if err = db.QueryRow(`SELECT COUNT(*) FROM user_password_resets WHERE email = ?`, email).Scan(&count); err != nil {
 			return err
 		}
 		if count != 0 {
@@ -1171,12 +1191,43 @@ func RunDriverCheck(ctx context.Context, db *DB) ([]DriverCheckResult, error) {
 		if err := db.ReplaceRecoveryCodes(username, hashes); err != nil {
 			return err
 		}
-		if _, err := db.ResetPasswordWithRecoveryCodes(username, selectors, "recovered-password", now+300001); err != nil {
+		if _, err := db.UpdateAccountEmail(username, username+"@example.com", now); err != nil {
+			return err
+		}
+		if _, err := db.UpdateAccountEmail(username, username+"-new@example.com", now+300000); err != nil {
+			return err
+		}
+		if err := db.ReplaceRecoveryCodes(username, hashes); !errors.Is(err, core.ErrSecurityHold) {
+			return errorsOrMissing(err, "email change protects existing recovery codes")
+		}
+		if err := db.DeleteFidoDevice(username, "mfa-key-"+suffix); !errors.Is(err, core.ErrSecurityHold) {
+			return errorsOrMissing(err, "email change protects Passkeys")
+		}
+		current, err := db.GetMFAState(username)
+		if err != nil {
+			return err
+		}
+		if err := db.UpdateMFA(username, current.Snapshot, "", false, 0, sessionID); !errors.Is(err, core.ErrSecurityHold) {
+			return errorsOrMissing(err, "email change protects authenticators")
+		}
+		if err := db.ChangeAccountPassword(core.PasswordChange{Username: username, Session: sessionID,
+			Snapshot: current.Snapshot, PasswordHash: "unverified-password", Now: now + 300001}); !errors.Is(err, core.ErrMFARequired) {
+			return errorsOrMissing(err, "password changes require a second factor")
+		}
+		if _, err := db.ResetPasswordWithRecoveryCodes(username+"@example.com", selectors, "recovered-password", now+300001); err != nil {
 			return err
 		}
 		mfa, err = db.GetMFAState(username)
 		if err != nil || mfa.Enabled() {
 			return errorsOrMissing(err, "offline recovery clears second factors")
+		}
+		security, err = db.GetAccountSecurity(username)
+		if err != nil || security.Email != username+"@example.com" || security.SecurityHoldUntil != 0 {
+			return errorsOrMissing(err, "recovery restores the previous primary email")
+		}
+		removed, err := db.GetTokenByEmail(username + "-new@example.com")
+		if err != nil || removed != nil {
+			return errorsOrMissing(err, "recovery removes the replaced email")
 		}
 		stored, err := db.GetSession(sessionID)
 		if err != nil || stored != nil {

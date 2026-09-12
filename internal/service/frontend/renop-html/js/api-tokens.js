@@ -11,14 +11,14 @@
 import {apiRequest} from './api.js';
 import {showAlert} from './alert.js';
 import {writeClipboardText} from './clipboard.js';
-import {RenopDialog} from './components.js';
+import {createIcon, RenopDialog} from './components.js';
+import {openAPITokenTargets} from './api-token-targets.js';
 import {runButtonAction} from './components/button.js';
 import {t} from './i18n.js';
 import {formatTimestamp} from './time.js';
 import {el} from '@renop/ui/dom';
 import {makeCustomSelect} from '@renop/ui/custom-select';
-import {collapseElement, expandElement, morphElementHeight} from '@renop/ui/height-anim';
-import {$} from '@renop/ui/jquery';
+import {morphElementHeight} from '@renop/ui/height-anim';
 
 const scopeKeys = Object.freeze({
     'repository:read': 'repositoryRead',
@@ -234,9 +234,11 @@ function showAPITokenSecret(secret, token) {
  * Create a scope checkbox using the server-approved scope catalog.
  * @param {string} scope - Stable scope identifier.
  * @param {string} targetKind - Optional canonical target kind.
+ * @param {Map<string, string[]>} targetSelections - Confirmed restrictions for this draft.
+ * @param {number} targetLimit - Server-approved token target limit.
  * @returns {HTMLDivElement}
  */
-function createScopeOption(scope, targetKind = '') {
+function createScopeOption(scope, targetKind, targetSelections, targetLimit) {
     const input = el('input', {type: 'checkbox', value: scope, name: 'api-token-scope'});
     if (scope === 'repository:read' || scope === 'repository:publish') input.checked = true;
     const option = el('label', {class: 'profile-api-token-scope-option'}, input,
@@ -245,29 +247,30 @@ function createScopeOption(scope, targetKind = '') {
     );
     const entry = el('div', {class: 'profile-api-token-scope-entry'}, option);
     if (!targetKind) return entry;
-    const targets = el('textarea', {
-        class: 'profile-api-token-targets', rows: '2', maxlength: '4096',
-        'data-api-token-target-for': scope,
-        placeholder: t(`profile.apiTokenTargetPlaceholder.${targetKind}`),
-        'data-i18n-placeholder': `profile.apiTokenTargetPlaceholder.${targetKind}`,
-    });
-    const targetEditor = el('label', {class: 'profile-api-token-target-editor'},
-        el('span', {'data-i18n': 'profile.apiTokenTargetLimit'}, t('profile.apiTokenTargetLimit')),
-        targets,
-        el('small', {
-            class: 'profile-security-hint', 'data-i18n': 'profile.apiTokenTargetsHint'
-        }, t('profile.apiTokenTargetsHint'))
-    );
-    targetEditor.hidden = !input.checked;
-    $(targetEditor).toggleClass('is-visible', input.checked);
-    $(input).on('change', () => {
-        if (input.checked) {
-            void expandElement(targetEditor, {duration: 240, marginTop: ''});
-        } else {
-            void collapseElement(targetEditor, {duration: 210, marginTop: false});
-        }
-    });
-    entry.appendChild(targetEditor);
+    const summary = el('small', {class: 'profile-api-token-target-summary', 'data-api-token-target-count': '0'},
+        t('profile.apiTokenAllTargets'));
+    const edit = el('button', {
+        type: 'button', class: 'profile-api-token-target-edit',
+        title: t('common.edit'), 'aria-label': t('common.edit') + ' · ' + scopeLabel(scope),
+        onclick: () => openAPITokenTargets({
+            label: scopeLabel(scope), kind: targetKind, targets: targetSelections.get(scope) || [], limit: targetLimit,
+            onConfirm: values => {
+                targetSelections.set(scope, values);
+                summary.dataset.apiTokenTargetCount = String(values.length);
+                summary.textContent = values.length ? t('profile.apiTokenSelectedTargets', {count: values.length}) : t('profile.apiTokenAllTargets');
+                summary.title = values.join(', ');
+            },
+        }),
+    }, createIcon('edit'));
+    // The controls stay inside one compact card; neither column expands on selection.
+    const sync = () => {
+        edit.disabled = !input.checked;
+        entry.classList.toggle('is-selected', input.checked);
+    };
+    input.addEventListener('change', sync);
+    sync();
+    option.querySelector('.profile-api-token-scope-copy').appendChild(summary);
+    entry.appendChild(edit);
     return entry;
 }
 
@@ -275,9 +278,11 @@ function createScopeOption(scope, targetKind = '') {
  * Group server-approved scopes by target capability without reordering within each group.
  * @param {string[]} allowedScopes - Scopes filtered by current account permissions.
  * @param {Record<string, string>} targetKinds - Scope-to-target-kind mapping from the server.
+ * @param {Map<string, string[]>} targetSelections - Confirmed restrictions for this draft.
+ * @param {number} targetLimit - Server-approved token target limit.
  * @returns {HTMLDivElement}
  */
-function createScopeGroups(allowedScopes, targetKinds) {
+function createScopeGroups(allowedScopes, targetKinds, targetSelections, targetLimit) {
     const allowed = new Set(allowedScopes);
     const groups = scopeGroups.map(group => {
         const scopes = group.scopes.filter(scope => allowed.has(scope));
@@ -288,7 +293,7 @@ function createScopeGroups(allowedScopes, targetKinds) {
                 'data-i18n': `profile.apiTokenScopeGroup.${group.key}`
             }, t(`profile.apiTokenScopeGroup.${group.key}`)),
             el('div', {class: 'profile-api-token-scope-grid'},
-                ...scopes.map(scope => createScopeOption(scope, targetKinds[scope])))
+                ...scopes.map(scope => createScopeOption(scope, targetKinds[scope], targetSelections, targetLimit)))
         );
     }).filter(Boolean);
     return el('div', {class: 'profile-api-token-scope-groups'}, ...groups);
@@ -312,7 +317,8 @@ function openCreateAPITokenDialog(catalog, onCreated) {
         expirationValue = value;
     });
     expiration.classList.add('profile-api-token-expiration');
-    const scopeGrid = createScopeGroups(catalog.scopes, catalog.targetKinds);
+    const targetSelections = new Map();
+    const scopeGrid = createScopeGroups(catalog.scopes, catalog.targetKinds, targetSelections, catalog.targetLimit);
     const error = el('p', {class: 'password-recovery-error', role: 'alert'});
     const body = el('div', {class: 'profile-api-token-create-form'},
         el('label', {}, el('span', {'data-i18n': 'profile.apiTokenName'}, t('profile.apiTokenName')), nameInput),
@@ -328,6 +334,7 @@ function openCreateAPITokenDialog(catalog, onCreated) {
     );
     void RenopDialog.show({
         id: 'profile-api-token-create-dialog',
+        glass: false,
         className: 'profile-api-token-create-modal',
         maxWidth: '720px',
         icon: 'fileKey',
@@ -352,9 +359,7 @@ function openCreateAPITokenDialog(catalog, onCreated) {
                 const targets = {};
                 let targetCount = 0;
                 scopes.forEach(scope => {
-                    const editor = scopeGrid.querySelector(`[data-api-token-target-for="${CSS.escape(scope)}"]`);
-                    if (!editor) return;
-                    const values = [...new Set(editor.value.split(/[\n,]+/u).map(value => value.trim()).filter(Boolean))];
+                    const values = targetSelections.get(scope) || [];
                     if (values.length > 0) {
                         targets[scope] = values;
                         targetCount += values.length;
@@ -614,6 +619,10 @@ document.getElementById('btn-manage-api-tokens')?.addEventListener('click', open
 
 window.addEventListener('languageChanged', () => {
     if (cachedTokenCount !== null) renderAPITokenSummary(cachedTokenCount, cachedTokenLimit);
+    document.querySelectorAll('[data-api-token-target-count]').forEach(node => {
+        const count = Number(node.dataset.apiTokenTargetCount);
+        node.textContent = count ? t('profile.apiTokenSelectedTargets', {count}) : t('profile.apiTokenAllTargets');
+    });
     document.querySelectorAll('[data-api-token-scope]').forEach(node => {
         node.textContent = scopeLabel(node.dataset.apiTokenScope);
     });

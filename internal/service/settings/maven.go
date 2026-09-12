@@ -67,7 +67,7 @@ func PutMavenRepository(c fiber.Ctx, state *core.AppState) error {
 		}
 	}
 	creating := existing == nil
-	if existing != nil && state.GetDB() != nil {
+	if existing != nil && state.GetDB() != nil && !state.IsDemo() {
 		if err := requireUnlockedRepository(c, state, repoName); err != nil {
 			return err
 		}
@@ -99,6 +99,12 @@ func PutMavenRepository(c fiber.Ctx, state *core.AppState) error {
 		return c.Status(fiber.StatusBadRequest).SendString("Bad Request")
 	}
 	repo.Name = repoName
+	if existing != nil && msg.CapacityLimitBytes == nil {
+		repo.CapacityLimitBytes = existing.CapacityLimitBytes
+	}
+	if repo.CapacityLimitBytes < 0 {
+		return c.Status(fiber.StatusBadRequest).SendString("Repository capacity must not be negative")
+	}
 	if existing != nil && existing.DownloadStatistics != nil {
 		enabled := *existing.DownloadStatistics
 		repo.DownloadStatistics = &enabled
@@ -126,8 +132,10 @@ func PutMavenRepository(c fiber.Ctx, state *core.AppState) error {
 	} else if repo.NormalizedFormat() != config.RepositoryFormatFiles {
 		repo.MavenRestore = nil
 	}
-	if repo.Format == config.RepositoryFormatCargo || repo.Format == config.RepositoryFormatNPM {
+	if !repo.Engine().Redeployment {
 		repo.AllowRedeployment = false
+	}
+	if !repo.Engine().GPG {
 		repo.RequireGPGSignature = false
 	}
 	if repo.Format == config.RepositoryFormatFiles {
@@ -199,6 +207,7 @@ func PutMavenRepository(c fiber.Ctx, state *core.AppState) error {
 			return err
 		}
 		state.Inner.Config.Store(newConfig)
+		state.Inner.RepositoryCapacity.Invalidate(repoName)
 		config.ClearRepoCacheConfigs()
 		return nil
 	})
@@ -217,7 +226,7 @@ func PutMavenRepository(c fiber.Ctx, state *core.AppState) error {
 		return c.Status(fiber.StatusInternalServerError).SendString("Internal Server Error")
 	}
 
-	if cfg := state.Inner.Config.Load(); cfg != nil {
+	if cfg := state.Inner.Config.Load(); cfg != nil && !state.IsDemo() {
 		storage.InitS3(cfg)
 	}
 
@@ -289,6 +298,7 @@ func replaceRepositoryConfig(state *core.AppState, repository, expectedFormat st
 			return err
 		}
 		state.Inner.Config.Store(updatedConfig)
+		state.Inner.RepositoryCapacity.Invalidate(repository)
 		config.ClearRepoCacheConfigs()
 		return nil
 	})
@@ -401,6 +411,10 @@ func MigrateRepositoryEngine(c fiber.Ctx, state *core.AppState) error {
 }
 
 func ensureRepositoryStorageDir(state *core.AppState, repoName string) error {
+	if state.IsDemo() {
+		state.Inner.FileIndex.InsertDir(filepath.Join(state.Inner.Config.Load().StoragePath, repoName))
+		return nil
+	}
 	if state == nil || state.Inner == nil {
 		return errors.New("application state is unavailable")
 	}
@@ -447,7 +461,7 @@ func DeleteMavenRepository(c fiber.Ctx, state *core.AppState) error {
 	}
 	releaseMigration := repositorygate.AcquireMigration(repoName)
 	defer releaseMigration()
-	if db := state.GetDB(); db != nil {
+	if db := state.GetDB(); db != nil && !state.IsDemo() {
 		if err := requireUnlockedRepository(c, state, repoName); err != nil {
 			return err
 		}
@@ -486,7 +500,10 @@ func DeleteMavenRepository(c fiber.Ctx, state *core.AppState) error {
 			return err
 		}
 		state.Inner.Config.Store(newConfig)
-		storage.InitS3(newConfig)
+		state.Inner.RepositoryCapacity.Forget(repoName)
+		if !state.IsDemo() {
+			storage.InitS3(newConfig)
+		}
 		config.ClearRepoCacheConfigs()
 		return nil
 	})
@@ -495,8 +512,20 @@ func DeleteMavenRepository(c fiber.Ctx, state *core.AppState) error {
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString("Internal Server Error")
 	}
+	if state.IsDemo() {
+		if notFound {
+			return fiber.ErrNotFound
+		}
+		state.Inner.FileIndex.RemoveDir(filepath.Join(storagePath, repoName))
+		return c.SendStatus(fiber.StatusOK)
+	}
 	if notFound {
-		if db := state.GetDB(); db != nil {
+		if db := state.GetDB(); db != nil && !state.IsDemo() {
+			if native, ok := db.(core.NativePackageDB); ok {
+				if err := native.DeleteNativeRepository(repoName); err != nil {
+					return c.Status(fiber.StatusInternalServerError).SendString("Failed to remove native repository metadata")
+				}
+			}
 			actedAt := time.Now().UnixMilli()
 			if err := errors.Join(db.DeleteMavenRepository(repoName),
 				db.DeleteCargoRepository(repoName, actedAt), db.DeleteDockerRepository(repoName), db.DeleteNPMRepository(repoName),
@@ -507,7 +536,11 @@ func DeleteMavenRepository(c fiber.Ctx, state *core.AppState) error {
 		return c.Status(fiber.StatusNotFound).SendString("Repository not found")
 	}
 	var metadataErr error
-	if db := state.GetDB(); db != nil {
+	if db := state.GetDB(); db != nil && !state.IsDemo() {
+		var nativeErr error
+		if native, ok := db.(core.NativePackageDB); ok {
+			nativeErr = native.DeleteNativeRepository(repoName)
+		}
 		switch repositoryFormat {
 		case config.RepositoryFormatMaven:
 			metadataErr = db.DeleteMavenRepository(repoName)
@@ -518,12 +551,13 @@ func DeleteMavenRepository(c fiber.Ctx, state *core.AppState) error {
 		case config.RepositoryFormatNPM:
 			metadataErr = db.DeleteNPMRepository(repoName)
 		}
-		metadataErr = errors.Join(metadataErr, statistics.GetCounter(state).ResetRepository(repoName))
+		metadataErr = errors.Join(metadataErr, nativeErr, statistics.GetCounter(state).ResetRepository(repoName))
 	}
 	storage.RemoveRepositoryStorage(state, storagePath, repoName, s3Cfg)
 	if metadataErr != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString("Failed to remove repository package metadata")
 	}
+	state.Inner.FileIndex.UnblockTree(filepath.Join(storagePath, repoName))
 
 	return c.Status(fiber.StatusOK).SendString("")
 }

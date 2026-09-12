@@ -1,7 +1,10 @@
 /*
  * Copyright (c) 2026 404Setup. All rights reserved.
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
- * If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
+ *
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
@@ -286,6 +289,9 @@ func (db *DB) QueueProviderRegistrationEmail(idHash, ipHash, codeHash string, jo
 
 // RegisterAccount consumes confirmation, creates credentials and identity, and charges the IP in one transaction.
 func (db *DB) RegisterAccount(request core.AccountRegistration, cfg config.RegistrationConfig, now int64) (*core.RegistrationProfile, error) {
+	if err := cfg.Validate(); err != nil {
+		return nil, core.ErrRegistrationInvalid
+	}
 	username, valid := core.NormalizeUsername(request.Username)
 	nickname, validNickname := core.NormalizeNickname(request.Nickname)
 	email, validEmail := core.NormalizeEmail(request.Email)
@@ -342,7 +348,7 @@ func (db *DB) RegisterAccount(request core.AccountRegistration, cfg config.Regis
 		return nil, core.ErrRegistrationInvalid
 	}
 	token := &core.AccessToken{Name: username, Identifier: core.AccessTokenIdentifier{Type: core.Persistent},
-		EncryptedSecret: request.PasswordHash, Tokens: []string{}, Permissions: []string{"base"},
+		EncryptedSecret: request.PasswordHash, Tokens: []string{}, Permissions: cfg.Permissions(),
 		CreatedAt: time.UnixMilli(now).UTC().Format(time.RFC3339), Description: "Self-service registration"}
 	if err = createTokenTx(tx, token, nickname, now); err != nil {
 		return nil, err

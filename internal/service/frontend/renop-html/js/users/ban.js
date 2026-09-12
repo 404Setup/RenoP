@@ -14,6 +14,8 @@ import {apiRequest} from '../api.js';
 import {responseErrorMessage} from '../response-errors.js';
 import {createIcon, RenopDialog, runButtonAction} from '../components.js';
 import {el} from '@renop/ui/dom';
+import {makeCustomSelect} from '@renop/ui/custom-select';
+import {accountBanReasonLabel, BAN_REASON_CODES} from './ban-reasons.js';
 import {formatTimestamp} from '../time.js';
 
 const maxBanReasonLength = 512;
@@ -48,12 +50,26 @@ export async function openUserBanDialog(account, refresh) {
         return;
     }
     const currentBan = status.ban;
+    let reasonCode = BAN_REASON_CODES.includes(currentBan?.reason_code) ? currentBan.reason_code : 'other';
     const banIP = el('input', {id: 'user-ban-ip', type: 'checkbox', checked: status.ip_count > 0});
     const reason = el('input', {
         id: 'user-ban-reason', type: 'text', maxlength: maxBanReasonLength,
-        value: currentBan?.reason || '', class: 'user-ban-input', autocomplete: 'off',
+        value: reasonCode === 'other' ? currentBan?.reason || '' : '', class: 'user-ban-input', autocomplete: 'off',
         placeholder: t('users.banReasonPlaceholder'),
     });
+    const reasonField = el('label', {class: 'user-ban-field', htmlFor: reason.id},
+        el('span', {}, t('users.banReasonOther')), reason);
+    const syncReason = () => {
+        reasonField.hidden = reasonCode !== 'other';
+        reason.disabled = reasonCode !== 'other';
+        reason.required = reasonCode === 'other';
+    };
+    const preset = makeCustomSelect([
+        ...BAN_REASON_CODES.map(value => ({value, label: t(`users.banReason.${value}`)})),
+        {value: 'other', label: t('users.banReasonOther')},
+    ], reasonCode, value => { reasonCode = value; syncReason(); });
+    preset.querySelector('button')?.setAttribute('aria-label', t('users.banReasonLabel'));
+    syncReason();
     const permanent = el('input', {
         id: 'user-ban-permanent', type: 'checkbox', checked: !currentBan?.expires_at,
     });
@@ -81,10 +97,10 @@ export async function openUserBanDialog(account, refresh) {
                     : 'users.banCurrentPermanent', {
                     date: formatTimestamp(currentBan.expires_at, {fallback: t('common.unknown')})
                 })),
-                el('p', {}, t('users.banCurrentReason', {reason: currentBan.reason || t('common.unknown')}))
+                el('p', {}, t('users.banCurrentReason', {reason: accountBanReasonLabel(currentBan)}))
             ))] : []),
-        el('label', {class: 'user-ban-field', htmlFor: reason.id},
-            el('span', {}, t('users.banReasonLabel')), reason),
+        el('div', {class: 'user-ban-field'}, el('span', {}, t('users.banReasonLabel')), preset),
+        reasonField,
         el('label', {class: 'user-ban-permanent', htmlFor: permanent.id},
             permanent, el('span', {}, t('users.banPermanent'))),
         expiryGroup,
@@ -95,8 +111,8 @@ export async function openUserBanDialog(account, refresh) {
 
     const submit = async (event, dialog) => {
         event.preventDefault();
-        const normalizedReason = reason.value.trim();
-        if (!normalizedReason) {
+        const normalizedReason = reasonCode === 'other' ? reason.value.trim() : '';
+        if (reasonCode === 'other' && !normalizedReason) {
             showAlert(t('users.banReasonRequired'), 'error');
             reason.focus();
             return;
@@ -119,7 +135,7 @@ export async function openUserBanDialog(account, refresh) {
         await runButtonAction(button, async () => {
             const response = await apiRequest(`/api/tokens/${encodeURIComponent(account.name)}/ban`, {
                 method: 'PUT', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({reason: normalizedReason, expires_at: expiry, ban_ip: banIP.checked}),
+                body: JSON.stringify({reason: normalizedReason, reason_code: reasonCode === 'other' ? '' : reasonCode, expires_at: expiry, ban_ip: banIP.checked}),
             });
             if (!response.ok) {
                 showAlert(await responseErrorMessage(response, 'users.banFailed'), 'error');
@@ -155,12 +171,13 @@ export async function openUserBanDialog(account, refresh) {
     }
     footer.push({text: t('common.save'), className: 'action-btn primary-btn', type: 'submit', id: 'user-ban-save'});
 
-    void RenopDialog.show({
+    const pending = RenopDialog.show({
         id: 'user-ban-modal', maxWidth: '560px', icon: 'warning',
         title: t('users.banDialogTitle', {user: account.name}),
         subtitle: t('users.manageBanDesc'),
         form: {id: 'user-ban-form', className: 'user-ban-form', onSubmit: submit},
         bodyClass: 'modal-body', body, footer,
     });
-    requestAnimationFrame(() => reason.focus());
+    requestAnimationFrame(() => (reasonCode === 'other' ? reason : preset.querySelector('button'))?.focus());
+    await pending;
 }

@@ -8,12 +8,13 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
-import {apiRequest, fetchProto, postProto, putProto} from './api.js';
+import {apiRequest, createJSONClient, fetchProto, postProto, putProto} from './api.js';
 import {createTicketReportButton} from './ticket-report.js';
+import {createProfileBanAction} from './users/profile-ban.js';
 import {showAlert} from './alert.js';
 import {t, translateKnownError} from './i18n.js';
 import {el} from '@renop/ui/dom';
-import {createIcon, RenopDialog, runButtonAction} from './components.js';
+import {createActionButton, createIcon, RenopDialog, runButtonAction} from './components.js';
 import {attachPasswordStrength, confirmWeakPasswordIfNeeded, getPasswordLengthError} from './password-strength.js';
 import {openSessionsDialog} from './sessions.js';
 import {passkeyErrorMessage, requestPasskeyRegistration} from './fido-utils.js';
@@ -23,20 +24,21 @@ import {
     GpgKeyList,
     GpgKeyReferenceRequest,
     GpgReleaseList,
-    StatusOk,
-    UpdatePasswordRequest
+    StatusOk
 } from './proto/index.js';
 import {closeModalWithAnim} from './app-ui.js';
 import {openAuditLogsDialog} from './audit.js';
 import {formatTimestamp} from './time.js';
 import {getRepositoryFormat} from './repository-formats.js';
 import {refreshOAuthProfile} from './oauth.js';
-import {refreshAccountSecurity} from './account-security.js';
+import {refreshAccountSecurity, securityChangesLocked} from './account-security.js';
+import {changeProfilePassword} from './password-change.js';
 import './account-retirement.js';
 import {refreshAPITokenSummary} from './api-tokens.js';
 import {createProfileSuperTeamLimits} from './super-teams.js';
 import {createPublicationQuotaPanel, openPublicationQuotaDialog} from './publication-quota.js';
 import {createProfileAvatarEditor} from './profile-avatar.js';
+import {createProfilePrivacyEditor} from './profile-privacy.js';
 import {
     createPublicProfileLinks,
     createPublicProfileLinksEditor,
@@ -61,6 +63,13 @@ import {
 
 let profileFidoLoadSeq = 0;
 let profilePageLoadSeq = 0;
+let displayedProfile = null;
+
+window.addEventListener('userProfileChanged', event => {
+    const updated = event.detail?.profile;
+    if (updated?.user_id && updated.user_id === displayedProfile?.user_id) displayedProfile.links = updated.links;
+});
+window.addEventListener('authChanged', () => { displayedProfile = null; });
 
 /**
  * Format a GPG timestamp for the current locale.
@@ -150,7 +159,7 @@ async function loadProfileGPGKeys(list, count, input, addButton, profile) {
  * @param {object} profile - Authorized profile payload.
  * @returns {void}
  */
-function openProfileGPGDialog(profile) {
+export function openProfileGPGDialog(profile = {own_profile: true}) {
     let input = null;
     let addButton = null;
     let form = null;
@@ -465,6 +474,9 @@ export async function loadProfileFidoDevices() {
                 delBtn.className = 'pill-btn pill-btn--danger';
                 delBtn.style.cssText = 'padding: 4px 10px; font-size: 0.8rem;';
                 delBtn.textContent = t('common.delete');
+                delBtn.dataset.securityMutation = 'true';
+                delBtn.disabled = securityChangesLocked();
+                delBtn.title = delBtn.disabled ? t('profile.securityHold') : '';
                 delBtn.addEventListener('click', async () => {
                     const confirmMsg = t('profile.confirmDeleteFido', {name: dev.name});
                     if (await window.showConfirm(confirmMsg)) {
@@ -921,6 +933,8 @@ function renderPublicProfile(profile) {
     renderProfileAvatar(publicAvatar, profile, {length: 1});
     const actions = el('div', {class: 'profile-public-actions'});
     actions.appendChild(createTicketReportButton({format: 'user', name: profile.username}, profile.own_profile));
+    const banAction = createProfileBanAction(profile);
+    if (banAction) actions.appendChild(banAction);
     if (profile.own_profile) {
         actions.appendChild(el('button', {
             type: 'button',
@@ -1226,29 +1240,17 @@ function buildProfileLinksEditor(profile, identityCard) {
     const settingsCard = document.querySelector('#profile-edit-view .profile-settings-card');
     if (!settingsCard) return null;
     settingsCard.querySelector('.profile-links-card')?.remove();
-    const editor = createPublicProfileLinksEditor(profile.links);
-    const saveButton = el('button', {type: 'button', class: 'pill-btn pill-btn--primary'}, t('common.save'));
-    saveButton.addEventListener('click', async () => {
+    const editor = createPublicProfileLinksEditor(profile.links, {boundProviders: true});
+    const saveLinks = createJSONClient('/api/auth/profile/links', 'profile.linksUpdateFailed');
+    const saveButton = createActionButton(t('common.save'), async () => {
         const links = editor.value();
         if (!links) {
             showAlert(t('profile.linksInvalid'), 'error');
-            return;
+            return false;
         }
-        saveButton.disabled = true;
-        try {
-            const response = await apiRequest('/api/auth/profile/links', {
-                method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(links)
-            });
-            if (!response.ok) throw await localizedResponseError(response, 'profile.linksUpdateFailed');
-            profile.links = await response.json();
-            syncUserProfile(profile);
-            showAlert(t('profile.linksUpdated'), 'success');
-        } catch (error) {
-            showAlert(caughtErrorMessage(error, 'profile.linksUpdateFailed'), 'error');
-        } finally {
-            saveButton.disabled = false;
-        }
-    });
+        profile.links = await saveLinks('', {method: 'PUT', json: links});
+        syncUserProfile(profile);
+    }, {errorKey: 'profile.linksUpdateFailed', successKey: 'profile.linksUpdated'});
     const card = el('details', {class: 'profile-settings-section profile-links-card profile-collapsible-card'},
         el('summary', {class: 'profile-section-card-header profile-collapsible-summary'},
             el('div', {class: 'profile-section-icon'}, createIcon('network')),
@@ -1283,6 +1285,8 @@ function showProfileEdit(profile) {
     updateProfileEditHeading(profile);
     const identityCard = buildProfileIdentityEditor(profile);
     buildProfileLinksEditor(profile, identityCard);
+    editView.querySelector('.profile-privacy-card')?.remove();
+    identityCard?.after(createProfilePrivacyEditor(profile));
     editView.querySelectorAll('details.profile-collapsible-card').forEach(card => {
         resetProfileDisclosure(card);
         wireProfileDisclosure(card);
@@ -1319,6 +1323,7 @@ export async function setupProfile(route = null) {
     try {
         const profile = await getUserProfile(targetUsername, {refresh: true});
         if (sequence !== profilePageLoadSeq) return;
+        displayedProfile = profile;
         if (targetRoute?.section === 'maven' || targetRoute?.section === 'cargo' ||
             targetRoute?.section === 'docker' || targetRoute?.section === 'npm') {
             await renderProfileMemberships(profile, targetRoute.section, sequence);
@@ -1395,19 +1400,21 @@ function wireProfileEditActions(profile) {
                 return;
             }
 
+            if (btnUpdatePassword.disabled) return;
+            btnUpdatePassword.disabled = true;
             try {
-                const {response} = await putProto('/api/auth/profile/password', UpdatePasswordRequest, {new_password: newPassword}, StatusOk);
+                const changed = await changeProfilePassword(newPassword);
 
-                if (response.ok) {
+                if (changed) {
                     showAlert(t('profile.passwordUpdated'), 'success');
                     input.value = '';
                     if (strengthCtrl) strengthCtrl.reset();
                     void refreshAccountSecurity();
-                } else {
-                    showAlert(await responseErrorMessage(response, 'profile.updatePasswordFailed'), 'error');
                 }
             } catch (error) {
-                showAlert(t('profile.updatePasswordError'), 'error');
+                showAlert(caughtErrorMessage(error, 'profile.updatePasswordError'), 'error');
+            } finally {
+                btnUpdatePassword.disabled = false;
             }
         });
     }

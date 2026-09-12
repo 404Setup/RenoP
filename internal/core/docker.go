@@ -27,19 +27,20 @@ type DockerRepositoryImage struct {
 	Repository      string          `json:"repository"`
 	ImageName       string          `json:"image_name"`
 	Description     string          `json:"description"`
+	Readme          string          `json:"readme,omitempty"`
 	Publisher       string          `json:"publisher"`
-	TagCount        int             `json:"tag_count"`
 	LatestTag       string          `json:"latest_tag"`
+	SuperTeamPrefix string          `json:"super_team_prefix,omitempty"`
+	Locks           []*ResourceLock `json:"locks,omitempty"`
+	TagCount        int             `json:"tag_count"`
 	PullCount       int64           `json:"pull_count"`
+	PermissionLevel int             `json:"permission_level,omitempty"`
+	CreatedAt       int64           `json:"created_at"`
+	UpdatedAt       int64           `json:"updated_at"`
 	Private         bool            `json:"private"`
 	PushEnabled     bool            `json:"push_enabled"`
 	Deprecated      bool            `json:"deprecated,omitempty"`
 	Mirrored        bool            `json:"mirrored"`
-	SuperTeamPrefix string          `json:"super_team_prefix,omitempty"`
-	PermissionLevel int             `json:"permission_level,omitempty"`
-	CreatedAt       int64           `json:"created_at"`
-	UpdatedAt       int64           `json:"updated_at"`
-	Locks           []*ResourceLock `json:"locks,omitempty"`
 	VersionLocked   bool            `json:"version_locked,omitempty"`
 }
 

@@ -53,7 +53,9 @@ test('OAuth controls preserve intent, enforce last-login state, and discard priv
         refreshAccountSecurity: async () => {
         }, runButtonAction: (_button, fn) => fn(),
         LocalizedResponseError: Error, responseErrorMessage: async () => 'oauth.failed',
-        fetch: async () => ({ok: true, json: async () => ({providers: publicChoices})}),
+        PublicOAuthProviders: {}, OAuthProfileProviders: {}, PROTO_CONTENT_TYPE: 'application/x-protobuf',
+        fetchProto: async () => ({response: {ok: true}, data: {providers: publicChoices}}),
+        decodeProtoResponse: response => response.json(),
         apiRequest: async () => {
             if (delay) await new Promise(resolve => {
                 release = resolve;

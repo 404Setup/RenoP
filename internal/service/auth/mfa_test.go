@@ -42,7 +42,7 @@ func TestMFASetupLoginReplayAndPolicyBoundaries(t *testing.T) {
 	state.Inner.DB = db
 	cfg := config.DefaultConfig()
 	state.Inner.Config.Store(cfg)
-	keyPath := filepath.Join(testutil.TempDir(t), "config.yaml")
+	keyPath := filepath.Join(testutil.TempDir(t), "renop-settings.db")
 	require.NoError(t, EnsureMFAKey(state, keyPath))
 	key := state.Inner.Config.Load().MFAEncryptionKey
 	require.NoError(t, EnsureMFAKey(state, keyPath))

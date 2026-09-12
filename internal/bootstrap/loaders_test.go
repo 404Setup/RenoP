@@ -20,6 +20,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"renop/internal/config"
+	"renop/internal/configstore"
 	"renop/internal/database"
 	"renop/internal/testutil"
 )
@@ -40,14 +41,15 @@ func TestLoadConfig(t *testing.T) {
 		assert.Equal(t, uint16(9090), cfg.Server.Port)
 	})
 
-	t.Run("missing config file creates default", func(t *testing.T) {
+	t.Run("missing config initializes database without YAML", func(t *testing.T) {
 		dir := t.TempDir()
 		cfgPath := filepath.Join(dir, "missing.yaml")
 
 		cfg, err := LoadConfig(cfgPath)
 		require.NoError(t, err)
 		assert.NotNil(t, cfg)
-		assert.FileExists(t, cfgPath)
+		assert.NoFileExists(t, cfgPath)
+		assert.FileExists(t, configstore.PathForLegacy(cfgPath))
 	})
 
 	t.Run("invalid config file is rejected", func(t *testing.T) {
@@ -67,6 +69,7 @@ func TestLoadMaven(t *testing.T) {
 		mavenPath := filepath.Join(dir, "maven.yaml")
 
 		mavenData := config.DefaultMavenSettings()
+		mavenData.Repositories["custom"] = &config.Repository{Name: "custom", Format: config.RepositoryFormatFiles, Visibility: "PRIVATE"}
 		data, err := yaml.Marshal(mavenData)
 		require.NoError(t, err)
 		require.NoError(t, os.WriteFile(mavenPath, data, 0644))
@@ -110,7 +113,7 @@ func TestRepositoryMigrationSurvivesRestartAndPreservesEmptySet(t *testing.T) {
 			require.NoError(t, err)
 			switch source {
 			case "missing":
-				require.Len(t, loaded.Repositories, len(config.DefaultMavenSettings().Repositories))
+				require.Empty(t, loaded.Repositories)
 			case "repositories: {}":
 				require.Empty(t, loaded.Repositories)
 			default:

@@ -102,9 +102,9 @@ type SuperTeamResourceListOptions struct {
 
 // SuperTeamDetails combines one team with the members visible to its managers.
 type SuperTeamDetails struct {
-	Moderator     bool               `json:"moderator"`
 	Team          *SuperTeam         `json:"team"`
 	Members       []*SuperTeamMember `json:"members"`
+	Moderator     bool               `json:"moderator"`
 	Administrator bool               `json:"administrator"`
 }
 

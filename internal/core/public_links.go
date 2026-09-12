@@ -31,6 +31,35 @@ type PublicLinks struct {
 	CustomURL  string `json:"custom_url"`
 }
 
+// ProfileLinkVisibility records an account's opt-in for publishing bound provider identities.
+type ProfileLinkVisibility struct {
+	GitHub bool `json:"github"`
+	GitLab bool `json:"gitlab"`
+}
+
+// ProviderProfileLink is a public URL derived from a verified provider binding.
+type ProviderProfileLink struct {
+	Name string `json:"name"`
+	URL  string `json:"url"`
+}
+
+// UserProfileLinks adds derived provider links and owner-only visibility preferences.
+type UserProfileLinks struct {
+	PublicLinks
+	Providers  []ProviderProfileLink  `json:"providers,omitempty"`
+	Visibility *ProfileLinkVisibility `json:"visibility,omitempty"`
+}
+
+// NormalizeUserProfileLinks accepts editable URLs and visibility flags, never provider URLs.
+func NormalizeUserProfileLinks(links UserProfileLinks) (UserProfileLinks, bool) {
+	if links.GitHub != "" || len(links.Providers) != 0 {
+		return UserProfileLinks{}, false
+	}
+	var valid bool
+	links.PublicLinks, valid = NormalizePublicLinks(links.PublicLinks)
+	return links, valid
+}
+
 func normalizePublicLinkURL(raw string, allowedHosts ...string) (string, bool) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {

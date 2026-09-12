@@ -50,7 +50,7 @@ protobuf 运行时指标位于 `/api/status/instance`。健康检查只说明进
 
 | 变量                           | 默认值              | 用途                       |
 |:-------------------------------|:--------------------|:---------------------------|
-| `RENOP_CONFIG`                 | `config.yaml`       | 主配置文件路径             |
+| `RENOP_SETTINGS_DB`                 | `renop-settings.db`       | 主配置文件路径             |
 | `RENOP_REPOSITORIES`           | `repositories.yaml` | 旧配置导入路径；数据库初始化后忽略 |
 | `RENOP_INDEX`                  | `index.json`        | 持久化文件索引快照路径     |
 | `RENOP_DEFAULT_ADMIN_PASSWORD` | 首次生成            | `admin` 不存在时的初始密码 |

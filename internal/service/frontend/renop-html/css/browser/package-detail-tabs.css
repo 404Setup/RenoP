@@ -25,7 +25,14 @@
     border: 1px solid var(--border-color);
     border-radius: 0.72rem;
     background: var(--card-bg);
-    scrollbar-width: thin;
+}
+
+.package-detail-tabs-nav::-webkit-scrollbar {
+    height: 5px;
+}
+
+.package-detail-tabs-nav::-webkit-scrollbar-thumb {
+    border-radius: 3px;
 }
 
 .package-detail-tab {
@@ -68,7 +75,11 @@
 .package-detail-panel > :only-child,
 .package-detail-panel > .npm-readme-section,
 .package-detail-panel > .npm-team-section,
+.package-detail-panel > .npm-commands-section,
+.package-detail-panel > .npm-project-section,
 .package-detail-panel > .npm-information-grid,
+.package-detail-panel > .cargo-commands-section,
+.package-detail-panel > .cargo-facts-section,
 .package-detail-panel > .cargo-readme-section,
 .package-detail-panel > .cargo-inspection-section,
 .package-detail-panel > .cargo-versions-section,
@@ -76,6 +87,8 @@
 .package-detail-panel > .maven-dependency-section,
 .package-detail-panel > .maven-versions-section {
     grid-column: 1 / -1;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .package-detail-panel .docker-readme-card {

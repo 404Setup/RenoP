@@ -12,6 +12,7 @@ package core
 
 import (
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -29,10 +30,18 @@ const fileCacheShardCount = 16
 // It starts empty (no preallocation), shards keys for concurrent access, and
 // publishes immutable entry buffers so reads stay allocation- and race-free.
 type FileByteCache struct {
-	maxBytes int
-	used     atomic.Int64
-	shards   []fileCacheShard
-	remote   *cache.Remote
+	maxBytes    int
+	used        atomic.Int64
+	maxMetadata int
+	metadata    atomic.Int64
+	shards      []fileCacheShard
+	remote      *cache.Remote
+}
+
+const fileCacheEntryMetadata = 256
+
+func (c *FileByteCache) overBudget() bool {
+	return c.used.Load() > int64(c.maxBytes) || c.metadata.Load() > int64(c.maxMetadata)
 }
 
 type fileCacheEntry struct {
@@ -51,19 +60,27 @@ type fileCacheShard struct {
 }
 
 // NewFileByteCache creates a cache with a hard cap of maxBytes of stored payload.
-// Values larger than maxBytes are not stored. maxBytes <= 0 defaults to 16 MiB.
+// Key and entry metadata have a separate budget of max(maxBytes, 4096), so empty
+// values cannot retain an unlimited number of keys.
+// Values larger than maxBytes are not stored. maxBytes <= 0 disables the cache (0 bytes capacity, 0 shards allocated).
 func NewFileByteCache(maxBytes int) *FileByteCache {
 	if maxBytes <= 0 {
-		maxBytes = 16 << 20
+		return &FileByteCache{maxBytes: 0}
 	}
 	return &FileByteCache{
-		maxBytes: maxBytes,
-		shards:   make([]fileCacheShard, fileCacheShardCount),
+		maxBytes:    maxBytes,
+		maxMetadata: max(maxBytes, 4096),
+		shards:      make([]fileCacheShard, fileCacheShardCount),
 	}
 }
 
 // UseRemote selects external value storage before concurrent cache access.
-func (c *FileByteCache) UseRemote(remote *cache.Remote) { c.remote = remote }
+func (c *FileByteCache) UseRemote(remote *cache.Remote) {
+	if c == nil || c.maxBytes <= 0 {
+		return
+	}
+	c.remote = remote
+}
 
 func (c *FileByteCache) shard(key string) *fileCacheShard {
 	return &c.shards[hashKey(key)&(fileCacheShardCount-1)]
@@ -97,7 +114,7 @@ func (c *FileByteCache) Get(key string) ([]byte, error) {
 // GetReadOnlyView returns a read-only view of the cached value slice without allocation.
 // Callers MUST NOT mutate the returned byte slice.
 func (c *FileByteCache) GetReadOnlyView(key string) ([]byte, error) {
-	if c == nil {
+	if c == nil || c.maxBytes <= 0 || len(c.shards) == 0 {
 		return nil, ErrFileCacheMiss
 	}
 	s := c.shard(key)
@@ -124,12 +141,13 @@ func (c *FileByteCache) GetReadOnlyView(key string) ([]byte, error) {
 // under budget. Existing buffers are never mutated because readers may still
 // hold a read-only view after the shard lock is released.
 func (c *FileByteCache) Set(key string, value []byte) error {
-	if c == nil {
+	if c == nil || c.maxBytes <= 0 || len(c.shards) == 0 {
 		return nil
 	}
-	if len(value) > c.maxBytes {
-		return nil
+	if len(value) > c.maxBytes || len(key) > c.maxMetadata-fileCacheEntryMetadata {
+		return c.Delete(key)
 	}
+	key = strings.Clone(key)
 	entry := fileCacheEntry{size: len(value)}
 	if c.remote != nil {
 		var err error
@@ -150,20 +168,23 @@ func (c *FileByteCache) Set(key string, value []byte) error {
 	}
 
 	delta := int64(entry.size)
+	var previous *cache.Blob
 	if old, ok := s.entries[key]; ok {
 		delta -= int64(old.size)
-		old.blob.Delete()
+		previous = old.blob
 		s.entries[key] = entry
 	} else {
 		s.entries[key] = entry
 		s.order = append(s.order, key)
+		c.metadata.Add(int64(len(key) + fileCacheEntryMetadata))
 	}
 	if delta != 0 {
 		c.used.Add(delta)
 	}
 	s.mu.Unlock()
+	previous.Delete()
 
-	if c.used.Load() > int64(c.maxBytes) {
+	if c.overBudget() {
 		c.trimToMax(key)
 	}
 	return nil
@@ -171,24 +192,27 @@ func (c *FileByteCache) Set(key string, value []byte) error {
 
 // Delete removes key if present.
 func (c *FileByteCache) Delete(key string) error {
-	if c == nil {
+	if c == nil || c.maxBytes <= 0 || len(c.shards) == 0 {
 		return nil
 	}
 	s := c.shard(key)
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	var previous *cache.Blob
 	if old, ok := s.entries[key]; ok {
 		c.used.Add(-int64(old.size))
-		old.blob.Delete()
+		c.metadata.Add(-int64(len(key) + fileCacheEntryMetadata))
+		previous = old.blob
 		delete(s.entries, key)
 		s.compactOrderLocked()
 	}
+	s.mu.Unlock()
+	previous.Delete()
 	return nil
 }
 
 // Stats returns aggregate entry count and payload bytes (for tests/diagnostics).
 func (c *FileByteCache) Stats() (entries, usedBytes int) {
-	if c == nil {
+	if c == nil || c.maxBytes <= 0 || len(c.shards) == 0 {
 		return 0, 0
 	}
 	usedBytes = max(int(c.used.Load()), 0)
@@ -201,23 +225,28 @@ func (c *FileByteCache) Stats() (entries, usedBytes int) {
 	return entries, usedBytes
 }
 
-// trimToMax drops oldest entries across shards until used fits maxBytes.
+// trimToMax drops oldest entries until payload and metadata fit their budgets.
 // protect is never removed while other entries remain (the entry just written).
 // Shards are locked one at a time in index order to avoid deadlock.
 func (c *FileByteCache) trimToMax(protect string) {
-	for c.used.Load() > int64(c.maxBytes) {
+	if c == nil || c.maxBytes <= 0 || len(c.shards) == 0 {
+		return
+	}
+	for c.overBudget() {
 		progress := false
 		for i := range c.shards {
-			if c.used.Load() <= int64(c.maxBytes) {
+			if !c.overBudget() {
 				return
 			}
 			s := &c.shards[i]
 			s.mu.Lock()
-			if c.evictOneLocked(s, protect) {
+			evicted, blob := c.evictOneLocked(s, protect)
+			if evicted {
 				progress = true
 			}
 			s.compactOrderLocked()
 			s.mu.Unlock()
+			blob.Delete()
 		}
 		if !progress {
 			return
@@ -226,9 +255,10 @@ func (c *FileByteCache) trimToMax(protect string) {
 }
 
 // evictOneLocked removes one non-protect entry from s. Returns true if something was removed.
-func (c *FileByteCache) evictOneLocked(s *fileCacheShard, protect string) bool {
+func (c *FileByteCache) evictOneLocked(s *fileCacheShard, protect string) (bool, *cache.Blob) {
 	for len(s.order) > 0 {
 		k := s.order[0]
+		s.order[0] = ""
 		s.order = s.order[1:]
 		if k == protect {
 			s.order = append(s.order, k)
@@ -239,9 +269,9 @@ func (c *FileByteCache) evictOneLocked(s *fileCacheShard, protect string) bool {
 		}
 		if v, ok := s.entries[k]; ok {
 			c.used.Add(-int64(v.size))
-			v.blob.Delete()
+			c.metadata.Add(-int64(len(k) + fileCacheEntryMetadata))
 			delete(s.entries, k)
-			return true
+			return true, v.blob
 		}
 	}
 	for k, v := range s.entries {
@@ -249,11 +279,11 @@ func (c *FileByteCache) evictOneLocked(s *fileCacheShard, protect string) bool {
 			continue
 		}
 		c.used.Add(-int64(v.size))
-		v.blob.Delete()
+		c.metadata.Add(-int64(len(k) + fileCacheEntryMetadata))
 		delete(s.entries, k)
-		return true
+		return true, v.blob
 	}
-	return false
+	return false, nil
 }
 
 func (s *fileCacheShard) compactOrderLocked() {

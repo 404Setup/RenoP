@@ -49,11 +49,13 @@ func (a *AuditLogConfig) setDefaults() {
 }
 
 type Config struct {
+	Runtime               RuntimeConfig          `json:"-" yaml:"-"`
 	Captcha               CaptchaConfig          `json:"captcha" yaml:"captcha"`
 	Legal                 LegalConfig            `json:"legal" yaml:"legal"`
 	MavenDomains          MavenDomainConfig      `json:"maven_domains" yaml:"maven_domains"`
 	Registration          RegistrationConfig     `json:"registration" yaml:"registration"`
 	MFAEncryptionKey      string                 `json:"-" yaml:"mfa_encryption_key,omitempty"`
+	NativeSigningKeys     NativeSigningKeys      `json:"-" yaml:"native_signing_keys,omitempty"`
 	StoragePath           string                 `json:"storage_path" yaml:"storage_path"`
 	EnableJavadocPreview  bool                   `json:"enable_javadoc_preview" yaml:"enable_javadoc_preview"`
 	JavadocExtractPath    string                 `json:"javadoc_extract_path" yaml:"javadoc_extract_path"`
@@ -76,6 +78,14 @@ type Config struct {
 	// is the canonical configuration location.
 	GPG   GPGConfig   `json:"-" yaml:"-"`
 	Proxy ProxyConfig `json:"proxy" yaml:"proxy"`
+}
+
+// RuntimeConfig carries process-only mode and persistence information; it is never an editable setting.
+type RuntimeConfig struct {
+	Demo                      bool
+	DemoTemp                  bool
+	SettingsDatabase          string
+	DemoConfiguredStoragePath string
 }
 
 func (c *Config) setDefaults() {
@@ -273,9 +283,11 @@ func (c *Config) DeepCopy() *Config {
 		return nil
 	}
 	return &Config{
+		Runtime:               c.Runtime,
 		Captcha:               c.Captcha.DeepCopy(),
 		Legal:                 c.Legal.DeepCopy(),
 		MFAEncryptionKey:      c.MFAEncryptionKey,
+		NativeSigningKeys:     c.NativeSigningKeys,
 		StoragePath:           strings.Clone(c.StoragePath),
 		EnableJavadocPreview:  c.EnableJavadocPreview,
 		JavadocExtractPath:    strings.Clone(c.JavadocExtractPath),
@@ -293,7 +305,7 @@ func (c *Config) DeepCopy() *Config {
 		PublicationQuota:      c.PublicationQuota.DeepCopy(),
 		Cache:                 c.Cache,
 		Mail:                  c.Mail.Clone(),
-		Registration:          c.Registration,
+		Registration:          c.Registration.DeepCopy(),
 		MavenDomains:          c.MavenDomains,
 		GPG:                   c.Server.GPG.DeepCopy(),
 		Proxy:                 c.Proxy.DeepCopy(),

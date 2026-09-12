@@ -91,9 +91,13 @@ async function flushUserProfileBatch() {
  * @returns {Promise<object>} Public profile payload.
  */
 function queueUserProfile(username) {
+    const queued = profileBatchQueue.get(username);
+    if (queued) return queued.request;
+    let handlers;
     const request = new Promise((resolve, reject) => {
-        profileBatchQueue.set(username, {resolve, reject});
+        handlers = {resolve, reject};
     });
+    profileBatchQueue.set(username, {...handlers, request});
     if (!profileBatchScheduled) {
         profileBatchScheduled = true;
         queueMicrotask(() => void flushUserProfileBatch());
@@ -228,10 +232,12 @@ export function invalidateUserProfiles(...usernames) {
         const normalized = String(username || '').trim().toLowerCase();
         if (normalized) {
             profileCache.delete(normalized);
+            profileRequests.delete(normalized);
             invalidated.push(normalized);
         }
     }
     if (invalidated.length > 0) {
+        profileCacheGeneration++;
         window.dispatchEvent(new CustomEvent('userProfilesInvalidated', {detail: {usernames: invalidated}}));
     }
 }
@@ -245,6 +251,8 @@ export function invalidateUserProfiles(...usernames) {
 export function syncUserProfile(profile, {oldUsername = ''} = {}) {
     const username = String(profile?.username || '').trim().toLowerCase();
     if (!username) return;
+    profileCacheGeneration++;
+    profileRequests.delete(username);
     const previous = String(oldUsername || '').trim().toLowerCase();
     if (previous && previous !== username) profileCache.delete(previous);
     cacheUserProfile(username, profile);

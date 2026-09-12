@@ -10,7 +10,14 @@
 
 package core
 
-import "github.com/goccy/go-json"
+import (
+	"errors"
+
+	"github.com/goccy/go-json"
+)
+
+// ErrMessageSessionUnavailable means the requested browser session is no longer active for its recipient.
+var ErrMessageSessionUnavailable = errors.New("notification session is unavailable")
 
 const (
 	MessageActionPending   = "pending"
@@ -25,6 +32,7 @@ const (
 type UserMessage struct {
 	ID           string          `json:"id"`
 	Recipient    string          `json:"recipient"`
+	SessionID    string          `json:"session_id,omitempty"`
 	Sender       string          `json:"sender"`
 	Kind         string          `json:"kind"`
 	Severity     string          `json:"severity"`

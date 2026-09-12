@@ -11,11 +11,13 @@ description: Configure policy pages, account-entry consent, and browser preferen
 
 Administrators edit the privacy policy, terms of service, and legal notice on the Legal documents settings page. All three use the same Markdown editor and safe preview; each document is limited to 512 KiB of UTF-8 text. Empty content restores a placeholder. Replace the placeholders with your instance documents.
 
-The documents are stored under `legal` in `config.yaml` and apply immediately after saving. The old privacy file is no longer read: copy its content into settings before upgrading. The old external legal-notice URL is also retired. Existing files are preserved.
+The documents are stored under `legal` in system settings and apply immediately after saving. The old privacy file is no longer read: copy its content into settings before upgrading. The old external legal-notice URL is also retired. Existing files are preserved.
 
 Public pages are `/privacy-policy`, `/terms-of-service`, and `/legal-notice`. They remain readable with expired credentials. `GET /api/legal` returns the current privacy/terms revision and `cookie_banner`; `GET /api/legal/:document` returns bounded plain text. `GET /api/privacy-policy` remains an alias.
 
-`GET /api/settings/legal` and `PUT /api/settings/legal` require settings administrator authority and use JSON fields `privacy_policy`, `terms_of_service`, `legal_notice`, and `cookie_banner`.
+`GET /api/settings/legal` and `PUT /api/settings/legal` require settings administrator authority and binary protobuf `LegalSettings` (`application/x-protobuf`). Fields are `privacy_policy`, `terms_of_service`, `legal_notice`, and `cookie_banner`; each document remains limited to 512 KiB.
+
+`GET /api/legal` serves binary protobuf `LegalMetadata`, including `content_revision` for document-cache invalidation. Metadata and documents support ETags and `304` with mandatory revalidation. Hashes and encoded metadata are reused until the configuration changes. The browser fetches documents on demand or link hover; it does not preload all policies on every visit.
 
 ## Account entry
 

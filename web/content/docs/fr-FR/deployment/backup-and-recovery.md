@@ -18,7 +18,7 @@ les archives de migration pour un éventuel retour à une ancienne version de Re
 
 | Donnée                      | Emplacement courant                         | Rôle à la restauration                                              |
 |:----------------------------|:--------------------------------------------|:--------------------------------------------------------------------|
-| Configuration principale    | `config.yaml` ou `RENOP_CONFIG`             | Écoute, base, proxy, sécurité, aperçus, mise à jour                 |
+| Configuration principale    | `renop-settings.db` ou `RENOP_SETTINGS_DB`             | Écoute, base, proxy, sécurité, aperçus, mise à jour                 |
 | Définition des dépôts       | Base de données | Format, visibilité, miroirs, stockage, règles                       |
 | Base de données             | `renop.db` ou DSN externe                   | Comptes, droits, sessions, jetons, équipes, revues, audit, messages |
 | Artefacts locaux            | `storage_path`                              | Paquets publiés, envois, cache amont                                |
@@ -47,11 +47,11 @@ configuration, l’index et tout le stockage local.
 
 ```bash
 install -d /backup/renop
-cp config.yaml renop.db index.json /backup/renop/
+cp renop-settings.db renop.db index.json /backup/renop/
 rsync -a storage/ /backup/renop/storage/
 ```
 
-Adaptez les chemins définis par `RENOP_CONFIG`, `RENOP_INDEX`, le DSN et `storage_path` ; les
+Adaptez les chemins définis par `RENOP_SETTINGS_DB`, `RENOP_INDEX`, le DSN et `storage_path` ; les
 noms ci-dessus sont les valeurs usuelles. Préservez propriétaire, permissions, attributs nécessaires et espace pour les
 fichiers temporaires.
 
@@ -89,7 +89,7 @@ différentes qu’après les distinguer de façon fiable.
 Restaurez d’abord sur un hôte ou réseau isolé. Utilisez la même version de RenoP que lors de la sauvegarde, validez le
 service, puis réalisez l’éventuelle mise à niveau séparément.
 
-1. Restaurez `config.yaml`, certificats et secrets avec des permissions strictes.
+1. Restaurez `renop-settings.db`, certificats et secrets avec des permissions strictes.
 2. Restaurez la base et vérifiez hôte, identifiants et TLS.
 3. Restaurez le disque ou reconnectez exactement le même bucket et préfixe S3.
 4. Restaurez `index.json` s’il existe ; sinon laissez RenoP reconstruire l’index.
@@ -126,3 +126,5 @@ et consignez :
 
 Une sauvegarde jamais restaurée reste une hypothèse. Reliez le runbook à la
 [Checklist de mise en production](./production-checklist.md) et conservez-en une copie hors ligne.
+
+Le partage S3 conserve les données dans l’espace privé `.renop-content-v1`. Incluez-le avec les objets des dépôts dans les sauvegardes et conservez l’index privé pour réduire les lectures de métadonnées après redémarrage. L’index utilise un flux de records JSON versionné ; les anciens instantanés restent lisibles. Consultez la [configuration des dépôts](/docs/configuration/repositories) pour la déduplication et la restauration.

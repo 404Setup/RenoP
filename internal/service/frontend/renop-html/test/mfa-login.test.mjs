@@ -76,7 +76,7 @@ test('second-factor login keeps rejected and stale challenges out of authenticat
         },
     });
     const button = readFileSync(new URL('../js/components/button.js', import.meta.url), 'utf8');
-    context.runButtonAction = vm.runInContext(button.slice(button.indexOf('export async function runButtonAction')).replace('export ', '') + '; runButtonAction', context);
+    context.runButtonAction = vm.runInContext(button.slice(button.indexOf('export async function runButtonAction')).replaceAll('export ', '') + '; runButtonAction', context);
     const source = readFileSync(new URL('../js/mfa-login.js', import.meta.url), 'utf8').replace(/^import .*;\r?\n/gm, '').replaceAll('export ', '');
     vm.runInContext(source, context);
     const settle = async () => {

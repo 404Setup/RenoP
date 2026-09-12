@@ -27,7 +27,7 @@ complets.
 
 ## Le processus ne démarre pas
 
-Vérifiez d’abord les chemins et le répertoire de travail. Les chemins relatifs de `config.yaml`,
+Vérifiez d’abord les chemins et le répertoire de travail. Les chemins relatifs de `renop-settings.db`,
 SQLite, `index.json` et du stockage dépendent de l’environnement du service, parfois différent du terminal interactif.
 
 Les causes courantes sont un port occupé, un YAML invalide, un DSN inaccessible, des droits d’écriture absents, des

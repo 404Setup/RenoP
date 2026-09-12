@@ -13,6 +13,7 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -104,6 +105,10 @@ func initAccountSecurityTables(db *sql.DB, mysql bool) error {
 		`CREATE TABLE IF NOT EXISTS user_email_addresses (
 			email VARCHAR(254) PRIMARY KEY, user_id VARCHAR(36) NOT NULL,
 			retained INT NOT NULL DEFAULT 0
+		);`,
+		`CREATE TABLE IF NOT EXISTS user_primary_email_history (
+			user_id VARCHAR(36) NOT NULL, email VARCHAR(254) NOT NULL, expires_at BIGINT NOT NULL,
+			PRIMARY KEY (user_id, email)
 		);`,
 		`CREATE TABLE IF NOT EXISTS user_password_resets (
             email VARCHAR(254) PRIMARY KEY, user_id VARCHAR(36) NOT NULL,
@@ -332,9 +337,12 @@ func initNPMTables(db *sql.DB) error {
 	return nil
 }
 
-func initMavenTables(db *sql.DB, readmeColumnDefinition string) error {
+func initMavenTables(db *sql.DB, readmeColumnDefinition, versionColumnDefinition string) error {
 	if readmeColumnDefinition == "" {
 		readmeColumnDefinition = "TEXT NOT NULL"
+	}
+	if versionColumnDefinition == "" {
+		versionColumnDefinition = "VARCHAR(255) NOT NULL"
 	}
 	tables := [...]string{
 		`CREATE TABLE IF NOT EXISTS maven_domains (
@@ -403,7 +411,7 @@ func initMavenTables(db *sql.DB, readmeColumnDefinition string) error {
 			repository VARCHAR(64) NOT NULL,
 			group_id VARCHAR(253) NOT NULL,
 			artifact_id VARCHAR(255) NOT NULL,
-			version VARCHAR(255) NOT NULL,
+			version ` + versionColumnDefinition + `,
 			publisher VARCHAR(255) NOT NULL,
 			size BIGINT NOT NULL DEFAULT 0,
 			mirrored INT NOT NULL DEFAULT 0,
@@ -447,6 +455,7 @@ var sharedIndexMigrations = []SchemaMigration{
 	{Name: "idx_sessions_username", Query: "CREATE INDEX IF NOT EXISTS idx_sessions_username ON sessions(username);"},
 	{Name: "idx_account_ip_bans_ip", Query: "CREATE INDEX IF NOT EXISTS idx_account_ip_bans_ip ON account_ip_bans(ip);"},
 	{Name: "idx_user_email_addresses_owner", Query: "CREATE INDEX IF NOT EXISTS idx_user_email_addresses_owner ON user_email_addresses(user_id);"},
+	{Name: "idx_primary_email_history_expiry", Query: "CREATE INDEX IF NOT EXISTS idx_primary_email_history_expiry ON user_primary_email_history(expires_at, user_id);"},
 	{Name: "idx_sessions_last_active", Query: "CREATE INDEX IF NOT EXISTS idx_sessions_last_active ON sessions(last_active);"},
 	{Name: "idx_sessions_user_public", Query: "CREATE INDEX IF NOT EXISTS idx_sessions_user_public ON sessions(username, public_id);"},
 	{Name: "idx_tokens_expires_at", Query: "CREATE INDEX IF NOT EXISTS idx_tokens_expires_at ON tokens(expires_at) WHERE expires_at IS NOT NULL;"},
@@ -500,16 +509,29 @@ var sharedIndexMigrations = []SchemaMigration{
 	{Name: "idx_npm_packages_super_team", Query: "CREATE INDEX IF NOT EXISTS idx_npm_packages_super_team ON npm_packages(super_team_prefix, repository);"},
 	{Name: "idx_maven_domains_super_team", Query: "CREATE INDEX IF NOT EXISTS idx_maven_domains_super_team ON maven_domains(super_team_prefix, domain);"},
 	{Name: "idx_maven_artifacts_super_team", Query: "CREATE INDEX IF NOT EXISTS idx_maven_artifacts_super_team ON maven_artifacts(super_team_prefix, repository);"},
+	{Name: "idx_native_resources_repository", Query: "CREATE INDEX IF NOT EXISTS idx_native_resources_repository ON native_resources(repository, name);"},
+	{Name: "idx_native_members_user", Query: "CREATE INDEX IF NOT EXISTS idx_native_members_user ON native_members(user_id, resource_id);"},
+	{Name: "idx_native_artifacts_resource", Query: "CREATE INDEX IF NOT EXISTS idx_native_artifacts_resource ON native_artifacts(resource_id, version);"},
+	{Name: "idx_native_artifacts_visibility", Query: "CREATE INDEX IF NOT EXISTS idx_native_artifacts_visibility ON native_artifacts(published, resource_id);"},
+	{Name: "idx_native_artifacts_repository", Query: "CREATE INDEX IF NOT EXISTS idx_native_artifacts_repository ON native_artifacts(repository);"},
 	{Name: "idx_review_tasks_team", Query: "CREATE INDEX IF NOT EXISTS idx_review_tasks_team ON review_tasks(review_team_prefix, status, kind, created_at);"},
 	{Name: "idx_review_tasks_requester", Query: "CREATE INDEX IF NOT EXISTS idx_review_tasks_requester ON review_tasks(requested_by_id, status, created_at);"},
 	{Name: "idx_review_task_files_task", Query: "CREATE INDEX IF NOT EXISTS idx_review_task_files_task ON review_task_files(task_id, added_at);"},
 	{Name: "idx_publication_quota_reservation_owner", Query: "CREATE INDEX IF NOT EXISTS idx_publication_quota_reservation_owner ON publication_quota_reservations(owner_type, owner_key, period_start, expires_at);"},
 	{Name: "idx_publication_quota_reservation_expiry", Query: "CREATE INDEX IF NOT EXISTS idx_publication_quota_reservation_expiry ON publication_quota_reservations(expires_at);"},
 	{Name: "idx_publication_quota_usage_window", Query: "CREATE INDEX IF NOT EXISTS idx_publication_quota_usage_window ON publication_quota_usage(period_start);"},
+	{Name: "idx_ticket_messages_task", Query: "CREATE INDEX IF NOT EXISTS idx_ticket_messages_task ON ticket_messages(task_id, created_at);"},
+}
+
+var oauthSessionIndexMigrations = []SchemaMigration{
+	{Name: "idx_sessions_oauth_subject", Query: "CREATE INDEX IF NOT EXISTS idx_sessions_oauth_subject ON sessions(oauth_provider, oauth_authority, oauth_subject_hash);"},
+	{Name: "idx_sessions_oauth_sid", Query: "CREATE INDEX IF NOT EXISTS idx_sessions_oauth_sid ON sessions(oauth_provider, oauth_authority, oauth_sid_hash);"},
+	{Name: "idx_oauth_revocations_scope", Query: "CREATE INDEX IF NOT EXISTS idx_oauth_revocations_scope ON oauth_revocations(provider_id, authority, issued_at);"},
+	{Name: "idx_oauth_revocations_expiry", Query: "CREATE INDEX IF NOT EXISTS idx_oauth_revocations_expiry ON oauth_revocations(expires_at);"},
 }
 
 func applySharedIndexMigrations(db *sql.DB) error {
-	for _, migration := range sharedIndexMigrations {
+	for _, migration := range append(slices.Clip(sharedIndexMigrations), oauthSessionIndexMigrations...) {
 		if _, err := db.Exec(migration.Query); err != nil {
 			return fmt.Errorf("failed to apply migration %s: %w", migration.Name, err)
 		}
@@ -518,6 +540,15 @@ func applySharedIndexMigrations(db *sql.DB) error {
 }
 
 var sharedColumnMigrations = []SchemaMigration{
+	{Name: "sessions.oauth_subject_hash", Query: "ALTER TABLE sessions ADD COLUMN oauth_subject_hash VARCHAR(64) NOT NULL DEFAULT '';"},
+	{Name: "sessions.oauth_sid_hash", Query: "ALTER TABLE sessions ADD COLUMN oauth_sid_hash VARCHAR(64) NOT NULL DEFAULT '';"},
+	{Name: "sessions.oauth_provider", Query: "ALTER TABLE sessions ADD COLUMN oauth_provider VARCHAR(32) NOT NULL DEFAULT '';"},
+	{Name: "sessions.oauth_authority", Query: "ALTER TABLE sessions ADD COLUMN oauth_authority VARCHAR(64) NOT NULL DEFAULT '';"},
+	{Name: "sessions.oauth_subject", Query: "ALTER TABLE sessions ADD COLUMN oauth_subject VARCHAR(255) NOT NULL DEFAULT '';"},
+	{Name: "sessions.oauth_sid", Query: "ALTER TABLE sessions ADD COLUMN oauth_sid VARCHAR(255) NOT NULL DEFAULT '';"},
+	{Name: "sessions.oauth_authorized_at", Query: "ALTER TABLE sessions ADD COLUMN oauth_authorized_at BIGINT NOT NULL DEFAULT 0;"},
+	{Name: "sessions.oauth_grant", Query: "ALTER TABLE sessions ADD COLUMN oauth_grant TEXT;"},
+	{Name: "user_messages.session_id", Query: "ALTER TABLE user_messages ADD COLUMN session_id VARCHAR(255) NOT NULL DEFAULT '';"},
 	{Name: "resource_locks.reason_text", Query: "ALTER TABLE resource_locks ADD COLUMN reason_text VARCHAR(1024) NOT NULL DEFAULT '';"},
 	{Name: "user_messages.email_processed_at", Query: "ALTER TABLE user_messages ADD COLUMN email_processed_at BIGINT NOT NULL DEFAULT 0;"},
 	{Name: "audit_logs.initiator", Query: "ALTER TABLE audit_logs ADD COLUMN initiator VARCHAR(255) NOT NULL DEFAULT '';"},
@@ -571,8 +602,11 @@ var sharedColumnMigrations = []SchemaMigration{
 	{Name: "maven_artifacts.reclaim_hold_at", Query: "ALTER TABLE maven_artifacts ADD COLUMN reclaim_hold_at BIGINT NOT NULL DEFAULT 0;"},
 	{Name: "maven_artifacts.super_team_prefix", Query: "ALTER TABLE maven_artifacts ADD COLUMN super_team_prefix VARCHAR(64) NOT NULL DEFAULT '';"},
 	{Name: "user_profiles.locale", Query: "ALTER TABLE user_profiles ADD COLUMN locale VARCHAR(16) NOT NULL DEFAULT '';"},
+	{Name: "user_profiles.is_private", Query: "ALTER TABLE user_profiles ADD COLUMN is_private INT NOT NULL DEFAULT 0;"},
 	{Name: "user_profiles.website_url", Query: "ALTER TABLE user_profiles ADD COLUMN website_url VARCHAR(2048) NOT NULL DEFAULT '';"},
 	{Name: "user_profiles.github_url", Query: "ALTER TABLE user_profiles ADD COLUMN github_url VARCHAR(2048) NOT NULL DEFAULT '';"},
+	{Name: "user_profiles.show_github", Query: "ALTER TABLE user_profiles ADD COLUMN show_github INT NOT NULL DEFAULT 0;"},
+	{Name: "user_profiles.show_gitlab", Query: "ALTER TABLE user_profiles ADD COLUMN show_gitlab INT NOT NULL DEFAULT 0;"},
 	{Name: "user_profiles.discord_url", Query: "ALTER TABLE user_profiles ADD COLUMN discord_url VARCHAR(2048) NOT NULL DEFAULT '';"},
 	{Name: "user_profiles.custom_link_name", Query: "ALTER TABLE user_profiles ADD COLUMN custom_link_name VARCHAR(160) NOT NULL DEFAULT '';"},
 	{Name: "user_profiles.custom_link_url", Query: "ALTER TABLE user_profiles ADD COLUMN custom_link_url VARCHAR(2048) NOT NULL DEFAULT '';"},
@@ -584,6 +618,7 @@ var sharedColumnMigrations = []SchemaMigration{
 	{Name: "super_team_members.public_visible", Query: "ALTER TABLE super_team_members ADD COLUMN public_visible INT NOT NULL DEFAULT 1;"},
 	{Name: "user_api_tokens.disabled", Query: "ALTER TABLE user_api_tokens ADD COLUMN disabled INT NOT NULL DEFAULT 0;"},
 	{Name: "tokens.ban_reason", Query: "ALTER TABLE tokens ADD COLUMN ban_reason VARCHAR(2048) NOT NULL DEFAULT '';"},
+	{Name: "tokens.ban_reason_code", Query: "ALTER TABLE tokens ADD COLUMN ban_reason_code VARCHAR(64) NOT NULL DEFAULT '';"},
 	{Name: "tokens.banned_at", Query: "ALTER TABLE tokens ADD COLUMN banned_at BIGINT NOT NULL DEFAULT 0;"},
 	{Name: "user_email_changes.is_alias", Query: "ALTER TABLE user_email_changes ADD COLUMN is_alias INT NOT NULL DEFAULT 0;"},
 	{Name: "tokens.banned_until", Query: "ALTER TABLE tokens ADD COLUMN banned_until BIGINT NULL;"},
@@ -593,6 +628,8 @@ var sharedColumnMigrations = []SchemaMigration{
 	{Name: "user_profiles.user_id", Query: "ALTER TABLE user_profiles ADD COLUMN user_id VARCHAR(36) NULL;"},
 	{Name: "cargo_members.user_id", Query: "ALTER TABLE cargo_members ADD COLUMN user_id VARCHAR(36) NULL;"},
 	{Name: "docker_members.user_id", Query: "ALTER TABLE docker_members ADD COLUMN user_id VARCHAR(36) NULL;"},
+	{Name: "native_resources.archived", Query: "ALTER TABLE native_resources ADD COLUMN archived INT NOT NULL DEFAULT 0;"},
+	{Name: "docker_images.readme", Query: "ALTER TABLE docker_images ADD COLUMN readme TEXT NOT NULL DEFAULT '';", MySQLQuery: "ALTER TABLE docker_images ADD COLUMN readme MEDIUMTEXT;"},
 }
 
 func NewDialect(driver string) Dialect {

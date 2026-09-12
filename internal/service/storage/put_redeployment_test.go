@@ -31,6 +31,7 @@ type mutableMetadataPathTestCase struct {
 
 func TestPutWithoutRedeploymentAllowsMavenMetadataUpdates(t *testing.T) {
 	app, state, storagePath, repo := setupSnapshotPutApp(t)
+	state.Inner.Config.Load().Maven.Repositories["releases"] = repo
 	repo.AllowRedeployment = false
 
 	tests := []mavenMetadataFileTestCase{
@@ -62,6 +63,7 @@ func TestPutWithoutRedeploymentAllowsMavenMetadataUpdates(t *testing.T) {
 
 func TestPutWithoutRedeploymentStillRejectsArtifactOverwrite(t *testing.T) {
 	app, state, storagePath, repo := setupSnapshotPutApp(t)
+	state.Inner.Config.Load().Maven.Repositories["releases"] = repo
 	repo.AllowRedeployment = false
 
 	path := filepath.Join(storagePath, "releases", "one", "pkg", "libsl", "modcommon", "1.0", "modcommon-1.0.jar")

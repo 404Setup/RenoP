@@ -45,6 +45,15 @@ func (u *User) IsManager() bool {
 	return u.isManager
 }
 
+// CanViewPrivateProfiles grants identity access to administrators and moderators of any repository.
+func (u *User) CanViewPrivateProfiles() bool {
+	if u == nil {
+		return false
+	}
+	u.initPermissions()
+	return u.isAdmin || u.canModerateAll || len(u.moderateRepos) > 0
+}
+
 func (u *User) setDefaults() {
 	if u.Tokens == nil {
 		u.Tokens = []string{}

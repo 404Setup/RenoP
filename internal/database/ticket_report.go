@@ -1,7 +1,10 @@
 /*
  * Copyright (c) 2026 404Setup. All rights reserved.
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
- * If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
+ *
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
@@ -10,8 +13,8 @@ package database
 import (
 	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"errors"
+	"renop/pkg/hex"
 	"slices"
 	"strings"
 	"time"
@@ -19,6 +22,7 @@ import (
 	"github.com/goccy/go-json"
 	"github.com/google/uuid"
 
+	"renop/internal/config"
 	"renop/internal/core"
 )
 
@@ -68,17 +72,18 @@ func (db *DB) CreateTicket(request core.TicketRequest, actor, session string, at
 	if len(task.Repository) > 64 || len(storedKey) > maxReviewResourceKey {
 		return nil, core.ErrReviewInvalidRequest
 	}
-	var pending, recent, total int
+	var pending, recent, burst, total int
 	if err := tx.QueryRow(`SELECT COUNT(*) FROM review_tasks WHERE status = ?`, core.ReviewStatusPending).Scan(&total); err != nil {
 		return nil, err
 	}
 	if err := tx.QueryRow(`SELECT COALESCE(SUM(CASE WHEN status = ? THEN 1 ELSE 0 END), 0),
+		COALESCE(SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END), 0),
 		COALESCE(SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END), 0) FROM review_tasks
 		WHERE requested_by_id = ? AND kind IN (?, ?, ?)`, core.ReviewStatusPending, at-(24*time.Hour).Milliseconds(),
-		account.UserID, core.TicketKindFeedback, core.TicketKindSuggestion, core.TicketKindReport).Scan(&pending, &recent); err != nil {
+		at-(10*time.Minute).Milliseconds(), account.UserID, core.TicketKindFeedback, core.TicketKindSuggestion, core.TicketKindReport).Scan(&pending, &recent, &burst); err != nil {
 		return nil, err
 	}
-	if total >= maxPendingPublicationReviews || pending >= 16 || recent >= 24 {
+	if total >= maxPendingPublicationReviews || pending >= 16 || recent >= 24 || burst >= 6 {
 		return nil, core.ErrReviewFileLimit
 	}
 	var activeKey any
@@ -196,6 +201,16 @@ func reportTargetTx(tx *Tx, target core.ResourceLockTarget, actorID string) (cor
 			}
 		}
 		versionArgs = []any{target.Repository, target.Name, target.Version}
+	case config.RepositoryFormatAPK, config.RepositoryFormatAPT, config.RepositoryFormatConan, config.RepositoryFormatConda, "conda-native", config.RepositoryFormatRPM:
+		var resID string
+		err = tx.QueryRow(`SELECT id FROM native_resources WHERE repository = ? AND name = ?`, target.Repository, target.Name).Scan(&resID)
+		if err == nil {
+			err = tx.QueryRow(`SELECT COALESCE(MAX(permission_level), -1) FROM native_members WHERE resource_id = ? AND user_id = ?`, resID, actorID).Scan(&level)
+			member = level >= 0
+		}
+		ownerQuery, ownerArgs = `SELECT user_id FROM native_members WHERE resource_id = ? AND permission_level = 4`, []any{resID}
+		versionQuery = `SELECT '' AS publisher, 0 AS mirrored FROM native_artifacts WHERE resource_id = ? AND (version = ? OR version LIKE ?) AND published = 1 LIMIT 1`
+		versionArgs = []any{resID, target.Version, target.Version + "/%"}
 	default:
 		return target, nil, core.ErrReviewInvalidRequest
 	}

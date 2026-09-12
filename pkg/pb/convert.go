@@ -53,7 +53,7 @@ func FromAccessTokenDto(t core.AccessTokenDto) *AccessTokenDto {
 		msg.ExpiresAt = t.ExpiresAt
 	}
 	if t.Ban != nil {
-		msg.Ban = &AccountBan{Reason: t.Ban.Reason, CreatedAt: t.Ban.CreatedAt}
+		msg.Ban = &AccountBan{Reason: t.Ban.Reason, ReasonCode: t.Ban.ReasonCode, CreatedAt: t.Ban.CreatedAt}
 		if t.Ban.ExpiresAt != nil {
 			msg.Ban.ExpiresAt = t.Ban.ExpiresAt
 		}
@@ -193,8 +193,10 @@ func FromRepository(r *config.Repository) *Repository {
 	for _, m := range r.Mirrors {
 		mirrors = append(mirrors, FromMirror(m))
 	}
+	capacity := r.CapacityLimitBytes
 	return &Repository{
 		Name:                r.Name,
+		CapacityLimitBytes:  &capacity,
 		Format:              r.ConfiguredFormat(),
 		Visibility:          r.Visibility,
 		Mirrors:             mirrors,
@@ -226,6 +228,7 @@ func FromFrontendConfig(f config.FrontendConfig) *FrontendConfig {
 		PublicSecurityFiling: f.PublicSecurityFiling,
 		FontPreset:           f.FontPreset,
 		FontUrl:              f.FontURL,
+		FontCss:              f.FontCSS,
 	}
 }
 
@@ -245,6 +248,7 @@ func ApplyFrontendConfig(dst *config.FrontendConfig, src *FrontendConfig) {
 	dst.PublicSecurityFiling = src.PublicSecurityFiling
 	dst.FontPreset = src.FontPreset
 	dst.FontURL = src.FontUrl
+	dst.FontCSS = src.FontCss
 	dst.CachedIndexHTML = cached
 }
 
@@ -319,8 +323,12 @@ func FromStorageConfig(c *config.Config) *StorageConfig {
 	if c == nil {
 		return &StorageConfig{}
 	}
+	storagePath := c.StoragePath
+	if c.Runtime.Demo {
+		storagePath = c.Runtime.DemoConfiguredStoragePath
+	}
 	return &StorageConfig{
-		StoragePath:           c.StoragePath,
+		StoragePath:           storagePath,
 		EnableJavadocPreview:  c.EnableJavadocPreview,
 		JavadocExtractPath:    c.JavadocExtractPath,
 		MaxJavadocSizeMb:      c.MaxJavadocSizeMb,
@@ -515,6 +523,7 @@ func ToRepository(r *Repository) *config.Repository {
 	}
 	return &config.Repository{
 		Name:                r.Name,
+		CapacityLimitBytes:  r.GetCapacityLimitBytes(),
 		Format:              strings.ToLower(strings.TrimSpace(r.Format)),
 		Visibility:          r.Visibility,
 		Mirrors:             mirrors,

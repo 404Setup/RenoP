@@ -11,11 +11,8 @@
 package auth
 
 import (
-	"bytes"
 	"crypto/rand"
-	"encoding/base32"
 	"errors"
-	"net/http"
 	"net/url"
 	"time"
 
@@ -24,6 +21,9 @@ import (
 	"renop/internal/core"
 	"renop/internal/service/audit"
 	"renop/internal/service/legal"
+	"renop/internal/utils/protohttp"
+	"renop/pkg/base32"
+	"renop/pkg/pb"
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
@@ -87,6 +87,8 @@ func getMFAChallenge(c fiber.Ctx, state *core.AppState) error {
 }
 
 func completeMFALogin(c fiber.Ctx, state *core.AppState, challenge *mfaChallenge, factor string) error {
+	state.Inner.ConfigWriteLock.Lock()
+	defer state.Inner.ConfigWriteLock.Unlock()
 	if err := legal.RequireConsent(c, state); err != nil {
 		return err
 	}
@@ -101,6 +103,7 @@ func completeMFALogin(c fiber.Ctx, state *core.AppState, challenge *mfaChallenge
 	}
 	c.Locals("verified_mfa", challenge)
 	c.Locals("verified_fido_credential", challenge.credentialID)
+	c.Locals("oauth_session_proof", challenge.oauth)
 	user := buildSynthUser(account)
 	if err := issueBrowserSession(c, state, user, challenge.method+"+"+factor); err != nil {
 		if errors.Is(err, legal.ErrConsentRequired) {
@@ -109,7 +112,7 @@ func completeMFALogin(c fiber.Ctx, state *core.AppState, challenge *mfaChallenge
 		return mfaError(c, err)
 	}
 	setPrivateResponseHeaders(c)
-	return c.JSON(CreateSessionDetails(user, ""))
+	return protohttp.Write(c, pb.FromSessionDetails(CreateSessionDetails(user, "")))
 }
 
 func verifyMFATOTP(c fiber.Ctx, state *core.AppState) error {
@@ -201,24 +204,8 @@ func finishMFAPasskey(c fiber.Ctx, state *core.AppState) error {
 	if !claimed {
 		return mfaError(c, core.ErrMFAInvalid)
 	}
-	w, err := getWebAuthnEngine(c, state)
+	credential, err := validateSecondFactorPasskey(c, state, challenge.username, *challenge.fido, request.Credential)
 	if err != nil {
-		return mfaError(c, err)
-	}
-	httpRequest, err := http.NewRequest(http.MethodPost, "", bytes.NewReader(request.Credential))
-	if err != nil {
-		return mfaError(c, core.ErrMFAInvalid)
-	}
-	httpRequest.Header.Set("Content-Type", "application/json")
-	parsed, err := protocol.ParseCredentialRequestResponse(httpRequest)
-	if err != nil {
-		return mfaError(c, core.ErrMFAInvalid)
-	}
-	credential, err := w.ValidateLogin(buildFidoAssertionUser(challenge.username, state, parsed), *challenge.fido, parsed)
-	if err != nil || credential == nil || credential.Authenticator.CloneWarning {
-		return mfaError(c, core.ErrMFAInvalid)
-	}
-	if err := state.UpdateFidoDeviceState(credential.ID, credential.Authenticator.SignCount, credential.Flags.BackupState, credential.Flags.BackupEligible); err != nil {
 		return mfaError(c, err)
 	}
 	challenge.credentialID = credential.ID
@@ -251,6 +238,9 @@ func beginTOTPSetup(c fiber.Ctx, state *core.AppState) error {
 	}
 	username, session, err := recentMFASettingsSession(c, state)
 	if err != nil {
+		return mfaError(c, err)
+	}
+	if err := requireSecurityMutable(state, username); err != nil {
 		return mfaError(c, err)
 	}
 	mfa, err := state.GetDB().GetMFAState(username)

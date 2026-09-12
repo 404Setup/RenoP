@@ -59,6 +59,13 @@ func issueBrowserSession(c fiber.Ctx, state *core.AppState, user *config.User, m
 		LoginMethod:            method,
 	}
 	session.LastActive.Store(now)
+	if proof, _ := c.Locals("oauth_session_proof").(*oauthSessionProof); proof != nil {
+		grant, err := sealSessionOAuthGrant(state, proof, publicID)
+		if err != nil {
+			return err
+		}
+		session.OAuthGrant = grant
+	}
 	if err := state.SaveSession(session, sessionToken); err != nil {
 		return err
 	}
@@ -71,8 +78,8 @@ func issueBrowserSession(c fiber.Ctx, state *core.AppState, user *config.User, m
 	case "github":
 		authMethod = "GitHub"
 	}
-	if strings.HasPrefix(primary, "oauth:") {
-		authMethod = "OAuth " + strings.TrimPrefix(primary, "oauth:")
+	if after, ok := strings.CutPrefix(primary, "oauth:"); ok {
+		authMethod = "OAuth " + after
 	}
 	if factor == "totp" {
 		authMethod += " + TOTP"

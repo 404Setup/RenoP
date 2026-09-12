@@ -11,10 +11,15 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"log"
+	"net"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/goccy/go-json"
@@ -25,7 +30,9 @@ import (
 	"renop/internal/bootstrap"
 	caddyconfig "renop/internal/caddy"
 	"renop/internal/config"
+	"renop/internal/containerenv"
 	"renop/internal/daemon"
+	"renop/internal/demo"
 	"renop/internal/middleware"
 	"renop/internal/service/audit"
 	"renop/internal/service/auth"
@@ -54,22 +61,36 @@ func init() {
 	fasthttp.SetBodySizePoolLimit(64*1024, 64*1024)
 }
 
+var serverOptions demo.Options
+
 func main() {
 	utils.InitMemoryTuning()
+	if containerenv.IsContainer() {
+		log.Print("Container runtime detected; manage updates and restarts through the container image")
+	}
 
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "--install", "-install":
+			if containerenv.IsContainer() {
+				log.Fatal("Manage container services through the container runtime")
+			}
 			if err := daemon.Install(); err != nil {
 				log.Fatalf("Failed to install RenoP service: %v", err)
 			}
 			return
 		case "--uninstall", "-uninstall", "--remove", "-remove":
+			if containerenv.IsContainer() {
+				log.Fatal("Manage container services through the container runtime")
+			}
 			if err := daemon.Uninstall(); err != nil {
 				log.Fatalf("Failed to uninstall RenoP service: %v", err)
 			}
 			return
 		case "--install-caddy":
+			if containerenv.IsContainer() {
+				log.Fatal("Configure the reverse proxy outside the application container")
+			}
 			if err := caddyconfig.RunCLI(os.Args[2:], os.Stdin, os.Stdout); err != nil {
 				log.Fatalf("Failed to configure Caddy: %v", err)
 			}
@@ -81,9 +102,17 @@ func main() {
 			fmt.Println("  renop --install       Install and start RenoP as a system service")
 			fmt.Println("  renop --uninstall     Stop and remove the RenoP system service")
 			fmt.Println("  renop --install-caddy Configure a Caddy reverse proxy for RenoP")
+			fmt.Println("  renop --demo          Start with read-only demonstration data")
+			fmt.Println("  renop --demo --demo-temp  Allow demonstration settings and repositories to be configured")
 			fmt.Println("  renop --help          Show help information")
 			return
 		}
+	}
+
+	var err error
+	serverOptions, err = demo.ParseOptions(os.Args[1:])
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	if daemon.IsWindowsService() {
@@ -97,13 +126,13 @@ func main() {
 }
 
 func startServer() {
-	state, context := bootstrap.Initialize()
-	services, err := bootstrap.StartServices(state, context)
+	state, bootContext := bootstrap.Initialize(serverOptions)
+	services, err := bootstrap.StartServices(state, bootContext)
 	if err != nil {
 		log.Fatalf("Failed to start background services: %v", err)
 	}
 	cfg := state.Inner.Config.Load()
-	status.InitDebugMode(cfg.Server.DebugMode)
+	status.InitDebugMode(cfg.Server.DebugMode && !state.IsDemo())
 
 	concurrency := int(cfg.Server.MaxActiveRequests)
 	if concurrency <= 0 {
@@ -130,18 +159,24 @@ func startServer() {
 		ErrorHandler:                 audit.ErrorHandler(state),
 	})
 
+	app.Use(demo.Middleware(state))
 	app.Use(middleware.APINoCacheMiddleware())
 	app.Use(middleware.CorsMiddleware(state))
 	app.Use(middleware.AnomalyMiddleware(state))
 	app.Use(audit.HTTPDiagnostics(state))
+	app.Get("/api/demo", func(c fiber.Ctx) error { return demo.Info(c, state) })
 
 	opChan := make(chan token.TokenOp, 100)
-	go token.StartTokenConsumer(state, opChan)
+	tokenDone := make(chan struct{})
+	go func() {
+		defer close(tokenDone)
+		token.StartTokenConsumer(state, opChan)
+	}()
 	if err := token.AutoRegisterAdmin(state, opChan); err != nil {
 		log.Fatalf("Failed to auto-register administrator: %v", err)
 	}
 	for repository, repo := range cfg.Maven.Repositories {
-		if repo != nil && repo.NormalizedFormat() == config.RepositoryFormatMaven {
+		if !state.IsDemo() && repo != nil && repo.NormalizedFormat() == config.RepositoryFormatMaven {
 			if err := maven.UpgradeLegacyRepository(state, repository); err != nil {
 				log.Printf("Failed to upgrade legacy Maven repository %s: %v", repository, err)
 			}
@@ -176,21 +211,41 @@ func startServer() {
 	docker.SetupDockerRoutes(app, state, storage.NewDockerStore(cfg.StoragePath))
 	storage.SetupRoutes(app, state)
 
-	listenAddr := cfg.Server.Host + ":" + strconv.Itoa(int(cfg.Server.Port))
+	listenAddr := net.JoinHostPort(cfg.Server.Host, strconv.Itoa(int(cfg.Server.Port)))
+	shutdownContext, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stopSignals()
+	shutdownDone := make(chan error, 1)
+	app.Hooks().OnPostShutdown(func(err error) error {
+		shutdownDone <- err
+		return nil
+	})
+	listenConfig := fiber.ListenConfig{GracefulContext: shutdownContext, ShutdownTimeout: 20 * time.Second}
 
 	if cfg.Server.SslEnabled {
 		log.Printf("Listening on https://%s", listenAddr)
-		err = app.Listen(listenAddr, fiber.ListenConfig{
-			CertFile:    cfg.Server.SslCertPath,
-			CertKeyFile: cfg.Server.SslKeyPath,
-		})
+		listenConfig.CertFile = cfg.Server.SslCertPath
+		listenConfig.CertKeyFile = cfg.Server.SslKeyPath
+		err = app.Listen(listenAddr, listenConfig)
 	} else {
 		log.Printf("Listening on http://%s", listenAddr)
-		err = app.Listen(listenAddr)
+		err = app.Listen(listenAddr, listenConfig)
 	}
+	if shutdownContext.Err() != nil {
+		// Serve returns when listeners close, before in-flight handlers finish draining.
+		if shutdownErr := <-shutdownDone; shutdownErr != nil {
+			log.Fatalf("HTTP shutdown did not finish cleanly: %v", shutdownErr)
+		}
+	}
+	close(opChan)
+	<-tokenDone
 
 	if closeErr := services.Close(); closeErr != nil {
 		log.Printf("Failed to stop background services cleanly: %v", closeErr)
+	}
+	if db, ok := state.GetDB().(io.Closer); ok {
+		if closeErr := db.Close(); closeErr != nil {
+			log.Printf("Failed to close database cleanly: %v", closeErr)
+		}
 	}
 	if err != nil {
 		log.Fatal(err)

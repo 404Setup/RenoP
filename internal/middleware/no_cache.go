@@ -13,6 +13,8 @@ package middleware
 import (
 	"strings"
 
+	"renop/internal/service/legal"
+
 	"github.com/gofiber/fiber/v3"
 )
 
@@ -29,8 +31,8 @@ func setAPINoCacheHeaders(c fiber.Ctx) {
 }
 
 // APINoCacheMiddleware prevents clients and intermediaries from retaining API
-// responses. It sets headers before downstream middleware for early failures,
-// then reapplies them after handlers so route-specific headers cannot weaken it.
+// responses, except public legal resources with explicit ETag revalidation.
+// Early failures receive no-store headers before downstream middleware runs.
 func APINoCacheMiddleware() fiber.Handler {
 	return func(c fiber.Ctx) error {
 		if !isAPIPath(c.Path()) {
@@ -38,7 +40,17 @@ func APINoCacheMiddleware() fiber.Handler {
 		}
 
 		setAPINoCacheHeaders(c)
-		defer setAPINoCacheHeaders(c)
-		return c.Next()
+		retainLegalPolicy := false
+		defer func() {
+			if !retainLegalPolicy {
+				setAPINoCacheHeaders(c)
+			}
+		}()
+		err := c.Next()
+		status := c.Response().StatusCode()
+		retainLegalPolicy = err == nil && (c.Method() == fiber.MethodGet || c.Method() == fiber.MethodHead) &&
+			legal.IsPublicPath(c.Path()) && (status == fiber.StatusOK || status == fiber.StatusNotModified) &&
+			len(c.Response().Header.Peek(fiber.HeaderETag)) > 0 && string(c.Response().Header.Peek(fiber.HeaderCacheControl)) == "public, no-cache"
+		return err
 	}
 }

@@ -12,8 +12,8 @@ package database_test
 
 import (
 	"crypto/sha256"
-	"encoding/hex"
 	"path/filepath"
+	"renop/pkg/hex"
 	"testing"
 	"time"
 

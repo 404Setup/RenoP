@@ -12,6 +12,7 @@ import {t} from './i18n.js';
 import {apiRequest, fetchProto} from './api.js';
 import {showAlert} from './alert.js';
 import {el} from '@renop/ui/dom';
+import {makeCustomSelect} from '@renop/ui/custom-select';
 import {createUserIdentity, RenopDialog} from './components.js';
 import {enableDragToScroll} from '@renop/ui/scroll';
 import {AuditLogList} from './proto/index.js';
@@ -131,20 +132,28 @@ export async function openAuditLogsDialog(options = {}) {
         }
     });
     const addFilter = (name, label, type = 'text', choices = null) => {
-        const input = choices
-            ? el('select', {class: 'cfg-input', name}, ...choices.map(([value, text]) => el('option', {value}, text)))
-            : el('input', {
+        if (choices) {
+            const options = choices.map(([value, text]) => ({value, label: text}));
+            const select = makeCustomSelect(options, '', () => {});
+            fields[name] = select;
+            select.style.minWidth = '0';
+            fieldset.append(el('label', {
+                style: {display: 'grid', gap: '4px', minWidth: '0', fontSize: '.85rem'}
+            }, el('span', {}, t(label)), select));
+        } else {
+            const input = el('input', {
                 class: 'cfg-input',
                 name,
                 type,
                 maxLength: name === 'operator' || name === 'username' || name === 'initiator' ? 255 : 64
             });
-        fields[name] = input;
-        input.style.minWidth = '0';
-        fieldset.append(el('label', {
-            class: type === 'datetime-local' ? 'audit-filter-date' : '',
-            style: {display: 'grid', gap: '4px', minWidth: '0', fontSize: '.85rem'}
-        }, el('span', {}, t(label)), input));
+            fields[name] = input;
+            input.style.minWidth = '0';
+            fieldset.append(el('label', {
+                class: type === 'datetime-local' ? 'audit-filter-date' : '',
+                style: {display: 'grid', gap: '4px', minWidth: '0', fontSize: '.85rem'}
+            }, el('span', {}, t(label)), input));
+        }
     };
     const all = ['', t('audit.all')];
     const triggerLabels = {
@@ -159,9 +168,47 @@ export async function openAuditLogsDialog(options = {}) {
         warning: t('audit.severity.warning'),
         error: t('audit.severity.error')
     };
+    const AUDIT_ACTIONS = [
+        'LOGIN', 'LOGOUT', 'UPLOAD', 'UPLOAD_QUEUED_GPG', 'UPLOAD_QUEUED_REVIEW', 'DELETE',
+        'PASSWORD_UPDATE', 'FIDO_UPDATE', 'SETTINGS_UPDATE', 'SESSION_REVOKE',
+        'TOKEN_GENERATE', 'TOKEN_REVOKE', 'TOKEN_DISABLE', 'TOKEN_ENABLE',
+        'USER_PERMISSION_UPDATE', 'USER_REGISTER', 'USER_BAN', 'USER_UNBAN',
+        'ACCOUNT_RETIRE', 'ACCOUNT_EMAIL_RELEASE', 'ACCOUNT_AUDIT_PURGE',
+        'PACKAGE_DEPRECATE', 'LOG_CLEAR', 'GPG_UPDATE', 'PROFILE_UPDATE', 'MESSAGE_SEND',
+        'REPOSITORY_MIGRATE', 'SUPER_TEAM_CREATE', 'SUPER_TEAM_UPDATE', 'SUPER_TEAM_DELETE',
+        'SUPER_TEAM_INVITE', 'SUPER_TEAM_MEMBER_ADD', 'SUPER_TEAM_MEMBER_LEVEL',
+        'SUPER_TEAM_MEMBER_VISIBILITY', 'SUPER_TEAM_MEMBER_REMOVE', 'SUPER_TEAM_INVITATION',
+        'SUPER_TEAM_LIMIT', 'PUBLICATION_QUOTA_UPDATE', 'REVIEW_REQUEST', 'TICKET_CREATE',
+        'TICKET_UPDATE', 'REVIEW_DECISION', 'REVIEW_CANCEL',
+        'CARGO_PUBLISH', 'RESOURCE_LOCK', 'RESOURCE_UNLOCK', 'CARGO_DOCS_UPLOAD',
+        'CARGO_DOCS_DELETE', 'CARGO_YANK', 'CARGO_UNYANK', 'CARGO_VERSION_DELETE',
+        'CARGO_PACKAGE_ARCHIVE', 'CARGO_PACKAGE_RESTORE', 'CARGO_PACKAGE_DELETE',
+        'CARGO_TEAM_ADD', 'CARGO_TEAM_INVITE', 'CARGO_TEAM_REMOVE', 'CARGO_TEAM_LEVEL',
+        'CARGO_INVITE_ACCEPT', 'CARGO_INVITE_REJECT',
+        'DOCKER_MANIFEST_PUT', 'DOCKER_MANIFEST_DELETE', 'DOCKER_BLOB_UPLOAD',
+        'DOCKER_BLOB_MOUNT', 'DOCKER_BLOB_DELETE', 'DOCKER_IMAGE_CREATE',
+        'DOCKER_IMAGE_UPDATE', 'DOCKER_IMAGE_DELETE', 'DOCKER_TAG_DELETE',
+        'DOCKER_TEAM_ADD', 'DOCKER_TEAM_INVITE', 'DOCKER_TEAM_LEVEL',
+        'DOCKER_TEAM_REMOVE', 'DOCKER_INVITE_ACCEPT', 'DOCKER_INVITE_REJECT',
+        'NPM_PACKAGE_CREATE', 'NPM_PUBLISH', 'NPM_METADATA_UPDATE', 'NPM_VERSION_DELETE',
+        'NPM_PACKAGE_ARCHIVE', 'NPM_PACKAGE_RESTORE', 'NPM_PACKAGE_DELETE', 'NPM_DIST_TAG',
+        'NPM_TEAM_ADD', 'NPM_TEAM_INVITE', 'NPM_TEAM_LEVEL', 'NPM_TEAM_REMOVE',
+        'NPM_INVITE_ACCEPT', 'NPM_INVITE_REJECT',
+        'MAVEN_DOMAIN_CREATE', 'MAVEN_DOMAIN_VERIFY', 'MAVEN_DOMAIN_FORCE_VERIFY',
+        'MAVEN_DOMAIN_CLOSE', 'MAVEN_DOMAIN_CLAIM_APPROVE', 'MAVEN_DOMAIN_CLAIM_REJECT',
+        'MAVEN_ARTIFACT_UPDATE', 'MAVEN_VERSION_DELETE', 'MAVEN_TEAM_ADD',
+        'MAVEN_TEAM_INVITE', 'MAVEN_TEAM_LEVEL', 'MAVEN_TEAM_REMOVE', 'MAVEN_TEAM_INVITATION'
+    ];
+    const actionChoices = [
+        all,
+        ...AUDIT_ACTIONS.map(act => {
+            const key = 'audit.action.' + act;
+            const text = t(key);
+            return [act, text === key ? act : text];
+        })
+    ];
     if (isGlobal) addFilter('kind', 'audit.kind', 'text', [all, ['audit', t('profile.auditLogsTitle')], ['system', t('audit.system')]]);
-    addFilter('action', 'audit.action');
-    fields.action.placeholder = 'LOGIN';
+    addFilter('action', 'audit.action', 'text', actionChoices);
     addFilter('operator', 'audit.operator', 'text', isSelf ? [all, [targetUsername, targetUsername], ['@administrator', t('audit.administrator')]] : null);
     addFilter('initiator', 'audit.initiator', 'text', isSelf ? [all, [targetUsername, targetUsername], ['@administrator', t('audit.administrator')]] : null);
     if (isGlobal) addFilter('username', 'audit.account');
@@ -176,6 +223,11 @@ export async function openAuditLogsDialog(options = {}) {
         type: 'button', class: 'pill-btn', onClick: () => {
             if (isFetching) return;
             filterForm.reset();
+            for (const input of Object.values(fields)) {
+                if (typeof input.setValue === 'function') {
+                    input.setValue('');
+                }
+            }
             fields.until.setCustomValidity('');
             filters = new URLSearchParams();
             page = 1;
@@ -188,7 +240,8 @@ export async function openAuditLogsDialog(options = {}) {
         if (isFetching) return;
         const next = new URLSearchParams();
         for (const [name, input] of Object.entries(fields)) {
-            if (input.value) next.set(name, name === 'from' || name === 'until' ? String(new Date(input.value).getTime()) : input.value.trim());
+            const val = typeof input.getValue === 'function' ? input.getValue() : input.value;
+            if (val) next.set(name, name === 'from' || name === 'until' ? String(new Date(val).getTime()) : val.trim());
         }
         if (next.has('from') && next.has('until') && Number(next.get('from')) > Number(next.get('until'))) {
             fields.until.setCustomValidity(t('audit.invalidFilter'));
@@ -388,12 +441,12 @@ export async function openAuditLogsDialog(options = {}) {
                 paginationArea.innerHTML = '';
                 const totalPages = Math.ceil(total / pageSize) || 1;
                 const recordsLabel = total === 1 ? (t('common.record') || 'record') : (t('common.records') || 'records');
-                const pageInfo = el('span', {style: {opacity: '0.7'}}, `${t('common.page') || 'Page'} ${page} / ${totalPages} (${total} ${recordsLabel})`);
+                const pageInfo = el('span', {style: {opacity: '0.7'}}, `${total} ${recordsLabel}`);
 
                 const prevBtn = el('button', {
                     type: 'button',
                     class: 'pill-btn',
-                    style: {padding: '4px 10px', fontSize: '0.8rem', marginRight: '6px'},
+                    style: {padding: '4px 10px', fontSize: '0.8rem'},
                     disabled: page <= 1,
                     onClick: () => {
                         if (page > 1 && !isFetching) {
@@ -416,7 +469,52 @@ export async function openAuditLogsDialog(options = {}) {
                     }
                 }, t('common.next') || 'Next');
 
-                paginationArea.append(pageInfo, el('div', {}, prevBtn, nextBtn));
+                const jumpInput = el('input', {
+                    type: 'number',
+                    class: 'cfg-input',
+                    min: '1',
+                    max: String(totalPages),
+                    value: String(page),
+                    style: {width: '54px', padding: '2px 6px', fontSize: '0.8rem', textAlign: 'center', margin: '0 4px', display: 'inline-block'}
+                });
+
+                const doJump = () => {
+                    if (isFetching) return;
+                    let target = parseInt(jumpInput.value, 10);
+                    if (isNaN(target) || target < 1) target = 1;
+                    if (target > totalPages) target = totalPages;
+                    if (target !== page) {
+                        const dir = target > page ? 'next' : 'prev';
+                        page = target;
+                        loadLogs(dir);
+                    } else {
+                        jumpInput.value = String(page);
+                    }
+                };
+
+                jumpInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        doJump();
+                    }
+                });
+                jumpInput.addEventListener('change', () => {
+                    doJump();
+                });
+
+                const jumpLabel = el('span', {style: {opacity: '0.85', display: 'inline-flex', alignItems: 'center', gap: '4px'}},
+                    el('span', {}, t('common.page') || 'Page'),
+                    jumpInput,
+                    el('span', {}, `/ ${totalPages}`)
+                );
+
+                const controls = el('div', {style: {display: 'flex', alignItems: 'center', gap: '6px'}},
+                    prevBtn,
+                    jumpLabel,
+                    nextBtn
+                );
+
+                paginationArea.append(pageInfo, controls);
             };
 
             if (modalContent) {
@@ -444,6 +542,37 @@ export async function openAuditLogsDialog(options = {}) {
 
     const footerButtons = [];
 
+    const destroySelects = () => {
+        for (const input of Object.values(fields)) {
+            if (typeof input.destroy === 'function') {
+                input.destroy();
+            }
+        }
+    };
+
+    if (isGlobal) {
+        footerButtons.push({
+            text: t('audit.clearGlobalLogs') || 'Clear Global Logs',
+            className: 'pill-btn pill-btn--danger pill-btn--sm',
+            onClick: async (e, dialog) => {
+                const confirmMsg = t('audit.confirmClearGlobalLogs') || 'Are you sure you want to clear global audit logs?';
+                if (await window.showConfirm(confirmMsg)) {
+                    try {
+                        const delRes = await apiRequest('/api/auth/logs', {method: 'DELETE'});
+                        if (delRes.ok) {
+                            showAlert(t('audit.globalLogsCleared') || 'Global audit logs cleared', 'success');
+                            loadLogs();
+                        } else {
+                            showAlert(t('common.error'), 'error');
+                        }
+                    } catch (err) {
+                        showAlert(t('common.error'), 'error');
+                    }
+                }
+            }
+        });
+    }
+
     if (!isSelf && !isGlobal && targetUsername) {
         footerButtons.push({
             text: t('users.clearAuditLogs') || 'Clear User Logs',
@@ -470,7 +599,10 @@ export async function openAuditLogsDialog(options = {}) {
     footerButtons.push({
         text: t('common.close') || 'Close',
         className: 'pill-btn pill-btn--soft pill-btn--sm',
-        onClick: (e, dialog) => dialog.close(true)
+        onClick: (e, dialog) => {
+            destroySelects();
+            dialog.close(true);
+        }
     });
 
     currentAuditModal = RenopDialog.show({

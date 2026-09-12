@@ -75,4 +75,9 @@ export default Object.freeze({
     "updaterNotice.spaceBody": "Zum Vorbereiten des Systemupdates ist nicht genügend Speicherplatz verfügbar.",
     "updaterNotice.restartFailedTitle": "Neustart für Update fehlgeschlagen",
     "updaterNotice.restartFailedBody": "RenoP konnte nicht neu gestartet werden, um das vorbereitete Update anzuwenden. Prüfen Sie die Serverprotokolle.",
+    "messages.sessionTarget": "Ziel der Benachrichtigung",
+    "messages.allSessions": "Alle Sitzungen",
+    "messages.sessionsLoading": "Aktive Sitzungen werden geladen…",
+    "messages.sessionsEmpty": "Keine aktiven Browsersitzungen.",
+    "messages.sessionsFailed": "Sitzungen konnten nicht geladen werden. Empfänger erneut eingeben.",
 });

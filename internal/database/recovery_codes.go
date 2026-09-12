@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"renop/internal/core"
 )
@@ -33,23 +34,16 @@ func validSelectorHash(value string) bool {
 }
 
 func (db *DB) accountIdentity(identifier string) (userID, username string, err error) {
-	identifier = strings.ToLower(strings.TrimSpace(identifier))
-	if strings.Contains(identifier, "@") {
-		email, valid := core.NormalizeEmail(identifier)
-		if !valid || email == "" {
-			return "", "", core.ErrRecoveryCodesInvalid
-		}
-		err = db.QueryRow(`SELECT p.user_id, p.username FROM user_profiles p
-			JOIN user_email_addresses security ON security.user_id = p.user_id
-			WHERE security.email = ?`, email).Scan(&userID, &username)
-	} else {
-		identifier = strings.ToLower(SanitizeInputString(identifier, maxTokenNameLen))
-		if identifier == "" || strings.ContainsAny(identifier, "\x00\r\n") {
-			return "", "", core.ErrRecoveryCodesInvalid
-		}
-		err = db.QueryRow(`SELECT user_id, username FROM user_profiles WHERE username = ?`, identifier).
-			Scan(&userID, &username)
+	email, valid := core.NormalizeEmail(identifier)
+	if !valid || email == "" {
+		return "", "", core.ErrRecoveryCodesInvalid
 	}
+	err = db.QueryRow(`SELECT profile.user_id, profile.username FROM user_profiles profile
+		JOIN user_email_addresses address ON address.user_id = profile.user_id
+		JOIN user_account_security security ON security.user_id = profile.user_id
+		LEFT JOIN user_primary_email_history history ON history.user_id = profile.user_id AND history.email = address.email
+		WHERE address.email = ? AND (security.email = ? OR COALESCE(history.expires_at, 0) > ?)`,
+		email, email, time.Now().UnixMilli()).Scan(&userID, &username)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", "", core.ErrRecoveryCodesInvalid
 	}
@@ -87,6 +81,15 @@ func (db *DB) ReplaceRecoveryCodes(username string, codes []core.RecoveryCodeHas
 	defer tx.Rollback()
 	if err := lockAccountLoginMethodsTx(tx, userID); err != nil {
 		return fmt.Errorf("lock account security for recovery-code replacement: %w", err)
+	}
+	var existing int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM user_recovery_codes WHERE user_id = ?`, userID).Scan(&existing); err != nil {
+		return err
+	}
+	if existing > 0 {
+		if err := securityHoldTx(tx, userID, time.Now().UnixMilli()); err != nil {
+			return err
+		}
 	}
 	if _, err := tx.Exec(`DELETE FROM user_recovery_codes WHERE user_id = ?`, userID); err != nil {
 		return fmt.Errorf("invalidate previous recovery codes: %w", err)
@@ -163,7 +166,7 @@ func (db *DB) GetRecoveryCodes(identifier string, selectorHashes []string) (stri
 // ResetPasswordWithRecoveryCodes consumes four unused codes, resets the password, and revokes sessions atomically.
 func (db *DB) ResetPasswordWithRecoveryCodes(identifier string, selectorHashes []string,
 	passwordHash string, updatedAt int64) (string, error) {
-	if passwordHash == "" || len(passwordHash) > 255 {
+	if passwordHash == "" || len(passwordHash) > 255 || updatedAt <= 0 {
 		return "", core.ErrRecoveryCodesInvalid
 	}
 	placeholders, selectorArguments, err := recoveryPlaceholders(selectorHashes)
@@ -181,6 +184,10 @@ func (db *DB) ResetPasswordWithRecoveryCodes(identifier string, selectorHashes [
 	defer tx.Rollback()
 	if err := lockAccountLoginMethodsTx(tx, userID); err != nil {
 		return "", fmt.Errorf("lock account security for password recovery: %w", err)
+	}
+	restore, replaced, err := recoveryPrimaryEmailTx(tx, userID, identifier, updatedAt)
+	if err != nil {
+		return "", err
 	}
 	arguments := make([]any, 0, len(selectorArguments)+1)
 	arguments = append(arguments, userID)
@@ -209,6 +216,11 @@ func (db *DB) ResetPasswordWithRecoveryCodes(identifier string, selectorHashes [
 	if affected != core.RecoveryCodesRequired {
 		return "", fmt.Errorf("recovery-code consumption changed: %w", core.ErrRecoveryCodesInvalid)
 	}
+	if restore {
+		if err := restorePrimaryEmailTx(tx, userID, identifier, replaced); err != nil {
+			return "", err
+		}
+	}
 	if err := resetAccountPasswordTx(tx, userID, username, passwordHash, updatedAt); err != nil {
 		return "", err
 	}
@@ -222,7 +234,7 @@ func (db *DB) ResetPasswordWithRecoveryCodes(identifier string, selectorHashes [
 	return username, nil
 }
 
-func resetAccountPasswordTx(tx *Tx, userID, username, passwordHash string, updatedAt int64) error {
+func resetAccountPasswordTx(tx *Tx, userID, username, passwordHash string, updatedAt int64, keepSession ...string) error {
 	passwordResult, err := tx.Exec(`UPDATE tokens SET encrypted_secret = ? WHERE name = ?`, passwordHash, username)
 	if err != nil {
 		return fmt.Errorf("reset recovered password: %w", err)
@@ -241,7 +253,11 @@ func resetAccountPasswordTx(tx *Tx, userID, username, passwordHash string, updat
 		updated_at = CASE WHEN updated_at >= ? THEN updated_at + 1 ELSE ? END WHERE user_id = ?`, updatedAt, updatedAt, userID); err != nil {
 		return fmt.Errorf("restore password login: %w", err)
 	}
-	if _, err := tx.Exec(`DELETE FROM sessions WHERE username = ?`, username); err != nil {
+	if len(keepSession) == 1 && keepSession[0] != "" {
+		if _, err := tx.Exec(`DELETE FROM sessions WHERE username = ? AND session_token <> ?`, username, keepSession[0]); err != nil {
+			return err
+		}
+	} else if _, err := tx.Exec(`DELETE FROM sessions WHERE username = ?`, username); err != nil {
 		return fmt.Errorf("revoke sessions after password recovery: %w", err)
 	}
 	return nil

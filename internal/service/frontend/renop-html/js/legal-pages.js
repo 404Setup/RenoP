@@ -9,6 +9,7 @@
  */
 
 import {el} from '@renop/ui/dom';
+import {handleBackClick} from './back-navigation.js';
 import {t} from './i18n.js';
 import {setSafeMarkdown} from './markdown.js';
 import {LEGAL_DOCUMENTS, legalPageFromPath} from './legal-consent.js';
@@ -16,6 +17,40 @@ import {readLegalTextResponse} from './legal-response.js';
 
 let request, epoch = 0, showing = false;
 const siteTitle = document.title;
+const documentCache = new Map();
+const documentFetchedAt = new Map();
+const inflightFetches = new Map();
+let cacheEpoch = 0;
+
+/** Fetch and cache one legal document, coalescing concurrent reads. */
+async function fetchLegalDocument(documentName, signal) {
+    if (documentCache.has(documentName) && Date.now() - documentFetchedAt.get(documentName) < 60000) {
+        return documentCache.get(documentName);
+    }
+    if (inflightFetches.has(documentName)) {
+        return inflightFetches.get(documentName);
+    }
+    const cacheVersion = cacheEpoch;
+    const promise = (async () => {
+        try {
+            const response = await fetch('/api/legal/' + documentName, {
+                credentials: 'omit',
+                cache: 'default',
+                signal: signal || AbortSignal.timeout(15000),
+            });
+            const content = await readLegalTextResponse(response);
+            if (cacheVersion === cacheEpoch) {
+                documentCache.set(documentName, content);
+                documentFetchedAt.set(documentName, Date.now());
+            }
+            return content;
+        } finally {
+            if (cacheVersion === cacheEpoch) inflightFetches.delete(documentName);
+        }
+    })();
+    inflightFetches.set(documentName, promise);
+    return promise;
+}
 
 /** Render a public legal document as its own page, cancelling stale navigation. */
 export async function updateLegalPage(active) {
@@ -32,21 +67,25 @@ export async function updateLegalPage(active) {
     showing = true;
     const title = t(LEGAL_DOCUMENTS[documentName]);
     document.title = title + ' · ' + siteTitle;
-    const body = el('article', {class: 'legal-document markdown-body', 'aria-busy': 'true'}, t('privacy.loading'));
+    const cached = documentCache.get(documentName);
+    const body = el('article', {class: 'legal-document markdown-body', 'aria-busy': cached ? 'false' : 'true'});
+    if (cached) {
+        setSafeMarkdown(body, cached);
+    } else {
+        body.textContent = t('privacy.loading');
+    }
     container.replaceChildren(
         el('header', {class: 'legal-page-heading'},
             el('h1', {id: 'legal-page-title', tabindex: '-1'}, title),
-            el('a', {href: '/', class: 'account-page-back', 'data-legal-link': ''}, t('nav.backHome'))),
+            el('a', {href: '/', class: 'account-page-back', onclick: handleBackClick}, t('nav.backPrevious'))),
         body,
     );
     document.getElementById('legal-page-title').focus({preventScroll: true});
+
     const controller = new AbortController();
     request = controller;
     try {
-        const response = await fetch('/api/legal/' + documentName, {
-            credentials: 'omit', cache: 'no-store', signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]),
-        });
-        const content = await readLegalTextResponse(response);
+        const content = await fetchLegalDocument(documentName, AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]));
         if (revision !== epoch || controller.signal.aborted) return;
         setSafeMarkdown(body, content);
     } catch {
@@ -60,6 +99,23 @@ export async function updateLegalPage(active) {
 
 /** Route footer policy links without interfering with modified clicks or new tabs. */
 export function initializeLegalPages() {
+    window.addEventListener('legalConfigurationChanged', () => {
+        cacheEpoch++;
+        documentCache.clear();
+        documentFetchedAt.clear();
+        inflightFetches.clear();
+        if (showing) void updateLegalPage(true);
+    });
+
+    document.addEventListener('mouseover', event => {
+        const link = event.target?.closest?.('a[data-legal-link]');
+        if (!link) return;
+        const name = legalPageFromPath(link.getAttribute('href') || '');
+        if (name) {
+            void fetchLegalDocument(name).catch(() => {});
+        }
+    }, {passive: true});
+
     document.addEventListener('click', event => {
         const link = event.target.closest?.('a[data-legal-link]');
         if (!link || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || link.target) return;

@@ -8,6 +8,7 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
+import {renderHTML} from '../../../../../scripts/render-shell-test.mjs';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {dirname, join, resolve} from 'node:path';
@@ -36,7 +37,7 @@ function repositorySource(...parts) {
 }
 
 test('ownership transfers use one routed review center outside the message system', () => {
-    const html = frontendSource('index.html');
+    const html = renderHTML(join(frontendRoot, 'index.html'));
     const main = frontendSource('js', 'main.js');
     const reviews = frontendSource('js', 'tickets.js');
     assert.match(html, /data-account-action="tickets"/);

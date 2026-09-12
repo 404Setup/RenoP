@@ -16,6 +16,9 @@
     "./scroll": "./js/scroll.js",
     "./tabs": "./js/tabs.js",
     "./i18n-util": "./js/i18n-util.js",
+    "./response-bytes": "./js/response-bytes.js",
+    "./i18n-catalog": "./js/i18n-catalog.js",
+    "./i18n-startup": "./js/i18n-startup.js",
     "./jquery": "./js/jquery.js",
     "./custom-select": "./js/custom-select.js",
     "./toggle": "./js/toggle.js",
@@ -29,13 +32,27 @@
     "./css/components/modal.css": "./css/components/modal.css",
     "./css/components/pagination.css": "./css/components/pagination.css",
     "./css/components/tabs.css": "./css/components/tabs.css",
-    "./css/components/custom-select.css": "./css/components/custom-select.css"
+    "./css/components/custom-select.css": "./css/components/custom-select.css",
+    "./field-row": "./js/field-row.js",
+    "./badge": "./js/badge.js",
+    "./skeleton": "./js/skeleton.js",
+    "./meta-grid": "./js/meta-grid.js",
+    "./code-badge": "./js/code-badge.js",
+    "./css/components/badge.css": "./css/components/badge.css",
+    "./css/components/skeleton.css": "./css/components/skeleton.css",
+    "./css/components/code-badge.css": "./css/components/code-badge.css",
+    "./css/components/toggle.css": "./css/components/toggle.css",
+    "./css/components/field-row.css": "./css/components/field-row.css"
   },
   "files": [
     "js",
     "css"
   ],
   "dependencies": {
-    "jquery": "4.0.0"
+    "jquery": "4.0.0",
+    "protobufjs": "^8.8.0"
+  },
+  "devDependencies": {
+    "protobufjs-cli": "^2.7.0"
   }
 }

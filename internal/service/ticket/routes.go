@@ -30,6 +30,7 @@ import (
 	"renop/internal/service/cargo"
 	"renop/internal/service/docker"
 	"renop/internal/service/maven"
+	"renop/internal/service/nativepkg"
 	"renop/internal/service/npm"
 	"renop/internal/service/repositorygate"
 	"renop/internal/service/storage"
@@ -77,9 +78,9 @@ func reviewError(c fiber.Ctx, err error) error {
 		status, code = fiber.StatusNotFound, "review_file_not_found"
 	case errors.Is(err, core.ErrReviewFileLimit):
 		status, code = fiber.StatusTooManyRequests, "review_limit"
-	case errors.Is(err, core.ErrReviewInvalidRequest):
+	case errors.Is(err, core.ErrReviewInvalidRequest), errors.Is(err, core.ErrNativeInvalid), errors.Is(err, core.ErrNativeSignature):
 		status, code = fiber.StatusBadRequest, "invalid_request"
-	case errors.Is(err, core.ErrReviewPermissionDenied), errors.Is(err, core.ErrSuperTeamBindingPermission):
+	case errors.Is(err, core.ErrReviewPermissionDenied), errors.Is(err, core.ErrSuperTeamBindingPermission), errors.Is(err, core.ErrNativePermission):
 		status, code = fiber.StatusForbidden, "review_permission"
 	case errors.Is(err, core.ErrReviewTransferRestricted):
 		status, code = fiber.StatusConflict, "transfer_restricted"
@@ -174,7 +175,7 @@ func normalizeTransferRequest(request *core.SuperTeamTransferRequest) bool {
 func validReviewResourceType(value string) bool {
 	switch value {
 	case core.ReviewResourceDockerImage, core.ReviewResourceNPMPackage, core.ReviewResourceCargoPackage,
-		core.ReviewResourceMavenArtifact, core.ReviewResourceMavenDomain:
+		core.ReviewResourceMavenArtifact, core.ReviewResourceMavenDomain, core.ReviewResourceNativePackage:
 		return true
 	default:
 		return false
@@ -271,7 +272,7 @@ func listTasks(c fiber.Ctx, state *core.AppState) error {
 	if view != "reviewer" && view != "requested" {
 		return reviewError(c, fiber.ErrBadRequest)
 	}
-	status := strings.ToLower(strings.TrimSpace(c.Query("status", core.TicketUnprocessed)))
+	status := strings.ToLower(strings.TrimSpace(c.Query("status", "all")))
 	if !core.ValidTicketStatus(status) {
 		return reviewError(c, fiber.ErrBadRequest)
 	}
@@ -431,6 +432,10 @@ func decidePublicationTask(c fiber.Ctx, state *core.AppState, username string,
 	}
 	release := repositorygate.AcquireMutation(task.Repository)
 	defer release()
+	if task.ResourceType == core.ReviewResourceNativePackage {
+		releaseResource := nativepkg.AcquireMutation(task.Repository, task.ResourceKey)
+		defer releaseResource()
+	}
 	current, err := state.GetDB().GetReviewTask(task.ID)
 	if err != nil {
 		return nil, err
@@ -460,6 +465,13 @@ func decidePublicationTask(c fiber.Ctx, state *core.AppState, username string,
 		}
 	}
 	if decision == core.ReviewStatusRejected {
+		if current.ResourceType == core.ReviewResourceNativePackage {
+			decided, err := state.GetDB().DecideReviewTask(current.ID, username, decision, reason, now)
+			if err != nil {
+				return nil, err
+			}
+			return decided, storage.DeletePublicationReviewFiles(state, files)
+		}
 		if err := storage.DeletePublicationReviewFiles(state, files); err != nil {
 			return nil, err
 		}
@@ -483,6 +495,18 @@ func decidePublicationTask(c fiber.Ctx, state *core.AppState, username string,
 	}
 	var rollback func() error
 	switch current.ResourceType {
+	case core.ReviewResourceNativePackage:
+		if err := storage.ValidateNativeReview(state, current, files); err != nil {
+			return nil, err
+		}
+		decided, err := state.GetDB().DecideReviewTask(current.ID, username, decision, "", now)
+		if err != nil {
+			return nil, err
+		}
+		if err := storage.UnblockPublicationReviewFiles(state, files); err != nil {
+			return nil, err
+		}
+		return decided, nil
 	case core.ReviewResourceMavenArtifact:
 		if err := maven.ApprovePublicationReview(state, current); err != nil {
 			return nil, err
@@ -645,7 +669,7 @@ func cancelTask(c fiber.Ctx, state *core.AppState) error {
 
 // SetupRoutes registers cookie-session ticket and workflow APIs.
 func SetupRoutes(router fiber.Router, state *core.AppState) {
-	base := router.Group("/tickets")
+	base := router.Group("/tickets", ticketAdmission(state))
 	base.Get("", func(c fiber.Ctx) error { return listTasks(c, state) })
 	base.Post("", func(c fiber.Ctx) error { return createTask(c, state) })
 	base.Get("/:id", func(c fiber.Ctx) error { return getTask(c, state) })
@@ -655,5 +679,8 @@ func SetupRoutes(router fiber.Router, state *core.AppState) {
 	base.Get("/:id/files", func(c fiber.Ctx) error { return reviewFiles(c, state) })
 	base.Get("/:id/files/:file_id", func(c fiber.Ctx) error { return downloadReviewFile(c, state) })
 	base.Post("/:id/decision", func(c fiber.Ctx) error { return decideTask(c, state) })
+	base.Post("/:id/close", func(c fiber.Ctx) error { return closeTask(c, state) })
+	base.Get("/:id/messages", func(c fiber.Ctx) error { return listMessages(c, state) })
+	base.Post("/:id/messages", func(c fiber.Ctx) error { return createMessage(c, state) })
 	base.Delete("/:id", func(c fiber.Ctx) error { return cancelTask(c, state) })
 }

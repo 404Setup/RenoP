@@ -69,15 +69,16 @@ func statisticsQuery(c fiber.Ctx, groupDefault string) (core.DownloadStatisticsQ
 	if !allowedGroup {
 		return core.DownloadStatisticsQuery{}, fiber.ErrBadRequest
 	}
-	if query.Format != "" && query.Format != config.RepositoryFormatMaven &&
-		query.Format != config.RepositoryFormatFiles && query.Format != config.RepositoryFormatCargo &&
-		query.Format != config.RepositoryFormatDocker {
+	if query.Format != "" && !config.IsSupportedRepositoryFormat(query.Format) {
 		return core.DownloadStatisticsQuery{}, fiber.ErrBadRequest
 	}
 	return query, nil
 }
 
 func flushStatistics(state *core.AppState) error {
+	if state.IsDemo() {
+		return nil
+	}
 	counter := GetCounter(state)
 	if counter == nil {
 		return core.ErrDatabaseUnavailable

@@ -45,6 +45,9 @@ func putRegistrationSettings(c fiber.Ctx, state *core.AppState) error {
 	state.Inner.ConfigWriteLock.Lock()
 	defer state.Inner.ConfigWriteLock.Unlock()
 	next := state.Inner.Config.Load().DeepCopy()
+	if request.DefaultPermissions == nil {
+		request.DefaultPermissions = next.Registration.Permissions()
+	}
 	next.Registration = request
 	if err := persistConfigSnapshot(next); err != nil {
 		return cacheSettingsError(c, 500, "registration_settings_save_failed")

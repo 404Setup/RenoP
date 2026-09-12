@@ -36,6 +36,12 @@ installation.
 |----------------------------------------------------|-----------------------------------------------------|--------------|---------------------------------------------------------------------------------------|
 | [404Setup Go fork](https://github.com/404Setup/go) | `go.mod` directive (release resolved at build time) | BSD-3-Clause | Copyright 2009 The Go Authors; retains the Go project `LICENSE` and `PATENTS` notices |
 
+`pkg/base32/` adapts Go's `encoding/base32` implementation and tests. Its Go Authors copyright headers,
+BSD-3-Clause [license](pkg/base32/LICENSE), and [patent grant](pkg/base32/PATENTS) are retained alongside the source.
+
+`pkg/hex/` adapts Go's `encoding/hex` APIs, streaming implementation, and tests. Its Go Authors copyright headers,
+BSD-3-Clause [license](pkg/hex/LICENSE), and [patent grant](pkg/hex/PATENTS) are retained alongside the source.
+
 ### B. Go modules linked into the RenoP server binary
 
 | Module                                   | Version                            | SPDX                                       | Copyright / notices                                                                                            |
@@ -93,6 +99,7 @@ installation.
 | `github.com/shopspring/decimal`          | v1.4.0                             | MIT                                        | Copyright (c) 2015 Spring, Inc.                                                                                |
 | `github.com/shirou/gopsutil/v3`          | v3.24.5                            | BSD-3-Clause                               | Copyright (c) 2014 WAKAYAMA Shirou                                                                             |
 | `github.com/tinylib/msgp`                | v1.6.4                             | MIT                                        | Copyright (c) 2014 Philip Hofer; portions Copyright (c) 2009 The Go Authors                                    |
+| `github.com/ulikunitz/xz` | v0.5.17 | BSD-3-Clause | Copyright 2014-2022 Ulrich Kunitz; see upstream LICENSE |
 | `github.com/valyala/bytebufferpool`      | v1.0.0                             | MIT                                        | Copyright (c) 2016 Aliaksandr Valialkin, VertaMedia                                                            |
 | `github.com/valyala/fasthttp`            | v1.74.0                            | MIT                                        | Copyright (c) 2015-present Aliaksandr Valialkin, VertaMedia, Kirill Danshin, Erik Dubbelboer, FastHTTP Authors |
 | `github.com/x448/float16`                | v0.8.4                             | MIT                                        | Copyright (c) 2019 Faye Amacker                                                                                |
@@ -199,7 +206,7 @@ are under **Apache-2.0** (Copyright (c) 2011-2019 Canonical Ltd). Both notices a
 Primarily **BSD-3-Clause**. Some subpaths (for example `gzhttp/*`) are under **Apache-2.0**. See the package’s own
 `LICENSE` file for the full split.
 
-### 404Setup Go fork
+### Illium Go
 
 The custom Go distribution used to build RenoP is maintained at
 <https://github.com/404Setup/go>. It is a modified version of the Go project and retains the upstream

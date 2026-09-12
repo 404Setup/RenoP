@@ -20,6 +20,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -61,6 +62,12 @@ func setupGitHubRoutesWithProvider(auth fiber.Router, state *core.AppState, opCh
 			profile, err := currentSessionProfile(c, state)
 			if err != nil || profile == nil {
 				return c.SendStatus(fiber.StatusForbidden)
+			}
+			if intent == "email" {
+				githubStatus, err := state.GetDB().GetGitHubIdentity(profile.Username)
+				if err != nil || githubStatus == nil || githubStatus.GitHubUserID == 0 {
+					return passwordResetError(c, 400, "oauth_invalid")
+				}
 			}
 		default:
 			return passwordResetError(c, 400, "oauth_invalid")
@@ -168,6 +175,10 @@ func startGitHubOAuth(c fiber.Ctx, state *core.AppState, provider githubOAuthPro
 			return oauthResultRedirect(c, returnTo, "email_failed")
 		}
 		if c.Query("intent") == "email" {
+			githubStatus, err := state.GetDB().GetGitHubIdentity(profile.Username)
+			if err != nil || githubStatus == nil || githubStatus.GitHubUserID == 0 {
+				return oauthResultRedirect(c, returnTo, "oauth_invalid")
+			}
 			record.Intent = "email"
 		}
 		record.SessionHash = fmt.Sprintf("%x", sha256.Sum256([]byte(session)))
@@ -233,6 +244,7 @@ func finishGitHubOAuth(c fiber.Ctx, state *core.AppState, opChan chan<- token.To
 	}
 	ctx, cancel := context.WithTimeout(c.Context(), 30*time.Second)
 	defer cancel()
+	proofStartedAt := time.Now().UnixMilli()
 	tokenResponse, err := exchangeGitHubCode(ctx, client, provider, cfg.Server.GitHubOAuth, code)
 	if err != nil {
 		log.Printf("GitHub OAuth code exchange failed: %v", err)
@@ -307,11 +319,18 @@ func finishGitHubOAuth(c fiber.Ctx, state *core.AppState, opChan chan<- token.To
 		log.Printf("Failed to resolve GitHub login: %v", err)
 		return oauthResultRedirect(c, record.ReturnTo, "identity_failed")
 	}
+	// Publish the session cache under the same gate used by provider revocation callbacks.
+	state.Inner.ConfigWriteLock.Lock()
+	defer state.Inner.ConfigWriteLock.Unlock()
 	mfa, err := state.GetDB().GetMFAState(user.Username)
 	if err != nil || mfa.GitHubID != identity.ID {
 		return oauthResultRedirect(c, record.ReturnTo, "session_failed")
 	}
 	user.AuthenticationSnapshot = mfa.Snapshot
+	c.Locals("oauth_session_proof", &oauthSessionProof{ProviderID: "github", UserID: mfa.UserID,
+		Authority: githubRevocationAuthority(cfg.Server.GitHubOAuth.ClientID, provider.APIURL), Subject: strconv.FormatInt(identity.ID, 10),
+		AuthorizedAt: proofStartedAt, ConfigHash: githubSessionConfigurationHash(cfg.Server.GitHubOAuth), GitHubAPIURL: provider.APIURL,
+		Tokens: oauthTokens{AccessToken: tokenResponse.AccessToken, TokenType: tokenResponse.TokenType}})
 	if err := issueBrowserSession(c, state, user, "github"); err != nil {
 		if errors.Is(err, legal.ErrConsentRequired) {
 			return oauthResultRedirect(c, "/account/login", legal.ConsentErrorCode)

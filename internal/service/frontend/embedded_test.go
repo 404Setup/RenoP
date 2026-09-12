@@ -12,13 +12,14 @@ package frontend
 
 import (
 	"bytes"
-	"compress/gzip"
-	"compress/zlib"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/klauspost/compress/gzip"
+	"github.com/klauspost/compress/zlib"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/klauspost/compress/zstd"
@@ -66,8 +67,59 @@ func decodeAssetResponse(t *testing.T, encoding string, body []byte) []byte {
 	return decoded
 }
 
+func TestLocaleAssetsUseInlineProtobufRepresentations(t *testing.T) {
+	files, err := Asset.ReadDir("renop-html/dist/assets/i18n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var path string
+	for _, file := range files {
+		if strings.HasPrefix(file.Name(), "en-US-") && strings.HasSuffix(file.Name(), ".pb") {
+			path = "assets/i18n/" + file.Name()
+			break
+		}
+	}
+	if path == "" {
+		t.Fatal("generated protobuf locale asset missing")
+	}
+	app := fiber.New()
+	app.Get("/locale", func(c fiber.Ctx) error { return ServeEmbeddedFile(c, path) })
+	for _, encoding := range []string{"identity", "br", "gzip"} {
+		req := httptest.NewRequest(http.MethodGet, "/locale", nil)
+		req.Header.Set(fiber.HeaderAcceptEncoding, encoding)
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp.StatusCode != 200 || resp.Header.Get(fiber.HeaderContentType) != "application/x-protobuf" || resp.Header.Get(fiber.HeaderContentDisposition) != "inline" {
+			t.Fatalf("unexpected locale representation: %d %v", resp.StatusCode, resp.Header)
+		}
+		if !strings.Contains(resp.Header.Get(fiber.HeaderCacheControl), "immutable") || len(decodeAssetResponse(t, resp.Header.Get(fiber.HeaderContentEncoding), body)) == 0 {
+			t.Fatal("locale is not cacheable protobuf data")
+		}
+	}
+}
+
 func TestEmbeddedAssetsNegotiatePrecompressedRepresentations(t *testing.T) {
-	want, err := readAsset("js/main.js")
+	entries, err := Asset.ReadDir("renop-html/dist/js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var assetPath string
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), "app-") && strings.HasSuffix(entry.Name(), ".js") {
+			assetPath = "/js/" + entry.Name()
+		}
+	}
+	if assetPath == "" {
+		t.Fatal("application bundle is missing")
+	}
+	want, err := readAsset(assetPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +138,7 @@ func TestEmbeddedAssetsNegotiatePrecompressedRepresentations(t *testing.T) {
 		{header: "gzip;q=0.7, br;q=0.9, identity;q=0.5", encoding: "br"},
 	} {
 		t.Run(test.header, func(t *testing.T) {
-			request := httptest.NewRequest(http.MethodGet, "/js/main.js", nil)
+			request := httptest.NewRequest(http.MethodGet, assetPath, nil)
 			request.Header.Set(fiber.HeaderAcceptEncoding, test.header)
 			response, err := app.Test(request)
 			if err != nil {
@@ -114,7 +166,7 @@ func TestEmbeddedAssetsNegotiatePrecompressedRepresentations(t *testing.T) {
 				t.Fatal("asset response is missing an ETag")
 			}
 			etags[test.encoding] = etag
-			head := httptest.NewRequest(http.MethodHead, "/js/main.js", nil)
+			head := httptest.NewRequest(http.MethodHead, assetPath, nil)
 			head.Header.Set(fiber.HeaderAcceptEncoding, test.header)
 			headResponse, err := app.Test(head)
 			if err != nil {
@@ -134,7 +186,7 @@ func TestEmbeddedAssetsNegotiatePrecompressedRepresentations(t *testing.T) {
 	if etags["br"] == etags["gzip"] {
 		t.Fatal("Brotli and gzip representations share an ETag")
 	}
-	conditional := httptest.NewRequest(http.MethodGet, "/js/main.js", nil)
+	conditional := httptest.NewRequest(http.MethodGet, assetPath, nil)
 	conditional.Header.Set(fiber.HeaderAcceptEncoding, "br")
 	conditional.Header.Set(fiber.HeaderIfNoneMatch, etags["br"])
 	response, err := app.Test(conditional)

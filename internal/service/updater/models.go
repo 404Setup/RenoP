@@ -164,6 +164,9 @@ func init() {
 }
 
 func GetUpdateState() *UpdateState {
+	if inContainer() {
+		return &UpdateState{Status: "disabled"}
+	}
 	s := currentStatePtr.Load()
 	if s == nil {
 		return &UpdateState{Status: "idle"}

@@ -7,10 +7,10 @@
 A self-hosted package repository for Maven, Cargo, npm, Docker/OCI, and generic files, with a web management interface
 embedded in one executable.
 
-[Website](https://renop.mvnc.one/) ·
-[Documentation](https://renop.mvnc.one/docs) ·
-[Downloads](https://renop.mvnc.one/download) ·
-[Releases](https://github.com/404Setup/SRC-RenoP/releases)
+[Website](https://renop.pkg.one/) ·
+[Documentation](https://renop.pkg.one/docs) ·
+[Downloads](https://renop.pkg.one/download) ·
+[Releases](https://github.com/404Setup/RenoP/releases)
 
 ## Features
 
@@ -23,7 +23,7 @@ embedded in one executable.
 
 ## Quick start
 
-[Download a build](https://renop.mvnc.one/download) for your platform and extract it to `renop` or `renop.exe`.
+[Download a build](https://renop.pkg.one/download) for your platform and extract it to `renop` or `renop.exe`.
 The download page supports ZIP conversion for raw Brotli packages.
 
 Linux / macOS:
@@ -45,23 +45,23 @@ generated and printed once to the server log. Configuration is created on first 
 settings through the web interface.
 
 The default listener is `0.0.0.0:3000`. Follow the
-[production checklist](https://renop.mvnc.one/docs/deployment/production-checklist) before exposing the instance.
-See [Quickstart](https://renop.mvnc.one/docs/getting-started/quickstart) for repository setup.
+[production checklist](https://renop.pkg.one/docs/deployment/production-checklist) before exposing the instance.
+See [Quickstart](https://renop.pkg.one/docs/getting-started/quickstart) for repository setup.
 
 ## Documentation
 
-| Topic           | Guides                                                                                                                                                                                                                                         |
-|-----------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Package clients | [Maven](https://renop.mvnc.one/docs/guides/maven-client), [Cargo](https://renop.mvnc.one/docs/guides/cargo-registry), [npm](https://renop.mvnc.one/docs/guides/npm-registry), [Docker/OCI](https://renop.mvnc.one/docs/guides/docker-registry) |
-| Configuration   | [Overview](https://renop.mvnc.one/docs/configuration/overview), [repositories](https://renop.mvnc.one/docs/configuration/repositories), [databases](https://renop.mvnc.one/docs/configuration/database)                                        |
-| Deployment      | [Services](https://renop.mvnc.one/docs/deployment/daemon), [reverse proxy](https://renop.mvnc.one/docs/deployment/reverse-proxy), [backup and recovery](https://renop.mvnc.one/docs/deployment/backup-and-recovery)                            |
-| Security        | [Security model](https://renop.mvnc.one/docs/security/security-model), [tokens and keys](https://renop.mvnc.one/docs/security/tokens-and-keys)                                                                                                 |
-| API             | [Reference](https://renop.mvnc.one/api/README), [OpenAPI](https://renop.mvnc.one/assets/openapi.yaml)                                                                                                                                     |
-| Support         | [Troubleshooting](https://renop.mvnc.one/docs/guides/troubleshooting), [issues](https://github.com/404Setup/SRC-RenoP/issues)                                                                                                                  |
+| Topic           | Guides                                                                                                                                                                                                                                                                           |
+|-----------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Package clients | [Maven](https://renop.pkg.one/docs/guides/maven-client), [Cargo](https://renop.pkg.one/docs/guides/cargo-registry), [npm](https://renop.pkg.one/docs/guides/npm-registry), [Docker/OCI](https://renop.pkg.one/docs/guides/docker-registry)                                       |
+| Configuration   | [Overview](https://renop.pkg.one/docs/configuration/overview), [repositories](https://renop.pkg.one/docs/configuration/repositories), [databases](https://renop.pkg.one/docs/configuration/database)                                                                             |
+| Deployment      | [Containers](https://renop.pkg.one/docs/deployment/containers), [services](https://renop.pkg.one/docs/deployment/daemon), [reverse proxy](https://renop.pkg.one/docs/deployment/reverse-proxy), [backup and recovery](https://renop.pkg.one/docs/deployment/backup-and-recovery) |
+| Security        | [Security model](https://renop.pkg.one/docs/security/security-model), [tokens and keys](https://renop.pkg.one/docs/security/tokens-and-keys)                                                                                                                                     |
+| API             | [Reference](https://renop.pkg.one/api/README), [OpenAPI](https://renop.pkg.one/assets/openapi.yaml)                                                                                                                                                                              |
+| Support         | [Troubleshooting](https://renop.pkg.one/docs/guides/troubleshooting), [issues](https://github.com/404Setup/RenoP/issues)                                                                                                                                                         |
 
 ## Building from source
 
-Use the [404Setup Go fork](https://github.com/404Setup/go/releases) matching [go.mod](go.mod), PowerShell 7, Node.js
+Use the [Illium Go](https://github.com/404Setup/go/releases) matching [go.mod](go.mod), PowerShell 7, Node.js
 24+,
 the pnpm version pinned in [package.json](package.json), `protoc`, and `protoc-gen-go`.
 

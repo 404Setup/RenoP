@@ -73,3 +73,5 @@ Cookie と5分以内のログインが必要です。古いセッションには
 RenoP は起動時に設定の最上位に非公開の `mfa_encryption_key` を作成します。認証アプリのキーは AES-GCM で暗号化され、不変のユーザー
 ID
 に関連付けられます。暗号化キーは設定レスポンスに含まれません。データベースと設定を一緒にバックアップし、移行時もこのキーを保持してください。キーを失うとアプリによる認証ができなくなるため、オフラインリカバリーコードでアクセスを復旧してください。
+
+二次認証が有効な場合、パスワード変更には新しい TOTP コードまたは二次認証 Passkey が必要です。メール送信が有効なら現在のメインアドレスへのコードも選べます。`PUT /api/auth/profile/password` はバイナリの `UpdatePasswordRequest` で `factor`（`totp`、`passkey`、`email`）と証明（`totp_code`、`challenge_id` と `passkey_credential`、または `email_code`）を受け取ります。Passkey は `POST /api/auth/profile/password/passkey/begin` で開始します。証明は現在のセッションと認証情報に結び付き、一度だけ使用可能です。成功すると他のセッションを失効させます。

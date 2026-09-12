@@ -7,16 +7,22 @@ description: 設定ファイル、サーバー、ストレージ、プロキシ�
 
 # 設定の概要
 
-RenoP は作業ディレクトリの `config.yaml` を読み、`RENOP_CONFIG` で上書きできます。管理 UI からの書き込みも
-同じ検証済み構造と非公開ファイル権限を使用します。
+システム設定は専用の SQLite データベース `renop-settings.db` に保存され、`RENOP_SETTINGS_DB` でパスを指定します。管理画面で待受
+IP・ポートやアプリケーション DB 接続を変更できます。待受設定の反映には再起動が必要です。法的文書は Frontend、索引操作は
+Storage に統合されています。以下は保存フィールドの例であり、YAML 設定ファイルを作成・編集する必要はありません。
+
+設定は外観とポリシー、アカウントとログイン、公開管理、ストレージとキャッシュ、サービスとネットワーク、メールに分類されます。各ページの下書きと保存は独立しています。
+
+初回起動時のみ既存の `config.yaml`（または `RENOP_CONFIG`）を取り込み、コミット後にアーカイブします。以降は DB
+の設定だけを使用します。暗号鍵を含む設定 DB とアプリケーション DB の両方をバックアップしてください。
 
 ## 設定ファイル
 
-| ファイル            | 上書き               | 用途                                                   |
-|:--------------------|:---------------------|:-------------------------------------------------------|
-| `config.yaml`       | `RENOP_CONFIG`       | サーバー、DB、preview、proxy、frontend、audit、updater |
-| データベース | データベース DSN | engine、visibility、mirror、Maven policy、S3           |
-| `index.json`        | `RENOP_INDEX`        | ストレージから再構築できるファイル索引 snapshot        |
+| ファイル            | 上書き              | 用途                                                   |
+|:--------------------|:--------------------|:-------------------------------------------------------|
+| `renop-settings.db` | `RENOP_SETTINGS_DB` | サーバー、DB、preview、proxy、frontend、audit、updater |
+| データベース        | データベース DSN    | engine、visibility、mirror、Maven policy、S3           |
+| `index.json`        | `RENOP_INDEX`       | ストレージから再構築できるファイル索引 snapshot        |
 
 アカウント、API Token、session、team、audit、message は DB に保存し、YAML では設定しません。資格情報を含む
 場合があるため、設定ファイルはサービスアカウントだけが読めるようにします。
@@ -25,7 +31,7 @@ RenoP は作業ディレクトリの `config.yaml` を読み、`RENOP_CONFIG` �
 インポートされ、既存の設定を上書きしません。古い RenoP へのロールバックが必要な場合に備え、
 移行元の保管ファイルを別途保存してください。
 
-## `config.yaml` スキーマ
+## 保存される設定フィールド
 
 ### ストレージとドキュメント preview
 

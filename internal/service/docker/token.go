@@ -120,6 +120,11 @@ func ValidateDockerToken(signingSecret []byte, tokenStr string) (*TokenClaims, e
 
 // HandleTokenAuth handles the /v2/token and /v2/auth endpoints.
 func HandleTokenAuth(c fiber.Ctx, state *core.AppState) error {
+	// POST probes request optional OAuth grants. A 404 tells registry clients to
+	// use the supported GET + Basic flow instead of accepting an empty guest grant.
+	if c.Method() != fiber.MethodGet {
+		return c.SendStatus(fiber.StatusNotFound)
+	}
 	service := c.Query("service")
 	account := c.Query("account")
 	if account == "" {

@@ -146,6 +146,7 @@ func TestS3ObjectKeyRejectsPathOutsideStorage(t *testing.T) {
 func TestGetS3ConfigForPathRequiresStorageBoundary(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.StoragePath = "storage"
+	cfg.Maven.Repositories["releases"] = &config.Repository{Name: "releases", Visibility: "PUBLIC"}
 	cfg.Maven.Repositories["releases"].S3 = &config.S3Config{Enabled: true}
 	InitS3(cfg)
 
@@ -223,6 +224,7 @@ func TestBuildS3IndexSyncReturnsClientError(t *testing.T) {
 
 	cfg := config.DefaultConfig()
 	cfg.StoragePath = storageTestTempDir(t)
+	cfg.Maven.Repositories["releases"] = &config.Repository{Name: "releases", Visibility: "PUBLIC"}
 	cfg.Maven.Repositories["releases"].S3 = &config.S3Config{
 		Enabled:  true,
 		Endpoint: "ftp://example.com",

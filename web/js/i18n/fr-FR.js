@@ -9,6 +9,7 @@
  */
 
 export default {
+    "language.loadFailed": "Impossible de charger cette langue. Veuillez réessayer.",
     "nav.api": "API",
     "api.title": "Référence API",
     "api.lead": "Référence de l’API HTTP et guides d’intégration.",
@@ -38,8 +39,6 @@ export default {
     "home.feature2.desc": "Relayez des sources amont approuvées avec cache local et négatif, délais d’expiration et filtres par artefact.",
     "home.feature3.title": "Exploitation et contrôle d’accès",
     "home.feature3.desc": "Gérez utilisateurs, jetons API, équipes, validations, stockage, audit et état du service depuis l’interface web.",
-    "home.cta.title": "Logiciel libre",
-    "home.cta.desc": "Le même ensemble de fonctionnalités auto-hébergées est disponible pour les usages personnels, communautaires et commerciaux, sans publicité ni télémétrie cachée.",
 
 
     "docs.title": "Documentation",

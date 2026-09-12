@@ -180,6 +180,11 @@ func RestorePublicationReviewState(state *core.AppState) error {
 	if state == nil || state.Inner == nil || state.Inner.FileIndex == nil || state.GetDB() == nil {
 		return core.ErrDatabaseUnavailable
 	}
+	if _, ok := state.GetDB().(core.NativePackageDB); ok {
+		if err := restoreNativePublications(state); err != nil {
+			return err
+		}
+	}
 	files, err := state.GetDB().ListPendingPublicationReviewFiles()
 	if err != nil {
 		return err
@@ -243,6 +248,12 @@ func DeletePublicationReviewFiles(state *core.AppState, files []*core.ReviewFile
 		if err := deleteIndexedFile(state, path); err != nil && !errors.Is(err, os.ErrNotExist) {
 			result = errors.Join(result, err)
 			continue
+		}
+		if db, ok := state.GetDB().(core.NativePackageDB); ok {
+			if err := db.DeleteNativeArtifact(file.Repository, file.Path, ""); err != nil {
+				result = errors.Join(result, err)
+				continue
+			}
 		}
 		state.Inner.FileIndex.UnblockFile(path)
 		state.InvalidateFileCache(path)

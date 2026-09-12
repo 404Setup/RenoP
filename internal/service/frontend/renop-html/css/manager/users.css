@@ -702,7 +702,6 @@ html:not(.light) .user-editor-card .modal-header {
     overflow-x: hidden;
     margin-bottom: 0;
     padding: 1rem 1.1rem 1.1rem;
-    scrollbar-width: thin;
 }
 
 .user-editor-body {
@@ -1307,14 +1306,18 @@ html:not(.light) .user-generated-password-warning {
     height: 0 !important;
 }
 
-#user-editor-modal .modal-body,
-.modal-body,
-.roles-panel {
-    scrollbar-width: thin;
-    scrollbar-color: color-mix(in srgb, var(--text-color) 25%, transparent) transparent;
+@supports not selector(::-webkit-scrollbar) {
+    #user-editor-modal .modal-body,
+    .user-editor-scroll,
+    .modal-body,
+    .roles-panel {
+        scrollbar-width: thin;
+        scrollbar-color: color-mix(in srgb, var(--text-color) 25%, transparent) transparent;
+    }
 }
 
 #user-editor-modal .modal-body::-webkit-scrollbar,
+.user-editor-scroll::-webkit-scrollbar,
 .modal-body::-webkit-scrollbar,
 .roles-panel::-webkit-scrollbar,
 .language-modal-content .modal-body::-webkit-scrollbar {
@@ -1323,6 +1326,7 @@ html:not(.light) .user-generated-password-warning {
 }
 
 #user-editor-modal .modal-body::-webkit-scrollbar-track,
+.user-editor-scroll::-webkit-scrollbar-track,
 .modal-body::-webkit-scrollbar-track,
 .roles-panel::-webkit-scrollbar-track,
 .language-modal-content .modal-body::-webkit-scrollbar-track {
@@ -1331,6 +1335,7 @@ html:not(.light) .user-generated-password-warning {
 }
 
 #user-editor-modal .modal-body::-webkit-scrollbar-thumb,
+.user-editor-scroll::-webkit-scrollbar-thumb,
 .modal-body::-webkit-scrollbar-thumb,
 .roles-panel::-webkit-scrollbar-thumb,
 .language-modal-content .modal-body::-webkit-scrollbar-thumb {
@@ -1340,8 +1345,14 @@ html:not(.light) .user-generated-password-warning {
 }
 
 #user-editor-modal .modal-body::-webkit-scrollbar-thumb:hover,
+.user-editor-scroll::-webkit-scrollbar-thumb:hover,
 .modal-body::-webkit-scrollbar-thumb:hover,
 .roles-panel::-webkit-scrollbar-thumb:hover,
 .language-modal-content .modal-body::-webkit-scrollbar-thumb:hover {
     background-color: color-mix(in srgb, var(--text-color) 45%, transparent);
+}
+
+.permission-editor {
+    width: 100%;
+    min-width: 0;
 }

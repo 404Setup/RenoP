@@ -94,3 +94,11 @@ concerner une session encore valide. Un `401` nécessite une nouvelle connexion.
   temporaire.
 - Audit et messages conservent les résultats pertinents sans révéler l’opérateur lorsque la notification doit être
   neutre.
+
+Les requêtes GET/HEAD des dépôts, y compris métadonnées, Range et lectures de miroirs, partagent 20 requêtes par seconde avec une rafale de 240 par réseau client. L’authentification n’exempte pas les téléchargements. Les adresses IPv4 mappées sont normalisées et les adresses temporaires IPv6 partagent un budget /64. Les refus renvoient `429`, `Retry-After` et `Cache-Control: no-store` ; Docker utilise `TOOMANYREQUESTS`.
+
+## Confidentialité du profil
+
+Le propriétaire peut activer le profil privé dans ses paramètres. Seuls le propriétaire, les administrateurs et les modérateurs de n’importe quel dépôt (`canmoderate:<repository>` ou `canmoderate:*`) peuvent lire le profil, l’avatar et les appartenances du profil. Les comptes privés sont absents des suggestions d’invitation des autres utilisateurs, mais restent joignables par leur nom complet. La visibilité de l’avatar est vérifiée même si son empreinte reste identique.
+
+`PUT /api/auth/profile/privacy`, réservé au propriétaire, accepte `{"user_id":"<immutable account ID>","private":true}` avec le cookie de session courant et renvoie le profil mis à jour. Le booléen `private` est uniquement exposé aux lecteurs autorisés.

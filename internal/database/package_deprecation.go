@@ -13,9 +13,9 @@ package database
 import (
 	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"errors"
 	"fmt"
+	"renop/pkg/hex"
 	"strings"
 
 	"renop/internal/config"
@@ -40,6 +40,8 @@ func normalizePackageDeprecation(format, repository, packageKey string) (string,
 		return format, repository, packageKey, true
 	case config.RepositoryFormatMaven:
 		return format, repository, packageKey, true
+	case config.RepositoryFormatAPK, config.RepositoryFormatAPT, config.RepositoryFormatConan, config.RepositoryFormatConda, "conda-native", config.RepositoryFormatRPM:
+		return format, repository, packageKey, true
 	default:
 		return "", "", "", false
 	}
@@ -62,6 +64,8 @@ func packageReviewResourceType(format string) string {
 		return core.ReviewResourceDockerImage
 	case config.RepositoryFormatMaven:
 		return core.ReviewResourceMavenArtifact
+	case config.RepositoryFormatAPK, config.RepositoryFormatAPT, config.RepositoryFormatConan, config.RepositoryFormatConda, "conda-native", config.RepositoryFormatRPM:
+		return core.ReviewResourceNativePackage
 	default:
 		return ""
 	}

@@ -26,7 +26,9 @@ export function renderAccountEmailAliases(security, onUpdated, onFailure) {
     list.replaceChildren(...emails.map(email => {
         const remove = el('button', {
             type: 'button', class: 'pill-btn pill-btn--soft',
-            'aria-label': t('profile.removeEmailAlias', {email})
+            'aria-label': t('profile.removeEmailAlias', {email}),
+            disabled: (security.previous_primary_emails || []).some(entry => entry.email === email && Number(entry.expires_at) > Date.now()),
+            title: (security.previous_primary_emails || []).some(entry => entry.email === email && Number(entry.expires_at) > Date.now()) ? t('profile.securityHold') : ''
         }, t('common.remove'));
         remove.addEventListener('click', () => void runButtonAction(remove, async () => {
             const route = window.location.pathname;

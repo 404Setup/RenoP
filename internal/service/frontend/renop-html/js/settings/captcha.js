@@ -14,6 +14,7 @@ import {morphElementHeight} from '@renop/ui/height-anim';
 import {buildInput, createSection} from '../cfg-ui.js';
 import {createCallout, createFieldRow, createIcon, createToggleRow} from '../components.js';
 import {t} from '../i18n.js';
+import {createSettingsGuide} from './documentation.js';
 
 /** Render one provider and its independent browser-action scopes with a write-only secret. */
 export function renderCaptchaSettings(container, data, changed) {
@@ -31,16 +32,22 @@ export function renderCaptchaSettings(container, data, changed) {
         {value: 'friendlycaptcha', label: 'Friendly Captcha v2'},
     ], data.provider || 'disabled', value => {
         if (value !== data.provider) {
-            data.provider = value; data.secret_key = ''; data.secret_configured = false;
-            changed(); render();
+            data.provider = value;
+            data.secret_key = '';
+            data.secret_configured = false;
+            changed();
+            render();
         }
     });
-    fields.append(createFieldRow(t('captcha.provider'), '', provider), details);
+    fields.append(createFieldRow(t('captcha.provider'), '', provider), createSettingsGuide('captcha'), details);
     data.scopes ||= {};
     const scopes = createSection(createIcon('compliance'), t('captcha.scopes'), t('captcha.automationHint'), {defaultCollapsed: true});
     for (const scope of ['password_login', 'registration', 'manual_mail', 'super_team_create', 'domain_create', 'package_create']) {
         scopes.querySelector('.cfg-fields').append(createToggleRow(t(`captcha.scope.${scope}`), '', data.scopes[scope] === true,
-            value => { data.scopes[scope] = value; changed(); }));
+            value => {
+                data.scopes[scope] = value;
+                changed();
+            }));
     }
     wrap.append(section, scopes);
     container.append(wrap);
@@ -49,27 +56,48 @@ export function renderCaptchaSettings(container, data, changed) {
     function render() {
         void morphElementHeight(details, () => {
             details.replaceChildren();
-            if (data.provider === 'disabled') { details.append(createCallout('info', t('captcha.disabled'))); return; }
-            const secret = buildInput('password', data.secret_key || '', '', event => { data.secret_key = event.target.value; changed(); });
-            secret.maxLength = 1024; secret.autocomplete = 'new-password'; secret.required = !data.secret_configured;
+            if (data.provider === 'disabled') {
+                details.append(createCallout('info', t('captcha.disabled')));
+                return;
+            }
+            const secret = buildInput('password', data.secret_key || '', '', event => {
+                data.secret_key = event.target.value;
+                changed();
+            });
+            secret.maxLength = 1024;
+            secret.autocomplete = 'new-password';
+            secret.required = !data.secret_configured;
             const siteKey = buildInput('text', data.site_key || '', '', event => {
                 if (data.site_key !== event.target.value) data.secret_configured = false;
-                data.site_key = event.target.value; secret.required = !data.secret_configured; changed();
+                data.site_key = event.target.value;
+                secret.required = !data.secret_configured;
+                changed();
             });
-            siteKey.maxLength = 256; siteKey.required = true;
+            siteKey.maxLength = 256;
+            siteKey.required = true;
             details.append(createFieldRow(t('captcha.siteKey'), t('captcha.hostHint'), siteKey),
                 createFieldRow(t('captcha.secretKey'), t('captcha.secretHint'), secret));
             if (data.provider === 'recaptcha_v3') {
-                const score = buildInput('number', data.min_score ?? 0.5, '0.5', event => { data.min_score = Number(event.target.value); changed(); });
+                const score = buildInput('number', data.min_score ?? 0.5, '0.5', event => {
+                    data.min_score = Number(event.target.value);
+                    changed();
+                });
                 Object.assign(score, {min: '0', max: '1', step: '0.01', required: true});
                 details.append(createFieldRow(t('captcha.score'), t('captcha.scoreHint'), score));
             }
             if (data.provider === 'friendlycaptcha') {
-                const region = makeCustomSelect([{value: 'global', label: t('captcha.global')}, {value: 'eu', label: t('captcha.eu')}],
-                    data.friendly_region || 'global', value => { data.friendly_region = value; changed(); });
+                const region = makeCustomSelect([{value: 'global', label: t('captcha.global')}, {
+                    value: 'eu',
+                    label: t('captcha.eu')
+                }],
+                    data.friendly_region || 'global', value => {
+                        data.friendly_region = value;
+                        changed();
+                    });
                 details.append(createFieldRow(t('captcha.region'), '', region));
             }
         }, {duration: 240});
     }
+
     render();
 }

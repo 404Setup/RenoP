@@ -8,13 +8,15 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
+import {initializeDemoMode} from './demo-mode.js';
 import {initTheme} from '@renop/ui/theme';
+import {handleBackClick, navigateBack} from './back-navigation.js';
 import {cachedIsLoggedIn, cachedIsManager, initializeSession, isManagerTab, setSwitchTabHandler} from './auth.js';
 import {initI18n, t} from './i18n.js';
 import {installAccountLanguageSync} from './account-language.js';
 import {RenopDialog} from './components.js';
 import {el} from '@renop/ui/dom';
-import {updateModalInertState} from '@renop/ui/modal';
+import {topOpenModal, updateModalInertState} from '@renop/ui/modal';
 import {enableDragToScroll, smoothScrollToTop} from '@renop/ui/scroll';
 import {registerTabContainer, scrollTabIntoView, updateTabIndicator} from '@renop/ui/tabs';
 import {closeModalWithAnim} from './app-ui.js';
@@ -41,7 +43,7 @@ import {
 import {loadTicketCenterPage, openTicketCenter, ticketRouteFromPath} from './tickets.js';
 import {initMessageCenter, openMessageCenter} from './messages.js';
 import {initNotificationComposer, openNotificationComposer} from './notification-composer.js';
-import {initializeLegalConsent, legalPageFromPath, resetLegalConsent} from './legal-consent.js';
+import {initializeLegalConsent, legalPageFromPath, loadLegalMetadata, resetLegalConsent} from './legal-consent.js';
 import {initializeLegalPages, updateLegalPage} from './legal-pages.js';
 import {initializeCookieConsent} from './cookie-consent.js';
 import './cargo-messages.js';
@@ -64,6 +66,8 @@ import {$} from '@renop/ui/jquery';
 import {protectedRouteDeniedEvent} from './protected-route.js';
 import {accountPageFromPath, isLoginPath, leaveLoginPage, loginReturnTo, navigateToLogin} from './login-route.js';
 
+// Policy detection can overlap locale loading; service consent remains fail-closed.
+void loadLegalMetadata().catch(() => {});
 await initI18n();
 initializeLegalConsent();
 initializeLegalPages();
@@ -71,6 +75,9 @@ initializeCookieConsent();
 installAccountLanguageSync();
 initConfiguredFont();
 const backendAvailability = installBackendAvailabilityMonitor();
+document.addEventListener('click', event => {
+    if (event.target.closest?.('a[data-back]')) handleBackClick(event);
+});
 
 /**
  * Return the account-center tab represented by a pathname.
@@ -100,7 +107,7 @@ $(window).on('languageChanged', async () => {
         ? 'profile'
         : (publicMavenDomainRouteFromPath() ? 'maven-domain'
             : (publicSuperTeamRouteFromPath() ? 'super-team'
-                : (accountTabFromPath() || localStorage.getItem('selectedTab') || 'overview')));
+                : (accountTabFromPath() || (window.location.pathname === '/' && localStorage.getItem('selectedTab')) || 'overview')));
     await switchTab(currentTab);
 
     if (currentTab === 'dashboard') {
@@ -414,6 +421,9 @@ export async function switchTab(tabId) {
     }
     if (!accountPage && tabId !== 'legal' && tabId !== 'profile' && tabId !== 'maven-domain' && tabId !== 'super-team' && !isAccountTab(tabId)) {
         localStorage.setItem('selectedTab', tabId);
+        if (window.location.pathname === '/') {
+            window.history.replaceState({...window.history.state, renopTab: tabId}, '');
+        }
     }
 
     if (tabId === 'dashboard') {
@@ -490,27 +500,28 @@ window.addEventListener('popstate', () => {
         void switchTab(accountTab);
         return;
     }
-    void switchTab('overview');
+    const previousTab = window.location.pathname === '/' ? window.history.state?.renopTab : null;
+    void switchTab(previousTab === 'overview' || isManagerTab(previousTab) ? previousTab : 'overview');
 });
 
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-        const modals = document.querySelectorAll('.modal');
-        modals.forEach(m => {
-            if (m.style.display !== 'none' && m.style.display !== '') {
+        const m = topOpenModal();
+        // Dynamic dialogs own their dismissal and resolve the caller's draft result.
+        if (m instanceof RenopDialog) return;
+        if (m) {
                 const closeBtn = m.querySelector('.close-btn') || m.querySelector('#user-editor-cancel');
                 if (closeBtn) {
                     closeBtn.click();
                 } else {
                     closeModalWithAnim(m);
                 }
-            }
-        });
+        }
         if (document.activeElement && document.activeElement !== document.body) {
             document.activeElement.blur();
         }
     } else if (e.key === 'Tab') {
-        const openModal = Array.from(document.querySelectorAll('.modal')).find(m => m.style.display !== 'none' && m.style.display !== '');
+        const openModal = topOpenModal();
         if (openModal) {
             const focusableElements = openModal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
             const focusable = Array.from(focusableElements).filter(el => !el.disabled && el.style.display !== 'none' && el.offsetWidth > 0);
@@ -548,7 +559,7 @@ export function updateCopyrightFooter() {
         copyrightDiv.innerHTML = '';
         copyrightDiv.append(
             document.createTextNode(`${yearDisplay} `),
-            el('a', {href: 'https://github.com/404Setup/SRC-RenoP', target: '_blank'}, 'RenoP'),
+            el('a', {href: 'https://github.com/404Setup/RenoP', target: '_blank'}, 'RenoP'),
             document.createTextNode(`. ${t('footer.allRights')} ${t('footer.licenseNotice')}`)
         );
     }
@@ -584,8 +595,10 @@ async function initializeApplication() {
     try {
         updateCopyrightFooter();
 
-        await initializeSession();
-        await initializeOAuth();
+        const demoReady = initializeDemoMode();
+        void initializeOAuth();
+        // Fetch the cookie session immediately, publishing only after demo mode is known.
+        await initializeSession(demoReady);
         const loginQuery = new URLSearchParams(window.location.search);
         if (isLoginPath() && cachedIsLoggedIn && !loginQuery.has('reauth') && !loginQuery.has('mfa')) leaveLoginPage();
 
@@ -598,7 +611,7 @@ async function initializeApplication() {
         const accountTab = accountTabFromPath();
         let savedTab = profileRoute
             ? 'profile'
-            : (accountTab || localStorage.getItem('selectedTab') || 'overview');
+            : (accountTab || (window.location.pathname === '/' && localStorage.getItem('selectedTab')) || 'overview');
         if (!profileRoute && !accountTab && (savedTab === 'profile' || isAccountTab(savedTab))) {
             localStorage.setItem('selectedTab', 'overview');
             savedTab = 'overview';
@@ -607,6 +620,7 @@ async function initializeApplication() {
             (accountTab && !cachedIsLoggedIn) || (isManagerTab(savedTab) && !cachedIsManager)) {
             savedTab = 'overview';
         }
+        document.getElementById('startup-loading')?.remove();
         await switchTab(savedTab);
 
         if (profileTrigger && profileMenu && profileMenuWrap) {
@@ -709,8 +723,8 @@ async function initializeApplication() {
             });
         }
 
-        document.getElementById('super-team-home')?.addEventListener('click', () => void navigateHome());
-        document.getElementById('review-home')?.addEventListener('click', () => void navigateHome());
+        document.getElementById('super-team-home')?.addEventListener('click', () => navigateBack());
+        document.getElementById('review-home')?.addEventListener('click', () => navigateBack());
 
         const headerLogo = document.getElementById('header-logo');
         if (headerLogo) {

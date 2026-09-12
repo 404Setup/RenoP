@@ -75,4 +75,9 @@ export default Object.freeze({
     "updaterNotice.spaceBody": "На диске недостаточно места для подготовки системного обновления.",
     "updaterNotice.restartFailedTitle": "Не удалось перезапустить обновление",
     "updaterNotice.restartFailedBody": "RenoP не удалось перезапустить для применения обновления. Проверьте журналы сервера.",
+    "messages.sessionTarget": "Получатель уведомления",
+    "messages.allSessions": "Все сеансы",
+    "messages.sessionsLoading": "Загрузка активных сеансов…",
+    "messages.sessionsEmpty": "Нет активных сеансов браузера.",
+    "messages.sessionsFailed": "Не удалось загрузить сеансы. Введите получателя повторно.",
 });

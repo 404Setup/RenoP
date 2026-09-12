@@ -28,12 +28,12 @@ const (
 	maxTokenNameLen    = 255
 	maxTokenSecretLen  = 1024
 	tokenSelectColumns = `name, type, type_value, encrypted_secret, password_hash, tokens_json,
-		created_at, description, expires_at, permissions_json, ban_reason, banned_at, banned_until,
+		created_at, description, expires_at, permissions_json, ban_reason, ban_reason_code, banned_at, banned_until,
 		deleted_at, email_released_at, audit_purged_at`
 )
 
 func parseTokenRow(name, tokenType string, typeValue int32, encryptedSecret, passwordHash, tokensJSON,
-	createdAt, description string, expiresAt sql.NullInt64, permissionsJSON, banReason string,
+	createdAt, description string, expiresAt sql.NullInt64, permissionsJSON, banReason, banReasonCode string,
 	bannedAt int64, bannedUntil sql.NullInt64, deletedAt, emailReleasedAt, auditPurgedAt int64,
 ) (*core.AccessToken, error) {
 	var tokList []string
@@ -63,7 +63,7 @@ func parseTokenRow(name, tokenType string, typeValue int32, encryptedSecret, pas
 	}
 	var ban *core.AccountBan
 	if bannedAt > 0 {
-		ban = &core.AccountBan{Reason: banReason, CreatedAt: bannedAt}
+		ban = &core.AccountBan{Reason: banReason, ReasonCode: banReasonCode, CreatedAt: bannedAt}
 		if bannedUntil.Valid {
 			value := bannedUntil.Int64
 			ban.ExpiresAt = &value
@@ -90,33 +90,33 @@ func parseTokenRow(name, tokenType string, typeValue int32, encryptedSecret, pas
 	}, nil
 }
 
-func storedAccountBan(token *core.AccessToken) (string, int64, sql.NullInt64, error) {
+func storedAccountBan(token *core.AccessToken) (string, string, int64, sql.NullInt64, error) {
 	if token == nil || token.Ban == nil {
-		return "", 0, sql.NullInt64{}, nil
+		return "", "", 0, sql.NullInt64{}, nil
 	}
 	if token.Ban.IsActive(time.Now().UnixMilli()) && protectedAccountRole(token.Permissions) {
-		return "", 0, sql.NullInt64{}, core.ErrAccountBanProtected
+		return "", "", 0, sql.NullInt64{}, core.ErrAccountBanProtected
 	}
-	reason, valid := core.NormalizeAccountBanReason(token.Ban.Reason)
+	reason, valid := core.NormalizeConfiguredBanReason(token.Ban.Reason, token.Ban.ReasonCode)
 	if !valid || token.Ban.CreatedAt <= 0 ||
 		(token.Ban.ExpiresAt != nil && *token.Ban.ExpiresAt <= token.Ban.CreatedAt) {
-		return "", 0, sql.NullInt64{}, core.ErrAccountBanInvalid
+		return "", "", 0, sql.NullInt64{}, core.ErrAccountBanInvalid
 	}
 	until := sql.NullInt64{}
 	if token.Ban.ExpiresAt != nil {
 		until = sql.NullInt64{Int64: *token.Ban.ExpiresAt, Valid: true}
 	}
-	return reason, token.Ban.CreatedAt, until, nil
+	return reason, token.Ban.ReasonCode, token.Ban.CreatedAt, until, nil
 }
 
 func tokenByNameTx(tx *Tx, name string) (*core.AccessToken, error) {
-	var tokenName, tokenType, encryptedSecret, passwordHash, tokensJSON, createdAt, description, permissionsJSON, banReason string
+	var tokenName, tokenType, encryptedSecret, passwordHash, tokensJSON, createdAt, description, permissionsJSON, banReason, banReasonCode string
 	var typeValue int32
 	var expiresAt, bannedUntil sql.NullInt64
 	var bannedAt, deletedAt, emailReleasedAt, auditPurgedAt int64
 	err := tx.QueryRow(`SELECT `+tokenSelectColumns+` FROM tokens WHERE name = ?`, name).
 		Scan(&tokenName, &tokenType, &typeValue, &encryptedSecret, &passwordHash, &tokensJSON,
-			&createdAt, &description, &expiresAt, &permissionsJSON, &banReason, &bannedAt, &bannedUntil,
+			&createdAt, &description, &expiresAt, &permissionsJSON, &banReason, &banReasonCode, &bannedAt, &bannedUntil,
 			&deletedAt, &emailReleasedAt, &auditPurgedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -125,7 +125,7 @@ func tokenByNameTx(tx *Tx, name string) (*core.AccessToken, error) {
 		return nil, err
 	}
 	return parseTokenRow(tokenName, tokenType, typeValue, encryptedSecret, passwordHash,
-		tokensJSON, createdAt, description, expiresAt, permissionsJSON, banReason, bannedAt, bannedUntil,
+		tokensJSON, createdAt, description, expiresAt, permissionsJSON, banReason, banReasonCode, bannedAt, bannedUntil,
 		deletedAt, emailReleasedAt, auditPurgedAt)
 }
 
@@ -157,13 +157,13 @@ func (db *DB) saveTokenInTx(tx *Tx, name string, token *core.AccessToken) error 
 	if token.ExpiresAt != nil {
 		expiresAt = sql.NullInt64{Int64: *token.ExpiresAt, Valid: true}
 	}
-	banReason, bannedAt, bannedUntil, err := storedAccountBan(token)
+	banReason, banReasonCode, bannedAt, bannedUntil, err := storedAccountBan(token)
 	if err != nil {
 		return err
 	}
 	if _, err := tx.Exec(db.Dialect.UpsertTokenQuery(), name, string(token.Identifier.Type), token.Identifier.Value,
 		token.EncryptedSecret, token.PasswordHash, string(tokensJSON), token.CreatedAt, token.Description,
-		expiresAt, string(permissionsJSON), banReason, bannedAt, bannedUntil); err != nil {
+		expiresAt, string(permissionsJSON), banReason, banReasonCode, bannedAt, bannedUntil); err != nil {
 		return fmt.Errorf("update token %s: %w", name, err)
 	}
 	return nil
@@ -182,19 +182,19 @@ func (db *DB) GetTokenByName(name string) (*core.AccessToken, error) {
 	tok, err := db.tokenCache.GetOrLoad(lowerName, func() (*core.AccessToken, time.Duration, error) {
 		query := `SELECT ` + tokenSelectColumns + ` FROM tokens WHERE name = ?`
 		row := db.QueryRow(query, lowerName)
-		var tokenName, tokenType, encryptedSecret, passwordHash, tokensJSON, createdAt, description, permissionsJSON, banReason string
+		var tokenName, tokenType, encryptedSecret, passwordHash, tokensJSON, createdAt, description, permissionsJSON, banReason, banReasonCode string
 		var typeValue int32
 		var expiresAt, bannedUntil sql.NullInt64
 		var bannedAt, deletedAt, emailReleasedAt, auditPurgedAt int64
 		if scanErr := row.Scan(&tokenName, &tokenType, &typeValue, &encryptedSecret, &passwordHash,
 			&tokensJSON, &createdAt, &description, &expiresAt, &permissionsJSON,
-			&banReason, &bannedAt, &bannedUntil, &deletedAt, &emailReleasedAt, &auditPurgedAt); errors.Is(scanErr, sql.ErrNoRows) {
+			&banReason, &banReasonCode, &bannedAt, &bannedUntil, &deletedAt, &emailReleasedAt, &auditPurgedAt); errors.Is(scanErr, sql.ErrNoRows) {
 			return nil, 30 * time.Second, nil
 		} else if scanErr != nil {
 			return nil, 0, fmt.Errorf("failed to query token by name (%s): %w", lowerName, scanErr)
 		}
 		loaded, parseErr := parseTokenRow(tokenName, tokenType, typeValue, encryptedSecret, passwordHash,
-			tokensJSON, createdAt, description, expiresAt, permissionsJSON, banReason, bannedAt, bannedUntil,
+			tokensJSON, createdAt, description, expiresAt, permissionsJSON, banReason, banReasonCode, bannedAt, bannedUntil,
 			deletedAt, emailReleasedAt, auditPurgedAt)
 		return loaded, 10 * time.Minute, parseErr
 	})
@@ -233,19 +233,19 @@ func (db *DB) GetTokenBySecret(secret string) (*core.AccessToken, error) {
 	defer rows.Close()
 
 	for rows.Next() {
-		var tokenName, tokenType, encryptedSecret, passwordHash, tokensJSON, createdAt, description, permissionsJSON, banReason string
+		var tokenName, tokenType, encryptedSecret, passwordHash, tokensJSON, createdAt, description, permissionsJSON, banReason, banReasonCode string
 		var typeValue int32
 		var expiresAt, bannedUntil sql.NullInt64
 		var bannedAt, deletedAt, emailReleasedAt, auditPurgedAt int64
 
 		if err := rows.Scan(&tokenName, &tokenType, &typeValue, &encryptedSecret, &passwordHash, &tokensJSON,
-			&createdAt, &description, &expiresAt, &permissionsJSON, &banReason, &bannedAt, &bannedUntil,
+			&createdAt, &description, &expiresAt, &permissionsJSON, &banReason, &banReasonCode, &bannedAt, &bannedUntil,
 			&deletedAt, &emailReleasedAt, &auditPurgedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan token: %w", err)
 		}
 
 		tok, err := parseTokenRow(tokenName, tokenType, typeValue, encryptedSecret, passwordHash, tokensJSON,
-			createdAt, description, expiresAt, permissionsJSON, banReason, bannedAt, bannedUntil,
+			createdAt, description, expiresAt, permissionsJSON, banReason, banReasonCode, bannedAt, bannedUntil,
 			deletedAt, emailReleasedAt, auditPurgedAt)
 		if err != nil {
 			return nil, err
@@ -406,7 +406,7 @@ func createTokenTx(tx *Tx, token *core.AccessToken, nickname string, changedAt i
 	if token.ExpiresAt != nil {
 		expiresAt = sql.NullInt64{Int64: *token.ExpiresAt, Valid: true}
 	}
-	banReason, bannedAt, bannedUntil, err := storedAccountBan(token)
+	banReason, banReasonCode, bannedAt, bannedUntil, err := storedAccountBan(token)
 	if err != nil {
 		return err
 	}
@@ -418,11 +418,11 @@ func createTokenTx(tx *Tx, token *core.AccessToken, nickname string, changedAt i
 	}
 	if _, err := tx.Exec(`INSERT INTO tokens
 		(name, type, type_value, encrypted_secret, password_hash, tokens_json, created_at, description, expires_at,
-		permissions_json, ban_reason, banned_at, banned_until)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		permissions_json, ban_reason, ban_reason_code, banned_at, banned_until)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		name, string(token.Identifier.Type), token.Identifier.Value, token.EncryptedSecret, token.PasswordHash,
 		string(tokensJSON), token.CreatedAt, token.Description, expiresAt, string(permissionsJSON),
-		banReason, bannedAt, bannedUntil); err != nil {
+		banReason, banReasonCode, bannedAt, bannedUntil); err != nil {
 		return fmt.Errorf("create token %s: %w", name, err)
 	}
 	if changedAt <= 0 {
@@ -634,6 +634,9 @@ func (db *DB) deleteToken(name string, retire bool, retiredAt int64) error {
 	if _, err := tx.Exec(`DELETE FROM user_recovery_codes WHERE user_id = ?`, userID); err != nil {
 		return fmt.Errorf("failed to delete recovery codes for token (%s): %w", lowerName, err)
 	}
+	if _, err := tx.Exec(`DELETE FROM user_primary_email_history WHERE user_id = ?`, userID); err != nil {
+		return err
+	}
 	if _, err := tx.Exec(`DELETE FROM user_email_changes WHERE user_id = ?`, userID); err != nil {
 		return fmt.Errorf("delete account email verification: %w", err)
 	}
@@ -698,13 +701,13 @@ func (db *DB) deleteToken(name string, retire bool, retiredAt int64) error {
 		return fmt.Errorf("delete account IP restrictions: %w", err)
 	}
 	if retire {
-		if _, err := tx.Exec(`UPDATE user_profiles SET nickname = '', locale = '', website_url = '', github_url = '',
+		if _, err := tx.Exec(`UPDATE user_profiles SET nickname = '', locale = '', website_url = '', github_url = '', show_github = 0, show_gitlab = 0,
 			discord_url = '', custom_link_name = '', custom_link_url = '', updated_at = ? WHERE user_id = ?`,
 			actedAt, userID); err != nil {
 			return fmt.Errorf("clear retired user profile for token (%s): %w", lowerName, err)
 		}
 		result, err := tx.Exec(`UPDATE tokens SET encrypted_secret = '', password_hash = '', tokens_json = '[]',
-			description = '', expires_at = NULL, permissions_json = '[]', ban_reason = '', banned_at = 0,
+			description = '', expires_at = NULL, permissions_json = '[]', ban_reason = '', ban_reason_code = '', banned_at = 0,
 			banned_until = NULL, deleted_at = ?, email_released_at = ?, audit_purged_at = 0
 			WHERE name = ? AND deleted_at = 0`, actedAt, emailReleasedAt, lowerName)
 		if err != nil {
@@ -819,17 +822,17 @@ func (db *DB) renameTokenInTx(tx *Tx, oldName, newName string, token *core.Acces
 	if token.ExpiresAt != nil {
 		expiresAt = sql.NullInt64{Int64: *token.ExpiresAt, Valid: true}
 	}
-	banReason, bannedAt, bannedUntil, err := storedAccountBan(token)
+	banReason, banReasonCode, bannedAt, bannedUntil, err := storedAccountBan(token)
 	if err != nil {
 		return err
 	}
 	if _, err := tx.Exec(`INSERT INTO tokens
 		(name, type, type_value, encrypted_secret, password_hash, tokens_json, created_at, description, expires_at,
-		permissions_json, ban_reason, banned_at, banned_until)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		permissions_json, ban_reason, ban_reason_code, banned_at, banned_until)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		newName, string(token.Identifier.Type), token.Identifier.Value, token.EncryptedSecret, token.PasswordHash,
 		string(tokensJSON), token.CreatedAt, token.Description, expiresAt, string(permissionsJSON),
-		banReason, bannedAt, bannedUntil); err != nil {
+		banReason, banReasonCode, bannedAt, bannedUntil); err != nil {
 		return fmt.Errorf("create renamed token %s: %w", newName, err)
 	}
 	if _, err := tx.Exec(`DELETE FROM tokens WHERE name = ?`, oldName); err != nil {
@@ -986,19 +989,19 @@ func (db *DB) GetAllTokens() ([]*core.AccessToken, error) {
 
 	tokens := make([]*core.AccessToken, 0, 16)
 	for rows.Next() {
-		var tokenName, tokenType, encryptedSecret, passwordHash, tokensJSON, createdAt, description, permissionsJSON, banReason string
+		var tokenName, tokenType, encryptedSecret, passwordHash, tokensJSON, createdAt, description, permissionsJSON, banReason, banReasonCode string
 		var typeValue int32
 		var expiresAt, bannedUntil sql.NullInt64
 		var bannedAt, deletedAt, emailReleasedAt, auditPurgedAt int64
 
 		if err := rows.Scan(&tokenName, &tokenType, &typeValue, &encryptedSecret, &passwordHash, &tokensJSON,
-			&createdAt, &description, &expiresAt, &permissionsJSON, &banReason, &bannedAt, &bannedUntil,
+			&createdAt, &description, &expiresAt, &permissionsJSON, &banReason, &banReasonCode, &bannedAt, &bannedUntil,
 			&deletedAt, &emailReleasedAt, &auditPurgedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan token: %w", err)
 		}
 
 		tok, err := parseTokenRow(tokenName, tokenType, typeValue, encryptedSecret, passwordHash, tokensJSON,
-			createdAt, description, expiresAt, permissionsJSON, banReason, bannedAt, bannedUntil,
+			createdAt, description, expiresAt, permissionsJSON, banReason, banReasonCode, bannedAt, bannedUntil,
 			deletedAt, emailReleasedAt, auditPurgedAt)
 		if err != nil {
 			return nil, err
@@ -1019,7 +1022,7 @@ func (db *DB) GetAllTokens() ([]*core.AccessToken, error) {
 
 // SearchTokenNames returns a bounded, index-friendly prefix match without
 // loading token secrets or permission data into the autocomplete request path.
-func (db *DB) SearchTokenNames(prefix string, limit int, now int64) ([]string, error) {
+func (db *DB) SearchTokenNames(prefix string, limit int, now int64, includePrivate bool) ([]string, error) {
 	if db == nil || db.SQLDB == nil {
 		return []string{}, nil
 	}
@@ -1031,10 +1034,14 @@ func (db *DB) SearchTokenNames(prefix string, limit int, now int64) ([]string, e
 		limit = 8
 	}
 	escapedPrefix := strings.NewReplacer("!", "!!", "%", "!%", "_", "!_").Replace(prefix) + "%"
-	rows, err := db.Query(`SELECT name FROM tokens
-		WHERE deleted_at = 0 AND name LIKE ? ESCAPE '!' AND (expires_at IS NULL OR expires_at > ?)
-		AND (banned_at = 0 OR (banned_until IS NOT NULL AND banned_until <= ?))
-		ORDER BY name ASC LIMIT ?`, escapedPrefix, now, now, limit)
+	privacy := ""
+	if !includePrivate {
+		privacy = " AND p.is_private = 0"
+	}
+	rows, err := db.Query(`SELECT t.name FROM tokens t JOIN user_profiles p ON p.username = t.name
+		WHERE t.deleted_at = 0 AND t.name LIKE ? ESCAPE '!' AND (t.expires_at IS NULL OR t.expires_at > ?)
+		AND (t.banned_at = 0 OR (t.banned_until IS NOT NULL AND t.banned_until <= ?))`+privacy+`
+		ORDER BY t.name ASC LIMIT ?`, escapedPrefix, now, now, limit)
 	if err != nil {
 		return nil, fmt.Errorf("search token names: %w", err)
 	}

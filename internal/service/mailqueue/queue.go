@@ -3,6 +3,8 @@
  *
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
  *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
+ *
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
@@ -13,9 +15,9 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
-	"encoding/hex"
 	"errors"
 	"net/url"
+	"renop/pkg/hex"
 	"time"
 
 	"renop/internal/core"
@@ -138,10 +140,6 @@ func Prepare(cfg mail.Config, request Request) (*mail.Job, Receipt, error) {
 		request.Data.URL = cfg.PublicURL
 		if request.Username != "" {
 			request.Data.URL = cfg.PublicURL + "/user/" + url.PathEscape(request.Username) + "/edit"
-		}
-		switch request.Scene {
-		case "review_status", "review_requested", "pending_reviews":
-			request.Data.URL = cfg.PublicURL + "/account/tickets"
 		}
 	}
 	message, err := cfg.Render(request.Scene, request.Data)

@@ -59,16 +59,16 @@ type CargoPackage struct {
 	RepositoryURL   string          `json:"repository_url,omitempty"`
 	Homepage        string          `json:"homepage,omitempty"`
 	Documentation   string          `json:"documentation,omitempty"`
-	Archived        bool            `json:"archived"`
-	AdminArchived   bool            `json:"admin_archived"`
-	Deprecated      bool            `json:"deprecated,omitempty"`
-	Locks           []*ResourceLock `json:"locks,omitempty"`
-	Mirrored        bool            `json:"mirrored"`
 	SuperTeamPrefix string          `json:"super_team_prefix,omitempty"`
+	MaxVersion      string          `json:"-"`
+	Locks           []*ResourceLock `json:"locks,omitempty"`
 	CreatedAt       int64           `json:"created_at"`
 	UpdatedAt       int64           `json:"updated_at"`
 	PermissionLevel int             `json:"permission_level,omitempty"`
-	MaxVersion      string          `json:"-"`
+	Archived        bool            `json:"archived"`
+	AdminArchived   bool            `json:"admin_archived"`
+	Deprecated      bool            `json:"deprecated,omitempty"`
+	Mirrored        bool            `json:"mirrored"`
 }
 
 // CargoVersion tracks local or mirrored versions and the origin of yank state.

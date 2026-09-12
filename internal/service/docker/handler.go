@@ -222,9 +222,25 @@ func (h *Handler) authenticateAndAuthorize(c fiber.Ctx, state *core.AppState, re
 }
 
 // HandleBase handles GET /v2/ and HEAD /v2/ version check endpoint.
-func (h *Handler) HandleBase(c fiber.Ctx) error {
+func (h *Handler) HandleBase(c fiber.Ctx, state *core.AppState) error {
 	c.Set(DockerHeaderVersion, DockerVersionValue)
 	user := auth.GetUser(c)
+	// Docker login retries this probe with the registry JWT, which the general
+	// account middleware deliberately leaves to the registry to validate.
+	if user == nil || user.Username == "guest" {
+		if token, ok := strings.CutPrefix(c.Get(fiber.HeaderAuthorization), "Bearer "); ok {
+			claims, err := ValidateDockerToken(state.GetDockerSecret(), token)
+			if err == nil && claims.Issuer == "renop" && claims.Audience == c.Host() && claims.Subject != "guest" {
+				account := state.GetTokenByName(claims.Subject)
+				now := time.Now().UnixMilli()
+				if account != nil && account.DeletedAt == 0 && !account.Ban.IsActive(now) &&
+					(account.ExpiresAt == nil || now < *account.ExpiresAt) {
+					user = &config.User{Username: account.Name}
+					c.Locals("user", user)
+				}
+			}
+		}
+	}
 	if user == nil || user.Username == "guest" {
 		_ = SendAuthChallenge(c, c.Host(), "")
 		return nil
@@ -403,7 +419,7 @@ func (h *Handler) HandleGetManifest(c fiber.Ctx, state *core.AppState) error {
 				c.Set(fiber.HeaderETag, fmt.Sprintf(`"%s"`, uDigest))
 				c.Set(fiber.HeaderContentLength, strconv.Itoa(len(upstreamData)))
 				if c.Method() == fiber.MethodHead {
-					return c.SendStatus(fiber.StatusOK)
+					return c.Status(fiber.StatusOK).Send(nil)
 				}
 				statistics.RecordDockerPull(c, state, repo, imageName, reference, parsed.Size)
 				return c.Status(fiber.StatusOK).Send(upstreamData)
@@ -477,7 +493,8 @@ func (h *Handler) HandleGetManifest(c fiber.Ctx, state *core.AppState) error {
 	c.Set(fiber.HeaderContentLength, strconv.Itoa(len(rawJSON)))
 
 	if c.Method() == fiber.MethodHead {
-		return c.SendStatus(fiber.StatusOK)
+		// SendStatus would replace the representation length with the size of "OK".
+		return c.Status(fiber.StatusOK).Send(nil)
 	}
 
 	pullSize := int64(len(rawJSON))
@@ -593,6 +610,9 @@ func (h *Handler) HandlePutManifest(c fiber.Ctx, state *core.AppState) error {
 		return RespondError(c, fiber.StatusInternalServerError, ErrCodeUnsupported, "failed to inspect installed manifest", nil)
 	}
 	if err := h.Store.PutManifest(state, repoName, imageName, parsed.Digest, body); err != nil {
+		if errors.Is(err, core.ErrRepositoryCapacity) {
+			return respondCapacityError(c)
+		}
 		return RespondError(c, fiber.StatusInternalServerError, ErrCodeUnsupported, "failed to save manifest", nil)
 	}
 
@@ -732,7 +752,7 @@ func (h *Handler) HandleGetBlob(c fiber.Ctx, state *core.AppState) error {
 				exists, size, _ := h.Store.BlobExists(repoName, digest)
 				if exists {
 					c.Set(fiber.HeaderContentLength, strconv.FormatInt(size, 10))
-					return c.SendStatus(fiber.StatusOK)
+					return c.Status(fiber.StatusOK).Send(nil)
 				}
 			}
 			return c.SendFile(localPath)
@@ -746,7 +766,7 @@ func (h *Handler) HandleGetBlob(c fiber.Ctx, state *core.AppState) error {
 			c.Set(fiber.HeaderETag, fmt.Sprintf(`"%s"`, digest))
 			c.Set(fiber.HeaderContentLength, strconv.FormatInt(size, 10))
 			if c.Method() == fiber.MethodHead {
-				return c.SendStatus(fiber.StatusOK)
+				return c.Status(fiber.StatusOK).Send(nil)
 			}
 			return c.SendStream(reader, int(size))
 		}
@@ -764,7 +784,7 @@ func (h *Handler) HandleGetBlob(c fiber.Ctx, state *core.AppState) error {
 		c.Set(fiber.HeaderContentLength, strconv.FormatInt(uSize, 10))
 
 		if c.Method() == fiber.MethodHead {
-			return c.SendStatus(fiber.StatusOK)
+			return c.Status(fiber.StatusOK).Send(nil)
 		}
 
 		mirrorPersist, _ := repo.GetCacheConfig()
@@ -779,6 +799,7 @@ func (h *Handler) HandleGetBlob(c fiber.Ctx, state *core.AppState) error {
 			uploadUUID := uuid.NewString()
 			staged, sErr := h.Store.StageBlob(repoName, uploadUUID)
 			if sErr == nil && staged != nil {
+				defer staged.Discard()
 				tee := io.TeeReader(upstreamRc, staged)
 				err := c.SendStream(io.NopCloser(tee), int(uSize))
 				_ = staged.Close()
@@ -912,6 +933,9 @@ func (h *Handler) HandlePostUpload(c fiber.Ctx, state *core.AppState) error {
 		}
 		committedSize, err := h.Store.CommitBlob(state, repoName, uploadUUID, singleDigest)
 		if err != nil {
+			if errors.Is(err, core.ErrRepositoryCapacity) {
+				return respondCapacityError(c)
+			}
 			return RespondError(c, fiber.StatusInternalServerError, ErrCodeBlobUploadInvalid, "commit failed", nil)
 		}
 		db := state.GetDB()
@@ -1028,6 +1052,9 @@ func (h *Handler) HandlePutUpload(c fiber.Ctx, state *core.AppState) error {
 	}
 	committedSize, err := h.Store.CommitBlob(state, repoName, uploadUUID, digest)
 	if err != nil {
+		if errors.Is(err, core.ErrRepositoryCapacity) {
+			return respondCapacityError(c)
+		}
 		return RespondError(c, fiber.StatusInternalServerError, ErrCodeBlobUploadInvalid, "failed to commit blob", nil)
 	}
 
@@ -1099,4 +1126,9 @@ func (h *Handler) HandleDeleteUpload(c fiber.Ctx, state *core.AppState) error {
 	}
 
 	return c.SendStatus(fiber.StatusNoContent)
+}
+
+func respondCapacityError(c fiber.Ctx) error {
+	c.Set("X-Renop-Error-Code", "repository_capacity_exceeded")
+	return RespondError(c, fiber.StatusInsufficientStorage, ErrCodeDenied, "Repository capacity exceeded", nil)
 }

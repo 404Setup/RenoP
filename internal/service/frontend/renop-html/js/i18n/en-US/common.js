@@ -9,6 +9,10 @@
  */
 
 export default Object.freeze({
+    "common.add": "Add",
+    "updater.containerDisabled": "Managed by container",
+    "updater.containerManaged": "Updates and restarts are managed by the container runtime. Pull a new image and recreate the container.",
+    "nav.backPrevious": "Back to previous page",
     "resourceLock.inheritedNotice": "Inherited locks remain active until they are removed from the parent resource.",
     "resourceLock.manage": "Manage lock",
     "resourceLock.mode": "Lock type",
@@ -69,6 +73,8 @@ export default Object.freeze({
     "common.ok": "OK",
     "common.yes": "Yes",
     "common.no": "No",
+    "common.active": "Active",
+    "common.inactive": "Inactive",
     "common.none": "None",
     "common.remove": "Remove",
     "common.loading": "Loading…",

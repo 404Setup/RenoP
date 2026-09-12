@@ -75,4 +75,9 @@ export default Object.freeze({
     "updaterNotice.spaceBody": "No hay suficiente espacio en disco para preparar la actualización del sistema.",
     "updaterNotice.restartFailedTitle": "Falló el reinicio de actualización",
     "updaterNotice.restartFailedBody": "RenoP no pudo reiniciarse para aplicar la actualización. Revisa los registros del servidor.",
+    "messages.sessionTarget": "Destino de la notificación",
+    "messages.allSessions": "Todas las sesiones",
+    "messages.sessionsLoading": "Cargando sesiones activas…",
+    "messages.sessionsEmpty": "No hay sesiones activas del navegador.",
+    "messages.sessionsFailed": "No se pudieron cargar las sesiones. Vuelve a introducir el destinatario.",
 });

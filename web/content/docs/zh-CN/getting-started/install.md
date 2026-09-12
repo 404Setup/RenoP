@@ -87,3 +87,5 @@ pwsh ./build.ps1 c       # Current OS packaged as a raw Brotli stream
 pwsh ./build.ps1 s       # Mainstream platforms (Linux/Windows amd64/amd64v4/arm64)
 pwsh ./build.ps1         # Full cross-compilation matrix
 ```
+
+两端 HTML 入口只保留元信息和应用挂载点。`js/shell.js` 使用共享 DOM 工具，从 `js/views/` 组件创建导航、页面及弹窗。前端 `js/bootstrap.js` 先挂载页面，再加载初始化时需要查找控件的行为模块。品牌信息通过经过转义的 HTML data 属性传入，再写入 DOM 文本或属性。修改所属 JS 组件后，运行 `pnpm run build:frontend` 或 `pnpm run build:web`；前端 i18n 检查涵盖视图模块。保存的管理标签页仅在 `/` 生效，不覆盖直接访问的仓库和公开资源链接。

@@ -7,7 +7,8 @@ description: Opérations directes et téléversements repris et bornés
 
 # API de stockage et téléversement
 
-Les routes directes concernent Maven et `files`. npm, Cargo et Docker utilisent leurs protocoles natifs. Chaque mutation
+Les routes directes concernent Maven, `files` et les dépôts natifs gérés. npm, Cargo et Docker utilisent leurs
+protocoles natifs. Chaque mutation
 vérifie la capacité du Token, les droits du dépôt, son format et, pour Maven, la politique du domaine.
 
 ## Opérations directes
@@ -78,3 +79,26 @@ et sessions, puis supprime les fichiers temporaires abandonnés.
 
 Avec GPG obligatoire, la réponse peut être `202 Accepted` avec `release_id` pendant la quarantaine. Pour
 `purpose=updater`, le succès est `ready_to_restart` sans chemin de dépôt.
+
+## API des ressources natives gérées
+
+Ces endpoints JSON gèrent les ressources APK, apt, Conan, Conda/Conda native et rpm/yum. Les mutations exigent une
+session Cookie du navigateur. Les clients utilisent leurs chemins natifs ; les scopes du Token sont croisés avec les
+droits actuels sur la ressource.
+
+| Opération | Endpoint                                                                | Rôle                                                                                                     |
+|-----------|-------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
+| `GET`     | `/api/native/repositories/{repo}/resources`                             | Lister les ressources ; `name` sélectionne les détails, `limit` vaut 1–100 et `offset` va jusqu’à 10000. |
+| `POST`    | `/api/native/repositories/{repo}/resources`                             | Réserver avec `{"name":"example"}` ; exige le droit de publication du dépôt.                             |
+| `PUT`     | `/api/native/repositories/{repo}/resources`                             | Modifier `name`, `description` et la clé publique `signing_key` ; exige L3.                              |
+| `DELETE`  | `/api/native/repositories/{repo}/resources`                             | Libérer la ressource vide désignée par `name` ; exige L4 et aucune validation en attente.                |
+| `PUT`     | `/api/native/repositories/{repo}/resources/members`                     | Définir `name`, `username` et `level` (0–4, ou -1 pour supprimer) ; conserve le dernier propriétaire L4. |
+| `GET`     | `/api/native/repositories/{repo}/resources/key?name={name}`             | Télécharger la clé publique en respectant la visibilité des ressources non publiées.                     |
+| `GET`     | `/api/native/repositories/{repo}/resources/users?name={name}&q={query}` | Rechercher au plus huit utilisateurs visibles pour l’éditeur de droits L3.                               |
+
+`new_packages` valide la première publication ; `every_version` valide chaque version. Avec `202`, les fichiers restent
+masqués en attendant signatures ou validation ; une validation fournit `X-RenoP-Review-ID`. Les noms des paquets doivent
+correspondre aux métadonnées. Les index générés ne peuvent pas être téléversés. APK et RPM exigent une signature native
+valide liée à la clé configurée. Conan exige le manifeste signé produit par `scripts/conan/sign.py`. APT signe les index
+et Conda n’exige pas de signature détachée supplémentaire. Voir
+la [configuration des dépôts](/docs/configuration/repositories).

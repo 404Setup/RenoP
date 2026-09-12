@@ -15,7 +15,12 @@ export default Object.freeze({
     "resourceLock.versionsLocked": "Некоторые версии заблокированы",
 
     "resourceLock.unlock": "Разблокировать",
-    "maven.manageDomainTeam": "Управление командой домена",
+    "ticket.back": "Назад к заявкам",
+    "maven.managePackageTeam": "Управление командой пакета",
+    "maven.forceRemoveDomain": "Принудительно удалить домен",
+    "maven.confirmForceRemoveDomain": "Принудительно удалить домен {domain} без периода удержания? Это действие нельзя отменить.",
+    "maven.forceRemoveDomainFailed": "Не удалось принудительно удалить домен",
+    "maven.forceRemoveDomainSuccess": "Домен был принудительно удален",
     "maven.domainTeamHint": "Участники Maven относятся к домену публикации. Изменения затрагивают все пакеты этого домена.",
     "ticket.reasonTitle": "Причина жалобы",
     "ticket.reason.choose": "Выберите причину",

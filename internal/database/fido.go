@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"renop/internal/core"
 )
@@ -134,6 +135,9 @@ func (db *DB) SaveFidoDevice(device *core.FidoDevice) error {
 	if err := lockAccountByUsernameTx(tx, lowerName); err != nil {
 		return err
 	}
+	if err := securityHoldByNameTx(tx, lowerName, time.Now().UnixMilli()); err != nil {
+		return err
+	}
 	_, err = tx.Exec(query, device.ID, lowerName, device.Name, device.CredentialID, device.PublicKey, device.AttestationType, device.AAGUID, device.SignCount, device.CreatedAt, userPresentInt, userVerifiedInt, backupEligibleInt, backupStateInt)
 	if err != nil {
 		return fmt.Errorf("failed to save fido device (%s): %w", device.ID, err)
@@ -172,6 +176,9 @@ func (db *DB) DeleteFidoDevice(username, deviceID string) error {
 	if err := lockAccountLoginMethodsTx(tx, userID); err != nil {
 		return fmt.Errorf("lock account login methods before fido deletion: %w", err)
 	}
+	if err := securityHoldTx(tx, userID, time.Now().UnixMilli()); err != nil {
+		return err
+	}
 	var exists int
 	if err := tx.QueryRow(`SELECT COUNT(*) FROM fido_devices WHERE username = ? AND id = ?`,
 		lowerName, deviceID).Scan(&exists); err != nil {
@@ -200,18 +207,25 @@ func (db *DB) DeleteFidoDevicesByUsername(username string) error {
 	if db == nil || db.SQLDB == nil || username == "" {
 		return nil
 	}
-	username = SanitizeInputString(username, 255)
+	username = strings.ToLower(SanitizeInputString(username, 255))
 	if username == "" {
 		return nil
 	}
-
-	lowerName := strings.ToLower(username)
-	_, err := db.Exec(`DELETE FROM fido_devices WHERE username = ?`, lowerName)
+	tx, err := db.Begin()
 	if err != nil {
-		return fmt.Errorf("failed to delete fido devices for user (%s): %w", lowerName, err)
+		return err
 	}
-
-	return nil
+	defer tx.Rollback()
+	if err := lockAccountByUsernameTx(tx, username); err != nil {
+		return err
+	}
+	if err := securityHoldByNameTx(tx, username, time.Now().UnixMilli()); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM fido_devices WHERE username = ?`, username); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (db *DB) UpdateFidoSignCount(credentialID []byte, signCount uint32) error {

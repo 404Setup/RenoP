@@ -75,4 +75,9 @@ export default Object.freeze({
     "updaterNotice.spaceBody": "磁碟可用空間不足，無法完成更新。",
     "updaterNotice.restartFailedTitle": "更新重新啟動失敗",
     "updaterNotice.restartFailedBody": "RenoP 無法透過重新啟動套用已準備的更新，請檢查伺服器日誌後重試。",
+    "messages.sessionTarget": "推送目標",
+    "messages.allSessions": "全量推送",
+    "messages.sessionsLoading": "正在載入活躍工作階段…",
+    "messages.sessionsEmpty": "沒有活躍的瀏覽器工作階段。",
+    "messages.sessionsFailed": "無法載入工作階段，請重新輸入使用者重試。",
 });

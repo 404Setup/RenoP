@@ -8,6 +8,7 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
+import {renderHTML} from '../../../../../scripts/render-shell-test.mjs';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {dirname, join, resolve} from 'node:path';
@@ -49,7 +50,7 @@ test('custom font loading is asynchronous and activates only after a complete lo
 test('the system font baseline is shared and the H5 shell carries only inert font metadata', () => {
     const tokens = readFileSync(join(repositoryRoot, 'packages/renop-ui/css/tokens.css'), 'utf8');
     const base = readFileSync(join(repositoryRoot, 'packages/renop-ui/css/base.css'), 'utf8');
-    const index = readFileSync(join(frontendRoot, 'index.html'), 'utf8');
+    const index = renderHTML(join(frontendRoot, 'index.html'));
     assert.ok(tokens.includes('--font-sans: system-ui'));
     assert.ok(base.includes('font-family: var(--font-sans'));
     assert.doesNotMatch(base, /font-family:\s*['"]Open Sans/);

@@ -14,10 +14,10 @@ import (
 	"bytes"
 	"context"
 	"crypto"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
+	"renop/pkg/hex"
 	"strings"
 	"testing"
 	"time"
@@ -59,7 +59,7 @@ func setupGPGUploadState(t *testing.T) (*core.AppState, *database.DB, *config.Re
 	state := core.NewAppState()
 	state.Inner.Config.Store(cfg)
 	state.Inner.DB = db
-	state.Inner.FileIndex = index.NewFileIndexCustom(true)
+	state.Inner.FileIndex = index.NewFileIndex()
 	return state, db, repo, storagePath
 }
 
@@ -537,7 +537,7 @@ func TestGPGReleaseBlacklistRestoresAcrossRestartAndRebuild(t *testing.T) {
 	restarted := core.NewAppState()
 	restarted.Inner.Config.Store(state.Inner.Config.Load())
 	restarted.Inner.DB = db
-	restarted.Inner.FileIndex = index.NewFileIndexCustom(true)
+	restarted.Inner.FileIndex = index.NewFileIndex()
 	require.NoError(t, RestoreGPGReleaseState(restarted))
 	require.NoError(t, index.BuildIndexSync(storagePath, restarted.Inner.FileIndex))
 	assert.NoFileExists(t, orphanPath)

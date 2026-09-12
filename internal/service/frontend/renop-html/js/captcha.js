@@ -57,7 +57,10 @@ async function challenge(scope, signal, epoch) {
     const host = el('div', {class: 'captcha-widget-host'});
     if (isHiddenByDefault) host.style.display = 'none';
 
-    const preferences = el('button', {type: 'button', class: 'action-btn', onclick: () => void openCookiePreferences()}, t('legal.cookiePreferences'));
+    const preferences = el('button', {type: 'button', class: 'action-btn', onclick: () => {
+        abort();
+        void openCookiePreferences();
+    }}, t('legal.cookiePreferences'));
     const retry = el('button', {type: 'button', class: 'action-btn primary-btn', hidden: true}, t('offline.retryBtn'));
     const cancel = el('button', {type: 'button', class: 'action-btn', onclick: abort}, t('common.cancel'));
     const footer = el('div', {class: 'modal-footer captcha-actions'}, preferences, retry, cancel);

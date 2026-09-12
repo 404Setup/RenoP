@@ -198,12 +198,13 @@ func TestUserProfileRoutesValidateAndRateLimitRenames(t *testing.T) {
 	require.Equal(t, cfg.PublicationQuota.FileLimit, ownProfile.PublicationQuota.FileLimit)
 	require.Equal(t, cfg.PublicationQuota.ByteLimit, ownProfile.PublicationQuota.ByteLimit)
 	response = profileRequest(t, app, http.MethodPut, "/auth/profile/links",
-		`{"website":"https://alice.example","github":"https://github.com/alice","discord":"https://discord.gg/alice","custom_name":"Docs","custom_url":"https://docs.alice.example"}`)
+		`{"website":"https://alice.example","visibility":{"github":true},"discord":"https://discord.gg/alice","custom_name":"Docs","custom_url":"https://docs.alice.example"}`)
 	require.Equal(t, http.StatusOK, response.StatusCode)
 	var links core.PublicLinks
 	require.NoError(t, json.NewDecoder(response.Body).Decode(&links))
 	require.NoError(t, response.Body.Close())
 	require.Equal(t, "https://alice.example", links.Website)
+	require.Equal(t, "https://github.com/alice-github", links.GitHub)
 	response = profileRequest(t, app, http.MethodPut, "/auth/profile/links", `{"github":"https://example.com/alice"}`)
 	require.Equal(t, http.StatusBadRequest, response.StatusCode)
 	require.NoError(t, response.Body.Close())

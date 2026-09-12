@@ -9,6 +9,26 @@
  */
 
 export default Object.freeze({
+    "repos.formatConan": "Conan",
+    "repos.formatConanDesc": "Conan-Rezepte, Binärpakete, Revisionen und Uploads mit dem nativen Client.",
+    "repos.formatConda": "Conda",
+    "repos.formatCondaNative": "Conda native",
+    "repos.formatApk": "Alpine APK",
+    "repos.formatApt": "apt",
+    "repos.formatRpm": "rpm / yum",
+    "repos.formatCondaDesc": "Automatische Paketindizes, native Downloads und Upload vorhandener Indizes und Signaturen.",
+    "repos.formatCondaNativeDesc": "Automatische Paketindizes, native Downloads und Upload vorhandener Indizes und Signaturen.",
+    "repos.formatApkDesc": "Automatische Paketindizes, native Downloads und Upload vorhandener Indizes und Signaturen.",
+    "repos.formatAptDesc": "Automatische Paketindizes, native Downloads und Upload vorhandener Indizes und Signaturen.",
+    "repos.formatRpmDesc": "Automatische Paketindizes, native Downloads und Upload vorhandener Indizes und Signaturen.",
+    "details.nativeTitle": "Client-Konfiguration",
+    "details.nativeSubtitle": "Ressource reservieren und mit dem nativen Client veröffentlichen. Indizes werden aus veröffentlichten Dateien erstellt.",
+    "details.nativeClientTab": "Client",
+
+    "repos.capacityLimit": "Kapazitätsgrenze (MiB)",
+    "repos.capacityHint": "0 bedeutet unbegrenzt. Gezählt werden gespeicherte Artefakte, Spiegel und Prüfsummen; temporäre Kopien sind ausgenommen.",
+    "repos.capacityInvalid": "Geben Sie eine nicht negative Kapazität in MiB ein.",
+    "repos.capacityExceeded": "Dieses Repository hat seine Kapazitätsgrenze erreicht. Löschen Sie Artefakte oder erhöhen Sie die Grenze.",
     "common.create": "Erstellen",
     "repos.title": "Repositorys",
     "repos.addRepoBtn": "Repository hinzufügen",

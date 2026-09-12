@@ -18,7 +18,7 @@ rollback to an older RenoP version is required.
 
 | Data                        | Typical location                            | Recovery role                                                                 |
 |:----------------------------|:--------------------------------------------|:------------------------------------------------------------------------------|
-| Main configuration          | `config.yaml` or `RENOP_CONFIG`             | Listener, database, proxy, security, previews, updater                        |
+| Main configuration          | `renop-settings.db` or `RENOP_SETTINGS_DB`             | Listener, database, proxy, security, previews, updater                        |
 | Repository definitions      | Database | Format, visibility, mirrors, storage backend, policy                          |
 | Database                    | `renop.db` or external DSN                  | Accounts, permissions, sessions, tokens, teams, reviews, audit, messages      |
 | Local artifact data         | `storage_path`                              | Published packages, uploads, cached upstream content                          |
@@ -46,11 +46,11 @@ configuration, repository file, index snapshot, and local storage tree.
 
 ```bash
 install -d /backup/renop
-cp config.yaml renop.db index.json /backup/renop/
+cp renop-settings.db renop.db index.json /backup/renop/
 rsync -a storage/ /backup/renop/storage/
 ```
 
-Use the paths configured through `RENOP_CONFIG`, `RENOP_INDEX`, the database DSN, and
+Use the paths configured through `RENOP_SETTINGS_DB`, `RENOP_INDEX`, the database DSN, and
 `storage_path`; the example names are defaults. Preserve file ownership, permissions, extended attributes where
 required, and sufficient free space for temporary upload files.
 
@@ -85,7 +85,7 @@ retention rules only after you can distinguish them reliably.
 Restore to an isolated host or network first. Use the same RenoP version that created the backup, confirm that the
 restored service works, and then perform an upgrade separately if required.
 
-1. Restore `config.yaml`, certificates, and integration secrets with restrictive permissions.
+1. Restore `renop-settings.db`, certificates, and integration secrets with restrictive permissions.
 2. Restore the database and verify that its configured hostname, credentials, and TLS settings are valid.
 3. Restore local storage or reconnect the exact S3 bucket and prefix.
 4. Restore `index.json` if available; otherwise allow RenoP to rebuild indexes from authoritative storage.
@@ -120,3 +120,5 @@ periodically, restore the newest backup into an empty environment and record:
 
 A backup that has never been restored is an untested assumption. Link the final runbook from the
 [Production Deployment Checklist](./production-checklist.md) and keep an offline copy available during an outage.
+
+S3 content sharing keeps payloads in the private `.renop-content-v1` namespace. Include it with repository objects in backups, and retain the private index to reduce metadata reads after restart. The index is a versioned stream of JSON records; older snapshots remain readable. See [repository configuration](/docs/configuration/repositories) for deduplication and recovery behavior.

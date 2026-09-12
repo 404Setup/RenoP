@@ -27,15 +27,14 @@ The [API reference](/api) documents management endpoints, client integration flo
 
 ## Wire Formats & Protobuf
 
-Schema-backed management APIs accept JSON (`application/json`) and binary protobuf (`application/x-protobuf` or
-`application/protobuf`). `Content-Type` selects request decoding; `Accept` selects the response. Missing or unsupported
-`Accept` retains the protobuf response for older clients. Untyped request bodies retain protobuf decoding.
-See `proto/api/v1/api.proto` for message definitions.
+Schema-backed management APIs use binary protobuf. Send `Content-Type: application/x-protobuf`; requests also accept
+`application/protobuf` and `application/octet-stream`, and a missing Content-Type defaults to protobuf. JSON request
+bodies are rejected with endpoint-specific `400` or `415` errors. Responses always use `application/x-protobuf`; `Accept` does not enable JSON.
+Use message definitions from `proto/api/v1/api.proto` for the deployed release.
 
-JSON uses the original snake_case field names; input also accepts protobuf camelCase names. Integers with 64-bit
-precision are decimal strings and bytes are Base64 strings. Unknown or duplicate JSON fields are rejected. Control
-requests remain bounded to 1 MiB, with any smaller endpoint limits retained. Native registry formats, raw upload parts,
-health text, and endpoint-specific errors keep their existing representations.
+Control requests remain bounded to 1 MiB, with smaller endpoint limits retained. JSON examples accompanying protobuf
+messages show decoded fields, not a JSON wire format. JSON-only endpoints, native registry protocols, raw upload parts,
+health text, and endpoint-specific errors retain their declared representations.
 
 ## Authentication Transports
 

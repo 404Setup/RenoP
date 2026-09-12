@@ -13,6 +13,13 @@ import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
 
+/** Evaluate controllers with injected dependencies, including multiline named imports. */
+function loadScript(relativePath, context, setup = '') {
+    const source = readFileSync(new URL(relativePath, import.meta.url), 'utf8')
+        .replace(/^import [\s\S]*? from '[^']+';\r?\n/gm, '').replace(/^export /gm, '');
+    vm.runInContext(source + '\n' + setup, context, {filename: relativePath});
+}
+
 test('ticket details use server actions and refresh only after successful claims', async () => {
     const requests = [], alerts = [];
     let accepted = false, refreshed = 0;
@@ -34,9 +41,8 @@ test('ticket details use server actions and refresh only after successful claims
         },
         localizedResponseError: async () => new Error('safe error'), REVIEW_ERROR_KEYS: {},
     });
-    const source = readFileSync(new URL('../js/tickets.js', import.meta.url), 'utf8');
-    vm.runInContext(source.replace(/^import .*;\r?\n/gm, '').replaceAll('export ', '') +
-        '\nloadTasks = async () => {};', context);
+    loadScript('../js/components/button.js', context);
+    loadScript('../js/tickets.js', context, 'loadTasks = async () => {};');
     const buttons = node => [node, ...node.children?.flatMap(buttons) || []].filter(node => node.tag === 'button');
     const ticket = {
         id: 'one',
@@ -76,4 +82,47 @@ test('ticket details use server actions and refresh only after successful claims
     assert.equal(context.ticketRouteFromPath('/account/reviews/'), true);
     assert.equal(context.ticketRouteFromPath('/account/tickets'), true);
     assert.equal(context.ticketRouteFromPath('/account/tickets/unrelated'), false);
+});
+
+test('ticket entry resets stale filters and account changes reset the requester perspective', async () => {
+    let username = 'alice';
+    const pages = [];
+    const context = vm.createContext({
+        localStorage: {getItem: () => username},
+        window: {location: {pathname: '/account/tickets', search: '', hash: ''}, dispatchEvent() {}, history: {replaceState() {}}},
+        PopStateEvent: class {}, pages,
+    });
+    loadScript('../js/tickets.js', context,
+        'loadTasks = async () => pages.push({view: activeView, status: activeStatus, offset: pageOffset, types: [...activeTypes]});');
+    vm.runInContext('activeStatus = "unprocessed"; pageOffset = 45; activeTypes.add("support");', context);
+    context.openTicketCenter();
+    await context.loadTicketCenterPage();
+    assert.deepEqual(JSON.parse(JSON.stringify(pages.at(-1))), {view: 'reviewer', status: 'all', offset: 0, types: []});
+    context.openTicketCenter('requested');
+    await context.loadTicketCenterPage();
+    assert.equal(pages.at(-1).view, 'requested');
+    username = 'another-admin';
+    await context.loadTicketCenterPage();
+    assert.equal(pages.at(-1).view, 'reviewer');
+    assert.equal(pages.at(-1).status, 'all');
+});
+
+test('conversation pages forward opaque cursors and surface rate denials', async () => {
+    const urls = [];
+    let ok = true;
+    const context = vm.createContext({
+        URLSearchParams, REVIEW_ERROR_KEYS: {},
+        localizedResponseError: async () => new Error('localized denial'),
+        apiRequest: async url => {
+            urls.push(url);
+            return {ok, headers: {get: () => 'older-cursor'}, json: async () => [{id: 'message'}]};
+        }
+    });
+    loadScript('../js/tickets.js', context);
+    const page = await context.loadTicketMessagePage('ticket', 'previous-cursor');
+    assert.equal(page.before, 'older-cursor');
+    assert.equal(page.messages[0].id, 'message');
+    assert.equal(urls[0], '/api/tickets/ticket/messages?limit=50&before=previous-cursor');
+    ok = false;
+    await assert.rejects(context.loadTicketMessagePage('ticket'), {message: 'localized denial'});
 });

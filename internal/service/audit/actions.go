@@ -18,6 +18,7 @@ const (
 	ActionLogout                 = "LOGOUT"
 	ActionUpload                 = "UPLOAD"
 	ActionUploadQueuedGPG        = "UPLOAD_QUEUED_GPG"
+	ActionUploadQueuedNative     = "UPLOAD_QUEUED_NATIVE"
 	ActionUploadQueuedReview     = "UPLOAD_QUEUED_REVIEW"
 	ActionDelete                 = "DELETE"
 	ActionPasswordUpdate         = "PASSWORD_UPDATE"
@@ -82,6 +83,7 @@ const (
 	ActionDockerBlobMount      = "DOCKER_BLOB_MOUNT"
 	ActionDockerBlobDelete     = "DOCKER_BLOB_DELETE"
 	ActionDockerImageCreate    = "DOCKER_IMAGE_CREATE"
+	ActionNativeResourceUpdate = "NATIVE_RESOURCE_UPDATE"
 	ActionDockerImageUpdate    = "DOCKER_IMAGE_UPDATE"
 	ActionDockerImageDelete    = "DOCKER_IMAGE_DELETE"
 	ActionDockerTagDelete      = "DOCKER_TAG_DELETE"
@@ -111,6 +113,7 @@ const (
 	ActionMavenDomainVerify       = "MAVEN_DOMAIN_VERIFY"
 	ActionMavenDomainForceVerify  = "MAVEN_DOMAIN_FORCE_VERIFY"
 	ActionMavenDomainClose        = "MAVEN_DOMAIN_CLOSE"
+	ActionMavenDomainForceDelete  = "MAVEN_DOMAIN_FORCE_DELETE"
 	ActionMavenDomainClaimApprove = "MAVEN_DOMAIN_CLAIM_APPROVE"
 	ActionMavenDomainClaimReject  = "MAVEN_DOMAIN_CLAIM_REJECT"
 	ActionMavenArtifactUpdate     = "MAVEN_ARTIFACT_UPDATE"
@@ -129,6 +132,7 @@ func KnownActions() []string {
 		ActionLogout,
 		ActionUpload,
 		ActionUploadQueuedGPG,
+		ActionUploadQueuedNative,
 		ActionUploadQueuedReview,
 		ActionDelete,
 		ActionPasswordUpdate,
@@ -191,6 +195,7 @@ func KnownActions() []string {
 		ActionDockerBlobMount,
 		ActionDockerBlobDelete,
 		ActionDockerImageCreate,
+		ActionNativeResourceUpdate,
 		ActionDockerImageUpdate,
 		ActionDockerImageDelete,
 		ActionDockerTagDelete,
@@ -218,6 +223,7 @@ func KnownActions() []string {
 		ActionMavenDomainVerify,
 		ActionMavenDomainForceVerify,
 		ActionMavenDomainClose,
+		ActionMavenDomainForceDelete,
 		ActionMavenDomainClaimApprove,
 		ActionMavenDomainClaimReject,
 		ActionMavenArtifactUpdate,

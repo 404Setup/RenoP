@@ -8,10 +8,12 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
-import {closeModalWithAnim} from '@renop/ui/modal';
+import {closeModalWithAnim, topOpenModal} from '@renop/ui/modal';
 import {t, translateError} from '../i18n.js';
 import {el} from '@renop/ui/dom';
 import {createIcon, ICONS} from './icon.js';
+
+let dialogHeadingSequence = 0;
 
 /**
  * Modal dialog custom element with form, footer, and promise-based open/close.
@@ -101,7 +103,7 @@ export class RenopDialog extends HTMLElement {
         const modalStyle = {};
         if (opts.maxWidth) modalStyle.maxWidth = opts.maxWidth;
 
-        this._modalContent = el('div', {class: modalClasses.join(' '), style: modalStyle});
+        this._modalContent = el('div', {class: modalClasses.join(' '), style: modalStyle, role: 'dialog', 'aria-modal': 'true'});
 
         let formOrWrapper = this._modalContent;
         if (opts.form) {
@@ -148,6 +150,8 @@ export class RenopDialog extends HTMLElement {
             }
 
             const titleEl = el('h3', {class: opts.titleClass || 'modal-title token-form-title'});
+            titleEl.id = this.id ? `${this.id}-heading` : `renop-dialog-heading-${++dialogHeadingSequence}`;
+            this._modalContent.setAttribute('aria-labelledby', titleEl.id);
             if (opts.titleStyle) Object.assign(titleEl.style, opts.titleStyle);
 
             if (opts.icon) {
@@ -251,20 +255,22 @@ export class RenopDialog extends HTMLElement {
      * @returns {void}
      */
     open() {
+        this._returnFocus = document.activeElement;
         this.style.display = 'flex';
         this.classList.add('visible');
         if (window.updateModalInertState) window.updateModalInertState();
 
         this._handleEsc = (e) => {
-            if (e.key === 'Escape') {
-                e.stopPropagation();
-                if (document.activeElement && document.activeElement !== document.body) {
-                    document.activeElement.blur();
-                }
-                this.close(false);
+            if (e.key === 'Escape' && topOpenModal() === this) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                if (this._options.closable !== false) this.close(false);
             }
         };
         document.addEventListener('keydown', this._handleEsc);
+        requestAnimationFrame(() => {
+            if (topOpenModal() === this) this.querySelector('input, textarea, button')?.focus({preventScroll: true});
+        });
 
         if (this._backdrop) {
             this._backdrop.onclick = () => {
@@ -292,6 +298,9 @@ export class RenopDialog extends HTMLElement {
             }
             if (this._options.onClose) this._options.onClose(result);
             if (this._resolve) this._resolve(result);
+            if (this._returnFocus?.isConnected && !this._returnFocus.closest('[inert]')) {
+                this._returnFocus.focus({preventScroll: true});
+            }
             this._isClosing = false;
         });
     }

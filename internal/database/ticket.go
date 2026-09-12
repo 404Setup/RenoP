@@ -1,7 +1,10 @@
 /*
  * Copyright (c) 2026 404Setup. All rights reserved.
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
- * If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
+ *
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
@@ -14,6 +17,8 @@ import (
 	"time"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/google/uuid"
 
 	"renop/internal/config"
 	"renop/internal/core"
@@ -69,14 +74,25 @@ func ticketHandlerTx(tx *Tx, task *core.ReviewTask, actorID string) (*config.Use
 	if user.IsManager() {
 		return user, nil
 	}
-	if task.ReviewTeamPrefix != "" && !supportTicket(task) {
+	if task.Kind == core.ReviewKindPublication && task.ReviewTeamPrefix != "" {
 		if err := requireSuperTeamRoleTx(tx, task.ReviewTeamPrefix, actorID, core.SuperTeamRoleManage); err != nil {
 			return nil, core.ErrReviewPermissionDenied
 		}
-	} else if !user.CheckModeratePermission(task.Repository) {
-		return nil, core.ErrReviewPermissionDenied
+		return user, nil
 	}
-	return user, nil
+	if (task.Repository != "" && user.CheckModeratePermission(task.Repository)) || user.CheckModeratePermission("") {
+		return user, nil
+	}
+	if task.ReviewTeamPrefix != "" && requireSuperTeamRoleTx(tx, task.ReviewTeamPrefix, actorID, core.SuperTeamRoleManage) == nil {
+		return user, nil
+	}
+	if task.TargetTeamPrefix != "" && requireSuperTeamRoleTx(tx, task.TargetTeamPrefix, actorID, core.SuperTeamRoleManage) == nil {
+		return user, nil
+	}
+	if task.SourceTeamPrefix != "" && requireSuperTeamRoleTx(tx, task.SourceTeamPrefix, actorID, core.SuperTeamRoleManage) == nil {
+		return user, nil
+	}
+	return nil, core.ErrReviewPermissionDenied
 }
 
 func insertTicketStateTx(tx *Tx, task *core.ReviewTask) error {
@@ -139,9 +155,16 @@ func (db *DB) TransitionTicket(id, actor, session string, action core.TicketActi
 	if task.Status != core.ReviewStatusPending {
 		return nil, core.ErrReviewTaskConflict
 	}
+	isRequester := task.RequestedByID == account.UserID
 	user, err := ticketHandlerTx(tx, task, account.UserID)
 	if err != nil {
-		return nil, err
+		if !isRequester || action.Action != "close" {
+			return nil, err
+		}
+		user, err = ticketActorTx(tx, account.UserID)
+		if err != nil {
+			return nil, err
+		}
 	}
 	var existing string
 	if err := tx.QueryRow(`SELECT task_id FROM ticket_state WHERE task_id = ?`, id).Scan(&existing); errors.Is(err, sql.ErrNoRows) {
@@ -175,6 +198,13 @@ func (db *DB) TransitionTicket(id, actor, session string, action core.TicketActi
 		}
 		task.AssigneeID, task.AssigneeAdmin = account.UserID, user.IsManager()
 		task.TicketState.Status = core.TicketInProgress
+		authorRole := "moderator"
+		if user.IsManager() {
+			authorRole = "admin"
+		}
+		_, _ = tx.Exec(`INSERT INTO ticket_messages (id, task_id, author_id, author_name, author_role, kind, body, created_at)
+			VALUES (?, ?, ?, ?, ?, 'event', 'claimed', ?)`,
+			uuid.New().String(), task.ID, account.UserID, user.Username, authorRole, at)
 	case "release", "escalate":
 		if task.AssigneeID != account.UserID {
 			return nil, core.ErrTicketClaimRequired
@@ -182,13 +212,56 @@ func (db *DB) TransitionTicket(id, actor, session string, action core.TicketActi
 		if task.Escalations >= 3 {
 			return nil, core.ErrTicketEscalationLimit
 		}
+		ev := "released"
 		if action.Action == "escalate" {
 			task.Escalations++
 			task.AdminOnly, task.EscalatedByID = true, account.UserID
+			ev = "escalated"
 		}
 		task.AssigneeID, task.AssigneeAdmin = "", false
 		task.TicketState.Status = core.TicketUnprocessed
-	case "process", "complete", "close":
+		authorRole := "moderator"
+		if user.IsManager() {
+			authorRole = "admin"
+		}
+		_, _ = tx.Exec(`INSERT INTO ticket_messages (id, task_id, author_id, author_name, author_role, kind, body, created_at)
+			VALUES (?, ?, ?, ?, ?, 'event', ?, ?)`,
+			uuid.New().String(), task.ID, account.UserID, user.Username, authorRole, ev, at)
+	case "close":
+		if action.Outcome != core.TicketCloseReasonInvalid &&
+			action.Outcome != core.TicketCloseReasonResolved &&
+			action.Outcome != core.TicketCloseReasonPlanned &&
+			action.Outcome != "closed" {
+			action.Outcome = core.TicketCloseReasonResolved
+		}
+		response, _ := normalizeTicketText(action.Response, 4096)
+		task.Outcome, task.Response = action.Outcome, response
+		task.TicketState.Status = core.TicketClosed
+		task.Status = core.ReviewStatusCancelled
+		if _, err := tx.Exec(`UPDATE review_tasks SET status = ?, decision_reason = ?, decided_by_id = ?,
+			decided_by_name = ?, decided_at = ?, active_key = NULL WHERE id = ? AND status = ?`,
+			task.Status, task.Outcome, account.UserID, user.Username, at, id, core.ReviewStatusPending); err != nil {
+			return nil, err
+		}
+		if _, err := tx.Exec(`DELETE FROM review_task_payloads WHERE task_id = ?`, task.ID); err != nil {
+			return nil, err
+		}
+		authorRole := "author"
+		if !isRequester {
+			if user.IsManager() {
+				authorRole = "admin"
+			} else {
+				authorRole = "moderator"
+			}
+		}
+		msgBody := action.Outcome
+		if response != "" {
+			msgBody = action.Outcome + ": " + response
+		}
+		_, _ = tx.Exec(`INSERT INTO ticket_messages (id, task_id, author_id, author_name, author_role, kind, body, created_at)
+			VALUES (?, ?, ?, ?, ?, 'event', ?, ?)`,
+			uuid.New().String(), task.ID, account.UserID, user.Username, authorRole, "closed:"+msgBody, at)
+	case "process", "complete":
 		if !supportTicket(task) {
 			return nil, core.ErrReviewInvalidRequest
 		}
@@ -199,10 +272,7 @@ func (db *DB) TransitionTicket(id, actor, session string, action core.TicketActi
 		if !valid || response == "" {
 			return nil, core.ErrReviewInvalidRequest
 		}
-		if action.Action == "close" {
-			action.Outcome = "closed"
-			task.Status = core.ReviewStatusCancelled
-		} else if task.Kind == core.TicketKindReport {
+		if task.Kind == core.TicketKindReport {
 			if action.Outcome != "upheld" && action.Outcome != "dismissed" {
 				return nil, core.ErrReviewInvalidRequest
 			}
@@ -211,12 +281,10 @@ func (db *DB) TransitionTicket(id, actor, session string, action core.TicketActi
 		}
 		task.Outcome, task.Response = action.Outcome, response
 		task.TicketState.Status = core.TicketProcessed
-		if action.Action != "process" {
-			if action.Action == "complete" {
-				task.Status = core.ReviewStatusApproved
-				if task.Outcome == "dismissed" {
-					task.Status = core.ReviewStatusRejected
-				}
+		if action.Action == "complete" {
+			task.Status = core.ReviewStatusApproved
+			if task.Outcome == "dismissed" {
+				task.Status = core.ReviewStatusRejected
 			}
 			if _, err := tx.Exec(`UPDATE review_tasks SET status = ?, decision_reason = ?, decided_by_id = ?,
 				decided_by_name = ?, decided_at = ?, active_key = NULL WHERE id = ? AND status = ?`,
@@ -224,6 +292,13 @@ func (db *DB) TransitionTicket(id, actor, session string, action core.TicketActi
 				return nil, err
 			}
 		}
+		authorRole := "moderator"
+		if user.IsManager() {
+			authorRole = "admin"
+		}
+		_, _ = tx.Exec(`INSERT INTO ticket_messages (id, task_id, author_id, author_name, author_role, kind, body, created_at)
+			VALUES (?, ?, ?, ?, ?, 'comment', ?, ?)`,
+			uuid.New().String(), task.ID, account.UserID, user.Username, authorRole, response, at)
 	default:
 		return nil, core.ErrReviewInvalidRequest
 	}

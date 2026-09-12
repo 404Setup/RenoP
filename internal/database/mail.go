@@ -3,6 +3,8 @@
  *
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
  *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
+ *
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
@@ -11,7 +13,6 @@ package database
 import (
 	"database/sql"
 	"errors"
-	"net/netip"
 	"slices"
 	"strings"
 	"time"
@@ -102,7 +103,7 @@ func requireMailLeaseTx(tx *Tx, owner string, now int64) error {
 	return nil
 }
 
-// QueueMailJob atomically deduplicates, bounds the queue, and debits manual IP limits.
+// QueueMailJob atomically deduplicates, bounds the queue, and debits manual request limits.
 func (db *DB) QueueMailJob(job *mail.Job, key, ip string, rate mail.Rate) (bool, error) {
 	db.mailWriteMu.Lock()
 	defer db.mailWriteMu.Unlock()
@@ -155,44 +156,8 @@ func queueMailJobTx(tx *Tx, job *mail.Job, key, ip string, rate mail.Rate) (bool
 			return false, err
 		}
 	}
-	if ip != "" {
-		address, err := netip.ParseAddr(ip)
-		if err != nil {
-			return false, errors.New("invalid mail request IP")
-		}
-		ip = address.Unmap().String()
-		if rate.Limit <= 0 || rate.Interval.Duration() <= 0 {
-			return false, errors.New("invalid mail rate")
-		}
-		var used, expires int64
-		err = tx.QueryRow(`SELECT used, expires_at FROM mail_rate_limits WHERE ip = ?`, ip).Scan(&used, &expires)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return false, err
-		}
-		if err == nil && expires > job.CreatedAt && used >= rate.Limit {
-			return false, mail.ErrRateLimited
-		}
-		if err == nil {
-			if expires <= job.CreatedAt {
-				used = 0
-				expires = job.CreatedAt + rate.Interval.Duration().Milliseconds()
-			}
-			_, err = tx.Exec(`UPDATE mail_rate_limits SET used = ?, period_start = ?, expires_at = ? WHERE ip = ?`, used+1, expires-rate.Interval.Duration().Milliseconds(), expires, ip)
-		} else {
-			if _, err = tx.Exec(`DELETE FROM mail_rate_limits WHERE expires_at <= ?`, job.CreatedAt); err != nil {
-				return false, err
-			}
-			if err = tx.QueryRow(`SELECT COUNT(*) FROM mail_rate_limits WHERE expires_at > ?`, job.CreatedAt).Scan(&count); err != nil {
-				return false, err
-			}
-			if count >= 10000 {
-				return false, mail.ErrRateLimited
-			}
-			_, err = tx.Exec(`INSERT INTO mail_rate_limits (ip, period_start, used, expires_at) VALUES (?, ?, 1, ?)`, ip, job.CreatedAt, job.CreatedAt+rate.Interval.Duration().Milliseconds())
-		}
-		if err != nil {
-			return false, err
-		}
+	if err := debitManualMailTx(tx, job, key, ip, rate); err != nil {
+		return false, err
 	}
 	_, err = tx.Exec(`INSERT INTO mail_jobs (`+mailJobColumns+`) VALUES (?, ?, ?, ?, ?, 'queued', ?, '{}', 0, ?, ?, ?, ?)`, job.ID, job.AccountID, job.UserID, job.Actor, job.Scene, payload, job.CreatedAt, job.CreatedAt, job.CreatedAt, job.ExpiresAt)
 	if err != nil {
@@ -220,6 +185,10 @@ func scanMailJob(scanner messageScanner, key string) (*mail.Job, error) {
 	if err := json.Unmarshal([]byte(result), &job.Result); err != nil {
 		return nil, err
 	}
+	// Older submissions without a status API were already terminal despite this label.
+	if job.Status == "queued_provider" && !job.Result.Check {
+		job.Status, job.Result.Status = "accepted", "accepted"
+	}
 	return job, nil
 }
 
@@ -242,7 +211,9 @@ func (db *DB) ListMailJobs(userID, status, key string, limit, offset int) ([]*ma
 		where += " AND user_id = ?"
 		args = append(args, userID)
 	}
-	if status != "" {
+	if status == "accepted" || status == "queued_provider" {
+		where += " AND status IN ('accepted', 'queued_provider')"
+	} else if status != "" {
 		where += " AND status = ?"
 		args = append(args, status)
 	}
@@ -421,7 +392,7 @@ func (db *DB) MailAuditEvents(cursor int64) ([]*core.AuditLogEntry, error) {
 
 // MailMessageEvents finds recent feature messages that have not yet acquired a mail job.
 func (db *DB) MailMessageEvents(since int64) ([]*core.UserMessage, error) {
-	rows, err := db.Query(`SELECT id, recipient, kind, title, body, created_at FROM user_messages WHERE created_at >= ? AND email_processed_at = 0 ORDER BY created_at ASC, id ASC LIMIT 32`, since)
+	rows, err := db.Query(`SELECT id, recipient, kind, title, body, created_at FROM user_messages WHERE created_at >= ? AND email_processed_at = 0 AND session_id = '' ORDER BY created_at ASC, id ASC LIMIT 32`, since)
 	if err != nil {
 		return nil, err
 	}

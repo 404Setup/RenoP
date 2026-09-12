@@ -17,7 +17,7 @@ Web 登录入口为 `/account/login`，支持通过 `return_to` 参数指定登�
 
 - **路径**：`POST /api/auth/login`
 - **认证**：无需认证。
-- **正文**：JSON / protobuf `LoginRequest`，下方展示其 JSON 字段名。`name` 可填写用户名或私有登录邮箱。
+- **正文**：protobuf `LoginRequest`，下方展示其 JSON 字段名。`name` 可填写用户名或私有登录邮箱。
 
 ### 请求
 
@@ -56,6 +56,8 @@ Microsoft、Google、GitLab 等其他身份提供商请参阅[第三方登录 AP
 - **登出**：`POST /api/auth/logout`
 - **公开个人资料**：`GET /api/users/:username/profile`
 - **包成员关系**：`GET /api/users/:username/memberships?format=cargo|docker|maven|npm`
+
+启用二次验证后，修改密码必须提供已配置的 TOTP 验证码或二次验证 Passkey；启用发件服务时也可向当前主邮箱发送验证码。`PUT /api/auth/profile/password` 接收二进制 `UpdatePasswordRequest`，包含 `factor`（`totp`、`passkey`、`email`）及对应证明（`totp_code`、`challenge_id` 加 `passkey_credential`、或 `email_code`）。Passkey 证明通过 `POST /api/auth/profile/password/passkey/begin` 开始，绑定当前浏览器会话和凭据状态，仅可使用一次；成功后撤销其他会话。
 
 可见路由使用用户名，不可变用户 ID 保持内部使用。`HIDDEN` 存储库成员关系不会返回；私有成员关系只对有权
 查看者显示。
@@ -115,6 +117,8 @@ Microsoft、Google、GitLab 等其他身份提供商请参阅[第三方登录 AP
 }
 ```
 
+离线恢复要求当前主邮箱，或更换后 14 天内的历史主邮箱，加四个未使用的恢复码。使用历史主邮箱恢复时，会强制恢复该地址、移除被替换的主邮箱并清除恢复窗口。用户名和普通副邮箱不能用于恢复。正常更换主邮箱后，14 天内禁止重新生成恢复码、增删 Passkey 或更改二次验证器（`ACCOUNT_SECURITY_HOLD`）；已有验证器可继续使用，首次生成恢复码不受影响。保护期内不能删除历史主邮箱。私有安全接口返回 `security_hold_until` 和 `previous_primary_emails`（`email`、`expires_at`）。
+
 ## 登录方式管理
 
 - **查询 Passkey**：`GET /api/auth/profile/fido`
@@ -167,3 +171,27 @@ Maven 发布域所有权、未弃用软件包的管理权限或待处理的审�
 [法律文档与 Cookie 偏好](../configuration/legal.md)
 
 [安全验证](../security/captcha.md)
+
+## 公开资料链接
+
+PUT /api/auth/profile/links 接收 JSON，包含网站、Discord、自定义链接以及 `visibility.github` 和 `visibility.gitlab`。两个开关默认关闭。GitHub URL 和 `providers` 为只读字段：链接从当前绑定身份生成，GitLab 绑定还必须匹配配置中的服务身份。显示偏好仅本人可见；全局团队的 GitHub URL 仍可手动编辑。
+
+```json
+{"website":"https://example.com","visibility":{"github":true,"gitlab":false}}
+```
+
+## 第三方登出与撤销
+
+`POST /api/auth/logout` 会先撤销本地浏览器会话，再联系登录服务商。没有第三方授权的会话返回 `204`；其他会话返回二进制 protobuf `LogoutResponse`，包含 `local_revoked`、`provider` 和 `provider_status`（`revoked`、`failed`、`unavailable` 或 `unsupported`）。第三方失败不会恢复本地会话。`POST /api/auth/oauth/:provider/revoke` 会在确认当前 Cookie 认证会话属于该服务商后执行相同操作，API 令牌不能调用。
+
+`POST /api/auth/oauth/:provider/backchannel-logout` 接收标准表单字段 `logout_token`。签名 OIDC JWT 必须包含匹配配置的签发者、受众、`iat`、`exp`、`jti` 和后端登出事件，使用 `sub`、`sid` 或两者确定目标，且不能包含 `nonce`。超过十分钟的事件会被拒绝。
+
+`POST /api/auth/oauth/:provider/revoked` 接收二进制 protobuf `ProviderRevocationRequest`。先配置至少 32 字节的只写 `revocation_secret`，再发送 `X-Renop-Signature-256: sha256=<对原始请求字节计算 HMAC-SHA256 后的十六进制值>`。消息包含 `event_id`、`subject`、`session_id`、Unix 毫秒时间 `issued_at`，OIDC 客户端还需提供经过验证的 `issuer`；纯 OAuth 客户端将其留空。使用其他 Webhook 格式的平台需要可信适配器，此端点不接收它们的原始请求体。
+
+有效及重复事件返回 `200`，无效或过期声明返回 `400`，HMAC 无效返回 `401`，请求准入或持久化暂不可用时返回 `429`/`503`。回调只撤销该授权来源下匹配且早于事件的会话，保留身份绑定和 API 令牌。重放或延迟的 MFA 证明无法重建已撤销会话。
+
+## 账号封禁
+
+超级管理员可在公开用户页面直接封禁或解封。`GET /api/tokens/:name/ban` 读取实时保护状态；`PUT /api/tokens/:name/ban` 接收 JSON `reason_code`、自定义 `reason`、可选毫秒时间戳 `expires_at` 和 `ban_ip`；`DELETE /api/tokens/:name/ban` 解封。管理员和版主必须先移除受保护角色才能被封禁。下列代码对应本地化预设理由；`reason_code` 为空时使用自定义文本，不做翻译。
+
+`harassment_abuse`, `spam_misleading`, `automation`, `alternate_accounts`, `security_rules`, `harmful_content`, `terms_violation`, `impersonation`, `copyright`.

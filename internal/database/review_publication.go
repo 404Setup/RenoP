@@ -13,9 +13,9 @@ package database
 import (
 	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"errors"
 	"fmt"
+	"renop/pkg/hex"
 	"strings"
 
 	"github.com/emmansun/base64"
@@ -80,8 +80,8 @@ func normalizePublicationReviewFile(file *core.ReviewFile, createdAt int64) (*co
 	}
 	digest := sha256.Sum256([]byte(path))
 	name := path
-	if separator := strings.LastIndexByte(path, '/'); separator >= 0 {
-		name = path[separator+1:]
+	if _, after, ok := strings.CutLast(path, "/"); ok {
+		name = after
 	}
 	return &core.ReviewFile{
 		ID: hex.EncodeToString(digest[:]), Path: path, Name: name, Size: file.Size,
@@ -208,6 +208,11 @@ func (db *DB) CreateOrUpdatePublicationReview(request core.PublicationReviewRequ
 		return nil, fmt.Errorf("begin publication review: %w", err)
 	}
 	defer tx.Rollback()
+	if resourceType == core.ReviewResourceNativePackage {
+		if _, _, err := nativePermissionTx(tx, repository, resourceKey, actor, core.NativePermissionPublish); err != nil {
+			return nil, err
+		}
+	}
 	actorID := ""
 	var taskID, taskActorID, taskReviewTeam, taskTargetTeam string
 	err = tx.QueryRow(`SELECT id, requested_by_id, review_team_prefix, target_team_prefix

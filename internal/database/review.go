@@ -13,9 +13,10 @@ package database
 import (
 	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"errors"
 	"fmt"
+	"renop/pkg/hex"
+	"slices"
 	"strings"
 	"sync"
 
@@ -94,7 +95,7 @@ func normalizeReviewResourceType(value string) (string, bool) {
 	value = strings.ToLower(strings.TrimSpace(value))
 	switch value {
 	case core.ReviewResourceDockerImage, core.ReviewResourceNPMPackage, core.ReviewResourceCargoPackage,
-		core.ReviewResourceMavenArtifact, core.ReviewResourceMavenDomain:
+		core.ReviewResourceMavenArtifact, core.ReviewResourceMavenDomain, core.ReviewResourceNativePackage:
 		return value, true
 	default:
 		return "", false
@@ -498,11 +499,20 @@ func (db *DB) ListReviewTasks(options core.ReviewTaskListOptions) ([]*core.Revie
 		from += ` LEFT JOIN super_team_members reviewer ON reviewer.team_prefix = r.review_team_prefix
 			AND reviewer.user_id = ? AND reviewer.role_level >= ?`
 		args = append(args, userID, core.SuperTeamRoleManage)
+		from += ` LEFT JOIN super_team_members team_admin ON (
+			team_admin.team_prefix = r.target_team_prefix OR
+			team_admin.team_prefix = r.source_team_prefix
+		) AND team_admin.user_id = ? AND team_admin.role_level >= ?`
+		args = append(args, userID, core.SuperTeamRoleManage)
 		reviewerClauses := []string{
-			"(r.kind = ? AND reviewer.user_id IS NOT NULL)",
+			"(r.kind = ? AND (reviewer.user_id IS NOT NULL OR team_admin.user_id IS NOT NULL))",
 			"(r.kind = ? AND r.review_team_prefix != '' AND reviewer.user_id IS NOT NULL)",
 		}
 		args = append(args, core.ReviewKindSuperTeamTransfer, core.ReviewKindPublication)
+		if options.TicketStatus != "" {
+			reviewerClauses = append(reviewerClauses, "(r.kind != ? AND (reviewer.user_id IS NOT NULL OR team_admin.user_id IS NOT NULL))")
+			args = append(args, core.ReviewKindPublication)
+		}
 		moderated := make([]string, 0, len(options.ModeratedRepositories))
 		seenRepositories := make(map[string]struct{}, len(options.ModeratedRepositories))
 		for _, candidate := range options.ModeratedRepositories {
@@ -862,6 +872,30 @@ func (db *DB) DecideReviewTask(id, actor, decision, reason string, decidedAt int
 	task.DecisionReason = reason
 	status := decision
 	applyErr := error(nil)
+	if task.Kind == core.ReviewKindPublication && task.ResourceType == core.ReviewResourceNativePackage {
+		actors := []string{actor}
+		if decision == core.ReviewStatusApproved {
+			actors = append(actors, task.RequestedBy)
+		}
+		slices.Sort(actors)
+		for _, username := range slices.Compact(actors) {
+			_, currentUser, err := nativeActorTx(tx, username)
+			if err != nil {
+				return nil, err
+			}
+			if username == actor && !currentUser.CheckModeratePermission(task.Repository) {
+				return nil, core.ErrReviewPermissionDenied
+			}
+		}
+		if decision == core.ReviewStatusApproved {
+			if _, _, err := nativePermissionTx(tx, task.Repository, task.ResourceKey, task.RequestedBy, core.NativePermissionPublish); err != nil {
+				return nil, err
+			}
+			if err := publishNativeReviewTx(tx, task, decidedAt); err != nil {
+				return nil, err
+			}
+		}
+	}
 	if decision == core.ReviewStatusApproved && (task.Kind == core.ReviewKindSuperTeamTransfer || task.Kind == core.ReviewKindMavenRestore) {
 		if task.Kind == core.ReviewKindMavenRestore {
 			applyErr = applyMavenRestoreTx(tx, task)

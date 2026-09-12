@@ -85,7 +85,7 @@ cargo yank --registry renop --undo --version 0.1.0 my-crate
 
 ## Cargodoc
 
-上传文档后，RenoP 会校验并提取 rustdoc，在沙箱预览器中提供。需在 `config.yaml` 中启用 Cargodoc 并设置
+上传文档后，RenoP 会校验并提取 rustdoc，在沙箱预览器中提供。需在 系统设置 中启用 Cargodoc 并设置
 大小限制。
 
 访问地址：`http://localhost:3000/cargodoc/{repo}/{crate}/{version}/index.html`

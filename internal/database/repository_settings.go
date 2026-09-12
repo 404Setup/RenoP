@@ -29,7 +29,7 @@ const MaxRepositorySettingsSize = (16 << 20) - 1
 func encodeRepositorySettings(settings config.MavenSettings) ([]byte, error) {
 	names := make(map[string]bool, len(settings.Repositories))
 	for name, repo := range settings.Repositories {
-		if !utils.IsValidRepositoryName(name) || repo == nil || repo.Name != name ||
+		if !utils.IsValidRepositoryName(name) || repo == nil || repo.Name != name || repo.CapacityLimitBytes < 0 ||
 			!config.IsSupportedRepositoryFormat(repo.ConfiguredFormat()) || names[strings.ToLower(name)] {
 			return nil, fmt.Errorf("invalid repository definition %q", name)
 		}

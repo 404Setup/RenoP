@@ -24,7 +24,7 @@ removes the authenticator and turns off secondary Passkeys; email password recov
 
 - **Path**: `POST /api/auth/login`
 - **Auth**: None.
-- **Body**: JSON / protobuf `LoginRequest`; JSON field names are shown below. `name` accepts a username or private login email.
+- **Body**: protobuf `LoginRequest`; JSON field names are shown below. `name` accepts a username or private login email.
 
 ### Request
 
@@ -67,6 +67,8 @@ verification, optional profile import, and the same second-factor policy.
 - **Logout**: `POST /api/auth/logout`
 - **Public profile**: `GET /api/users/:username/profile`
 - **Package memberships**: `GET /api/users/:username/memberships?format=cargo|docker|maven|npm`
+
+When a second factor is enabled, changing a password requires a fresh configured TOTP code or secondary Passkey assertion; a code sent to the current primary email is also available when mail is enabled. `PUT /api/auth/profile/password` takes binary `UpdatePasswordRequest` with `factor` (`totp`, `passkey`, `email`) and its proof (`totp_code`, `challenge_id` plus `passkey_credential`, or `email_code`). Start a Passkey proof with `POST /api/auth/profile/password/passkey/begin`. The proof is bound to the current browser session and credential state, consumed once, and other sessions are revoked after success.
 
 Visible profile routes use usernames. Immutable user IDs remain internal. `HIDDEN` repository memberships are omitted;
 private memberships are returned only to an authorized viewer.
@@ -140,6 +142,8 @@ the page and are never stored in browser history.
 }
 ```
 
+Offline-code recovery accepts the current primary email, or a previous primary within 14 days of replacement, plus four unused codes. Recovery through a previous primary restores it, removes the replaced primary, and clears the recovery window. Usernames and ordinary aliases cannot identify recovery requests. A normal primary-email change blocks replacing recovery codes, adding/removing Passkeys, and changing second factors for 14 days (`ACCOUNT_SECURITY_HOLD`). Existing factors still work; an initial recovery-code set may be generated. Previous primaries cannot be removed during this window. The private security response includes `security_hold_until` and `previous_primary_emails` (`email`, `expires_at`).
+
 ## Login-method management
 
 - **List Passkeys**: `GET /api/auth/profile/fido`
@@ -195,3 +199,27 @@ Administrator `DELETE /api/tokens/:name` follows the same permanent closure requ
 [Legal documents and cookie choices](../configuration/legal.md)
 
 [Security verification](../security/captcha.md)
+
+## Public profile links
+
+PUT /api/auth/profile/links accepts JSON with website, Discord and custom links plus `visibility.github` and `visibility.gitlab`. Both flags default to false. GitHub URLs and `providers` are read-only: links come from current bound identities, and GitLab bindings must match the configured service authority. Visibility preferences are owner-only. Global-team GitHub URLs remain editable.
+
+```json
+{"website":"https://example.com","visibility":{"github":true,"gitlab":false}}
+```
+
+## Provider logout and revocation
+
+`POST /api/auth/logout` removes the local browser session before contacting the login provider. It returns `204` for sessions without provider authorization; otherwise it returns binary protobuf `LogoutResponse` with `local_revoked`, `provider`, and `provider_status` (`revoked`, `failed`, `unavailable`, or `unsupported`). Provider failures do not restore the local session. `POST /api/auth/oauth/:provider/revoke` performs the same operation after verifying that the current cookie-authenticated session belongs to that provider. API tokens cannot invoke it.
+
+`POST /api/auth/oauth/:provider/backchannel-logout` accepts the standard form field `logout_token`. The signed OIDC JWT must have the configured issuer and audience, `iat`, `exp`, `jti`, and the back-channel logout event. It must identify `sub`, `sid`, or both, and must not contain `nonce`. Events older than ten minutes are rejected.
+
+`POST /api/auth/oauth/:provider/revoked` accepts binary protobuf `ProviderRevocationRequest`. Configure a write-only `revocation_secret` of at least 32 bytes, then send `X-Renop-Signature-256: sha256=<hex HMAC-SHA256 of the exact request bytes>`. The message contains `event_id`, `subject`, `session_id`, Unix-millisecond `issued_at`, and the verified `issuer` for OIDC clients. OAuth-only clients leave `issuer` empty. Providers with a different webhook format need a trusted adapter; their native bodies are not accepted here.
+
+Callbacks return `200` for valid and repeated events, `400` for invalid or stale claims, `401` for an invalid HMAC, and `429`/`503` when admission or persistence is unavailable. They revoke only older matching sessions within the configured authority. Identity bindings and API tokens are retained. A replay or a delayed MFA proof cannot recreate revoked sessions.
+
+## Account suspensions
+
+Administrators can suspend or restore an account directly from its public user page. `GET /api/tokens/:name/ban` reads live protection/status; `PUT /api/tokens/:name/ban` accepts JSON `reason_code`, custom `reason`, optional Unix-millisecond `expires_at`, and `ban_ip`; `DELETE /api/tokens/:name/ban` restores access. Administrators and moderators must lose protected roles before suspension. Preset reasons use the codes below and are translated in the UI. An empty `reason_code` uses custom text, which is never translated.
+
+`harassment_abuse`, `spam_misleading`, `automation`, `alternate_accounts`, `security_rules`, `harmful_content`, `terms_violation`, `impersonation`, `copyright`.

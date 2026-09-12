@@ -8,84 +8,23 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
-const FORMAT_CATALOG = Object.freeze({
-    maven: Object.freeze({
-        id: 'maven',
-        protocol: 'maven',
-        layout: 'modern',
-        icon: 'repositoryMaven',
-        labelKey: 'repos.formatMaven',
-        descriptionKey: 'repos.formatMavenDesc',
-        supportsBrowserUpload: false,
-        supportsRedeployment: true,
-        supportsGpg: true,
-        supportsArtifactTemplate: false,
-        snippetTabs: Object.freeze(['maven', 'gradle-kotlin', 'gradle-groovy', 'sbt'])
-    }),
-    'maven-classic': Object.freeze({
-        id: 'maven-classic',
-        protocol: 'maven',
-        layout: 'classic',
-        icon: 'repositoryMaven',
-        offered: false,
-        labelKey: 'repos.formatMaven',
-        descriptionKey: 'repos.formatMavenDesc',
-        supportsBrowserUpload: false,
-        supportsRedeployment: true,
-        supportsGpg: true,
-        supportsArtifactTemplate: false,
-        snippetTabs: Object.freeze(['maven', 'gradle-kotlin', 'gradle-groovy', 'sbt'])
-    }),
-    files: Object.freeze({
-        id: 'files',
-        protocol: 'files',
-        icon: 'repositoryFiles',
-        labelKey: 'repos.formatFiles',
-        descriptionKey: 'repos.formatFilesDesc',
-        supportsBrowserUpload: true,
-        supportsRedeployment: false,
-        supportsGpg: false,
-        supportsArtifactTemplate: false,
-        supportsUploadHelpers: false,
-        snippetTabs: Object.freeze([])
-    }),
-    cargo: Object.freeze({
-        id: 'cargo',
-        protocol: 'cargo',
-        icon: 'repositoryCargo',
-        labelKey: 'repos.formatCargo',
-        descriptionKey: 'repos.formatCargoDesc',
-        supportsBrowserUpload: false,
-        supportsRedeployment: false,
-        supportsGpg: false,
-        supportsArtifactTemplate: true,
-        snippetTabs: Object.freeze(['cargo-registry', 'cargo-source', 'cargo-login', 'cargo-publish'])
-    }),
-    docker: Object.freeze({
-        id: 'docker',
-        protocol: 'docker',
-        icon: 'repositoryDocker',
-        labelKey: 'repos.formatDocker',
-        descriptionKey: 'repos.formatDockerDesc',
-        supportsBrowserUpload: false,
-        supportsRedeployment: true,
-        supportsGpg: false,
-        supportsArtifactTemplate: false,
-        snippetTabs: Object.freeze(['docker-pull', 'docker-tag', 'docker-push', 'docker-login'])
-    }),
-    npm: Object.freeze({
-        id: 'npm',
-        protocol: 'npm',
-        icon: 'repositoryNpm',
-        labelKey: 'repos.formatNpm',
-        descriptionKey: 'repos.formatNpmDesc',
-        supportsBrowserUpload: false,
-        supportsRedeployment: false,
-        supportsGpg: false,
-        supportsArtifactTemplate: false,
-        snippetTabs: Object.freeze(['npm-config', 'npm-install', 'npm-publish'])
-    })
-});
+import mavenEngine from './repository-engines/maven.js';
+import maven_classicEngine from './repository-engines/maven-classic.js';
+import filesEngine from './repository-engines/files.js';
+import cargoEngine from './repository-engines/cargo.js';
+import dockerEngine from './repository-engines/docker.js';
+import npmEngine from './repository-engines/npm.js';
+
+import condaEngine from './repository-engines/conda.js';
+import conanEngine from './repository-engines/conan.js';
+import conda_nativeEngine from './repository-engines/conda-native.js';
+import apkEngine from './repository-engines/apk.js';
+import aptEngine from './repository-engines/apt.js';
+import rpmEngine from './repository-engines/rpm.js';
+
+const FORMAT_CATALOG = Object.freeze(Object.fromEntries(
+    [mavenEngine, maven_classicEngine, filesEngine, cargoEngine, dockerEngine, npmEngine, conanEngine, condaEngine, conda_nativeEngine, apkEngine, aptEngine, rpmEngine].flatMap(engine => [engine.id, ...(engine.aliases || [])].map(id => [id, engine]))
+));
 
 const RESERVED_REPOSITORY_NAMES = new Set(['api', 'assets', 'css', 'js', 'svg', 'javadoc', 'javadocs', 'cargodoc', 'cargodocs', 'cratedoc', 'cratedocs', 'v2']);
 
@@ -104,7 +43,7 @@ export function getRepositoryFormat(format) {
  * @returns {object[]} Immutable format descriptors.
  */
 export function listRepositoryFormats() {
-    return Object.values(FORMAT_CATALOG).filter(format => format.offered !== false);
+    return [...new Set(Object.values(FORMAT_CATALOG))].filter(format => format.offered !== false);
 }
 
 /**

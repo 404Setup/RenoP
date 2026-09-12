@@ -11,18 +11,19 @@
 package api
 
 import (
+	"bytes"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	"renop/internal/config"
 	"renop/internal/core"
@@ -30,6 +31,8 @@ import (
 	"renop/internal/service/index"
 	"renop/internal/service/storage"
 	"renop/internal/testutil"
+	"renop/internal/utils/protohttp"
+	"renop/pkg/pb"
 )
 
 func TestMavenLockedMetadataCacheAndLatestFileRespectViewer(t *testing.T) {
@@ -62,8 +65,8 @@ func TestMavenLockedMetadataCacheAndLatestFileRespectViewer(t *testing.T) {
 	cached, err := FindMetadata(state, admin, "releases", "com/example/demo")
 	require.NoError(t, err)
 	require.Len(t, cached.Versioning.Versions.Version, 2)
-	lock := &core.ResourceLock{ResourceLockTarget: core.ResourceLockTarget{Format: "maven", Repository: "releases",
-		Name: "com.example:demo", Version: "2.0"}, Source: core.ResourceLockSystem, Mode: core.ResourceLockRead, Reason: "trojan", LockedAt: now}
+	lock := &core.ResourceLock{Format: "maven", Repository: "releases",
+		Name: "com.example:demo", Version: "2.0", Source: core.ResourceLockSystem, Mode: core.ResourceLockRead, Reason: "trojan", LockedAt: now}
 	require.NoError(t, db.SetResourceLock(lock, "", ""))
 	filtered, err := FindMetadata(state, guest, "releases", "com/example/demo")
 	require.NoError(t, err)
@@ -104,8 +107,9 @@ func TestMavenLockedMetadataCacheAndLatestFileRespectViewer(t *testing.T) {
 			require.Equal(t, "1.0", string(body))
 		}
 	}
-	req := httptest.NewRequest(http.MethodPost, "/pom/releases/com/example/demo/2.0", strings.NewReader(`{"group_id":"com.example","artifact_id":"demo","version":"2.0"}`))
-	req.Header.Set("Content-Type", "application/json")
+	pom2, _ := proto.Marshal(&pb.PomDetails{GroupId: "com.example", ArtifactId: "demo", Version: "2.0"})
+	req := httptest.NewRequest(http.MethodPost, "/pom/releases/com/example/demo/2.0", bytes.NewReader(pom2))
+	req.Header.Set("Content-Type", protohttp.ContentType)
 	req.Header.Set("X-Test-Owner", "true")
 	response, err := app.Test(req)
 	require.NoError(t, err)
@@ -113,8 +117,9 @@ func TestMavenLockedMetadataCacheAndLatestFileRespectViewer(t *testing.T) {
 	require.Equal(t, http.StatusLocked, response.StatusCode)
 	_, err = os.Stat(filepath.Join(root, "2.0/demo-2.0.pom"))
 	require.ErrorIs(t, err, os.ErrNotExist)
-	req = httptest.NewRequest(http.MethodPost, "/pom/releases/com/example/demo/3.0", strings.NewReader(`{"group_id":"com.example","artifact_id":"demo","version":"3.0"}`))
-	req.Header.Set("Content-Type", "application/json")
+	pom3, _ := proto.Marshal(&pb.PomDetails{GroupId: "com.example", ArtifactId: "demo", Version: "3.0"})
+	req = httptest.NewRequest(http.MethodPost, "/pom/releases/com/example/demo/3.0", bytes.NewReader(pom3))
+	req.Header.Set("Content-Type", protohttp.ContentType)
 	req.Header.Set("X-Test-Owner", "true")
 	response, err = app.Test(req)
 	require.NoError(t, err)

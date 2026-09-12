@@ -20,14 +20,18 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"regexp"
+	"renop/pkg/pb"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"google.golang.org/protobuf/proto"
 
 	"github.com/emmansun/base64"
 
 	"renop/internal/config"
 	"renop/internal/core"
+	"renop/internal/database"
 	"renop/internal/service/mailqueue"
 
 	"github.com/goccy/go-json"
@@ -161,13 +165,13 @@ func TestOAuthRegistrationAndMFALogin(t *testing.T) {
 		return result
 	}
 	status := registrationRequest(t, app, "/api/auth/profile/oauth", nil, sessionCookie)
-	var statuses struct {
-		Providers []oauthProfileStatus `json:"providers"`
-	}
-	require.NoError(t, json.NewDecoder(status.Body).Decode(&statuses))
+	var statuses pb.OAuthProfileProviders
+	statusBytes, err := io.ReadAll(status.Body)
+	require.NoError(t, err)
+	require.NoError(t, proto.Unmarshal(statusBytes, &statuses))
 	require.Len(t, statuses.Providers, 1)
 	require.True(t, statuses.Providers[0].CanDisconnect)
-	require.True(t, statuses.Providers[0].CanVerifyEmail)
+	require.False(t, statuses.Providers[0].CanVerifyEmail, "an account with a bound email must not offer provider email import")
 	require.True(t, statuses.Providers[0].CanImportAvatar)
 	require.Contains(t, profileFlow("link").Header.Get("Location"), "oauth=linked")
 	require.NoError(t, state.GetDB().SaveToken(&core.AccessToken{Name: "otherowner", EncryptedSecret: "password", Permissions: []string{"base"}}))
@@ -196,11 +200,21 @@ func TestOAuthRegistrationAndMFALogin(t *testing.T) {
 	secret := "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP"
 	sealed, err := encryptMFASecret(state, mfa.UserID, secret)
 	require.NoError(t, err)
+	require.ErrorIs(t, state.GetDB().UpdateMFA("external", mfa.Snapshot, sealed, false, -1, sessionCookie.Value), core.ErrSecurityHold)
+	// Exercise the subsequent MFA flow after the email recovery window has ended.
+	_, err = state.GetDB().(*database.DB).Exec(`UPDATE user_primary_email_history SET expires_at = ? WHERE user_id = ?`, time.Now().Add(-time.Second).UnixMilli(), mfa.UserID)
+	require.NoError(t, err)
 	require.NoError(t, state.GetDB().UpdateMFA("external", mfa.Snapshot, sealed, false, -1, sessionCookie.Value))
 	start, callback = flow()
 	response = registrationRequest(t, app, callback, nil, start.Cookies()[0])
 	require.Contains(t, response.Header.Get("Location"), "/account/login?mfa=1")
 	require.Equal(t, mfaCookieName, response.Cookies()[0].Name)
+	mfaChallenges.Lock()
+	proof := mfaChallenges.entries[response.Cookies()[0].Value].oauth
+	mfaChallenges.Unlock()
+	require.NotNil(t, proof)
+	require.Equal(t, p.ID, proof.ProviderID)
+	require.True(t, currentOAuthProofConfiguration(state.Inner.Config.Load(), proof))
 	verified := registrationRequest(t, app, "/api/auth/mfa/totp", map[string]any{"code": core.TOTPCode(secret, time.Now().Unix()/30)}, response.Cookies()[0])
 	require.Equal(t, 200, verified.StatusCode)
 	start, callback = flow()

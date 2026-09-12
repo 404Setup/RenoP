@@ -82,7 +82,7 @@ func ExtractAuthDetails(c fiber.Ctx, state *core.AppState) (username string, ope
 }
 
 func Log(state *core.AppState, entry *core.AuditLogEntry) {
-	if state == nil || state.Inner == nil || entry == nil {
+	if state == nil || state.Inner == nil || state.IsDemo() || entry == nil {
 		return
 	}
 	if entry.CreatedAt <= 0 {

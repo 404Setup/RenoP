@@ -21,6 +21,7 @@ const MIME = {
     '.js': 'text/javascript; charset=utf-8',
     '.css': 'text/css; charset=utf-8',
     '.json': 'application/json; charset=utf-8',
+    '.pb': 'application/x-protobuf',
     '.svg': 'image/svg+xml',
     '.png': 'image/png',
     '.md': 'text/markdown; charset=utf-8',
@@ -44,7 +45,12 @@ createServer((req, res) => {
         return;
     }
     const ext = extname(file);
-    res.writeHead(200, {'Content-Type': MIME[ext] || 'application/octet-stream'});
+    const headers = {'Content-Type': MIME[ext] || 'application/octet-stream'};
+    if (ext === '.pb') {
+        headers['Content-Disposition'] = 'inline';
+        headers['Cache-Control'] = 'public, max-age=31536000, immutable';
+    }
+    res.writeHead(200, headers);
     res.end(readFileSync(file));
 }).listen(port, () => {
     console.log(`RenoP website preview: http://localhost:${port}`);

@@ -115,26 +115,7 @@ func DefaultCdnIPHeader() string {
 
 func DefaultMavenSettings() MavenSettings {
 	return MavenSettings{
-		Repositories: map[string]*Repository{
-			"releases": {
-				Name:              "releases",
-				Visibility:        "PUBLIC",
-				Mirrors:           []Mirror{},
-				AllowRedeployment: false,
-			},
-			"snapshots": {
-				Name:              "snapshots",
-				Visibility:        "PUBLIC",
-				Mirrors:           []Mirror{},
-				AllowRedeployment: true,
-			},
-			"private": {
-				Name:              "private",
-				Visibility:        "PRIVATE",
-				Mirrors:           []Mirror{},
-				AllowRedeployment: false,
-			},
-		},
+		Repositories: map[string]*Repository{},
 	}
 }
 

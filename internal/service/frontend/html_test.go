@@ -16,9 +16,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/gofiber/fiber/v3"
@@ -28,6 +30,22 @@ import (
 	"renop/internal/core"
 	"renop/internal/service/audit"
 )
+
+var shellContractOnce sync.Once
+var shellContractHTML []byte
+var shellContractErr error
+
+func renderedShell(t *testing.T) []byte {
+	t.Helper()
+	shellContractOnce.Do(func() {
+		command := exec.Command("node", filepath.Join("..", "..", "..", "scripts", "render-shell-test.mjs"), filepath.Join("renop-html", "index.html"))
+		shellContractHTML, shellContractErr = command.CombinedOutput()
+	})
+	if shellContractErr != nil {
+		t.Fatalf("render shell contract: %v: %s", shellContractErr, shellContractHTML)
+	}
+	return shellContractHTML
+}
 
 func htmlTagContaining(t *testing.T, source, marker string) string {
 	t.Helper()
@@ -101,7 +119,7 @@ func TestIndexHtmlUsesBundledAssets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read index.html: %v", err)
 	}
-	html := string(data)
+	html := string(data) + string(renderedShell(t))
 	for _, needle := range []string{
 		`/css/style.css?v={{RENOP.HASH}}`,
 		`/js/main.js?v={{RENOP.HASH}}`,
@@ -308,10 +326,7 @@ func TestRepositoryTeamsShareUserSuggestionController(t *testing.T) {
 }
 
 func TestMavenDomainsUseGlobalAccountCenter(t *testing.T) {
-	indexSource, err := os.ReadFile(filepath.Join("renop-html", "index.html"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	indexSource := renderedShell(t)
 	if !strings.Contains(string(indexSource), `data-account-action="maven-domains"`) {
 		t.Fatal("account menu is missing global Maven domain settings")
 	}
@@ -530,24 +545,22 @@ func TestRepositoryListUsesTypeIconsAndVisibilityDots(t *testing.T) {
 			t.Fatalf("repository list visual metadata is missing %q", required)
 		}
 	}
-	formatSource, err := os.ReadFile(filepath.Join("renop-html", "js", "repository-formats.js"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, required := range []string{
-		"icon: 'repositoryMaven'", "icon: 'repositoryCargo'",
-		"icon: 'repositoryDocker'", "icon: 'repositoryFiles'",
-	} {
-		if !strings.Contains(string(formatSource), required) {
-			t.Fatalf("repository format catalog is missing %q", required)
+	for engine, icon := range map[string]string{"maven": "repositoryMaven", "cargo": "repositoryCargo", "docker": "repositoryDocker", "files": "repositoryFiles"} {
+		formatSource, err := os.ReadFile(filepath.Join("renop-html", "js", "repository-engines", engine+".js"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(formatSource), "icon: '"+icon+"'") {
+			t.Fatalf("repository engine %s is missing its icon", engine)
 		}
 	}
+
 	for _, obsolete := range []string{"cfg-format-badge", "makeVisibilityBadge", "createIcon('delete'), el('span'"} {
 		if strings.Contains(text, obsolete) {
 			t.Fatalf("repository list retains obsolete text badge markup %q", obsolete)
 		}
 	}
-	cssSource, err := os.ReadFile(filepath.Join("renop-html", "css", "manager", "settings.css"))
+	cssSource, err := os.ReadFile(filepath.Join("renop-html", "css", "manager", "settings", "sections.css"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -589,7 +602,7 @@ func TestRepositoryEngineMigrationUIUsesRecoverableLocalizedAction(t *testing.T)
 	if strings.Contains(text[start:start+end], "response.text()") {
 		t.Fatal("repository migration UI exposes raw backend response text")
 	}
-	cssSource, err := os.ReadFile(filepath.Join("renop-html", "css", "manager", "settings.css"))
+	cssSource, err := os.ReadFile(filepath.Join("renop-html", "css", "manager", "settings", "sections.css"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -628,10 +641,7 @@ func TestPackageViewsUseExplicitMirrorProvenance(t *testing.T) {
 }
 
 func TestAccountMenuOwnsMessagesLogoutAndNotificationComposer(t *testing.T) {
-	indexSource, err := os.ReadFile(filepath.Join("renop-html", "index.html"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	indexSource := renderedShell(t)
 	indexText := string(indexSource)
 	menuStart := strings.Index(indexText, `id="profile-menu"`)
 	appStart := strings.Index(indexText, `id="app"`)
@@ -688,10 +698,7 @@ func TestAccountMenuOwnsMessagesLogoutAndNotificationComposer(t *testing.T) {
 }
 
 func TestNotificationComposerAndAccountMenuUseCompactStructuredLayout(t *testing.T) {
-	indexSource, err := os.ReadFile(filepath.Join("renop-html", "index.html"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	indexSource := renderedShell(t)
 	indexText := string(indexSource)
 	composeStart := strings.Index(indexText, `id="message-compose-modal"`)
 	composeEnd := strings.Index(indexText, `id="user-fido-modal"`)
@@ -777,7 +784,7 @@ func TestDynamicLocalizationAndMobileDialogViewportGuards(t *testing.T) {
 	}
 	for _, stylesheet := range []string{
 		filepath.Join("renop-html", "css", "components", "message-center.css"),
-		filepath.Join("renop-html", "css", "manager", "settings.css"),
+		filepath.Join("renop-html", "css", "manager", "settings", "loading.css"),
 		filepath.Join("renop-html", "css", "manager", "users.css"),
 	} {
 		source, err := os.ReadFile(stylesheet)
@@ -791,10 +798,7 @@ func TestDynamicLocalizationAndMobileDialogViewportGuards(t *testing.T) {
 }
 
 func TestFineGrainedAPITokenProfileUI(t *testing.T) {
-	indexSource, err := os.ReadFile(filepath.Join("renop-html", "index.html"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	indexSource := renderedShell(t)
 	indexText := string(indexSource)
 	for _, required := range []string{
 		`id="profile-api-token-section"`, `id="profile-api-token-status"`, `id="btn-manage-api-tokens"`,
@@ -826,7 +830,7 @@ func TestFineGrainedAPITokenProfileUI(t *testing.T) {
 		"writeClipboardText", "profile.apiTokenSecretWarning", "data-api-token-scope",
 		"data-i18n-placeholder", "languageChanged", "makeCustomSelect", "profile-api-token-create-modal",
 		"profile-api-token-scope-groups", "profile.apiTokenScopeGroup.${group.key}",
-		"target_kinds", "target_limit", "data-api-token-target-for", "profile.apiTokenTargetsHint",
+		"target_kinds", "target_limit", "targetSelections", "openAPITokenTargets", "profile.apiTokenAllTargets",
 	} {
 		if !strings.Contains(sourceText, required) {
 			t.Fatalf("fine-grained API token controller is missing %q", required)
@@ -859,7 +863,7 @@ func TestFineGrainedAPITokenProfileUI(t *testing.T) {
 	if !strings.Contains(string(componentsSource), `@import "@renop/ui/css/components/custom-select.css";`) {
 		t.Fatal("frontend does not import the canonical custom-select stylesheet")
 	}
-	fieldRowSource, err := os.ReadFile(filepath.Join("renop-html", "css", "components", "field-row.css"))
+	fieldRowSource, err := os.ReadFile(filepath.Join("..", "..", "..", "packages", "renop-ui", "css", "components", "field-row.css"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -869,10 +873,7 @@ func TestFineGrainedAPITokenProfileUI(t *testing.T) {
 }
 
 func TestSharedShellRoutingAvatarCodeAndSearchAnimations(t *testing.T) {
-	indexSource, err := os.ReadFile(filepath.Join("renop-html", "index.html"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	indexSource := renderedShell(t)
 	homeLink := htmlTagContaining(t, string(indexSource), `id="home-link"`)
 	if !strings.Contains(homeLink, `href="/"`) {
 		t.Fatal("navigation title is missing the explicit home control")
@@ -1219,8 +1220,7 @@ func TestRoutedPagesServeSPAIndex(t *testing.T) {
 }
 
 func TestGenerateIndexHTMLUsesInternalLegalPages(t *testing.T) {
-	cfg := config.DefaultFrontendConfig()
-	generated := string(GenerateIndexHTMLFromConfig(&cfg))
+	generated := string(renderedShell(t))
 	for _, path := range []string{"/privacy-policy", "/terms-of-service", "/legal-notice"} {
 		if !strings.Contains(generated, `href="`+path+`"`) {
 			t.Errorf("missing legal page %s", path)

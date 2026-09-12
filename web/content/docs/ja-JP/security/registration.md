@@ -15,10 +15,13 @@ description: 登録、メール確認、GitHub アカウント作成の設定
 ```yaml
 registration:
   enabled: false
+  default_permissions: [base]
   ip_limit: 1
   ip_interval: {value: 3, unit: week}
   provider_cooldown: {value: 12, unit: hour}
 ```
+
+**既定の権限グループ**は、外部プロバイダー経由を含む新規登録時に付与するシステムとリポジトリの権限を指定します。既定値は `default_permissions: [base]` です。既存アカウントには影響しません。旧クライアントが `default_permissions` を省略した場合、現在の設定を保持します。
 
 IP 枠を消費するのは登録成功時だけです。既定は三週間に一アカウントで、最初の登録成功から期間が始まります。同じアドレスを表す
 IPv4・IPv6 表記は同じ制限を共有します。退会しても枠は戻らず、制限は再起動後も維持されます。件数は 1–10,000、期間は正数で、単位は

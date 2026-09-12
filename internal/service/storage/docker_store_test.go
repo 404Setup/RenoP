@@ -13,11 +13,11 @@ package storage
 import (
 	"bytes"
 	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"io"
 	"os"
 	"path/filepath"
+	"renop/pkg/hex"
 	"strings"
 	"testing"
 

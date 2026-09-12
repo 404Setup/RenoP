@@ -12,51 +12,22 @@ package bootstrap
 
 import (
 	"bufio"
-	"errors"
-	"fmt"
 	"log"
 	"os"
 
-	"go.yaml.in/yaml/v3"
-
 	"renop/internal/config"
+	"renop/internal/configstore"
 	"renop/internal/service/index"
-	"renop/internal/utils"
 )
 
-// LoadConfig creates a missing configuration or rejects unreadable and invalid settings.
+// LoadConfig loads the database snapshot and imports a legacy YAML file only once.
 func LoadConfig(configPath string) (*config.Config, error) {
-	file, err := os.Open(configPath)
-	var cfg *config.Config
-
-	if err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
-			return nil, fmt.Errorf("open configuration: %w", err)
-		}
-		log.Printf("Config file not found at %s, using default config and creating it", configPath)
-		cfg = config.DefaultConfig()
-
-		yamlData, err := yaml.Marshal(cfg)
-		if err != nil {
-			return nil, err
-		}
-		if err := utils.WritePrivateFile(configPath, yamlData); err != nil {
-			return nil, fmt.Errorf("create configuration: %w", err)
-		}
-	} else {
-		defer file.Close()
-		err = yaml.NewDecoder(bufio.NewReader(file)).Decode(&cfg)
-		if err != nil {
-			return nil, fmt.Errorf("parse configuration: %w", err)
-		}
+	path := configstore.PathForLegacy(configPath)
+	cfg, err := configstore.Load(path, configPath)
+	if err == nil {
+		cfg.Runtime.SettingsDatabase = path
 	}
-	if cfg == nil {
-		return nil, errors.New("configuration must contain a settings mapping")
-	}
-
-	cfg.Frontend.CachedIndexHTML = []byte{}
-
-	return cfg, nil
+	return cfg, err
 }
 
 func LoadFileIndex(indexPath string) *index.FileIndex {

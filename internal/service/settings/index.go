@@ -38,10 +38,12 @@ func RebuildIndex(c fiber.Ctx, state *core.AppState) error {
 
 	switch payload.Mode {
 	case "full":
+		state.Inner.RepositoryCapacity.Invalidate("")
 		index.RebuildIndexAsync(storagePath, state.Inner.FileIndex)
 		_ = javadocs.ClearAllJavadocCaches()
 		return c.Status(fiber.StatusOK).SendString("")
 	case "diff":
+		state.Inner.RepositoryCapacity.Invalidate("")
 		index.RebuildIndexDiff(storagePath, state.Inner.FileIndex)
 		return c.Status(fiber.StatusOK).SendString("")
 	default:

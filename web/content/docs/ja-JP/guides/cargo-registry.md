@@ -87,7 +87,7 @@ local owner を持たず read-only です。
 
 ## Cargodoc
 
-RenoP は rustdoc を検証して sandbox viewer に抽出します。`config.yaml` で Cargodoc と size limit を有効化します。
+RenoP は rustdoc を検証して sandbox viewer に抽出します。システム設定 で Cargodoc と size limit を有効化します。
 
 URL: `http://localhost:3000/cargodoc/{repo}/{crate}/{version}/index.html`
 

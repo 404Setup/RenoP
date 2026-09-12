@@ -18,148 +18,14 @@ let snippetUpdateSequence = 0;
 let tabsResizeObserver = null;
 
 /**
- * Read the first text value of an XML element.
- * @param {Document} documentNode - Parsed Maven metadata document.
- * @param {string} tag - Element name.
- * @returns {string} First text value, or an empty string.
- */
-function xmlText(documentNode, tag) {
-    const node = documentNode.getElementsByTagName(tag)[0];
-    return node?.textContent || '';
-}
-
-/**
- * Resolve Maven coordinates for the current path when metadata is available.
- * @param {string} path - Browser path.
- * @param {string[]} pathParts - Decoded path segments.
- * @returns {Promise<{groupId: string, artifactId: string, version: string}|null>} Maven coordinates.
- */
-async function detectMavenCoordinates(path, pathParts) {
-    if (pathParts.length <= 3) return null;
-    try {
-        const directoryPath = path.endsWith('/') ? path : `${path}/`;
-        let metadataPath = `${directoryPath}maven-metadata.xml`;
-        let metadataResponse = await fetch(`/api/repositories/details${metadataPath}`);
-        let version = '';
-        if (!metadataResponse.ok) {
-            const parentPath = `/${pathParts.slice(0, -1).join('/')}/`;
-            metadataPath = `${parentPath}maven-metadata.xml`;
-            metadataResponse = await fetch(`/api/repositories/details${metadataPath}`);
-            version = pathParts[pathParts.length - 1];
-        }
-        if (!metadataResponse.ok) return null;
-        const artifactResponse = await fetch(metadataPath);
-        if (!artifactResponse.ok) return null;
-        const documentNode = new DOMParser().parseFromString(await artifactResponse.text(), 'text/xml');
-        if (documentNode.querySelector('parsererror')) return null;
-        const groupId = xmlText(documentNode, 'groupId');
-        const artifactId = xmlText(documentNode, 'artifactId');
-        if (!version) {
-            const versions = documentNode.getElementsByTagName('version');
-            version = versions.length > 0 ? versions[versions.length - 1].textContent || '' : '';
-        }
-        return groupId && artifactId && version ? {groupId, artifactId, version} : null;
-    } catch (error) {
-        console.error('Failed to resolve Maven metadata', error);
-        return null;
-    }
-}
-
-/**
- * Build Maven dependency or repository configuration snippets.
- * @param {string} path - Browser path.
- * @param {string[]} pathParts - Decoded path segments.
- * @returns {Promise<{snippets: Object.<string, string>, artifact: boolean}>} Maven snippet state.
- */
-async function buildMavenSnippets(path, pathParts) {
-    const coordinates = await detectMavenCoordinates(path, pathParts);
-    if (coordinates) {
-        const {groupId, artifactId, version} = coordinates;
-        return {
-            artifact: true,
-            snippets: {
-                maven: `<dependency>\n  <groupId>${groupId}</groupId>\n  <artifactId>${artifactId}</artifactId>\n  <version>${version}</version>\n</dependency>`,
-                'gradle-kotlin': `implementation("${groupId}:${artifactId}:${version}")`,
-                'gradle-groovy': `implementation '${groupId}:${artifactId}:${version}'`,
-                sbt: `libraryDependencies += "${groupId}" % "${artifactId}" % "${version}"`
-            }
-        };
-    }
-
-    const repositoryPath = pathParts.length > 0 ? `/${encodeURIComponent(pathParts[0])}` : '';
-    const repositoryURL = window.location.origin + repositoryPath;
-    const titleElement = document.querySelector('.nav-title a') || document.querySelector('title');
-    const instanceName = titleElement ? titleElement.textContent.trim() : 'Renop';
-    const cleanName = instanceName.replace(/[^a-zA-Z0-9-]/g, '-').toLowerCase();
-    const repositoryID = pathParts.length > 0 ? `${cleanName}-${pathParts[0]}` : cleanName;
-    const repositoryName = pathParts.length > 0 ? `${instanceName} - ${pathParts[0]}` : instanceName;
-    return {
-        artifact: false,
-        snippets: {
-            maven: `<repository>\n  <id>${repositoryID}</id>\n  <name>${repositoryName}</name>\n  <url>${repositoryURL}</url>\n</repository>`,
-            'gradle-kotlin': `maven {\n  url = uri("${repositoryURL}")\n}`,
-            'gradle-groovy': `maven {\n  url "${repositoryURL}"\n}`,
-            sbt: `resolvers += "${repositoryName}" at "${repositoryURL}"`
-        }
-    };
-}
-
-/**
- * Build sparse-registry configuration and command snippets for Cargo.
- * @param {string} repositoryName - Repository slug.
- * @returns {Object.<string, string>} Cargo snippets keyed by format tab ID.
- */
-function buildCargoSnippets(repositoryName) {
-    const encodedName = encodeURIComponent(repositoryName);
-    const registryURL = `${window.location.origin}/${encodedName}/`;
-    const sparseURL = `sparse+${registryURL}`;
-    return {
-        'cargo-registry': `[registries.${repositoryName}]\nindex = "${sparseURL}"`,
-        'cargo-source': `[source.crates-io]\nreplace-with = "${repositoryName}"\n\n[source.${repositoryName}]\nregistry = "${sparseURL}"`,
-        'cargo-login': `cargo login --registry ${repositoryName}`,
-        'cargo-publish': `cargo publish --registry ${repositoryName}`
-    };
-}
-
-/**
- * Build Docker pull, tag, push, and login commands.
- * @param {string} repositoryName - Repository slug.
- * @returns {Object.<string, string>} Docker snippets keyed by tab ID.
- */
-function buildDockerSnippets(repositoryName) {
-    const host = window.location.host;
-    const prefix = `${host}/${repositoryName}`;
-    return {
-        'docker-pull': `docker pull ${prefix}/<image>:<tag>`,
-        'docker-tag': `docker tag <source-image>:<tag> ${prefix}/<image>:<tag>`,
-        'docker-push': `docker push ${prefix}/<image>:<tag>`,
-        'docker-login': `docker login ${host}`
-    };
-}
-
-/**
- * Build npm registry configuration, installation, and publication snippets.
- * @param {string} repositoryName - Repository slug.
- * @returns {Object.<string, string>} npm snippets keyed by tab ID.
- */
-function buildNPMSnippets(repositoryName) {
-    const encodedName = encodeURIComponent(repositoryName);
-    const registryURL = `${window.location.origin}/${encodedName}/`;
-    const authPath = `${window.location.host}/${encodedName}/`;
-    return {
-        'npm-config': `npm config set registry ${registryURL}\nnpm config set //${authPath}:_authToken <API_TOKEN>`,
-        'npm-install': `npm install <package> --registry ${registryURL}`,
-        'npm-publish': `npm publish --registry ${registryURL}`
-    };
-}
-
-/**
  * Return the localized tab label for a snippet type.
  * @param {string} type - Catalog snippet tab ID.
  * @returns {string} Localized or product-standard tab label.
  */
 function snippetTabLabel(type) {
     switch (type) {
+        case 'native-client':
+            return t('details.nativeClientTab');
         case 'gradle-kotlin':
             return 'Gradle Kotlin';
         case 'gradle-groovy':
@@ -368,30 +234,16 @@ export async function updateSnippets(path, detailsPromise) {
     }
     if (sequence !== snippetUpdateSequence) return;
     const format = getRepositoryFormat(details?.format);
-    if (format.id === 'files') {
+    if (!format.buildSnippets || format.snippetTabs.length === 0) {
         currentSnippets = {};
         return;
     }
+    const snippetState = await format.buildSnippets(path, pathParts);
+    if (sequence !== snippetUpdateSequence) return;
+    currentSnippets = snippetState.snippets;
+    if (title) title.textContent = t(snippetState.titleKey);
+    if (subtitle) subtitle.textContent = t(snippetState.subtitleKey);
     if (card) card.style.display = '';
-    if (format.id === 'cargo' && pathParts.length > 0) {
-        currentSnippets = buildCargoSnippets(pathParts[0]);
-        if (title) title.textContent = t('details.cargoTitle');
-        if (subtitle) subtitle.textContent = t('details.cargoSubtitle');
-    } else if (format.id === 'docker' && pathParts.length > 0) {
-        currentSnippets = buildDockerSnippets(pathParts[0]);
-        if (title) title.textContent = t('details.dockerTitle');
-        if (subtitle) subtitle.textContent = t('details.dockerSubtitle');
-    } else if (format.id === 'npm' && pathParts.length > 0) {
-        currentSnippets = buildNPMSnippets(pathParts[0]);
-        if (title) title.textContent = t('details.npmTitle');
-        if (subtitle) subtitle.textContent = t('details.npmSubtitle');
-    } else {
-        const snippetState = await buildMavenSnippets(path, pathParts);
-        if (sequence !== snippetUpdateSequence) return;
-        currentSnippets = snippetState.snippets;
-        if (title) title.textContent = t(snippetState.artifact ? 'details.artifactTitle' : 'details.title');
-        if (subtitle) subtitle.textContent = t('details.subtitle');
-    }
     renderSnippetTabs(format.snippetTabs);
     code.textContent = currentSnippets[format.snippetTabs[0]] || '';
     bindCopyButton();

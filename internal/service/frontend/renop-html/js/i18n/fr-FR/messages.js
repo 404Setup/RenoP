@@ -75,4 +75,9 @@ export default Object.freeze({
     "updaterNotice.spaceBody": "L’espace disque est insuffisant pour préparer la mise à jour système.",
     "updaterNotice.restartFailedTitle": "Échec du redémarrage de mise à jour",
     "updaterNotice.restartFailedBody": "RenoP n’a pas pu redémarrer pour appliquer la mise à jour. Consultez les journaux du serveur.",
+    "messages.sessionTarget": "Destination de la notification",
+    "messages.allSessions": "Toutes les sessions",
+    "messages.sessionsLoading": "Chargement des sessions actives…",
+    "messages.sessionsEmpty": "Aucune session de navigateur active.",
+    "messages.sessionsFailed": "Impossible de charger les sessions. Saisissez à nouveau le destinataire.",
 });

@@ -12,7 +12,6 @@ package storage
 
 import (
 	"bytes"
-	"compress/gzip"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -21,6 +20,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/klauspost/compress/gzip"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/klauspost/compress/zstd"
@@ -99,7 +100,7 @@ func TestCompressedFilesBypassHTMLFallbackAndStreamAsAttachments(t *testing.T) {
 	InitS3(cfg)
 	state := core.NewAppState()
 	state.Inner.Config.Store(cfg)
-	state.Inner.FileIndex = index.NewFileIndexCustom(true)
+	state.Inner.FileIndex = index.NewFileIndex()
 	state.Inner.FileIndex.InsertDir(filepath.ToSlash(repositoryRoot))
 	state.Inner.FileIndex.InsertDir(filepath.ToSlash(filepath.Join(repositoryRoot, "folder")))
 
@@ -209,7 +210,7 @@ func TestKnownArtifactsNeverUseHTMLFallbackAcrossRepositoryFormats(t *testing.T)
 	InitS3(cfg)
 	state := core.NewAppState()
 	state.Inner.Config.Store(cfg)
-	state.Inner.FileIndex = index.NewFileIndexCustom(true)
+	state.Inner.FileIndex = index.NewFileIndex()
 	payload := []byte("known browser artifact")
 	for repository := range cfg.Maven.Repositories {
 		repositoryRoot := filepath.Join(storagePath, repository)

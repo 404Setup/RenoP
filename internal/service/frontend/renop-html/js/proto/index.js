@@ -16,6 +16,7 @@ import {renop} from './api.js';
 
 const v1 = renop.api.v1;
 
+export const DemoInfo = v1.DemoInfo;
 export const InstanceStatus = v1.InstanceStatus;
 export const UpdateState = v1.UpdateState;
 export const StatusSnapshotList = v1.StatusSnapshotList;
@@ -23,6 +24,12 @@ export const SessionDetails = v1.SessionDetails;
 export const LoginRequest = v1.LoginRequest;
 export const SessionDto = v1.SessionDto;
 export const SessionList = v1.SessionList;
+export const LegalMetadata = v1.LegalMetadata;
+export const LegalSettings = v1.LegalSettings;
+export const LogoutResponse = v1.LogoutResponse;
+export const OAuthSettings = v1.OAuthSettings;
+export const PublicOAuthProviders = v1.PublicOAuthProviders;
+export const OAuthProfileProviders = v1.OAuthProfileProviders;
 export const StatusOk = v1.StatusOk;
 export const AccessTokenList = v1.AccessTokenList;
 export const MavenRepositoriesResponse = v1.MavenRepositoriesResponse;

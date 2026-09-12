@@ -13,8 +13,8 @@ package database
 import (
 	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"path/filepath"
+	"renop/pkg/hex"
 	"testing"
 	"time"
 

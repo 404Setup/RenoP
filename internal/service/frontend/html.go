@@ -13,9 +13,9 @@ package frontend
 import (
 	"crypto/sha256"
 	"embed"
-	"encoding/hex"
 	"html"
 	"io"
+	"renop/pkg/hex"
 	"strings"
 	"sync"
 
@@ -118,11 +118,16 @@ func GenerateIndexHTMLFromConfig(cfg *config.FrontendConfig) []byte {
 		"{{RENOP.PUBLIC_SECURITY_FILING}}", html.EscapeString(cfg.PublicSecurityFiling),
 		"{{RENOP.FONT_PRESET}}", html.EscapeString(fontPreset),
 		"{{RENOP.FONT_URL}}", html.EscapeString(fontURL),
+		"{{RENOP.FONT_CSS}}", sanitizeFontCSS(cfg.FontCSS),
 		"{{RENOP.HASH}}", GetAssetsHash(),
 	)
 	htmlStr := replacer.Replace(indexHTML)
 
 	return []byte(htmlStr)
+}
+
+func sanitizeFontCSS(css string) string {
+	return strings.ReplaceAll(css, "</style>", "")
 }
 
 // RefreshIndexHTMLCache rebuilds the immutable H5 shell after frontend configuration changes.
@@ -167,6 +172,7 @@ func CreateFallbackIndex() string {
     <title>{{RENOP.TITLE}}</title>
     <meta name="description" content="{{RENOP.DESCRIPTION}}">
     <meta name="renop-font-url" content="{{RENOP.FONT_URL}}">
+    <style id="renop-font-css">{{RENOP.FONT_CSS}}</style>
   </head>
   <body>
     <div id="app">Welcome to {{RENOP.TITLE}}</div>

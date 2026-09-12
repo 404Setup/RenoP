@@ -1,7 +1,10 @@
 /*
  * Copyright (c) 2026 404Setup. All rights reserved.
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
- * If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
+ *
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
@@ -18,7 +21,23 @@ const (
 	TicketProcessed      = "processed"
 	TicketClosed         = "closed"
 	TicketCompleted      = "completed"
+
+	TicketCloseReasonInvalid  = "invalid"
+	TicketCloseReasonResolved = "resolved"
+	TicketCloseReasonPlanned  = "planned"
 )
+
+// TicketMessage represents one comment or event in the ticket conversation timeline.
+type TicketMessage struct {
+	ID         string `json:"id"`
+	TaskID     string `json:"task_id"`
+	AuthorID   string `json:"author_id,omitempty"`
+	AuthorName string `json:"author_name"`
+	AuthorRole string `json:"author_role"`
+	Kind       string `json:"kind"`
+	Body       string `json:"body"`
+	CreatedAt  int64  `json:"created_at"`
+}
 
 var (
 	ErrTicketClaimRequired   = errors.New("ticket must be claimed by the current actor")

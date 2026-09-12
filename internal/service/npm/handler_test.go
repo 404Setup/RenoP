@@ -13,7 +13,6 @@ package npm
 import (
 	"archive/tar"
 	"bytes"
-	"compress/gzip"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -22,6 +21,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/klauspost/compress/gzip"
 
 	"github.com/emmansun/base64"
 
@@ -142,7 +143,7 @@ func setupNPMTestApp(t *testing.T) (*fiber.App, *core.AppState, *memoryStore) {
 	require.NoError(t, db.SaveToken(&core.AccessToken{Name: "alice", Permissions: []string{"base", "canupdate:npm"}}))
 	state := core.NewAppState()
 	state.Inner.DB = db
-	state.Inner.FileIndex = index.NewFileIndexCustom(true)
+	state.Inner.FileIndex = index.NewFileIndex()
 	cfg := config.DefaultConfig()
 	cfg.StoragePath = testutil.TempDir(t)
 	cfg.Maven.Repositories = map[string]*config.Repository{

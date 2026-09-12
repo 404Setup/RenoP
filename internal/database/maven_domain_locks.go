@@ -1,7 +1,10 @@
 /*
  * Copyright (c) 2026 404Setup. All rights reserved.
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
- * If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
+ *
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
@@ -30,13 +33,13 @@ func (db *DB) attachMavenDomainLocks(domains []*core.MavenDomain) error {
 			args = append(args, domain.Domain)
 		}
 		rows, err := db.Query(`SELECT resource_name, source, mode, reason, reason_text, locked_at, inherited FROM `+
-			resourceLocksQuery("maven-domain")+` WHERE format = 'maven-domain' AND resource_name IN (`+
+			resourceLocksQuery("maven-domain")+` l WHERE format = 'maven-domain' AND resource_name IN (`+
 			strings.TrimSuffix(strings.Repeat("?,", len(batch)), ",")+`) ORDER BY resource_name, source`, args...)
 		if err != nil {
 			return err
 		}
 		for rows.Next() {
-			lock := &core.ResourceLock{ResourceLockTarget: core.ResourceLockTarget{Format: "maven-domain"}}
+			lock := &core.ResourceLock{Format: "maven-domain"}
 			var inherited int
 			if err := rows.Scan(&lock.Name, &lock.Source, &lock.Mode, &lock.Reason, &lock.ReasonText, &lock.LockedAt, &inherited); err != nil {
 				_ = rows.Close()
@@ -65,9 +68,9 @@ func ensureMavenDomainAncestorMutableTx(tx *Tx, domain string) error {
 	var locked int
 	err := tx.QueryRow(`SELECT 1 FROM `+resourceLocksQuery("maven-domain")+` l
 		WHERE l.format = 'maven-domain' AND SUBSTR(?, 1, LENGTH(l.resource_name) + 1) = CONCAT(l.resource_name, '.')
-		AND NOT EXISTS (SELECT 1 FROM maven_domains specific WHERE specific.repository = '' AND specific.verified = 1
-			AND LENGTH(specific.domain) > LENGTH(l.resource_name) AND specific.domain <> ?
-			AND SUBSTR(?, 1, LENGTH(specific.domain) + 1) = CONCAT(specific.domain, '.')) LIMIT 1`,
+		AND NOT EXISTS (SELECT 1 FROM maven_domains verified_child WHERE verified_child.repository = '' AND verified_child.verified = 1
+			AND LENGTH(verified_child.domain) > LENGTH(l.resource_name) AND verified_child.domain <> ?
+			AND SUBSTR(?, 1, LENGTH(verified_child.domain) + 1) = CONCAT(verified_child.domain, '.')) LIMIT 1`,
 		domain, domain, domain).Scan(&locked)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
@@ -112,20 +115,15 @@ func (db *DB) MavenDomainPathVisibility(repository, username string, moderator b
 		inputs[i] = fmt.Sprintf("SELECT ? AS candidate, %d AS item_index", i)
 		args = append(args, path)
 	}
-	args = append(args, userID, userID, userID, strings.ToLower(repository))
-	candidatePath := resourceLockVersionColumn("maven", "c.candidate")
-	artifactPath := resourceLockVersionColumn("maven", "CONCAT(REPLACE(a.group_id, '.', '/'), '/', a.artifact_id)")
+	args = append(args, userID, userID)
 	rows, err := db.Query(`SELECT DISTINCT c.item_index FROM (`+strings.Join(inputs, " UNION ALL ")+`) c
 		JOIN `+resourceLocksQuery("maven-domain")+` l ON l.format = 'maven-domain' AND l.mode = 'read'
 		JOIN maven_domains d ON d.repository = '' AND d.domain = l.resource_name
 		LEFT JOIN maven_domain_members m ON m.repository = '' AND m.domain = d.domain AND m.user_id = ?
 		LEFT JOIN super_team_members stm ON stm.team_prefix = d.super_team_prefix AND stm.user_id = ?
 		WHERE m.user_id IS NULL AND stm.user_id IS NULL AND (`+mavenDomainContainsPathSQL("d", "c.candidate")+`)
-		AND NOT EXISTS (SELECT 1 FROM maven_artifacts a JOIN super_team_members am
-			ON am.team_prefix = a.super_team_prefix AND am.user_id = ? WHERE a.repository = ? AND a.domain = d.domain
-			AND (`+candidatePath+` = `+artifactPath+` OR SUBSTR(`+candidatePath+`, 1, LENGTH(`+artifactPath+`) + 1) = CONCAT(`+artifactPath+`, '/')))
-		AND NOT EXISTS (SELECT 1 FROM maven_domains specific WHERE specific.repository = '' AND specific.verified = 1
-			AND LENGTH(specific.domain) > LENGTH(d.domain) AND (`+mavenDomainContainsPathSQL("specific", "c.candidate")+`))`, args...)
+		AND NOT EXISTS (SELECT 1 FROM maven_domains verified_child WHERE verified_child.repository = '' AND verified_child.verified = 1
+			AND LENGTH(verified_child.domain) > LENGTH(d.domain) AND (`+mavenDomainContainsPathSQL("verified_child", "c.candidate")+`))`, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -160,9 +158,9 @@ func (db *DB) mavenPathDomainLocks(path string, descendants bool) ([]*core.Resou
 	}
 	rows, err := db.Query(`SELECT resource_name, source, mode, reason, reason_text, locked_at, inherited
 		FROM `+resourceLocksQuery("maven-domain")+` l WHERE format = 'maven-domain' AND (`+where+`)
-		AND NOT EXISTS (SELECT 1 FROM maven_domains specific WHERE specific.repository = '' AND specific.verified = 1
-			AND LENGTH(specific.domain) > LENGTH(l.resource_name)
-			AND (specific.domain = ? OR SUBSTR(?, 1, LENGTH(specific.domain) + 1) = CONCAT(specific.domain, '.')))
+		AND NOT EXISTS (SELECT 1 FROM maven_domains verified_child WHERE verified_child.repository = '' AND verified_child.verified = 1
+			AND LENGTH(verified_child.domain) > LENGTH(l.resource_name)
+			AND (verified_child.domain = ? OR SUBSTR(?, 1, LENGTH(verified_child.domain) + 1) = CONCAT(verified_child.domain, '.')))
 		LIMIT 8193`, append(args, name, name)...)
 	if err != nil {
 		return nil, err
@@ -170,7 +168,7 @@ func (db *DB) mavenPathDomainLocks(path string, descendants bool) ([]*core.Resou
 	defer rows.Close()
 	locks := make([]*core.ResourceLock, 0)
 	for rows.Next() {
-		lock := &core.ResourceLock{ResourceLockTarget: core.ResourceLockTarget{Format: "maven-domain"}}
+		lock := &core.ResourceLock{Format: "maven-domain"}
 		var inherited int
 		if err := rows.Scan(&lock.Name, &lock.Source, &lock.Mode, &lock.Reason, &lock.ReasonText, &lock.LockedAt, &inherited); err != nil {
 			return nil, err

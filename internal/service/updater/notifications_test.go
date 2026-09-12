@@ -45,7 +45,7 @@ func TestSystemUpdateNotificationsTargetManagersAndDedupe(t *testing.T) {
 	require.NoError(t, deliverUpdateNotificationToManagers(state, updateNoticeAvailable, result))
 
 	now := time.Now().Add(time.Minute).UnixMilli()
-	messages, err := db.ListMessages("admin", 10, 0, "", now)
+	messages, err := db.ListMessages("admin", 10, 0, "", now, "")
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
 	require.Equal(t, "system_update", messages[0].Kind)
@@ -56,10 +56,10 @@ func TestSystemUpdateNotificationsTargetManagersAndDedupe(t *testing.T) {
 	require.Equal(t, "v2.0.0", payload.Version)
 	require.True(t, payload.RequiresAction)
 
-	baseMessages, err := db.ListMessages("base", 10, 0, "", now)
+	baseMessages, err := db.ListMessages("base", 10, 0, "", now, "")
 	require.NoError(t, err)
 	require.Empty(t, baseMessages)
-	expiredMessages, err := db.ListMessages("expired", 10, 0, "", now)
+	expiredMessages, err := db.ListMessages("expired", 10, 0, "", now, "")
 	require.NoError(t, err)
 	require.Empty(t, expiredMessages)
 }

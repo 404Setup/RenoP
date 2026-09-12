@@ -22,7 +22,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
 	"renop/internal/config"
@@ -108,23 +107,20 @@ func TestPostAuthLogin(t *testing.T) {
 	jsonRequest := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(`{"name":"admin","secret":"test-admin-password"}`))
 	jsonRequest.Header.Set("X-Renop-Legal-Revision", cfg.Legal.Revision())
 	jsonRequest.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
-	jsonRequest.Header.Set(fiber.HeaderAccept, fiber.MIMEApplicationJSON)
 	jsonResponse, err := app.Test(jsonRequest)
 	require.NoError(t, err)
 	defer jsonResponse.Body.Close()
-	require.Equal(t, http.StatusOK, jsonResponse.StatusCode)
-	require.Equal(t, fiber.MIMEApplicationJSON, jsonResponse.Header.Get(fiber.HeaderContentType))
-	require.Len(t, jsonResponse.Cookies(), 1)
-	require.True(t, jsonResponse.Cookies()[0].HttpOnly)
-	raw, err = io.ReadAll(jsonResponse.Body)
-	require.NoError(t, err)
-	require.NoError(t, protojson.Unmarshal(raw, &details))
-	require.Equal(t, "admin", details.GetAccessToken().GetName())
-	require.Empty(t, details.GetSessionToken())
+	require.Equal(t, http.StatusBadRequest, jsonResponse.StatusCode)
+	require.Empty(t, jsonResponse.Cookies())
 
-	denied := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(`{"name":"admin","secret":"wrong-password"}`))
+	deniedBytes, err := proto.Marshal(&pb.LoginRequest{
+		Name:   "admin",
+		Secret: "wrong-password",
+	})
+	require.NoError(t, err)
+	denied := httptest.NewRequest(http.MethodPost, "/login", bytes.NewReader(deniedBytes))
 	denied.Header.Set("X-Renop-Legal-Revision", cfg.Legal.Revision())
-	denied.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+	denied.Header.Set(fiber.HeaderContentType, protohttp.ContentType)
 	deniedResponse, err := app.Test(denied)
 	require.NoError(t, err)
 	defer deniedResponse.Body.Close()

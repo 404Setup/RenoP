@@ -56,7 +56,7 @@ func TestMavenAndFilesDownloadsRecordOnlyPrimaryTransfers(t *testing.T) {
 	InitS3(cfg)
 	state := core.NewAppState()
 	state.Inner.Config.Store(cfg)
-	state.Inner.FileIndex = index.NewFileIndexCustom(true)
+	state.Inner.FileIndex = index.NewFileIndex()
 	state.Inner.FileCache = core.NewFileByteCache(1 << 20)
 	db, err := database.InitDB(config.DatabaseConfig{
 		Driver: "sqlite", Dsn: filepath.Join(testutil.TempDir(t), "storage-statistics.db"), MaxOpenConns: 1, MaxIdleConns: 1,

@@ -61,6 +61,9 @@ func resolveCheckChannel(query string, state *core.AppState) Channel {
 
 // RunScheduledCheck performs one configured update check and optional install.
 func RunScheduledCheck(ctx context.Context, state *core.AppState) error {
+	if inContainer() {
+		return nil
+	}
 	channel, mode := resolveConfiguredUpdater(state)
 	if mode == ModeManual {
 		return nil
@@ -130,6 +133,12 @@ func SetupUpdaterRoutes(router fiber.Router, state *core.AppState) {
 
 	api.Get("/status", func(c fiber.Ctx) error {
 		return protohttp.Write(c, ToPbUpdateState(GetUpdateState()))
+	})
+	api.Use(func(c fiber.Ctx) error {
+		if inContainer() {
+			return WriteAPIError(c, fiber.StatusConflict, APIErrorContainerManaged, ErrContainerManaged.Error())
+		}
+		return c.Next()
 	})
 
 	api.Post("/check", func(c fiber.Ctx) error {

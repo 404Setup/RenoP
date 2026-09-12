@@ -13,6 +13,8 @@ import test from 'node:test';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {readLegalTextResponse} from '../js/legal-response.js';
+import {readResponseBytes} from '@renop/ui/response-bytes';
+import {LegalMetadata, protoObjectOptions} from '../js/proto/index.js';
 import {parseCookiePreferences} from '../js/cookie-preferences.js';
 
 test('optional verification requires an explicit current unexpired cookie choice', () => {
@@ -26,6 +28,27 @@ test('optional verification requires an explicit current unexpired cookie choice
     }
 });
 
+test('cookie choices avoid repeated storage reads without extending expiry or policy scope', () => {
+    let reads = 0, now = 100;
+    const context = vm.createContext({
+        parseCookiePreferences, Date: {now: () => now},
+        localStorage: {getItem() { reads++; return JSON.stringify({revision: 'current', optional: true, expires: 200}); }},
+    });
+    const source = readFileSync(new URL('../js/cookie-consent.js', import.meta.url), 'utf8');
+    vm.runInContext(source.replace(/^import .*;$/gm, '').replace(/^export /gm, ''), context);
+    // The parser's default clock is replaced explicitly for this bounded fixture.
+    context.parseCookiePreferences = (raw, revision) => parseCookiePreferences(raw, revision, now);
+    vm.runInContext("metadata = {revision: 'current'}", context);
+    assert.equal(context.readChoice().optional, true);
+    assert.equal(context.readChoice().optional, true);
+    assert.equal(reads, 1);
+    now = 200;
+    assert.equal(context.readChoice(), null);
+    now = 100;
+    vm.runInContext("metadata = {revision: 'new'}", context);
+    assert.equal(context.readChoice(), null);
+});
+
 test('account entry requires explicit current consent and cancels checks after navigation', async () => {
     let revision = 'a'.repeat(64), release;
     const input = {checked: false, dataset: {}, focus() {}, reportValidity() {}};
@@ -35,11 +58,11 @@ test('account entry requires explicit current consent and cancels checks after n
         getElementById: id => id.endsWith('-error') ? error : input,
     };
     const context = vm.createContext({
-        document, AbortSignal, CustomEvent, readLegalTextResponse,
+        document, AbortSignal, CustomEvent, readLegalTextResponse, readResponseBytes, LegalMetadata, protoObjectOptions,
         window: {dispatchEvent() {}}, t: key => key,
         fetch: async () => {
             if (release) await new Promise(resolve => { release = resolve; });
-            return new Response(JSON.stringify({revision, cookie_banner: true}), {headers: {'Content-Type': 'application/json'}});
+            return new Response(LegalMetadata.encode({revision, cookie_banner: true}).finish(), {headers: {'Content-Type': 'application/x-protobuf'}});
         },
     });
     const source = readFileSync(new URL('../js/legal-consent.js', import.meta.url), 'utf8');

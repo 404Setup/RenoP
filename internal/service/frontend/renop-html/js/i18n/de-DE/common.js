@@ -9,6 +9,10 @@
  */
 
 export default Object.freeze({
+    "common.add": "Hinzufügen",
+    "updater.containerDisabled": "Vom Container verwaltet",
+    "updater.containerManaged": "Updates und Neustarts werden von der Container-Laufzeit verwaltet. Neues Image laden und den Container neu erstellen.",
+    "nav.backPrevious": "Zur vorherigen Seite",
     "resourceLock.inheritedNotice": "Geerbte Sperren bleiben aktiv, bis sie an der übergeordneten Ressource entfernt werden.",
     "resourceLock.manage": "Sperre verwalten",
     "resourceLock.mode": "Sperrtyp",
@@ -69,6 +73,8 @@ export default Object.freeze({
     "common.ok": "OK",
     "common.yes": "Ja",
     "common.no": "Nein",
+    "common.active": "Aktiv",
+    "common.inactive": "Inaktiv",
     "common.none": "Keine",
     "common.remove": "Entfernen",
     "common.loading": "Wird geladen…",

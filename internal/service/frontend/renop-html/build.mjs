@@ -119,7 +119,7 @@ function isPrecompressedAsset(path) {
 const protoOnly = process.argv.includes('--proto-only');
 const i18nOnly = process.argv.includes('--i18n-only');
 
-await generateI18nCatalog({
+const localeAssets = await generateI18nCatalog({
     i18nDir,
     catalogFile: i18nCatalogFile,
     referenceLocale: i18nReferenceLocale,
@@ -146,6 +146,11 @@ if (existsSync(outDir)) {
     rmSync(outDir, {recursive: true, force: true});
 }
 mkdirSync(outDir, {recursive: true});
+for (const [path, bytes] of localeAssets) {
+    const file = join(outDir, path);
+    mkdirSync(dirname(file), {recursive: true});
+    writeFileSync(file, bytes);
+}
 
 const configUrl = pathToFileURL(join(root, 'rolldown.config.mjs')).href;
 const {default: rolldownConfig} = await import(configUrl);
@@ -164,6 +169,10 @@ if (!existsSync(mainJs)) {
 const mainJsBytes = statSync(mainJs).size;
 if (mainJsBytes > maxInitialJavaScriptBytes) {
     throw new Error(`dist/js/main.js exceeds ${maxInitialJavaScriptBytes} bytes: ${mainJsBytes}`);
+}
+for (const file of readdirSync(join(outDir, 'js')).filter(name => name.startsWith('app-') && name.endsWith('.js'))) {
+    const bytes = statSync(join(outDir, 'js', file)).size;
+    if (bytes > maxInitialJavaScriptBytes) throw new Error(`${file} exceeds ${maxInitialJavaScriptBytes} bytes: ${bytes}`);
 }
 for (const file of walk(join(outDir, 'js', 'chunks'))) {
     if (!file.endsWith('.js')) continue;

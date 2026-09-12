@@ -75,4 +75,9 @@ export default Object.freeze({
     "updaterNotice.spaceBody": "시스템 업데이트를 준비할 디스크 공간이 부족합니다.",
     "updaterNotice.restartFailedTitle": "업데이트 재시작 실패",
     "updaterNotice.restartFailedBody": "준비된 업데이트를 적용하기 위해 RenoP를 재시작하지 못했습니다. 서버 로그를 확인하세요.",
+    "messages.sessionTarget": "알림 대상",
+    "messages.allSessions": "모든 세션",
+    "messages.sessionsLoading": "활성 세션을 불러오는 중…",
+    "messages.sessionsEmpty": "활성 브라우저 세션이 없습니다.",
+    "messages.sessionsFailed": "세션을 불러오지 못했습니다. 수신자를 다시 입력하세요.",
 });

@@ -64,19 +64,23 @@ func authorizeStorageUpload(state *core.AppState, user *config.User, repo *confi
 	if repo == nil || user == nil {
 		return fiber.ErrForbidden
 	}
+	if repo.Engine().ManagedNative {
+		return storage.AuthorizeNativeUpload(state, user, repo, path)
+	}
 	switch repo.NormalizedFormat() {
 	case config.RepositoryFormatMaven:
 		if storage.MavenMutationAuthorizer == nil {
 			return core.ErrDatabaseUnavailable
 		}
 		return storage.MavenMutationAuthorizer(state, user, repo, path, core.MavenPermissionPublish)
-	case config.RepositoryFormatFiles:
+	default:
+		if !repo.Engine().DirectUpload {
+			return fiber.ErrMethodNotAllowed
+		}
 		if !user.CheckUpdatePermission(repo.Name) {
 			return fiber.ErrForbidden
 		}
 		return nil
-	default:
-		return fiber.ErrMethodNotAllowed
 	}
 }
 
@@ -185,9 +189,14 @@ func handleInit(c fiber.Ctx, state *core.AppState, mgr *Manager) error {
 			return jsonErr(c, fiber.StatusRequestEntityTooLarge, "GPG detached signature exceeds the size limit")
 		}
 
-		if storage.PathExistsForUpload(state, localFilePath) &&
-			repo.NormalizedFormat() != config.RepositoryFormatFiles && !repo.AllowRedeployment {
-			return jsonErr(c, fiber.StatusConflict, "Conflict")
+		if storage.PathExistsForUpload(state, localFilePath) {
+			allowed, err := storage.CanReplaceUpload(state, user, repo, localFilePath)
+			if err != nil {
+				return storage.NativeErrorResponse(c, err)
+			}
+			if !allowed {
+				return jsonErr(c, fiber.StatusConflict, "Conflict")
+			}
 		}
 
 		estimated := storage.EstimateUploadDiskSpace(localFilePath, req.GetSize())
@@ -353,9 +362,16 @@ func completeStorage(c fiber.Ctx, state *core.AppState, sess *Session) error {
 	}()
 
 	existed := storage.PathExistsForUpload(state, localFilePath)
-	if existed && repo.NormalizedFormat() != config.RepositoryFormatFiles && !repo.AllowRedeployment {
-		sess.Abort()
-		return jsonErr(c, fiber.StatusConflict, "Conflict")
+	if existed {
+		allowed, err := storage.CanReplaceUpload(state, user, repo, localFilePath)
+		if err != nil {
+			sess.Abort()
+			return storage.NativeErrorResponse(c, err)
+		}
+		if !allowed {
+			sess.Abort()
+			return jsonErr(c, fiber.StatusConflict, "Conflict")
+		}
 	}
 
 	estimated := storage.EstimateUploadDiskSpace(localFilePath, sess.TotalSize)
@@ -368,7 +384,7 @@ func completeStorage(c fiber.Ctx, state *core.AppState, sess *Session) error {
 	fileSize := sess.TotalSize
 	modTime := time.Now().UnixNano()
 
-	if repo.NormalizedFormat() == config.RepositoryFormatFiles {
+	if repo.Engine().NativeFileLayout {
 		sess.GenerateChecksums = false
 		sess.SignatureExpected = false
 	}
@@ -398,7 +414,11 @@ func completeStorage(c fiber.Ctx, state *core.AppState, sess *Session) error {
 	})
 	if err != nil {
 		sess.Abort()
-		if errors.Is(err, core.ErrPublicationFileLimit) || errors.Is(err, core.ErrPublicationByteLimit) ||
+		log.Printf("[upload] completeStorage failed for %s: %v", localFilePath, err)
+		if repo.Engine().ManagedNative {
+			return storage.NativeErrorResponse(c, err)
+		}
+		if errors.Is(err, core.ErrRepositoryCapacity) || errors.Is(err, core.ErrPublicationFileLimit) || errors.Is(err, core.ErrPublicationByteLimit) ||
 			errors.Is(err, core.ErrPublicationCountLimit) {
 			c.Set("X-Renop-Error-Code", publicationquota.ErrorCode(err))
 		}
@@ -424,6 +444,8 @@ func completeStorage(c fiber.Ctx, state *core.AppState, sess *Session) error {
 	action := audit.ActionUpload
 	if result.ReviewPending {
 		action = audit.ActionUploadQueuedReview
+	} else if result.NativePending {
+		action = audit.ActionUploadQueuedNative
 	} else if result.Pending {
 		action = audit.ActionUploadQueuedGPG
 	}
@@ -446,6 +468,8 @@ func completeStorage(c fiber.Ctx, state *core.AppState, sess *Session) error {
 		if result.ReviewPending {
 			message = "Queued for publication review"
 			c.Set("X-RenoP-Review-ID", result.ReviewID)
+		} else if result.NativePending {
+			message = "Awaiting native signature and publication files"
 		} else {
 			message = "Queued for GPG publication"
 		}

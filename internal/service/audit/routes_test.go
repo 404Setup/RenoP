@@ -187,4 +187,38 @@ func TestAuditLogFlow(t *testing.T) {
 			assert.NotEqual(t, "USER_PERMISSION_UPDATE", l.Action)
 		}
 	})
+
+	t.Run("User Forbidden to Clear Global Audit Logs", func(t *testing.T) {
+		req := httptest.NewRequest("DELETE", "/api/auth/logs", nil)
+		req.Header.Set("X-Test-User", "user1")
+		resp, err := app.Test(req)
+		assert.NoError(t, err)
+		assert.Equal(t, 403, resp.StatusCode)
+	})
+
+	t.Run("Admin Clears Global Audit Logs", func(t *testing.T) {
+		req := httptest.NewRequest("DELETE", "/api/auth/logs", nil)
+		req.Header.Set("X-Test-User", "admin")
+		resp, err := app.Test(req)
+		assert.NoError(t, err)
+		assert.Equal(t, 200, resp.StatusCode)
+
+		drainAuditChan(state, db)
+
+		req2 := httptest.NewRequest("GET", "/api/auth/logs", nil)
+		req2.Header.Set("X-Test-User", "admin")
+		resp2, err := app.Test(req2)
+		assert.NoError(t, err)
+		assert.Equal(t, 200, resp2.StatusCode)
+
+		body2, err := io.ReadAll(resp2.Body)
+		assert.NoError(t, err)
+
+		var res2 pb.AuditLogList
+		_ = proto.Unmarshal(body2, &res2)
+		for _, l := range res2.Logs {
+			assert.NotEqual(t, "LOGIN", l.Action)
+			assert.NotEqual(t, "USER_PERMISSION_UPDATE", l.Action)
+		}
+	})
 }

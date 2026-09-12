@@ -90,7 +90,7 @@ comme amont, sans propriétaire local, et restent en lecture seule.
 
 ## Cargodoc
 
-RenoP valide et extrait rustdoc dans un viewer sandboxé. Activez Cargodoc et ses limites dans `config.yaml`.
+RenoP valide et extrait rustdoc dans un viewer sandboxé. Activez Cargodoc et ses limites dans paramètres système.
 
 URL : `http://localhost:3000/cargodoc/{repo}/{crate}/{version}/index.html`
 

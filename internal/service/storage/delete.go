@@ -11,7 +11,6 @@
 package storage
 
 import (
-	"bytes"
 	"encoding/xml"
 	"errors"
 	"io"
@@ -27,14 +26,17 @@ import (
 	"renop/internal/config"
 	"renop/internal/core"
 	"renop/internal/service/audit"
+	"renop/internal/service/auth"
 	"renop/internal/service/gpg"
 	"renop/internal/service/javadocs"
+	"renop/internal/service/nativepkg"
 	"renop/internal/service/repositorygate"
 	"renop/internal/service/status"
 	"renop/internal/utils"
 )
 
 func HandleDelete(c fiber.Ctx, state *core.AppState, repo *config.Repository, path string, localFilePath string) error {
+	defer invalidateRepositoryCapacity(state, localFilePath)
 	defer status.MarkStorageUpdated()
 	if path == "" || path == "/" {
 		return c.Status(fiber.StatusForbidden).SendString("Forbidden")
@@ -54,6 +56,30 @@ func HandleDelete(c fiber.Ctx, state *core.AppState, repo *config.Repository, pa
 	}
 	if currentRepo.NormalizedFormat() != repo.NormalizedFormat() {
 		return c.Status(fiber.StatusConflict).SendString(ErrRepositoryFormatChanged.Error())
+	}
+	if currentRepo.Engine().ManagedNative {
+		db, err := nativeDB(state)
+		if err != nil {
+			return NativeErrorResponse(c, err)
+		}
+		artifact, err := db.GetNativeArtifact(repo.Name, path)
+		var releaseResource func()
+		if err == nil {
+			releaseResource = nativepkg.AcquireMutation(repo.Name, artifact.Name)
+		} else {
+			if !errors.Is(err, core.ErrNativeNotFound) {
+				return NativeErrorResponse(c, err)
+			}
+			if name, _, ok := nativepkg.ConanIdentity(path); repo.Engine().Protocol == config.RepositoryFormatConan && ok {
+				releaseResource = nativepkg.AcquireMutation(repo.Name, name)
+			} else {
+				releaseResource = nativepkg.AcquireAllMutations()
+			}
+		}
+		defer releaseResource()
+		if err := authorizeNativeDelete(state, auth.GetUser(c), currentRepo, path); err != nil {
+			return NativeErrorResponse(c, err)
+		}
 	}
 	if currentRepo.NormalizedFormat() == config.RepositoryFormatMaven && MavenMutationGuard != nil {
 		if err := MavenMutationGuard(state, currentRepo, path); err != nil {
@@ -78,8 +104,11 @@ func HandleDelete(c fiber.Ctx, state *core.AppState, repo *config.Repository, pa
 	if !exists {
 		return c.Status(fiber.StatusNotFound).SendString("Not found")
 	}
-	if err := discardPendingGPGUploads(state, localFilePath, "Artifact or directory was deleted before publication"); err != nil {
-		return c.Status(fiber.StatusInternalServerError).SendString("Internal Server Error")
+	isMaven := currentRepo.Engine().GPG
+	if isMaven {
+		if err := discardPendingGPGUploads(state, localFilePath, "Artifact or directory was deleted before publication"); err != nil {
+			return c.Status(fiber.StatusInternalServerError).SendString("Internal Server Error")
+		}
 	}
 
 	if isDir {
@@ -97,11 +126,13 @@ func HandleDelete(c fiber.Ctx, state *core.AppState, repo *config.Repository, pa
 			}
 		}
 		state.Inner.FileIndex.RemoveDir(localFilePath)
-		if err := deleteGPGRecordsByLocalPrefix(state, c.Params("repo_name"), localFilePath); err != nil {
-			return c.Status(fiber.StatusInternalServerError).SendString("Internal Server Error")
+		if isMaven {
+			if err := deleteGPGRecordsByLocalPrefix(state, c.Params("repo_name"), localFilePath); err != nil {
+				return c.Status(fiber.StatusInternalServerError).SendString("Internal Server Error")
+			}
 		}
 	} else {
-		if artifactPath, isSignature := gpg.ArtifactForDetachedSignature(filepath.ToSlash(localFilePath)); isSignature {
+		if artifactPath, isSignature := gpg.ArtifactForDetachedSignature(filepath.ToSlash(localFilePath)); isMaven && isSignature {
 			cfg := state.Inner.Config.Load()
 			var repo *config.Repository
 			if cfg != nil {
@@ -111,12 +142,12 @@ func HandleDelete(c fiber.Ctx, state *core.AppState, repo *config.Repository, pa
 				return c.Status(fiber.StatusConflict).SendString("Cannot delete a required GPG signature while its artifact exists")
 			}
 		}
-		if gpg.IsProtectedArtifact(filepath.ToSlash(localFilePath)) {
+		if isMaven && gpg.IsProtectedArtifact(filepath.ToSlash(localFilePath)) {
 			if err := RemoveArtifactGPGSignature(state, localFilePath); err != nil {
 				return c.Status(fiber.StatusInternalServerError).SendString("Internal Server Error")
 			}
 		}
-		isJar := filepath.Ext(localFilePath) == ".jar"
+		isJar := isMaven && filepath.Ext(localFilePath) == ".jar"
 		dir := filepath.Dir(localFilePath)
 
 		ext := filepath.Ext(localFilePath)
@@ -211,33 +242,7 @@ func HandleDelete(c fiber.Ctx, state *core.AppState, repo *config.Repository, pa
 						return wErr
 					}
 
-					if IsS3Enabled(metadataPath) {
-						s3Key := utils.GetS3Key(metadataPath)
-						err = UploadStreamToS3(s3Key, bytes.NewReader(updatedXML), int64(len(updatedXML)), "application/xml")
-					} else {
-						tmpMetaPath := metadataPath + ".tmp"
-						err = os.WriteFile(tmpMetaPath, updatedXML, 0644)
-						if err == nil {
-							err = utils.SafeRename(tmpMetaPath, metadataPath)
-							if err != nil {
-								_ = os.Remove(tmpMetaPath)
-							}
-						}
-					}
-
-					if err != nil {
-						return err
-					}
-					state.InvalidateFileCache(metadataPath)
-					for ext, hash := range map[string]string{
-						".md5": utils.MD5(updatedXML), ".sha1": utils.SHA1(updatedXML),
-						".sha256": utils.SHA256(updatedXML), ".sha512": utils.SHA512(updatedXML),
-					} {
-						if err := SaveAndUploadChecksum(state, metadataPath, ext, hash); err != nil {
-							return err
-						}
-					}
-					return nil
+					return writeMavenMetadata(state, metadataPath, updatedXML)
 				}); err != nil {
 					return c.Status(fiber.StatusInternalServerError).SendString("Internal Server Error")
 				}
@@ -245,6 +250,16 @@ func HandleDelete(c fiber.Ctx, state *core.AppState, repo *config.Repository, pa
 		}
 	}
 
+	if currentRepo.Engine().ManagedNative {
+		db, err := nativeDB(state)
+		if err != nil {
+			return NativeErrorResponse(c, err)
+		}
+		if err := db.DeleteNativeArtifactsUnder(repo.Name, path); err != nil {
+			return NativeErrorResponse(c, err)
+		}
+		state.Inner.FileIndex.UnblockTree(localFilePath)
+	}
 	username, op, authMethod, sessionID, ip := audit.ExtractAuthDetails(c, state)
 	repoName := c.Params("repo_name")
 	details := "Deleted artifact/directory: " + path
@@ -277,6 +292,7 @@ func deleteFileHelper(path string) error {
 }
 
 func deleteIndexedFile(state *core.AppState, path string) error {
+	defer invalidateRepositoryCapacity(state, path)
 	if err := deleteFileHelper(path); err != nil {
 		return err
 	}
@@ -291,7 +307,7 @@ func deleteIndexedFile(state *core.AppState, path string) error {
 // and purges the corresponding file-index / watcher entries.
 // s3Cfg may be nil; when non-nil it is used even if the repo is already gone from config.
 func RemoveRepositoryStorage(state *core.AppState, storagePath, repoName string, s3Cfg *config.S3Config) {
-	if state == nil || storagePath == "" || repoName == "" {
+	if state == nil || state.IsDemo() || storagePath == "" || repoName == "" {
 		return
 	}
 	if !utils.IsValidRepositoryName(repoName) {

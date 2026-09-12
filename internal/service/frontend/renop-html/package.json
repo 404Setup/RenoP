@@ -3,7 +3,7 @@
   "version": "1.2.0",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@12.3.4",
+  "packageManager": "pnpm@12.4.1",
   "description": "RenoP frontend sources and Rolldown bundle config",
   "scripts": {
     "proto": "node ./build.mjs --proto-only",
@@ -20,7 +20,7 @@
   "dependencies": {
     "@renop/ui": "workspace:*",
     "fflate": "^0.8.3",
-    "marked": "^18.0.12",
+    "marked": "^18.0.13",
     "protobufjs": "^8.8.0"
   }
 }

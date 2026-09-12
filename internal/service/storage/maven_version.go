@@ -11,7 +11,6 @@
 package storage
 
 import (
-	"bytes"
 	"encoding/xml"
 	"io"
 	"os"
@@ -81,8 +80,8 @@ func updateMavenMetadataAfterVersionDelete(state *core.AppState, metadataPath, v
 		latest := sorted[len(sorted)-1]
 		metadata.Versioning.Latest = &latest
 		metadata.Versioning.Release = nil
-		for index := len(sorted) - 1; index >= 0; index-- {
-			candidate := sorted[index]
+		for _, candidate := range slices.Backward(sorted) {
+
 			if !strings.Contains(strings.ToUpper(candidate), "SNAPSHOT") {
 				metadata.Versioning.Release = &candidate
 				break
@@ -94,31 +93,7 @@ func updateMavenMetadataAfterVersionDelete(state *core.AppState, metadataPath, v
 		if err != nil {
 			return err
 		}
-		if IsS3Enabled(metadataPath) {
-			err = UploadStreamToS3(utils.GetS3Key(metadataPath), bytes.NewReader(updatedXML), int64(len(updatedXML)), "application/xml")
-		} else {
-			temporary := metadataPath + ".tmp"
-			err = os.WriteFile(temporary, updatedXML, 0644)
-			if err == nil {
-				err = utils.SafeRename(temporary, metadataPath)
-			}
-			if err != nil {
-				_ = os.Remove(temporary)
-			}
-		}
-		if err != nil {
-			return err
-		}
-		state.InvalidateFileCache(metadataPath)
-		for suffix, hash := range map[string]string{
-			".md5": utils.MD5(updatedXML), ".sha1": utils.SHA1(updatedXML),
-			".sha256": utils.SHA256(updatedXML), ".sha512": utils.SHA512(updatedXML),
-		} {
-			if err := SaveAndUploadChecksum(state, metadataPath, suffix, hash); err != nil {
-				return err
-			}
-		}
-		return nil
+		return writeMavenMetadata(state, metadataPath, updatedXML)
 	})
 }
 
@@ -185,6 +160,7 @@ func RemoveMavenVersion(state *core.AppState, repository, groupID, artifactID, v
 	} else if err := os.RemoveAll(versionDir); err != nil {
 		return err
 	}
+	state.Inner.RepositoryCapacity.Invalidate(repository)
 	state.Inner.FileIndex.RemoveDir(versionDir)
 	if err := deleteGPGRecordsByLocalPrefix(state, repository, versionDir); err != nil {
 		return err

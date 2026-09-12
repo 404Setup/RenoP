@@ -13,8 +13,6 @@ package index
 import (
 	"bytes"
 	"testing"
-
-	"github.com/goccy/go-json"
 )
 
 func TestFileIndexGetChildren(t *testing.T) {
@@ -123,7 +121,7 @@ func TestEnsureParentDirsIndexesIntermediateFolders(t *testing.T) {
 }
 
 func TestFilePathsCannotRemainIndexedAsDirectories(t *testing.T) {
-	idx := NewFileIndexCustom(true)
+	idx := NewFileIndex()
 	path := "storage/releases/update.br"
 	idx.InsertDir("storage/releases")
 	idx.InsertDir(path)
@@ -152,24 +150,24 @@ func TestFilePathsCannotRemainIndexedAsDirectories(t *testing.T) {
 }
 
 func TestFileIndexWriteJSONEscapesPaths(t *testing.T) {
-	idx := NewFileIndexCustom(true)
+	idx := NewFileIndex()
 	idx.InsertFile(`storage/repo/quoted"name.jar`)
 	var buf bytes.Buffer
 	if err := idx.WriteJSONTo(&buf); err != nil {
 		t.Fatal(err)
 	}
-	var decoded FileIndexSnapshot
-	if err := json.NewDecoder(&buf).Decode(&decoded); err != nil {
+	decoded := NewFileIndex()
+	if err := decoded.ReadJSONFrom(&buf); err != nil {
 		t.Fatalf("index JSON is invalid: %v", err)
 	}
-	if _, ok := decoded.Files[`storage/repo/quoted"name.jar`]; !ok {
-		t.Fatalf("escaped path was not preserved: %#v", decoded.Files)
+	if !decoded.HasFile(`storage/repo/quoted"name.jar`) {
+		t.Fatal("escaped path was not preserved")
 	}
 }
 
 func TestFileIndexReadJSONFromStreamsEntries(t *testing.T) {
 	const snapshot = `{"files":{"storage/releases/a.jar":{"size":42,"mod_time":99}},"dirs":["storage","storage/releases"],"not_found":{"storage/releases/missing.jar":4102444800}}`
-	idx := NewFileIndexCustom(true)
+	idx := NewFileIndex()
 	if err := idx.ReadJSONFrom(bytes.NewBufferString(snapshot)); err != nil {
 		t.Fatal(err)
 	}
@@ -217,7 +215,7 @@ func TestFileIndexTotalFileBytes(t *testing.T) {
 }
 
 func TestBlockedFileIsHiddenFromEveryReadAndSnapshot(t *testing.T) {
-	idx := NewFileIndexCustom(true)
+	idx := NewFileIndex()
 	path := "storage/releases/org/example/demo.jar"
 	info := FileInfo{Size: 42, ModTime: 99}
 	idx.InsertFile(path, info)
@@ -239,7 +237,7 @@ func TestBlockedFileIsHiddenFromEveryReadAndSnapshot(t *testing.T) {
 
 	idx.UnblockFile(path)
 	idx.InsertFile(path, info)
-	if got, ok := idx.GetFileInfo(path); !ok || got != info {
+	if got, ok := idx.GetFileInfo(path); !ok || !sameFileMetadata(got, info) {
 		t.Fatalf("unblocked file info = %+v, %v; want %+v", got, ok, info)
 	}
 }

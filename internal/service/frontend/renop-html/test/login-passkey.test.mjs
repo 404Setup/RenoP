@@ -8,6 +8,7 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
+import {renderHTML} from '../../../../../scripts/render-shell-test.mjs';
 import assert from 'node:assert/strict';
 import {readdirSync, readFileSync} from 'node:fs';
 import {dirname, join, resolve} from 'node:path';
@@ -35,7 +36,7 @@ test('sign-in return paths stay local and cannot reenter authentication endpoint
     assert.equal(isLoginPath('/account/login/extra'), false);
     assert.equal(accountPageFromPath('/ACCOUNT/RECOVERY/'), 'recovery');
     assert.equal(accountPageFromPath('/account/recovery/extra'), '');
-    const index = readFileSync(join(frontendRoot, 'index.html'), 'utf8');
+    const index = renderHTML(join(frontendRoot, 'index.html'));
     assert.match(index, /<section[^>]*id="tab-content-login"/);
     assert.ok(index.indexOf('id="login-form"') < index.indexOf('</main>'));
     assert.doesNotMatch(index, /id="login-modal"|id="close-login-modal"/);
@@ -44,7 +45,7 @@ test('sign-in return paths stay local and cannot reenter authentication endpoint
 });
 
 test('login alternatives place Passkey before optional third-party providers below the divider', () => {
-    const index = readFileSync(join(frontendRoot, 'index.html'), 'utf8');
+    const index = renderHTML(join(frontendRoot, 'index.html'));
     const submit = index.indexOf('class="account-submit"');
     const divider = index.indexOf('class="account-provider-divider"');
     const passkey = index.indexOf('id="btn-fido-login"');

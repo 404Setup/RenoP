@@ -15,7 +15,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/tls"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -23,6 +22,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"renop/pkg/hex"
 	"slices"
 	"strings"
 	"time"
@@ -237,6 +237,29 @@ func parsePublicKey(data []byte, reference string, fetchedAt time.Time) (*core.G
 		return nil, nil, errKeyNotFound
 	}
 	return entityToPublicKey(matched, fetchedAt)
+}
+
+// ValidatePublicSigningKeys applies the same private-material, algorithm,
+// revocation and expiry checks to explicitly configured repository keyrings.
+func ValidatePublicSigningKeys(data []byte) error {
+	if len(data) == 0 || len(data) > MaxPublicKeySize {
+		return errors.New("invalid public signing keyring size")
+	}
+	data = bytes.TrimSpace(data)
+	begin, end := []byte("-----BEGIN PGP PUBLIC KEY BLOCK-----"), []byte("-----END PGP PUBLIC KEY BLOCK-----")
+	if !bytes.HasPrefix(data, begin) || !bytes.HasSuffix(data, end) || bytes.Count(data, begin) != 1 || bytes.Count(data, end) != 1 || bytes.Contains(data, []byte("-----BEGIN PGP PRIVATE KEY BLOCK-----")) {
+		return errors.New("public signing keyring must contain exactly one public armor block")
+	}
+	entities, err := openpgp.ReadArmoredKeyRing(bytes.NewReader(data))
+	if err != nil || len(entities) == 0 || len(entities) > 8 {
+		return errors.New("invalid public signing keyring")
+	}
+	for _, entity := range entities {
+		if _, _, err := entityToPublicKey(entity, time.Now()); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func resolveKeyServerAddresses(ctx context.Context, parsed *url.URL) ([]string, error) {

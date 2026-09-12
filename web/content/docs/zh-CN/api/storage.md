@@ -7,7 +7,7 @@ description: 仓库直接操作与有界可恢复分块上传
 
 # 存储与上传 API
 
-直接存储接口用于 Maven 与 `files` 仓库；npm、Cargo 和 Docker 使用各自原生协议。所有修改操作都会同时检查
+直接存储接口用于 Maven、`files` 及受管理的原生仓库；npm、Cargo 和 Docker 使用各自原生协议。所有修改操作都会同时检查
 API Token 权限、仓库权限、仓库引擎及 Maven 域策略。
 
 ## 仓库直接操作
@@ -77,3 +77,23 @@ API Token 权限、仓库权限、仓库引擎及 Maven 域策略。
 
 Maven 强制 GPG 时，隔离阶段可返回带 `release_id` 的 `202 Accepted`。`purpose=updater` 成功时返回
 `ready_to_restart`，而不是仓库路径。
+
+## 受管理的原生资源 API
+
+这些 JSON 接口管理 APK、apt、Conan、Conda/Conda native 及 rpm/yum 发布资源。修改必须使用浏览器 Cookie 会话。包客户端仍上传到原生路径，Token
+的仓库权限与实时资源权限取交集。
+
+| 操作     | 接口                                                                    | 用途                                                                             |
+|----------|-------------------------------------------------------------------------|----------------------------------------------------------------------------------|
+| `GET`    | `/api/native/repositories/{repo}/resources`                             | 列出资源；`name` 选择详情，`limit` 为 1–100，`offset` 最大 10000。               |
+| `POST`   | `/api/native/repositories/{repo}/resources`                             | 用 `{"name":"example"}` 登记托管资源，要求仓库发布权限。                         |
+| `PUT`    | `/api/native/repositories/{repo}/resources`                             | 更新 `name`、`description` 和公开的 `signing_key`，要求 L3。                     |
+| `DELETE` | `/api/native/repositories/{repo}/resources`                             | 按 `name` 注销空资源，要求 L4 且没有待处理审核。                                 |
+| `PUT`    | `/api/native/repositories/{repo}/resources/members`                     | 提交 `name`、`username` 和 `level`（0–4，-1 表示移除），保留最后一名 L4 所有者。 |
+| `GET`    | `/api/native/repositories/{repo}/resources/key?name={name}`             | 下载发布者公钥，仍检查未发布资源的可见性。                                       |
+| `GET`    | `/api/native/repositories/{repo}/resources/users?name={name}&q={query}` | 供 L3 权限编辑器搜索最多八个可见用户名。                                         |
+
+`new_packages` 审核首次发布，`every_version` 审核每个版本。`202` 表示文件仍因签名未收齐或等待审核而隐藏；审核会返回
+`X-RenoP-Review-ID`。原生包文件名须匹配元数据，不能上传自动生成的索引。APK、RPM 必须通过已配置公钥的原生签名验证；Conan 必须提供
+`scripts/conan/sign.py` 生成的签名清单。APT 签名仓库索引，Conda
+不要求额外分离签名。详见[仓库配置](/docs/configuration/repositories)。

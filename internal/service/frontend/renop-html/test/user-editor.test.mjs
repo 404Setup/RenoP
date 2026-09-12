@@ -8,6 +8,7 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
+import {renderHTML} from '../../../../../scripts/render-shell-test.mjs';
 import assert from 'node:assert/strict';
 import {readdirSync, readFileSync} from 'node:fs';
 import {dirname, join, resolve} from 'node:path';
@@ -17,9 +18,9 @@ import {fileURLToPath, pathToFileURL} from 'node:url';
 const frontendRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 test('user editor uses semantic account fields and a responsive permission layout', () => {
-    const index = readFileSync(join(frontendRoot, 'index.html'), 'utf8');
+    const index = renderHTML(join(frontendRoot, 'index.html'));
     const modal = readFileSync(join(frontendRoot, 'js/users/modal.js'), 'utf8');
-    const permissions = readFileSync(join(frontendRoot, 'js/users/permissions.js'), 'utf8');
+    const permissions = readFileSync(join(frontendRoot, 'js/permission-editor.js'), 'utf8');
     const styles = readFileSync(join(frontendRoot, 'css/manager/users.css'), 'utf8');
     const appUI = readFileSync(join(frontendRoot, 'js/app-ui.js'), 'utf8');
 
@@ -35,8 +36,9 @@ test('user editor uses semantic account fields and a responsive permission layou
     assert.ok(appUI.includes("'user-editor-modal'"));
     assert.ok(appUI.includes("'user-password-result-modal'"));
 
-    assert.match(permissions, /Object\.keys\(data\.repositories \|\| \{\}\)\.sort/);
-    assert.match(permissions, /sequence !== permissionLoadSequence/);
+    assert.match(permissions, /Object\.keys\(data\.repositories \|\| \{\}\)/);
+    assert.match(permissions, /\[\.\.\.names\]\.sort/);
+    assert.match(permissions, /if \(disposed\) return/);
     assert.match(permissions, /'canmoderate:\*'/);
     const repoRow = readFileSync(join(frontendRoot, 'js/components/repo-row.js'), 'utf8');
     assert.match(repoRow, /canmoderate:\$\{repoName\}/);

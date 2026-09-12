@@ -62,6 +62,7 @@ func removeArtifactCompanions(state *core.AppState, artifactPath string) error {
 }
 
 func removeIndexedFile(state *core.AppState, path string) error {
+	defer invalidateRepositoryCapacity(state, path)
 	if state == nil || path == "" {
 		return nil
 	}

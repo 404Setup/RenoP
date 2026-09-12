@@ -1,0 +1,379 @@
+/*
+ * Copyright (c) 2026 404Setup. All rights reserved.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
+ *
+ * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
+ */
+
+.cfg-section {
+    position: relative;
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 0.875rem;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.03);
+    transition: border-color 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    transform-origin: center top;
+}
+
+.cfg-section:hover {
+    border-color: color-mix(in srgb, var(--link-hover-color) 32%, var(--border-color));
+    box-shadow: 0 6px 20px -4px color-mix(in srgb, var(--link-hover-color) 12%, transparent), 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.cfg-section.cfg-section--entering {
+    animation: cfgSectionEnter 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.cfg-section.cfg-section--leaving {
+    animation: cfgSectionLeave 0.32s cubic-bezier(0.25, 1, 0.5, 1) both;
+    pointer-events: none;
+}
+
+@keyframes cfgSectionEnter {
+    0% {
+        opacity: 0;
+        transform: translateY(-10px) scale(0.98);
+        box-shadow: 0 0 0 transparent;
+    }
+    55% {
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--link-hover-color) 28%, transparent),
+        0 8px 24px color-mix(in srgb, var(--link-hover-color) 10%, transparent);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes cfgSectionLeave {
+    0% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        filter: saturate(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(-8px) scale(0.97);
+        border-color: transparent;
+        box-shadow: none;
+        filter: saturate(0.6);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cfg-section,
+    .cfg-section-header,
+    .cfg-section-header::before,
+    .cfg-section-icon,
+    .cfg-section-chevron,
+    .cfg-index-card,
+    .index-card {
+        transition: none !important;
+        animation: none !important;
+    }
+}
+
+.cfg-section-header,
+.cfg-section-header *,
+.cfg-sub-header,
+.cfg-sub-header * {
+    -webkit-tap-highlight-color: transparent !important;
+    -webkit-touch-callout: none !important;
+    -webkit-user-select: none !important;
+    user-select: none !important;
+}
+
+.cfg-section-header {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.1rem 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--card-bg);
+    overflow: hidden;
+    cursor: pointer;
+    user-select: none;
+    isolation: isolate;
+    transition: background-color 0.35s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cfg-section-header::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to right, color-mix(in srgb, var(--card-bg) 92%, var(--link-hover-color)), var(--card-bg));
+    opacity: 0.25;
+    pointer-events: none;
+    transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    z-index: 0;
+}
+
+.cfg-section-header:hover::before {
+    opacity: 0.85;
+}
+
+.cfg-section-header > * {
+    position: relative;
+    z-index: 1;
+}
+
+.cfg-section-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 0.6rem;
+    background-color: color-mix(in srgb, var(--link-hover-color) 12%, transparent);
+    color: var(--link-hover-color);
+    flex-shrink: 0;
+}
+
+.cfg-section-icon renop-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+}
+
+.cfg-section-icon svg {
+    width: 18px;
+    height: 18px;
+}
+
+.cfg-repository-type-icon {
+    position: relative;
+}
+
+.cfg-repository-format-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cfg-repository-type-icon.is-maven {
+    color: #ea580c;
+    background-color: color-mix(in srgb, #f97316 13%, transparent);
+}
+
+.cfg-repository-type-icon.is-cargo {
+    color: #b45309;
+    background-color: color-mix(in srgb, #d97706 13%, transparent);
+}
+
+.cfg-repository-type-icon.is-docker {
+    color: #2563eb;
+    background-color: color-mix(in srgb, #3b82f6 13%, transparent);
+}
+
+.cfg-repository-type-icon.is-files {
+    color: #7c3aed;
+    background-color: color-mix(in srgb, #8b5cf6 13%, transparent);
+}
+
+.cfg-repository-type-icon.is-npm {
+    color: #dc2626;
+    background-color: color-mix(in srgb, #ef4444 13%, transparent);
+}
+
+.cfg-repository-visibility {
+    position: absolute;
+    right: -0.12rem;
+    bottom: -0.12rem;
+    width: 0.62rem;
+    height: 0.62rem;
+    box-sizing: border-box;
+    border: 2px solid var(--card-bg);
+    border-radius: 50%;
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--text-color) 13%, transparent);
+}
+
+.cfg-repository-visibility.is-public {
+    background: #10b981;
+}
+
+.cfg-repository-visibility.is-hidden {
+    background: #f59e0b;
+}
+
+.cfg-repository-visibility.is-private {
+    background: #ef4444;
+}
+
+.repository-migration-control {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.85rem 0.9rem;
+    border: 1px solid color-mix(in srgb, var(--link-hover-color) 18%, var(--border-color));
+    border-radius: 0.7rem;
+    background: color-mix(in srgb, var(--link-hover-color) 5%, transparent);
+}
+
+.repository-migration-copy {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    gap: 0.24rem;
+}
+
+.repository-migration-copy strong {
+    color: var(--text-color);
+    font-size: 0.82rem;
+}
+
+.repository-migration-copy span {
+    color: color-mix(in srgb, var(--text-color) 62%, transparent);
+    font-size: 0.74rem;
+    line-height: 1.45;
+}
+
+.repository-migration-button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+    .repository-migration-control {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .repository-migration-button {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+.cfg-repository-delete-btn {
+    width: 2rem;
+    height: 2rem;
+    min-width: 2rem;
+    padding: 0;
+    justify-content: center;
+}
+
+.cfg-section-chevron {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    color: var(--text-color);
+    opacity: 0.6;
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease, background-color 0.2s ease;
+    margin-left: 0.25rem;
+    flex-shrink: 0;
+}
+
+.cfg-section-header:hover .cfg-section-chevron {
+    opacity: 1;
+    background-color: color-mix(in srgb, var(--link-hover-color) 10%, transparent);
+}
+
+.cfg-section.is-collapsed .cfg-section-chevron {
+    transform: rotate(-90deg);
+}
+
+.cfg-section.is-collapsed .cfg-section-header {
+    border-bottom-color: transparent;
+}
+
+.cfg-section-body {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition: grid-template-rows 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+    opacity: 1;
+}
+
+.cfg-section-body-inner {
+    min-height: 0;
+    overflow: hidden;
+}
+
+.cfg-section.is-collapsed .cfg-section-body {
+    grid-template-rows: 0fr;
+    opacity: 0;
+}
+
+.cfg-section-meta {
+    flex: 1;
+    min-width: 0;
+}
+
+.cfg-section-title-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-width: 0;
+    flex-wrap: nowrap;
+}
+
+.cfg-section-title {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-color);
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cfg-section-subtitle {
+    margin: 0.15rem 0 0 0;
+    font-size: 0.8rem;
+    color: var(--text-color);
+    opacity: 0.6;
+    line-height: 1.4;
+}
+
+.cfg-fields {
+    display: flex;
+    flex-direction: column;
+}
+
+.cfg-sub-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1.5rem;
+    border-top: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent);
+    background: color-mix(in srgb, var(--item-hover-bg) 30%, transparent);
+}
+
+.cfg-sub-header-left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.cfg-sub-header-icon {
+    width: 1.5rem;
+    height: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--link-hover-color);
+    flex-shrink: 0;
+}
+
+.cfg-sub-header-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    opacity: 0.75;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+

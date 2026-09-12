@@ -10,47 +10,14 @@
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {connectBrowserPage} from './browser-session.mjs';
 
 const endpoint = process.env.RENOP_TEST_BROWSER_CDP;
 const selector = process.env.RENOP_TEST_SELECT_SELECTOR || '[data-mail-select="template_style"] button';
 
 test('shared select supports keyboard selection, Escape, and focus restoration', {skip: !endpoint}, async () => {
-    const pages = await (await fetch(endpoint + '/json/list')).json();
-    const page = pages.find(value => value.type === 'page' && value.url.startsWith(process.env.RENOP_TEST_BROWSER_URL || 'http://127.0.0.1:18080'));
-    assert.ok(page, 'Open the configured page with its select visible.');
-    const socket = new WebSocket(page.webSocketDebuggerUrl);
-    await new Promise((resolve, reject) => {
-        socket.onopen = resolve;
-        socket.onerror = reject;
-    });
-    let next = 0;
-    const pending = new Map();
-    socket.onmessage = event => {
-        const value = JSON.parse(event.data);
-        if (!value.id) return;
-        const entry = pending.get(value.id);
-        pending.delete(value.id);
-        clearTimeout(entry.timer);
-        value.error ? entry.reject(value.error) : entry.resolve(value.result);
-    };
-    const call = (method, params = {}) => new Promise((resolve, reject) => {
-        const id = ++next;
-        pending.set(id, {
-            resolve,
-            reject,
-            timer: setTimeout(() => reject(new Error('Browser command timed out')), 10000)
-        });
-        socket.send(JSON.stringify({id, method, params}));
-    });
-    const evaluate = async expression => {
-        const value = await call('Runtime.evaluate', {expression, returnByValue: true});
-        assert.equal(value.exceptionDetails, undefined);
-        return value.result.value;
-    };
-    const key = async value => {
-        await call('Input.dispatchKeyEvent', {type: 'keyDown', key: value});
-        await call('Input.dispatchKeyEvent', {type: 'keyUp', key: value});
-    };
+    const browser = await connectBrowserPage(endpoint);
+    const {evaluate, key} = browser;
     try {
         await evaluate('window.selectUnderTest = document.querySelector(' + JSON.stringify(selector) + '); selectUnderTest.focus()');
         const sectionPresent = await evaluate('window.sectionUnderTest = selectUnderTest.closest(".cfg-section"); Boolean(sectionUnderTest)');
@@ -85,7 +52,6 @@ test('shared select supports keyboard selection, Escape, and focus restoration',
         await evaluate('Array.from(document.getElementById(selectUnderTest.getAttribute("aria-controls")).children).find(item => item.textContent.trim() === ' + JSON.stringify(original) + ').click()');
         assert.equal(await evaluate('selectUnderTest.textContent.trim()'), original);
     } finally {
-        socket.close();
-        for (const entry of pending.values()) clearTimeout(entry.timer);
+        browser.close();
     }
 });

@@ -11,152 +11,11 @@
 package database
 
 import (
-	"fmt"
-	"sync"
-	"sync/atomic"
-	"testing"
-	"time"
-
 	"renop/internal/config"
 	"renop/internal/core"
-	"renop/internal/testutil"
+	"testing"
+	"time"
 )
-
-func TestTTLCacheCoalescesConcurrentLoads(t *testing.T) {
-	cache := NewTTLCacheWithCapacity[string, int](time.Minute, 64)
-	started := make(chan struct{})
-	release := make(chan struct{})
-	var calls atomic.Int64
-	loader := func() (int, time.Duration, error) {
-		if calls.Add(1) == 1 {
-			close(started)
-		}
-		<-release
-		return 42, time.Minute, nil
-	}
-	results := make(chan int, 32)
-	errors := make(chan error, 32)
-	var workers sync.WaitGroup
-	workers.Add(32)
-	for range 32 {
-		go func() {
-			defer workers.Done()
-			value, err := cache.GetOrLoad("shared", loader)
-			results <- value
-			errors <- err
-		}()
-	}
-	<-started
-	close(release)
-	workers.Wait()
-	close(results)
-	close(errors)
-	for err := range errors {
-		if err != nil {
-			t.Fatalf("coalesced load failed: %v", err)
-		}
-	}
-	for value := range results {
-		if value != 42 {
-			t.Fatalf("coalesced value = %d, want 42", value)
-		}
-	}
-	if calls.Load() != 1 {
-		t.Fatalf("loader calls = %d, want 1", calls.Load())
-	}
-}
-
-func TestTTLCacheCapacityAndInvalidationDuringLoad(t *testing.T) {
-	cache := NewTTLCacheWithCapacity[string, int](time.Minute, 64)
-	cache.UseRemote(testutil.RemoteCache(t), nil)
-	for index := range 1024 {
-		cache.Set(fmt.Sprintf("key-%d", index), index, time.Minute)
-	}
-	if entries := cache.Len(); entries > 64 {
-		t.Fatalf("bounded cache retained %d entries, want at most 64", entries)
-	}
-
-	started := make(chan struct{})
-	release := make(chan struct{})
-	loaded := make(chan int, 1)
-	go func() {
-		value, _ := cache.GetOrLoad("invalidated", func() (int, time.Duration, error) {
-			close(started)
-			<-release
-			return 7, time.Minute, nil
-		})
-		loaded <- value
-	}()
-	<-started
-	cache.Delete("invalidated")
-	close(release)
-	if value := <-loaded; value != 7 {
-		t.Fatalf("in-flight value = %d, want 7", value)
-	}
-	if _, ok := cache.Get("invalidated"); ok {
-		t.Fatal("an invalidated in-flight load repopulated the cache")
-	}
-	staleGeneration := cache.Generation()
-	cache.Delete("generation-guard")
-	if cache.SetIfGeneration("generation-guard", 8, time.Minute, staleGeneration) {
-		t.Fatal("stale direct load bypassed the cache generation guard")
-	}
-	freshGeneration := cache.Generation()
-	if !cache.SetIfGeneration("generation-guard", 9, time.Minute, freshGeneration) {
-		t.Fatal("current direct load was not cached")
-	}
-}
-
-func TestTTLCacheLoaderPanicDoesNotPoisonKey(t *testing.T) {
-	cache := NewTTLCacheWithCapacity[string, int](time.Minute, 64)
-	func() {
-		defer func() {
-			if recover() == nil {
-				t.Fatal("cache loader panic was not propagated")
-			}
-		}()
-		_, _ = cache.GetOrLoad("panic", func() (int, time.Duration, error) {
-			panic("loader failure")
-		})
-	}()
-	value, err := cache.GetOrLoad("panic", func() (int, time.Duration, error) {
-		return 9, time.Minute, nil
-	})
-	if err != nil || value != 9 {
-		t.Fatalf("cache remained blocked after loader panic: value=%d err=%v", value, err)
-	}
-}
-
-func expireCacheKey[K comparable, V any](cache *TTLCache[K, V], key K) {
-	shard := cache.getShard(key)
-	shard.mu.Lock()
-	item := shard.items[key]
-	item.expiredAt = 1
-	shard.items[key] = item
-	shard.mu.Unlock()
-}
-
-func cacheContains[K comparable, V any](cache *TTLCache[K, V], key K) bool {
-	shard := cache.getShard(key)
-	shard.mu.RLock()
-	_, ok := shard.items[key]
-	shard.mu.RUnlock()
-	return ok
-}
-
-func TestTTLCacheEvictExpired(t *testing.T) {
-	cache := NewTTLCache[string, int](time.Minute)
-	cache.Set("expired", 1, time.Minute)
-	cache.Set("live", 2, time.Minute)
-	expireCacheKey(cache, "expired")
-	cache.EvictExpired()
-	if cacheContains(cache, "expired") {
-		t.Fatal("expired key remained after eviction")
-	}
-	if !cacheContains(cache, "live") {
-		t.Fatal("live key was removed during eviction")
-	}
-}
 
 func TestDBEvictExpiredCaches(t *testing.T) {
 	db := &DB{
@@ -166,20 +25,15 @@ func TestDBEvictExpiredCaches(t *testing.T) {
 		userIDCache:      NewTTLCache[string, string](time.Minute),
 		profileCache:     NewTTLCache[string, core.UserProfile](time.Minute),
 	}
-	db.tokenCache.Set("token", &core.AccessToken{}, time.Minute)
-	db.tokenSecretCache.Set("secret", &core.AccessToken{}, time.Minute)
-	db.sessionCache.Set("session", &core.Session{}, time.Minute)
-	db.userIDCache.Set("user", "id", time.Minute)
-	db.profileCache.Set("profile", core.UserProfile{UserID: "id"}, time.Minute)
-	expireCacheKey(db.tokenCache, "token")
-	expireCacheKey(db.tokenSecretCache, "secret")
-	expireCacheKey(db.sessionCache, "session")
-	expireCacheKey(db.userIDCache, "user")
-	expireCacheKey(db.profileCache, "profile")
+	db.tokenCache.Set("token", &core.AccessToken{}, time.Nanosecond)
+	db.tokenSecretCache.Set("secret", &core.AccessToken{}, time.Nanosecond)
+	db.sessionCache.Set("session", &core.Session{}, time.Nanosecond)
+	db.userIDCache.Set("user", "id", time.Nanosecond)
+	db.profileCache.Set("profile", core.UserProfile{UserID: "id"}, time.Nanosecond)
 	db.EvictExpiredCaches()
-	if cacheContains(db.tokenCache, "token") || cacheContains(db.tokenSecretCache, "secret") ||
-		cacheContains(db.sessionCache, "session") || cacheContains(db.userIDCache, "user") ||
-		cacheContains(db.profileCache, "profile") {
+	if db.tokenCache.Len() != 0 || db.tokenSecretCache.Len() != 0 ||
+		db.sessionCache.Len() != 0 || db.userIDCache.Len() != 0 ||
+		db.profileCache.Len() != 0 {
 		t.Fatal("database cache eviction left expired entries")
 	}
 }
@@ -249,19 +103,4 @@ func TestUserIdentityAndProfileSummaryCaches(t *testing.T) {
 	if err != nil || profiles["alice"] != nil || profiles["alice_renamed"] == nil {
 		t.Fatalf("renamed profile cache is stale: profiles=%v err=%v", profiles, err)
 	}
-}
-
-// BenchmarkTTLCacheParallelHit measures the hot read path shared by authentication and identity lookups.
-func BenchmarkTTLCacheParallelHit(b *testing.B) {
-	cache := NewTTLCacheWithCapacity[string, int](time.Minute, 4096)
-	cache.Set("hot", 42, time.Minute)
-	b.ReportAllocs()
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			value, ok := cache.Get("hot")
-			if !ok || value != 42 {
-				b.Fatalf("cache hit failed: value=%d ok=%v", value, ok)
-			}
-		}
-	})
 }

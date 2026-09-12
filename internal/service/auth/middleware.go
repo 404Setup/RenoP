@@ -13,9 +13,9 @@ package auth
 import (
 	"crypto/sha256"
 	"crypto/subtle"
-	"encoding/hex"
 	"errors"
 	"log"
+	"renop/pkg/hex"
 	"slices"
 	"strings"
 	"time"
@@ -278,6 +278,9 @@ func handleSessionAuth(state *core.AppState, authHeader string, c fiber.Ctx) (*a
 
 func handleBearerAuth(state *core.AppState, authHeader string, c fiber.Ctx) (*authResult, error) {
 	bearerAuth := strings.TrimPrefix(authHeader, "Bearer ")
+	if strings.HasPrefix(bearerAuth, protocolGrantPrefix) {
+		return authenticateProtocolGrant(state, bearerAuth, c)
+	}
 	var credential *VerifiedCredential
 	var err error
 	idx := strings.IndexByte(bearerAuth, ':')
@@ -667,6 +670,14 @@ func requiredAPITokenScope(c fiber.Ctx, state *core.AppState) apiTokenRequiremen
 		return publicationQuotaAPITokenRequirement(c)
 	case strings.HasPrefix(path, "/api/maven"):
 		return mavenAPITokenRequirement(c)
+	case strings.HasPrefix(path, "/api/native/repositories/"):
+		if method == fiber.MethodGet || method == fiber.MethodHead {
+			parts := strings.Split(strings.Trim(path, "/"), "/")
+			if len(parts) >= 4 {
+				return requireAPITokenTarget(APITokenScopeRepositoryRead, parts[3])
+			}
+		}
+		return requireAPITokenScope(APITokenScopeRepositoryPublish)
 	case strings.HasPrefix(path, "/api/cargo") || strings.HasPrefix(path, "/api/docker") ||
 		strings.HasPrefix(path, "/api/npm"):
 		return packageManagementRequirement(c)
@@ -752,6 +763,7 @@ func credentialCacheKey(authHeader string, opaqueCargo bool) string {
 func AuthMiddleware(state *core.AppState) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		if c.Path() == "/api/auth/login" || captcha.IsPublicPath(c.Path()) ||
+			(c.Method() == fiber.MethodPost && isProviderRevocationPath(c.Path())) ||
 			((c.Method() == fiber.MethodGet || c.Method() == fiber.MethodHead) && legal.IsPublicPath(c.Path())) {
 			c.Locals("user", GuestUser)
 			return c.Next()
@@ -765,6 +777,7 @@ func AuthMiddleware(state *core.AppState) fiber.Handler {
 		authCacheGeneration := state.Inner.AuthCacheGeneration.Load()
 		authHeader := strings.Clone(extractAuthHeader(c, state))
 		isSessionAuth := strings.HasPrefix(authHeader, "Session ")
+		cacheCredential := !isSessionAuth && !strings.HasPrefix(authHeader, "Bearer "+protocolGrantPrefix)
 		isCargoRequest := isCargoRepositoryRequest(c, state)
 		isOpaqueCargoAuth := authHeader != "" && isCargoRequest &&
 			!strings.HasPrefix(authHeader, "Basic ") &&
@@ -776,7 +789,7 @@ func AuthMiddleware(state *core.AppState) fiber.Handler {
 		}
 
 		if authHeader != "" {
-			if !isSessionAuth {
+			if cacheCredential {
 				if val, ok := state.Inner.AuthCache.Load(authCacheKey); ok {
 					if time.Now().UnixMilli() < val.ExpiredAt {
 						authenticated = &authResult{
@@ -814,7 +827,7 @@ func AuthMiddleware(state *core.AppState) fiber.Handler {
 				}
 
 				if authenticated != nil {
-					if !isSessionAuth {
+					if cacheCredential {
 						state.StoreAuthCacheIfCurrent(authCacheKey, core.AuthCacheEntry{
 							User: authenticated.User, CredentialKind: authenticated.Kind,
 							AuthScheme: authenticated.Scheme, APITokenID: authenticated.TokenID,
@@ -823,7 +836,7 @@ func AuthMiddleware(state *core.AppState) fiber.Handler {
 							ExpiredAt: authCacheExpiry(c, time.Now().UnixMilli()),
 						}, authCacheGeneration)
 					}
-				} else if !isSessionAuth {
+				} else if cacheCredential {
 					state.StoreAuthCacheIfCurrent(authCacheKey, core.AuthCacheEntry{
 						User: InvalidCredentialsUser, CredentialKind: credentialKindInvalid,
 						ExpiredAt: time.Now().Add(30 * time.Second).UnixMilli(), Invalid: true,

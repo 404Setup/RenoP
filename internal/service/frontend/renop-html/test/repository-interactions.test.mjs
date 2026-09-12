@@ -54,10 +54,13 @@ test('files repositories hide protocol snippets and npm metadata stays compact b
     const npmStyles = readFileSync(join(frontendRoot, 'css/browser/npm.css'), 'utf8');
     const personRule = npmStyles.match(/\.npm-project-person\s*\{[^}]*\}/s)?.[0] || '';
 
-    assert.match(snippets, /if \(format\.id === 'files'\) \{[\s\S]*?currentSnippets = \{\};[\s\S]*?return;/);
-    assert.ok(snippets.indexOf("if (format.id === 'files')") < snippets.indexOf("if (card) card.style.display = '';"));
+    assert.match(snippets, /if \(!format\.buildSnippets \|\| format\.snippetTabs\.length === 0\) \{[\s\S]*?currentSnippets = \{\};[\s\S]*?return;/);
+    assert.ok(snippets.indexOf("if (!format.buildSnippets || format.snippetTabs.length === 0)") < snippets.indexOf("if (card) card.style.display = '';"));
     assert.doesNotMatch(personRule, /background|border-radius|border:/);
     assert.match(npmStyles, /\.npm-metadata-copy:hover,[\s\S]*?transform: translateY\(-1px\)/);
     assert.match(npmStyles, /\.npm-metadata-copy\.copied/);
     assert.match(npmStyles, /\.npm-metadata-copy \.copy-toast/);
+    assert.doesNotMatch(npmStyles, /\.npm-metadata-copy\s*\{[^}]*width:\s*100%/);
+    assert.match(npmStyles, /\.npm-version-digest-box\s*\{[^}]*display:\s*flex/);
+    assert.match(npmStyles, /@media \(max-width: 700px\)[\s\S]*\.npm-version-digest\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/);
 });

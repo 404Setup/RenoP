@@ -1,30 +1,43 @@
 /*
  * Copyright (c) 2026 404Setup. All rights reserved.
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
- * If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
+ *
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
 package database
 
 import (
+	"database/sql"
+	"errors"
 	"strings"
+	"time"
 
 	"renop/internal/config"
 	"renop/internal/core"
 )
 
 func (db *DB) liveTicketUser(userID string) (*config.User, error) {
-	tx, err := db.Begin()
+	// Presentation needs one live authorization snapshot, without a write transaction.
+	// Ticket mutations still use ticketActorTx under the account lock.
+	var username, permissions string
+	now := time.Now().UnixMilli()
+	err := db.QueryRow(`SELECT profile.username, token.permissions_json
+		FROM user_profiles profile JOIN tokens token ON token.name = profile.username
+		WHERE profile.user_id = ? AND token.deleted_at = 0
+		AND (token.expires_at IS NULL OR token.expires_at > ?)
+		AND (token.banned_at = 0 OR (token.banned_until > 0 AND token.banned_until <= ?))`, userID, now, now).
+		Scan(&username, &permissions)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, core.ErrReviewPermissionDenied
+	}
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
-	user, err := ticketActorTx(tx, userID)
-	if err != nil {
-		return nil, err
-	}
-	return user, tx.Commit()
+	return reviewUserFromPermissions(username, permissions)
 }
 
 func (db *DB) presentTickets(tasks []*core.ReviewTask, userID string, requestedView bool) error {
@@ -61,18 +74,24 @@ func (db *DB) presentTickets(tasks []*core.ReviewTask, userID string, requestedV
 			return core.ErrReviewPermissionDenied
 		}
 		requester := task.RequestedByID == userID
-		staff := !requestedView && (user.CheckModeratePermission(task.Repository) ||
-			task.ReviewTeamPrefix != "" && roles[task.ReviewTeamPrefix] >= core.SuperTeamRoleManage)
+		teamAdmin := (task.ReviewTeamPrefix != "" && roles[task.ReviewTeamPrefix] >= core.SuperTeamRoleManage) ||
+			(task.Kind != core.ReviewKindPublication && ((task.TargetTeamPrefix != "" && roles[task.TargetTeamPrefix] >= core.SuperTeamRoleManage) ||
+				(task.SourceTeamPrefix != "" && roles[task.SourceTeamPrefix] >= core.SuperTeamRoleManage)))
+		repoMod := (task.Repository != "" && user.CheckModeratePermission(task.Repository)) || user.CheckModeratePermission("")
+		staff := !requestedView && (user.IsManager() || repoMod || teamAdmin)
 		if !requester && !staff {
 			return core.ErrReviewPermissionDenied
 		}
 		task.Actions = nil
 		if task.Status == core.ReviewStatusPending {
 			if requester && task.Kind != core.ReviewKindPublication {
-				task.Actions = append(task.Actions, "cancel")
+				task.Actions = append(task.Actions, "close")
 			}
 			handler := staff && (!task.AdminOnly || user.IsManager()) &&
-				(task.ReviewTeamPrefix == "" || user.IsManager() || roles[task.ReviewTeamPrefix] >= core.SuperTeamRoleManage)
+				(user.IsManager() ||
+					(task.Kind == core.ReviewKindPublication && task.ReviewTeamPrefix != "" && roles[task.ReviewTeamPrefix] >= core.SuperTeamRoleManage) ||
+					(task.Kind == core.ReviewKindPublication && task.ReviewTeamPrefix == "" && repoMod) ||
+					(task.Kind != core.ReviewKindPublication && (repoMod || teamAdmin)))
 			if handler && (!requester || !supportTicket(task)) {
 				switch {
 				case task.AssigneeID == userID:
@@ -85,9 +104,9 @@ func (db *DB) presentTickets(tasks []*core.ReviewTask, userID string, requestedV
 						task.Actions = append(task.Actions, "release", "escalate")
 					}
 				case task.AssigneeID == "" && (!task.AdminOnly || task.EscalatedByID != userID):
-					task.Actions = append(task.Actions, "claim")
+					task.Actions = append(task.Actions, "claim", "close")
 				case task.AssigneeID != "" && user.IsManager() && !task.AssigneeAdmin && task.Escalations < 3:
-					task.Actions = append(task.Actions, "force_claim")
+					task.Actions = append(task.Actions, "force_claim", "close")
 				}
 			}
 		}

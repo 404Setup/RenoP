@@ -20,7 +20,7 @@ import (
 
 // StartAuditLogConsumer captures process logs and returns a stop function that drains pending records.
 func StartAuditLogConsumer(state *core.AppState) func() {
-	if state == nil || state.Inner == nil {
+	if state == nil || state.Inner == nil || state.IsDemo() {
 		return func() {}
 	}
 	previous := log.Writer()
@@ -64,7 +64,10 @@ func StartAuditLogConsumer(state *core.AppState) func() {
 }
 
 func saveLog(state *core.AppState, entry *core.AuditLogEntry) error {
-	if state == nil || state.Inner == nil || entry == nil {
+	if state.IsDemo() {
+		return core.ErrDemoReadOnly
+	}
+	if state == nil || state.Inner == nil || state.IsDemo() || entry == nil {
 		return nil
 	}
 	if db := state.GetDB(); db != nil {
@@ -94,7 +97,7 @@ func persistAuditEntry(state *core.AppState, entry *core.AuditLogEntry, attempts
 
 // CleanExpiredLogs enforces the configured audit retention and row limits once.
 func CleanExpiredLogs(state *core.AppState) {
-	if state == nil || state.Inner == nil {
+	if state == nil || state.Inner == nil || state.IsDemo() {
 		return
 	}
 	cfgVal := state.Inner.Config.Load()

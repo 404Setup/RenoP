@@ -270,6 +270,12 @@
     color: #dc2626;
 }
 
+.npm-commands-section {
+    grid-column: 1 / -1;
+    width: 100%;
+    box-sizing: border-box;
+}
+
 .npm-command {
     margin-top: 0.8rem;
     border: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
@@ -283,6 +289,10 @@
     padding: 0.55rem 0.75rem;
     border-bottom: 1px solid var(--border-color);
     background: transparent;
+}
+
+.npm-command-header .pill-btn {
+    position: relative;
 }
 
 .npm-command-header strong {
@@ -520,7 +530,7 @@
 .npm-version-digest {
     display: grid;
     min-width: 0;
-    grid-template-columns: 5.5rem minmax(0, 1fr) auto;
+    grid-template-columns: minmax(5.5rem, max-content) minmax(0, 1fr);
     align-items: center;
     gap: 0.55rem;
 }
@@ -531,31 +541,53 @@
     font-weight: 650;
 }
 
-.npm-version-digest code {
+.npm-version-digest-box {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    min-width: 0;
+    padding: 0.28rem 0.35rem 0.28rem 0.6rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.48rem;
+    background: var(--code-bg, color-mix(in srgb, var(--card-bg) 84%, #000));
+}
+
+.npm-version-digest-box code {
     display: block;
     overflow-x: auto;
     min-width: 0;
-    padding: 0.42rem 0.55rem;
-    border-radius: 0.42rem;
-    background: var(--code-bg, color-mix(in srgb, var(--card-bg) 84%, #000));
+    flex: 1 1 auto;
     font-size: 0.72rem;
     white-space: nowrap;
+    color: var(--text-color);
+}
+
+.npm-version-digest-box code::-webkit-scrollbar {
+    height: 5px;
+}
+
+.npm-version-digest-box code::-webkit-scrollbar-thumb {
+    border-radius: 3px;
 }
 
 .npm-metadata-copy {
-    display: inline-grid;
+    position: relative;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     width: auto;
-    min-width: 2.1rem;
-    height: 2.1rem;
-    padding: 0 0.52rem;
-    place-items: center;
+    min-width: 1.85rem;
+    height: 1.85rem;
+    padding: 0 0.45rem;
     border: 1px solid var(--border-color);
-    border-radius: 0.48rem;
+    border-radius: 0.38rem;
     background: var(--card-bg);
     color: var(--text-muted);
-    box-shadow: 0 3px 10px -7px rgba(15, 23, 42, 0.8);
+    box-shadow: 0 2px 6px -3px rgba(15, 23, 42, 0.4);
     transition: transform 0.16s ease, box-shadow 0.16s ease,
-    border-color 0.16s ease, color 0.16s ease, background-color 0.16s ease;
+        border-color 0.16s ease, color 0.16s ease, background-color 0.16s ease;
 }
 
 .npm-metadata-copy:hover,
@@ -563,12 +595,12 @@
     border-color: color-mix(in srgb, var(--link-hover-color) 45%, var(--border-color));
     background: color-mix(in srgb, var(--link-hover-color) 7%, var(--card-bg));
     color: var(--link-hover-color);
-    box-shadow: 0 8px 18px -10px color-mix(in srgb, var(--link-hover-color) 55%, transparent);
+    box-shadow: 0 4px 10px -4px color-mix(in srgb, var(--link-hover-color) 50%, transparent);
     transform: translateY(-1px);
 }
 
 .npm-metadata-copy:active {
-    box-shadow: 0 2px 6px -5px rgba(15, 23, 42, 0.7);
+    box-shadow: 0 1px 3px -2px rgba(15, 23, 42, 0.5);
     transform: translateY(0);
 }
 
@@ -816,12 +848,7 @@
 
     .npm-version-digest {
         grid-template-columns: minmax(0, 1fr);
-        gap: 0.3rem;
-    }
-
-    .npm-metadata-copy {
-        width: 100%;
-        height: 2rem;
+        gap: 0.35rem;
     }
 
     .npm-member {

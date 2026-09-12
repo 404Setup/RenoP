@@ -357,7 +357,7 @@ func enrichMavenArtifactDetails(state *core.AppState, repository string,
 			latestPOMPath = filepath.Join(versionDir, pomName)
 		}
 	}
-	if latestPOMPath == "" {
+	if latestPOMPath == "" || state.IsDemo() {
 		return nil
 	}
 	project, err := loadMavenProjectMetadata(latestPOMPath)

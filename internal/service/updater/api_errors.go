@@ -22,6 +22,8 @@ const (
 	APIErrorCodeHeader = "X-Renop-Error-Code"
 	// APIErrorForbidden indicates that updater administration is not permitted.
 	APIErrorForbidden = "forbidden"
+	// APIErrorContainerManaged indicates that the container image controls the executable.
+	APIErrorContainerManaged = "container_managed"
 	// APIErrorInsufficientSpace indicates that update staging cannot fit on disk.
 	APIErrorInsufficientSpace = "insufficient_space"
 	// APIErrorMissingFile indicates that an offline package was not supplied.

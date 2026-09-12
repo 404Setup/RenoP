@@ -15,7 +15,12 @@ export default Object.freeze({
     "resourceLock.versionsLocked": "일부 버전이 잠겨 있습니다",
 
     "resourceLock.unlock": "잠금 해제",
-    "maven.manageDomainTeam": "도메인 팀 관리",
+    "ticket.back": "티켓 목록으로 돌아가기",
+    "maven.managePackageTeam": "패키지 팀 관리",
+    "maven.forceRemoveDomain": "게시 도메인 강제 삭제",
+    "maven.confirmForceRemoveDomain": "게시 도메인 {domain}을(를) 강제 삭제하시겠습니까? 이 작업은 취소할 수 없으며 유예 기간 없이 즉시 해제됩니다.",
+    "maven.forceRemoveDomainFailed": "게시 도메인 강제 삭제 실패",
+    "maven.forceRemoveDomainSuccess": "게시 도메인이 강제 삭제되었습니다",
     "maven.domainTeamHint": "Maven 공동 작업자는 게시 도메인에 속합니다. 구성원 변경은 이 도메인을 사용하는 모든 패키지에 적용됩니다.",
     "ticket.reasonTitle": "신고 사유",
     "ticket.reason.choose": "사유 선택",

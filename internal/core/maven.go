@@ -131,17 +131,14 @@ type MavenMember struct {
 
 // MavenDomainDetails combines a publishing domain with its team.
 type MavenDomainDetails struct {
-	Moderator     bool           `json:"moderator"`
 	Domain        *MavenDomain   `json:"domain"`
 	Members       []*MavenMember `json:"members,omitempty"`
+	Moderator     bool           `json:"moderator"`
 	Administrator bool           `json:"administrator"`
 }
 
 // MavenArtifact is durable catalog metadata for one groupId and artifactId.
 type MavenArtifact struct {
-	ReclaimHoldAt   int64           `json:"reclaim_hold_at,omitempty"`
-	Locks           []*ResourceLock `json:"locks,omitempty"`
-	VersionLocked   bool            `json:"version_locked,omitempty"`
 	Repository      string          `json:"repository"`
 	Domain          string          `json:"domain"`
 	GroupID         string          `json:"group_id"`
@@ -150,34 +147,37 @@ type MavenArtifact struct {
 	Readme          string          `json:"readme,omitempty"`
 	Publisher       string          `json:"publisher,omitempty"`
 	LatestVersion   string          `json:"latest_version,omitempty"`
+	SuperTeamPrefix string          `json:"super_team_prefix,omitempty"`
+	Locks           []*ResourceLock `json:"locks,omitempty"`
+	ReclaimHoldAt   int64           `json:"reclaim_hold_at,omitempty"`
 	VersionCount    int             `json:"version_count"`
 	TotalSize       int64           `json:"total_size"`
-	Mirrored        bool            `json:"mirrored"`
-	Deprecated      bool            `json:"deprecated,omitempty"`
-	SuperTeamPrefix string          `json:"super_team_prefix,omitempty"`
 	CreatedAt       int64           `json:"created_at"`
 	UpdatedAt       int64           `json:"updated_at"`
 	PermissionLevel int             `json:"permission_level,omitempty"`
+	VersionLocked   bool            `json:"version_locked,omitempty"`
+	Mirrored        bool            `json:"mirrored"`
+	Deprecated      bool            `json:"deprecated,omitempty"`
 }
 
 // MavenVersion is one published version in the Maven catalog.
 type MavenVersion struct {
-	Locks           []*ResourceLock     `json:"locks,omitempty"`
 	Repository      string              `json:"-"`
 	GroupID         string              `json:"-"`
 	ArtifactID      string              `json:"-"`
 	Version         string              `json:"version"`
 	Publisher       string              `json:"publisher,omitempty"`
-	Size            int64               `json:"size"`
-	Mirrored        bool                `json:"mirrored"`
 	ReviewStatus    string              `json:"review_status,omitempty"`
 	ReviewID        string              `json:"review_id,omitempty"`
+	Locks           []*ResourceLock     `json:"locks,omitempty"`
+	Files           []*MavenVersionFile `json:"files,omitempty"`
+	Size            int64               `json:"size"`
 	CreatedAt       int64               `json:"created_at"`
 	FileCount       int                 `json:"file_count,omitempty"`
 	TotalFileSize   int64               `json:"total_file_size,omitempty"`
 	SignedFileCount int                 `json:"signed_file_count,omitempty"`
 	LastModified    int64               `json:"last_modified,omitempty"`
-	Files           []*MavenVersionFile `json:"files,omitempty"`
+	Mirrored        bool                `json:"mirrored"`
 	FilesTruncated  bool                `json:"files_truncated,omitempty"`
 }
 
@@ -249,15 +249,15 @@ type MavenProjectMetadata struct {
 
 // MavenArtifactDetails combines an artifact with all indexed versions.
 type MavenArtifactDetails struct {
-	CanRequestRestore bool                  `json:"can_request_restore,omitempty"`
-	Moderator         bool                  `json:"moderator"`
-	Member            bool                  `json:"member"`
 	Artifact          *MavenArtifact        `json:"artifact"`
-	Versions          []*MavenVersion       `json:"versions"`
 	Project           *MavenProjectMetadata `json:"project,omitempty"`
+	Versions          []*MavenVersion       `json:"versions"`
 	FileCount         int                   `json:"file_count,omitempty"`
 	TotalFileSize     int64                 `json:"total_file_size,omitempty"`
 	SignedFileCount   int                   `json:"signed_file_count,omitempty"`
+	CanRequestRestore bool                  `json:"can_request_restore,omitempty"`
+	Moderator         bool                  `json:"moderator"`
+	Member            bool                  `json:"member"`
 	Administrator     bool                  `json:"administrator"`
 }
 

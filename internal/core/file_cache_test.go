@@ -12,11 +12,51 @@ package core
 
 import (
 	"bytes"
+	"strconv"
 	"sync"
 	"testing"
 
 	"renop/internal/testutil"
 )
+
+func TestFileByteCacheBoundsEmptyEntryMetadata(t *testing.T) {
+	c := NewFileByteCache(1024)
+	c.UseRemote(testutil.RemoteCache(t))
+	for i := range 2000 {
+		if err := c.Set("empty-"+strconv.Itoa(i), nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	first, _ := c.Stats()
+	for i := 2000; i < 4000; i++ {
+		if err := c.Set("empty-"+strconv.Itoa(i), nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	second, used := c.Stats()
+	if second > first+16 {
+		t.Fatalf("empty entries keep growing: %d -> %d", first, second)
+	}
+	if used != 0 {
+		t.Fatalf("empty payload accounting = %d", used)
+	}
+	if value, err := c.Get("empty-3999"); err != nil || len(value) != 0 {
+		t.Fatalf("most recent empty value was lost: %v", err)
+	}
+}
+
+func TestFileByteCacheOversizedReplacementInvalidatesOldValue(t *testing.T) {
+	c := NewFileByteCache(4)
+	if err := c.Set("path", []byte("old")); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Set("path", []byte("new-large")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Get("path"); err != ErrFileCacheMiss {
+		t.Fatalf("oversized replacement retained stale content: %v", err)
+	}
+}
 
 func TestFileByteCacheGetSetDelete(t *testing.T) {
 	c := NewFileByteCache(1024)
@@ -188,6 +228,32 @@ func TestFileByteCacheDeleteBoundsEvictionMetadata(t *testing.T) {
 		}
 		if got := cap(c.shards[i].order); got > 64 {
 			t.Fatalf("shard %d retained oversized eviction storage: cap=%d", i, got)
+		}
+	}
+}
+
+func TestFileByteCacheDisabledZeroAlloc(t *testing.T) {
+	for _, size := range []int{0, -1, -100} {
+		c := NewFileByteCache(size)
+		if len(c.shards) != 0 {
+			t.Fatalf("expected 0 shards for size %d, got %d", size, len(c.shards))
+		}
+		c.UseRemote(nil)
+		if _, err := c.Get("any"); err != ErrFileCacheMiss {
+			t.Fatalf("expected miss for size %d, got %v", size, err)
+		}
+		if _, err := c.GetReadOnlyView("any"); err != ErrFileCacheMiss {
+			t.Fatalf("expected miss for size %d, got %v", size, err)
+		}
+		if err := c.Set("any", []byte("hello")); err != nil {
+			t.Fatalf("unexpected set error: %v", err)
+		}
+		if err := c.Delete("any"); err != nil {
+			t.Fatalf("unexpected delete error: %v", err)
+		}
+		entries, used := c.Stats()
+		if entries != 0 || used != 0 {
+			t.Fatalf("expected 0/0 stats, got %d/%d", entries, used)
 		}
 	}
 }

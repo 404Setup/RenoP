@@ -10,7 +10,8 @@
 
 import {el} from '@renop/ui/dom';
 import {t} from './i18n.js';
-import {readLegalTextResponse} from './legal-response.js';
+import {readResponseBytes} from '@renop/ui/response-bytes';
+import {LegalMetadata, protoObjectOptions} from './proto/index.js';
 
 export const LEGAL_COOKIE = 'renop_legal_consent';
 export const LEGAL_DOCUMENTS = Object.freeze({
@@ -56,13 +57,13 @@ export function resetLegalConsent(kind) {
 export async function loadLegalMetadata(refresh = false) {
     if (metadata && !refresh) return metadata;
     if (!pending) {
-        pending = fetch('/api/legal', {credentials: 'omit', cache: 'no-store', signal: AbortSignal.timeout(15000)})
-            .then(response => readLegalTextResponse(response, 'application/json', 4096))
-            .then(text => {
-                const value = JSON.parse(text);
+        pending = fetch('/api/legal', {credentials: 'omit', cache: 'no-cache', headers: {Accept: 'application/x-protobuf'}, signal: AbortSignal.timeout(15000)})
+            .then(response => readResponseBytes(response, 'application/x-protobuf', 4096))
+            .then(bytes => {
+                const value = LegalMetadata.toObject(LegalMetadata.decode(bytes), protoObjectOptions);
                 if (!/^[a-f0-9]{64}$/.test(value?.revision) || typeof value.cookie_banner !== 'boolean') throw new Error('invalid legal metadata');
-                const changed = !metadata || metadata.revision !== value.revision || metadata.cookie_banner !== value.cookie_banner;
-                metadata = {revision: value.revision, cookie_banner: value.cookie_banner};
+                const changed = !metadata || metadata.revision !== value.revision || metadata.cookie_banner !== value.cookie_banner || metadata.content_revision !== value.content_revision;
+                metadata = {revision: value.revision, cookie_banner: value.cookie_banner, content_revision: value.content_revision};
                 updateConsentControls();
                 if (changed) window.dispatchEvent(new CustomEvent('legalConfigurationChanged', {detail: metadata}));
                 return metadata;

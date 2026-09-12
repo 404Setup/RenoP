@@ -56,11 +56,12 @@ func boundDockerImageDescription(image *core.DockerRepositoryImage, catalog bool
 	if image == nil {
 		return
 	}
+	image.Description = strings.TrimSpace(SanitizeInputString(image.Description, 4000))
 	if catalog {
-		image.Description = strings.TrimSpace(SanitizeInputString(image.Description, 4000))
+		image.Readme = ""
 		return
 	}
-	image.Description = sanitizePackageReadme(image.Description)
+	image.Readme = sanitizePackageReadme(image.Readme)
 }
 
 // CreateDockerImage reserves an empty image and assigns its initial L4 owner.
@@ -151,8 +152,8 @@ func createDockerImageTx(tx *Tx, repository, imageName, owner, ownerID, superTea
 		privateValue = 1
 	}
 	if _, err := tx.Exec(`INSERT INTO docker_images
-		(repository, image_name, description, publisher, pull_count, super_team_prefix, private, push_enabled, created_at, updated_at)
-		VALUES (?, ?, '', ?, 0, ?, ?, 1, ?, ?)`, repository, imageName, owner, superTeamPrefix,
+		(repository, image_name, description, readme, publisher, pull_count, super_team_prefix, private, push_enabled, created_at, updated_at)
+		VALUES (?, ?, '', '', ?, 0, ?, ?, 1, ?, ?)`, repository, imageName, owner, superTeamPrefix,
 		privateValue, createdAt, createdAt); err != nil {
 		return nil, fmt.Errorf("create Docker image: %w", err)
 	}
@@ -283,10 +284,10 @@ func (db *DB) GetDockerImage(repository, imageName string) (*core.DockerReposito
 	img := &core.DockerRepositoryImage{}
 	var privateValue, pushEnabledValue int
 	err := db.QueryRow(
-		`SELECT repository, image_name, SUBSTR(description, 1, 524288), publisher, pull_count, super_team_prefix,
+		`SELECT repository, image_name, SUBSTR(description, 1, 4000), SUBSTR(readme, 1, 524288), publisher, pull_count, super_team_prefix,
 		private, push_enabled, created_at, updated_at FROM docker_images WHERE repository = ? AND image_name = ?`,
 		repository, imageName,
-	).Scan(&img.Repository, &img.ImageName, &img.Description, &img.Publisher, &img.PullCount,
+	).Scan(&img.Repository, &img.ImageName, &img.Description, &img.Readme, &img.Publisher, &img.PullCount,
 		&img.SuperTeamPrefix, &privateValue, &pushEnabledValue, &img.CreatedAt, &img.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -457,7 +458,7 @@ func (db *DB) UpdateDockerImageDescription(repository, imageName, description st
 		return core.ErrDatabaseUnavailable
 	}
 	repository, imageName = sanitizeDockerKey(repository, imageName)
-	description = sanitizePackageReadme(description)
+	description = strings.TrimSpace(SanitizeInputString(description, 4000))
 	now := time.Now().UnixMilli()
 	tx, err := db.Begin()
 	if err != nil {
@@ -473,6 +474,38 @@ func (db *DB) UpdateDockerImageDescription(repository, imageName, description st
 	)
 	if err != nil {
 		return fmt.Errorf("update Docker image description: %w", err)
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return core.ErrDockerImageNotFound
+	}
+	return tx.Commit()
+}
+
+func (db *DB) UpdateDockerImageReadme(repository, imageName, readme string) error {
+	if db == nil || db.SQLDB == nil {
+		return core.ErrDatabaseUnavailable
+	}
+	repository, imageName = sanitizeDockerKey(repository, imageName)
+	readme = sanitizePackageReadme(readme)
+	now := time.Now().UnixMilli()
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := lockDockerImageTeam(tx, repository, imageName); err != nil {
+		return err
+	}
+	res, err := tx.Exec(
+		`UPDATE docker_images SET readme = ?, updated_at = ? WHERE repository = ? AND image_name = ?`,
+		readme, now, repository, imageName,
+	)
+	if err != nil {
+		return fmt.Errorf("update Docker image readme: %w", err)
 	}
 	rows, err := res.RowsAffected()
 	if err != nil {
@@ -880,7 +913,7 @@ func putDockerManifestTx(tx *Tx, write *dockerManifestWrite) error {
 			return core.ErrDockerImageNotFound
 		}
 		if _, err = tx.Exec(
-			`INSERT INTO docker_images (repository, image_name, description, publisher, pull_count, private, push_enabled, created_at, updated_at) VALUES (?, ?, '', ?, 0, 0, 0, ?, ?)`,
+			`INSERT INTO docker_images (repository, image_name, description, readme, publisher, pull_count, private, push_enabled, created_at, updated_at) VALUES (?, ?, '', '', ?, 0, 0, 0, ?, ?)`,
 			repository, imageName, username, now, now,
 		); err != nil {
 			return fmt.Errorf("insert Docker image: %w", err)

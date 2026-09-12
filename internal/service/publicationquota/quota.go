@@ -132,6 +132,8 @@ func (reservation *Reservation) Release() {
 // ErrorCode maps quota failures to stable protocol-facing identifiers.
 func ErrorCode(err error) string {
 	switch {
+	case errors.Is(err, core.ErrRepositoryCapacity):
+		return "repository_capacity_exceeded"
 	case errors.Is(err, core.ErrPublicationFileLimit):
 		return "publication_file_quota"
 	case errors.Is(err, core.ErrPublicationByteLimit):

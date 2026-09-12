@@ -11,7 +11,6 @@
 package database
 
 import (
-	"encoding/json"
 	"path/filepath"
 	"testing"
 	"time"
@@ -21,6 +20,7 @@ import (
 	"renop/internal/locale"
 	"renop/internal/testutil"
 
+	"github.com/goccy/go-json"
 	"github.com/stretchr/testify/require"
 )
 

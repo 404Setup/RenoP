@@ -9,6 +9,7 @@
  */
 
 export default {
+    "language.loadFailed": "无法加载此语言，请重试。",
     "nav.api": "API",
     "api.title": "API 参考",
     "api.lead": "HTTP API 参考与集成指南。",
@@ -38,8 +39,6 @@ export default {
     "home.feature2.desc": "按需代理官方与私有源，提供可靠的本地持久化、负缓存与制品白名单过滤，加速构建并节省网络带宽。",
     "home.feature3.title": "精细权限与运维控制",
     "home.feature3.desc": "内置现代 Web 管理后台，灵活配置账号身份、细粒度 API 令牌、团队协作、发布审核与审计日志。",
-    "home.cta.title": "完全开源，数据自主",
-    "home.cta.desc": "遵循 MPL-2.0 协议完全开源。个人、团队与商业环境均可免费使用全部功能，无广告、无数据收集，数据完全自主掌控。",
 
 
     "docs.title": "技术文档",

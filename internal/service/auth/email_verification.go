@@ -14,11 +14,11 @@ import (
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"log"
 	"math/big"
+	"renop/pkg/hex"
 	"strings"
 	"time"
 
@@ -55,6 +55,8 @@ func accountSecurityWithConfig(state *core.AppState, security *core.AccountSecur
 
 func emailVerificationError(c fiber.Ctx, err error) error {
 	switch {
+	case errors.Is(err, core.ErrSecurityHold):
+		return passwordResetError(c, 409, "ACCOUNT_SECURITY_HOLD")
 	case errors.Is(err, core.ErrEmailVerificationRequired):
 		return passwordResetError(c, 409, "ACCOUNT_EMAIL_PROOF_REQUIRED")
 	case errors.Is(err, core.ErrAccountEmailLimit):

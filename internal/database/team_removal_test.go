@@ -24,7 +24,7 @@ import (
 
 func requireTeamRemovalMessage(t *testing.T, db *database.DB, recipient, format, repository, resource, operator string) {
 	t.Helper()
-	messages, err := db.ListMessages(recipient, 10, 0, "package_team_removed", math.MaxInt64)
+	messages, err := db.ListMessages(recipient, 10, 0, "package_team_removed", math.MaxInt64, "")
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
 	message := messages[0]
@@ -44,7 +44,7 @@ func requireTeamRemovalMessage(t *testing.T, db *database.DB, recipient, format,
 
 func requireNoTeamRemovalMessage(t *testing.T, db *database.DB, recipient string) {
 	t.Helper()
-	messages, err := db.ListMessages(recipient, 10, 0, "package_team_removed", math.MaxInt64)
+	messages, err := db.ListMessages(recipient, 10, 0, "package_team_removed", math.MaxInt64, "")
 	require.NoError(t, err)
 	assert.Empty(t, messages)
 }

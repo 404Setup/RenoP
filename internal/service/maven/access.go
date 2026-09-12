@@ -76,38 +76,12 @@ func AuthorizeGroup(state *core.AppState, user *config.User, repo *config.Reposi
 	return domain, nil
 }
 
-// AuthorizeArtifact combines verified domain permission with an optional global-team artifact binding.
+// AuthorizeArtifact checks verified domain permission for an artifact.
+// Maven package permissions follow the bound publishing domain.
 func AuthorizeArtifact(state *core.AppState, user *config.User, repo *config.Repository,
 	groupID, artifactID string, requiredLevel int, administratorAllowed bool,
 ) (*core.MavenDomain, error) {
-	domain, err := AuthorizeGroup(state, user, repo, groupID, requiredLevel, administratorAllowed)
-	if err == nil {
-		return domain, nil
-	}
-	if state == nil || user == nil || repo == nil || state.GetDB() == nil ||
-		errors.Is(err, core.ErrMavenDomainNotFound) || errors.Is(err, core.ErrMavenDomainUnverified) ||
-		errors.Is(err, core.ErrMavenDomainClosed) {
-		return nil, err
-	}
-	domains, listErr := state.GetDB().ListMavenDomains(user.Username, false)
-	if listErr != nil {
-		return nil, listErr
-	}
-	domain = matchingDomain(domains, strings.ToLower(strings.TrimSpace(groupID)))
-	if domain == nil || !domain.Verified {
-		return nil, core.ErrMavenPermissionDenied
-	}
-	_, member, level, accessErr := state.GetDB().GetMavenArtifactTeamAccess(
-		repo.Name, groupID, artifactID, user.Username)
-	if accessErr != nil {
-		return nil, accessErr
-	}
-	if !member || level < requiredLevel {
-		return nil, core.ErrMavenPermissionDenied
-	}
-	domain.Member = true
-	domain.PermissionLevel = level
-	return domain, nil
+	return AuthorizeGroup(state, user, repo, groupID, requiredLevel, administratorAllowed)
 }
 
 func pathArtifactCandidate(path string) (groupID, artifactID string, ok bool) {
@@ -160,23 +134,7 @@ func AuthorizeMutation(state *core.AppState, user *config.User, repo *config.Rep
 		return nil, core.ErrMavenDomainUnverified
 	}
 	if domain.PermissionLevel < requiredLevel {
-		groupID, artifactID, artifactPath := pathArtifactCandidate(path)
-		if !artifactPath {
-			return nil, core.ErrMavenPermissionDenied
-		}
-		_, member, level, accessErr := db.GetMavenArtifactTeamAccess(
-			repo.Name, groupID, artifactID, user.Username)
-		if errors.Is(accessErr, core.ErrMavenArtifactNotFound) {
-			return nil, core.ErrMavenPermissionDenied
-		}
-		if accessErr != nil {
-			return nil, accessErr
-		}
-		if !member || level < requiredLevel {
-			return nil, core.ErrMavenPermissionDenied
-		}
-		domain.Member = true
-		domain.PermissionLevel = level
+		return nil, core.ErrMavenPermissionDenied
 	}
 	if err := EnsurePathMutable(state, repo, path); err != nil {
 		return nil, err

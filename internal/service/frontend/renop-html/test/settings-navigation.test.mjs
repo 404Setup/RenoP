@@ -12,6 +12,22 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
+import {settingsGroups, settingsGroupFor} from '../js/settings/navigation.js';
+
+test('related settings share categories without adding undiscovered pages', () => {
+    const permitted = ['frontend', 'registration', 'oauth_providers', 'captcha', 'storage', 'cache',
+        'super_teams', 'publication_quota', 'maven_domains', 'server', 'proxy', 'updater', 'mail'];
+    const grouped = settingsGroups(permitted);
+    assert.equal(grouped.length, 6);
+    assert.deepEqual(grouped.flatMap(group => group.domains).sort(), [...permitted].sort());
+    assert.deepEqual(settingsGroupFor('cache', grouped).domains, ['storage', 'cache']);
+    assert.deepEqual(settingsGroupFor('captcha', grouped).domains, ['registration', 'oauth_providers', 'captcha']);
+    assert.deepEqual(settingsGroups(['cache', 'unknown', 'cache']), [
+        {id: 'storage', label: 'settings.groupStorage', domains: ['cache']},
+    ]);
+    assert.deepEqual(settingsGroups([]), []);
+    assert.equal(settingsGroupFor('unknown', grouped), undefined);
+});
 
 test('settings pages preserve drafts and isolate loads, saves, credentials, and account changes', async () => {
     const requests = [], alerts = [], rendered = [], listeners = new Map();
@@ -25,6 +41,7 @@ test('settings pages preserve drafts and isolate loads, saves, credentials, and 
     const response = data => ({response: {ok: true, status: 200}, data});
     const context = vm.createContext({
         structuredClone,
+        settingsGroups, settingsGroupFor,
         Event,
         URLSearchParams,
         document: {getElementById: () => element, querySelector: () => invalid, querySelectorAll: () => []},

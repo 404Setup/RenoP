@@ -53,6 +53,7 @@ function literalIconNames(source) {
         /createIcon\(\s*['"]([A-Za-z0-9]+)['"]/g,
         /\bicon:\s*['"]([A-Za-z0-9]+)['"]/g,
         /<renop-icon\b[^>]*\bname="([A-Za-z0-9]+)"/g,
+        /el\("renop-icon",\s*\{[^}]*"name":\s*"([A-Za-z0-9]+)"/g,
     ]) {
         for (const match of source.matchAll(pattern)) names.add(match[1]);
     }

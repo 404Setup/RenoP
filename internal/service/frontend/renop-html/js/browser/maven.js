@@ -10,6 +10,7 @@
 
 import {createTicketReportButton} from '../ticket-report.js';
 import {el} from '@renop/ui/dom';
+import {navigateBack} from '../back-navigation.js';
 import {morphElementHeight} from '@renop/ui/height-anim';
 import {makeCustomSelect} from '@renop/ui/custom-select';
 import {bindAnimatedDetails} from '@renop/ui/disclosure';
@@ -583,10 +584,10 @@ function mavenProjectInformationSection(details) {
         {label: t('maven.projectUrl'), value: project.url ? mavenExternalLink(project.url) : null},
         {label: t('maven.organization'), value: organization},
         {label: t('maven.inceptionYear'), value: project.inception_year},
-        {label: t('maven.licenses'), value: licenses, wide: true},
+        {label: t('maven.licenses'), value: licenses},
         {label: t('maven.scm'), value: project.scm_url ? mavenExternalLink(project.scm_url) : null},
         {label: t('maven.issueTracker'), value: issueTracker, wide: true},
-        {label: t('maven.developers'), value: developers, wide: true}
+        {label: t('maven.developers'), value: developers}
     ]);
 }
 
@@ -902,7 +903,7 @@ function teamPanel(details, refresh) {
                         showAlert(await responseErrorMessage(response, 'maven.removeMemberFailed'), 'error');
                     } else await refresh();
                 }
-            }, createIcon('delete')));
+            }, createIcon(isSelf ? 'logout' : 'delete')));
         }
         list.appendChild(el('div', {class: 'maven-team-row'}, createUserIdentity(member.username, {avatar: true}), controls));
     });
@@ -1301,6 +1302,22 @@ async function renderManagedDomain(container, domainName) {
                 }
             }, createIcon('fileLock'), el('span', {}, t('maven.closeDomain'))));
         }
+        if (details.administrator) {
+            actions.appendChild(el('button', {
+                type: 'button', class: 'pill-btn pill-btn--ghost-danger', onclick: async () => {
+                    if (!(await showConfirm(t('maven.confirmForceRemoveDomain', {domain: domain.domain}),
+                        {danger: true}))) return;
+                    const deleteResponse = await apiRequest(
+                        `/api/maven/domains/${encodeURIComponent(domain.domain)}/force`, {method: 'DELETE'});
+                    if (!deleteResponse.ok) {
+                        showAlert(await responseErrorMessage(deleteResponse, 'maven.forceRemoveDomainFailed'), 'error');
+                    } else {
+                        showAlert(t('maven.forceRemoveDomainSuccess'), 'success');
+                        navigateMavenDomainCenter();
+                    }
+                }
+            }, createIcon('delete'), el('span', {}, t('maven.forceRemoveDomain'))));
+        }
         const back = el('button', {
             type: 'button', class: 'maven-back-btn', onclick: () => navigateMavenDomainCenter()
         }, createIcon('chevronLeft'), el('span', {}, t('maven.backToDomains')));
@@ -1349,12 +1366,7 @@ export async function loadMavenDomainCenterPage() {
     domainCenterBody = container;
     if (homeButton && homeButton.dataset.bound !== 'true') {
         homeButton.dataset.bound = 'true';
-        homeButton.addEventListener('click', () => {
-            if (window.location.pathname !== '/' || window.location.search || window.location.hash) {
-                window.history.pushState(null, '', '/');
-            }
-            window.dispatchEvent(new PopStateEvent('popstate'));
-        });
+        homeButton.addEventListener('click', () => navigateBack());
     }
     const route = mavenDomainRouteFromPath();
     if (!route) return;
@@ -1388,8 +1400,8 @@ async function renderPublicMavenDomain(container, domainName) {
         const status = mavenDomainStatus(domain);
         const artifacts = artifactData.artifacts;
         const hero = el('section', {class: 'maven-hero'},
-            el('button', {type: 'button', class: 'maven-back-btn', onclick: () => navigateApplicationPath('/')},
-                createIcon('chevronLeft'), el('span', {}, t('nav.backHome'))),
+            el('button', {type: 'button', class: 'maven-back-btn', onclick: () => navigateBack()},
+                createIcon('chevronLeft'), el('span', {}, t('nav.backPrevious'))),
             el('div', {class: 'maven-hero-heading'},
                 el('div', {}, el('span', {class: 'maven-kicker'}, t('maven.domainKicker')),
                     el('h2', {}, createIcon('network'), el('span', {}, domain.domain))),
@@ -1433,8 +1445,8 @@ async function renderPublicMavenDomain(container, domainName) {
     } catch (error) {
         if (sequence !== publicDomainSequence || container !== publicDomainBody) return;
         await replaceRepositoryView(container, [
-            el('button', {type: 'button', class: 'maven-back-btn', onclick: () => navigateApplicationPath('/')},
-                createIcon('chevronLeft'), el('span', {}, t('nav.backHome'))),
+            el('button', {type: 'button', class: 'maven-back-btn', onclick: () => navigateBack()},
+                createIcon('chevronLeft'), el('span', {}, t('nav.backPrevious'))),
             el('div', {class: 'maven-error'}, caughtErrorMessage(error, 'maven.domainLoadFailed'))
         ], {duration: 240, enterDuration: 380});
     } finally {
@@ -1774,12 +1786,6 @@ async function renderArtifact(container, repository, groupID, artifactID, sequen
             }
         }) : null;
         const artifactActions = el('div', {class: 'maven-domain-actions'});
-        if (!artifact.mirrored && artifact.domain && (cachedIsManager || Number(artifact.permission_level) >= 3)) {
-            artifactActions.appendChild(el('button', {
-                type: 'button', class: 'pill-btn pill-btn--soft pill-btn--sm',
-                title: t('maven.domainTeamHint'), onclick: () => navigateMavenDomainCenter(artifact.domain)
-            }, createIcon('user'), el('span', {}, t('maven.manageDomainTeam'))));
-        }
         if (details.can_request_restore) artifactActions.appendChild(el('button', {
             type: 'button', class: 'pill-btn pill-btn--soft',
             onclick: event => runButtonAction(event.currentTarget, async () => {

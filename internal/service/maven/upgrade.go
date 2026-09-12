@@ -173,6 +173,9 @@ func RebuildRepositoryCatalog(state *core.AppState, repository string) error {
 
 // UpgradeLegacyRepository catalogs files from a pre-domain Maven repository once.
 func UpgradeLegacyRepository(state *core.AppState, repository string) error {
+	if state.IsDemo() {
+		return nil
+	}
 	if state == nil || state.Inner == nil || state.GetDB() == nil || state.Inner.FileIndex == nil {
 		return core.ErrDatabaseUnavailable
 	}

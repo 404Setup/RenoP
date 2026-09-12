@@ -22,6 +22,7 @@ import (
 
 // SetupAPIRoutes registers the general application API endpoints.
 func SetupAPIRoutes(router fiber.Router, state *core.AppState) {
+	setupNativeRoutes(router, state)
 	dockerRoute := func(handler func(fiber.Ctx, *core.AppState) error) fiber.Handler {
 		return withDockerAPIErrorCode(func(c fiber.Ctx) error {
 			if c.Method() != fiber.MethodGet && c.Method() != fiber.MethodHead {

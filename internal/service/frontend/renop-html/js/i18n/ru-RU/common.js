@@ -9,6 +9,10 @@
  */
 
 export default Object.freeze({
+    "common.add": "Добавить",
+    "updater.containerDisabled": "Управляется контейнером",
+    "updater.containerManaged": "Обновления и перезапуски выполняются средой контейнеров. Загрузите новый образ и пересоздайте контейнер.",
+    "nav.backPrevious": "Назад на предыдущую страницу",
     "resourceLock.inheritedNotice": "Унаследованные блокировки действуют, пока их не снимут с родительского ресурса.",
     "resourceLock.manage": "Управление блокировкой",
     "resourceLock.mode": "Тип блокировки",
@@ -69,6 +73,8 @@ export default Object.freeze({
     "common.ok": "ОК",
     "common.yes": "Да",
     "common.no": "Нет",
+    "common.active": "Активен",
+    "common.inactive": "Неактивен",
     "common.none": "Нет",
     "common.remove": "Удалить",
     "common.loading": "Загрузка…",

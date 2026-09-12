@@ -18,6 +18,8 @@ import (
 	"runtime"
 	"testing"
 
+	"renop/internal/configstore"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -41,9 +43,9 @@ func TestInstallAppliesValidatedTransaction(t *testing.T) {
 	t.Parallel()
 	directory := t.TempDir()
 	caddyfile := filepath.Join(directory, "Caddyfile")
-	configPath := filepath.Join(directory, "config.yaml")
+	configPath := filepath.Join(directory, "renop-settings.db")
 	require.NoError(t, os.WriteFile(caddyfile, []byte("localhost { respond ok }\n"), 0644))
-	require.NoError(t, os.WriteFile(configPath, []byte("server:\n  port: 3456\n"), 0600))
+	require.NoError(t, configstore.CompareAndSwap(configPath, nil, []byte("server:\n  port: 3456\n")))
 	binary, err := os.Executable()
 	require.NoError(t, err)
 	runner := &recordingRunner{}
@@ -64,7 +66,7 @@ func TestInstallAppliesValidatedTransaction(t *testing.T) {
 	caddyBytes, err := os.ReadFile(caddyfile)
 	require.NoError(t, err)
 	require.Equal(t, runner.validated, caddyBytes)
-	configBytes, err := os.ReadFile(configPath)
+	configBytes, err := configstore.Read(configPath)
 	require.NoError(t, err)
 	require.Contains(t, string(configBytes), "host: 127.0.0.1")
 	if runtime.GOOS != "windows" {
@@ -94,11 +96,11 @@ func TestInstallRollsBackBothFilesWhenReloadFails(t *testing.T) {
 	t.Parallel()
 	directory := t.TempDir()
 	caddyfile := filepath.Join(directory, "Caddyfile")
-	configPath := filepath.Join(directory, "config.yaml")
+	configPath := filepath.Join(directory, "renop-settings.db")
 	caddyOriginal := []byte("localhost { respond ok }\n")
 	configOriginal := []byte("server:\n  port: 3456\n")
 	require.NoError(t, os.WriteFile(caddyfile, caddyOriginal, 0644))
-	require.NoError(t, os.WriteFile(configPath, configOriginal, 0600))
+	require.NoError(t, configstore.CompareAndSwap(configPath, nil, configOriginal))
 	binary, err := os.Executable()
 	require.NoError(t, err)
 	runner := &recordingRunner{reloadErr: errors.New("reload unavailable")}
@@ -114,7 +116,7 @@ func TestInstallRollsBackBothFilesWhenReloadFails(t *testing.T) {
 	caddyAfter, readErr := os.ReadFile(caddyfile)
 	require.NoError(t, readErr)
 	require.Equal(t, caddyOriginal, caddyAfter)
-	configAfter, readErr := os.ReadFile(configPath)
+	configAfter, readErr := configstore.Read(configPath)
 	require.NoError(t, readErr)
 	require.Equal(t, configOriginal, configAfter)
 	require.Equal(t, 2, runner.reloads, "the restored Caddyfile should be reloaded once")

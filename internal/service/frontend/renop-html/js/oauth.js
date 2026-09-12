@@ -11,12 +11,14 @@
 import {ensureLegalConsent} from './legal-consent.js';
 import {el} from '@renop/ui/dom';
 import {t} from './i18n.js';
-import {apiRequest} from './api.js';
+import {apiRequest, decodeProtoResponse, fetchProto, PROTO_CONTENT_TYPE} from './api.js';
+import {OAuthProfileProviders, PublicOAuthProviders} from './proto/index.js';
 import {showAlert} from './alert.js';
 import {createIcon, runButtonAction} from './components.js';
 import {loginReturnTo} from './login-route.js';
 import {refreshAccountSecurity} from './account-security.js';
 import {LocalizedResponseError, responseErrorMessage} from './response-errors.js';
+import {getUserProfile, invalidateUserProfiles, syncUserProfile} from './user-profiles.js';
 
 let publicProviders = [], privateProviders = [], profileUsername = '', profileRevision = 0, publicRevision = 0;
 
@@ -102,12 +104,12 @@ export async function initializeOAuth() {
     }
     let providers = [];
     try {
-        const response = await fetch('/api/auth/oauth/providers', {
+        const {response, data} = await fetchProto('/api/auth/oauth/providers', PublicOAuthProviders, {
             credentials: 'include',
             cache: 'no-store',
             signal: AbortSignal.timeout(15000)
         });
-        providers = response.ok ? (await response.json()).providers : [];
+        providers = response.ok ? data.providers : [];
     } catch {
     }
     if (revision !== publicRevision) return;
@@ -123,8 +125,8 @@ function renderPrivateProviders() {
     container.hidden = privateProviders.length === 0;
     for (const provider of privateProviders) {
         const actions = el('div', {class: 'profile-github-actions'});
-        if (provider.configured) actions.appendChild(providerButton(t(provider.linked ? 'oauth.refresh' : 'oauth.connect'), provider.id, 'link'));
-        if (provider.can_verify_email) actions.appendChild(providerButton(t('oauth.useEmail'), provider.id, 'email'));
+        if (provider.configured && !provider.linked) actions.appendChild(providerButton(t('oauth.connect'), provider.id, 'link'));
+        if (provider.linked && provider.can_verify_email) actions.appendChild(providerButton(t('oauth.useEmail'), provider.id, 'email'));
         if (provider.linked && provider.can_import_avatar) actions.appendChild(providerButton(t('oauth.useAvatar'), provider.id, 'avatar'));
         if (provider.linked && provider.can_disconnect) {
             const disconnect = el('button', {
@@ -139,8 +141,11 @@ function renderPrivateProviders() {
                     if (!response.ok) throw new LocalizedResponseError(await responseErrorMessage(response, 'oauth.failed'), response.status);
                     if (username !== profileUsername) return;
                     showAlert(t('oauth.disconnected'), 'success');
+                    invalidateUserProfiles(username);
                     await refreshOAuthProfile(username);
                     await refreshAccountSecurity();
+                    const updated = await getUserProfile(username, {refresh: true});
+                    if (username === profileUsername) syncUserProfile(updated);
                 } catch (error) {
                     showAlert(error instanceof LocalizedResponseError ? error.message : t('oauth.failed'), 'error');
                 }
@@ -170,9 +175,9 @@ export async function refreshOAuthProfile(username) {
     container.hidden = false;
     container.replaceChildren(el('p', {role: 'status'}, t('oauth.loading')));
     try {
-        const response = await apiRequest('/api/auth/profile/oauth');
+        const response = await apiRequest('/api/auth/profile/oauth', {headers: {Accept: PROTO_CONTENT_TYPE}});
         if (!response.ok) throw new Error('provider status unavailable');
-        const data = await response.json();
+        const data = await decodeProtoResponse(response, OAuthProfileProviders);
         if (revision !== profileRevision) return;
         privateProviders = data.providers;
         renderPrivateProviders();

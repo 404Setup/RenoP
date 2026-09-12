@@ -61,7 +61,7 @@ envoyés lors de leur prochain traitement.
 Désactiver le service ou un compte suspend l’envoi, sans prolonger l’expiration des messages.
 
 `delay` accepte secondes, minutes ou heures ; zéro supprime l’attente, mais les envois restent séquentiels.
-`manual_rate` limite les demandes manuelles par IP, y compris les tests, sur une période en minutes, heures ou jours.
+`manual_rate` partage le quota configuré entre les scénarios par IP, réseau IPv6 /64, compte immuable et destinataire, tests compris. La période accepte minutes, heures ou jours. Les clés des destinataires sont des hachages avec clé ; les débits sont validés avec la mise en file et annulés en cas d’échec.
 `account_rate` inclut les tentatives automatiques et manuelles par compte ; sa période accepte aussi les secondes.
 Limites et durées doivent être positives. Valeurs par défaut : une demande manuelle par IP toutes les deux minutes et 50
 tentatives par compte par minute.
@@ -229,10 +229,9 @@ Chaque style comporte du texte brut, des substitutions échappées et des liens 
 
 ```text
 registration_verify, registration_success, password_reset, password_changed,
-email_verify, email_changed, quota_changed, review_status, review_requested,
-permission_changed, account_banned, account_unbanned, collaboration_invitation,
-super_team_invitation, pending_reviews, unusual_login, security_changed,
-account_retired, notification, test
+email_verify, email_changed, account_banned, account_unbanned,
+collaboration_invitation, super_team_invitation, unusual_login,
+security_changed, account_retired, test
 ```
 
 Les changements de mot de passe et Passkey, permissions, bannissements, quotas utilisateur, révisions, invitations et
@@ -300,9 +299,11 @@ La file accepte 2048 tâches actives et 12048 enregistrements au total. La maint
 8000 lignes et supprime les entrées de plus de sept jours.
 Les compteurs IP expirent ; l’état d’un compte supprimé est nettoyé après 24 heures.
 
-Les contenus et identifiants renouvelés sont chiffrés avec `mail.encryption_key`, conservé dans le fichier de
-configuration privé.
+Les contenus et identifiants renouvelés sont chiffrés avec `mail.encryption_key`, conservé dans la base de
+paramètres privée `renop-settings.db`.
 Sauvegardez cette clé avec la base. Sa perte ou son remplacement empêche le déchiffrement des tâches et états de compte.
 Les tâches finalisées par le travailleur perdent leur HTML et texte ; les soumissions interrompues gardent leur contenu
 chiffré jusqu’au nettoyage.
 Les journaux et API de statut n’exposent ni corps de message ni adresse destinataire.
+
+Après une soumission réussie, RenoP enregistre `accepted` et arrête le suivi si le connecteur ne permet pas une consultation fiable par message, notamment Cloudflare et Alibaba Direct Mail. L’acceptation ne prouve pas la livraison. Les anciens enregistrements `queued_provider` sont affichés comme `accepted`, sans nouvel envoi.

@@ -1,7 +1,10 @@
 /*
  * Copyright (c) 2026 404Setup. All rights reserved.
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
- * If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
+ *
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
@@ -9,8 +12,8 @@ package core
 
 import (
 	"crypto/sha256"
-	"encoding/hex"
 	"errors"
+	"renop/pkg/hex"
 	"strings"
 )
 
@@ -20,6 +23,27 @@ var (
 	// ErrOAuthIdentityNotFound indicates that the requested provider binding does not exist.
 	ErrOAuthIdentityNotFound = errors.New("OAuth identity was not found")
 )
+
+// SessionOAuthGrant binds encrypted provider tokens to one authenticated browser session.
+// It is written with session issuance and never included in public session DTOs or caches.
+type SessionOAuthGrant struct {
+	ProviderID      string
+	Authority       string
+	Subject         string
+	SessionID       string
+	AuthorizedAt    int64
+	EncryptedTokens string
+}
+
+// OAuthRevocation is a verified provider event scoped to a subject, a provider session, or both.
+type OAuthRevocation struct {
+	EventID    string
+	ProviderID string
+	Authority  string
+	Subject    string
+	SessionID  string
+	IssuedAt   int64
+}
 
 // OAuthIdentity binds a provider's stable subject and configuration authority to an immutable account.
 type OAuthIdentity struct {

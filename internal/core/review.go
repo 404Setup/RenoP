@@ -22,6 +22,7 @@ const (
 	ReviewResourceCargoPackage  = "cargo_package"
 	ReviewResourceMavenArtifact = "maven_artifact"
 	ReviewResourceMavenDomain   = "maven_domain"
+	ReviewResourceNativePackage = "native_package"
 
 	ReviewStatusPending   = "pending"
 	ReviewStatusApproved  = "approved"
@@ -53,8 +54,8 @@ type ReviewFile struct {
 	Path       string `json:"path"`
 	Name       string `json:"name"`
 	Size       int64  `json:"size"`
-	Critical   bool   `json:"critical"`
 	AddedAt    int64  `json:"added_at"`
+	Critical   bool   `json:"critical"`
 	Virtual    bool   `json:"-"`
 }
 

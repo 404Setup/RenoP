@@ -18,7 +18,8 @@ import (
 	"renop/internal/config"
 	"renop/internal/core"
 	"renop/internal/service/audit"
-	"renop/internal/utils"
+	"renop/internal/utils/protohttp"
+	"renop/pkg/pb"
 )
 
 func getLegalSettings(c fiber.Ctx, state *core.AppState) error {
@@ -26,24 +27,22 @@ func getLegalSettings(c fiber.Ctx, state *core.AppState) error {
 		return fiber.ErrForbidden
 	}
 	c.Set(fiber.HeaderCacheControl, "no-store")
-	return c.JSON(state.Inner.Config.Load().Legal)
+	return protohttp.Write(c, legalSettingsMessage(state.Inner.Config.Load().Legal))
 }
 
 func putLegalSettings(c fiber.Ctx, state *core.AppState) error {
 	if !isManager(c) {
 		return fiber.ErrForbidden
 	}
-	if !c.Is("json") {
-		return fiber.ErrUnsupportedMediaType
-	}
-	var request config.LegalConfig
-	if err := utils.ReadJSONLimited(c, &request, 10<<20); err != nil {
-		if errors.Is(err, fiber.ErrRequestEntityTooLarge) {
+	var payload pb.LegalSettings
+	if err := protohttp.ReadLimit(c, &payload, 3*config.MaxLegalDocumentBytes+1024); err != nil {
+		if errors.Is(err, fiber.ErrRequestEntityTooLarge) || errors.Is(err, fiber.ErrUnsupportedMediaType) {
 			return err
 		}
 		return cacheSettingsError(c, 400, "legal_settings_invalid")
 	}
-	if err := request.Normalize(); err != nil {
+	request, err := parseLegalSettings(&payload)
+	if err != nil {
 		return cacheSettingsError(c, 400, "legal_settings_invalid")
 	}
 	state.Inner.ConfigWriteLock.Lock()
@@ -58,5 +57,17 @@ func putLegalSettings(c fiber.Ctx, state *core.AppState) error {
 	audit.Log(state, &core.AuditLogEntry{Username: username, Operator: operator, AuthMethod: method,
 		SessionID: sessionID, IP: ip, Action: audit.ActionSettingsUpdate, Details: "Updated legal documents and cookie notice"})
 	c.Set(fiber.HeaderCacheControl, "no-store")
-	return c.JSON(next.Legal)
+	return protohttp.Write(c, legalSettingsMessage(next.Legal))
+}
+
+func legalSettingsMessage(value config.LegalConfig) *pb.LegalSettings {
+	return &pb.LegalSettings{PrivacyPolicy: value.PrivacyPolicy, TermsOfService: value.TermsOfService,
+		LegalNotice: value.LegalNotice, CookieBanner: value.CookieBanner}
+}
+
+func parseLegalSettings(payload *pb.LegalSettings) (config.LegalConfig, error) {
+	value := config.LegalConfig{PrivacyPolicy: payload.PrivacyPolicy, TermsOfService: payload.TermsOfService,
+		LegalNotice: payload.LegalNotice, CookieBanner: payload.CookieBanner}
+	err := value.Normalize()
+	return value, err
 }

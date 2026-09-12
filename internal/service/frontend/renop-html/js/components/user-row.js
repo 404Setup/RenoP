@@ -8,6 +8,7 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
+import {accountBanReasonLabel} from '../users/ban-reasons.js';
 import {t} from '../i18n.js';
 import {el} from '@renop/ui/dom';
 import {createBadge} from './badge.js';
@@ -318,7 +319,7 @@ export function createUserRow(token, options = {}) {
             })
             : t('users.banCurrentPermanent');
         nameTd.appendChild(createBadge(t('users.banned'), 'danger', {
-            title: `${duration} — ${token.ban.reason || t('common.unknown')}`
+            title: `${duration} — ${accountBanReasonLabel(token.ban)}`
         }));
     }
     if (Number(token.deleted_at) > 0) {

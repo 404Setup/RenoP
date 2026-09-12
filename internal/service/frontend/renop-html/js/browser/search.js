@@ -380,6 +380,7 @@ function getSearchPlaceholder(format) {
     if (format === 'cargo') return t('search.cargoPlaceholder');
     if (format === 'docker') return t('search.dockerPlaceholder') || t('docker.searchPlaceholder');
     if (format === 'npm') return t('search.npmPlaceholder');
+    if (getRepositoryFormat(format).managedNative) return t('search.nativePlaceholder');
     if (format === 'files') return t('search.filesPlaceholder');
     return t('search.mavenPlaceholder');
 }

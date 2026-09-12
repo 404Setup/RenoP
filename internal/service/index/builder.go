@@ -14,6 +14,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 )
@@ -22,6 +23,11 @@ import (
 var S3IndexBuilder func(basePath string, idx *FileIndex) error
 
 const maxLocalScanWorkers = 8
+
+// IsTemporaryPath reports whether any path component belongs to staging excluded from installed artifacts.
+func IsTemporaryPath(path string) bool {
+	return slices.ContainsFunc(strings.Split(filepath.ToSlash(path), "/"), isTemporaryPath)
+}
 
 func isTemporaryPath(pathStr string) bool {
 	pathSlash := filepath.ToSlash(pathStr)
@@ -186,7 +192,7 @@ func applyScanMaps(idx *FileIndex, scanned *scanMaps) {
 
 	for f, info := range scanned.files {
 		oldInfo, exists := idx.GetFileInfo(f)
-		if !exists || oldInfo != info {
+		if !exists || !sameFileMetadata(oldInfo, info) {
 			idx.InsertFile(f, info)
 		}
 	}
@@ -225,7 +231,7 @@ func applyFileIndexScan(idx *FileIndex, scanned *FileIndex) {
 
 	scanned.Files.Range(func(f string, info FileInfo) bool {
 		oldInfo, exists := idx.GetFileInfo(f)
-		if !exists || oldInfo != info {
+		if !exists || !sameFileMetadata(oldInfo, info) {
 			idx.InsertFile(f, info)
 		}
 		return true
@@ -252,7 +258,7 @@ func applyFileIndexScan(idx *FileIndex, scanned *FileIndex) {
 
 func replaceIndexFromScan(basePath string, idx *FileIndex) error {
 	if S3IndexBuilder != nil {
-		newIndex := NewFileIndexCustom(true)
+		newIndex := NewFileIndex()
 		if err := S3IndexBuilder(basePath, newIndex); err != nil {
 			return err
 		}

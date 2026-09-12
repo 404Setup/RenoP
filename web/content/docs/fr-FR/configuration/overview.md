@@ -7,16 +7,25 @@ description: Fichiers, serveur, stockage, proxy, identité visuelle et mises à 
 
 # Vue d’ensemble de la configuration
 
-RenoP lit `config.yaml` dans le répertoire de travail, sauf remplacement par `RENOP_CONFIG`. L’interface administrateur
-utilise les mêmes structures validées et écrit les fichiers avec des permissions privées.
+RenoP conserve les paramètres système dans la base SQLite privée `renop-settings.db`, sélectionnée par
+`RENOP_SETTINGS_DB`. Modifiez-les dans les pages administrateur, y compris IP/port et connexion à la base applicative.
+Un changement d’écoute nécessite un redémarrage. Les documents juridiques rejoignent Frontend et les contrôles d’index
+Stockage. Les exemples décrivent les champs enregistrés : ne créez ni ne modifiez de fichier YAML.
+
+Les paramètres sont regroupés en apparence et politiques, comptes et connexion, publication, stockage et cache, service
+et réseau, et courrier. Chaque sous-page conserve ses propres brouillons et enregistrements.
+
+Au premier démarrage uniquement, `config.yaml` (ou `RENOP_CONFIG`) est importé puis archivé après validation. Les
+démarrages suivants utilisent exclusivement la base. Sauvegardez les deux bases : les clés de chiffrement résident dans
+la base de paramètres.
 
 ## Fichiers de configuration
 
-| Fichier             | Remplacement         | Usage                                                                 |
-|:--------------------|:---------------------|:----------------------------------------------------------------------|
-| `config.yaml`       | `RENOP_CONFIG`       | Serveur, base, aperçus, proxy, frontend, audit et mise à jour         |
-| Base de données | DSN de la base | Moteurs, visibilité, miroirs, politique Maven et S3                   |
-| `index.json`        | `RENOP_INDEX`        | Instantané de l’index de fichiers, reconstructible depuis le stockage |
+| Fichier             | Remplacement        | Usage                                                                 |
+|:--------------------|:--------------------|:----------------------------------------------------------------------|
+| `renop-settings.db` | `RENOP_SETTINGS_DB` | Serveur, base, aperçus, proxy, frontend, audit et mise à jour         |
+| Base de données     | DSN de la base      | Moteurs, visibilité, miroirs, politique Maven et S3                   |
+| `index.json`        | `RENOP_INDEX`       | Instantané de l’index de fichiers, reconstructible depuis le stockage |
 
 Comptes, API Token, sessions, équipes, audit et messages sont en base, jamais dans YAML. Limitez la lecture des fichiers
 de configuration au compte de service, car ils peuvent contenir des secrets.
@@ -25,7 +34,7 @@ Les définitions des dépôts font partie de la sauvegarde de la base. Le YAML h
 aucune configuration des dépôts n’existe en base ; il ne remplace jamais un état existant. Conservez séparément
 les archives de migration pour un éventuel retour à une ancienne version de RenoP.
 
-## Schéma de `config.yaml`
+## Champs des paramètres enregistrés
 
 ### Stockage et aperçus de documentation
 

@@ -22,6 +22,7 @@ import {dirname, join, relative, resolve, sep} from 'node:path';
 import {fileURLToPath, pathToFileURL} from 'node:url';
 import {rolldown} from 'rolldown';
 import {bundleAsync} from 'lightningcss';
+import {generateI18nCatalog} from '../scripts/i18n-catalog.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(root, '..');
@@ -196,10 +197,21 @@ function generateDocsIndex() {
     };
 }
 
+const localeAssets = await generateI18nCatalog({
+    i18nDir: join(root, 'js/i18n'), catalogFile: join(root, 'js/i18n/catalog.generated.js'),
+    sourceRoots: [join(root, 'js'), join(root, 'index.html')], flat: true,
+});
+if (process.argv.includes('--i18n-only')) process.exit(0);
+
 if (existsSync(outDir)) {
     rmSync(outDir, {recursive: true, force: true});
 }
 ensureDir(outDir);
+for (const [path, bytes] of localeAssets) {
+    const file = join(outDir, path);
+    ensureDir(dirname(file));
+    writeFileSync(file, bytes);
+}
 
 const docsIndex = generateDocsIndex();
 const {_totalDocs, ...publicIndex} = docsIndex;
@@ -248,6 +260,7 @@ if (warnings && warnings.length) {
 writeFileSync(join(cssDir, 'style.css'), code);
 
 copyFileSync(join(root, 'index.html'), join(outDir, 'index.html'));
+copyFileSync(join(root, '_headers'), join(outDir, '_headers'));
 copyDir(join(root, 'svg'), join(outDir, 'svg'));
 copyDir(join(root, 'assets'), join(outDir, 'assets'));
 const releaseAssets = join(outDir, 'assets', 'release');

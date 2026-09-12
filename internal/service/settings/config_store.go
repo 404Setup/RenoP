@@ -11,26 +11,22 @@
 package settings
 
 import (
-	"os"
-
-	"go.yaml.in/yaml/v3"
-
 	"renop/internal/config"
-	"renop/internal/utils"
+	"renop/internal/configstore"
+	"renop/internal/core"
 )
 
 func persistConfigSnapshot(cfg *config.Config) error {
-	yamlData, err := yaml.Marshal(cfg)
-	if err != nil {
-		return err
+	if cfg.Runtime.Demo && !cfg.Runtime.DemoTemp {
+		return core.ErrDemoReadOnly
 	}
-	configPath := os.Getenv("RENOP_CONFIG")
-	if configPath == "" {
-		configPath = "config.yaml"
+	path := cfg.Runtime.SettingsDatabase
+	if path == "" {
+		path = configstore.Path()
 	}
-	tmpPath := configPath + ".tmp"
-	if err := utils.WritePrivateFile(tmpPath, yamlData); err != nil {
-		return err
+	if cfg.Runtime.Demo {
+		cfg = cfg.DeepCopy()
+		cfg.StoragePath = cfg.Runtime.DemoConfiguredStoragePath
 	}
-	return utils.SafeRename(tmpPath, configPath)
+	return configstore.Save(path, cfg)
 }

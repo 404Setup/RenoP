@@ -27,6 +27,8 @@ import (
 	"renop/internal/service/audit"
 	"renop/internal/service/auth"
 	"renop/internal/service/captcha"
+	"renop/internal/utils/protohttp"
+	"renop/pkg/pb"
 )
 
 const (
@@ -621,15 +623,15 @@ func searchUsers(c fiber.Ctx, state *core.AppState) error {
 	}
 	query := strings.ToLower(strings.TrimSpace(c.Query("q")))
 	if query == "" {
-		return c.JSON(fiber.Map{"users": []string{}})
+		return protohttp.Write(c, pb.FromUserSearch(nil))
 	}
 	if len(query) > 255 {
 		return apiError(c, fiber.ErrBadRequest)
 	}
-	users, err := state.GetDB().SearchTokenNames(query, maxUserSuggestions, time.Now().UnixMilli())
+	users, err := state.GetDB().SearchTokenNames(query, maxUserSuggestions, time.Now().UnixMilli(), user.CanViewPrivateProfiles())
 	if err != nil {
 		return apiError(c, err)
 	}
 	c.Set(fiber.HeaderCacheControl, "no-store")
-	return c.JSON(fiber.Map{"users": users})
+	return protohttp.Write(c, pb.FromUserSearch(users))
 }

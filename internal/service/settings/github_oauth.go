@@ -27,26 +27,30 @@ import (
 const maxGitHubOAuthSettingsBody = 16 << 10
 
 type githubOAuthSettingsResponse struct {
-	ClientID               string `json:"client_id"`
-	CallbackURL            string `json:"callback_url"`
-	Enabled                bool   `json:"enabled"`
-	ClientSecretConfigured bool   `json:"client_secret_configured"`
+	ClientID                   string `json:"client_id"`
+	CallbackURL                string `json:"callback_url"`
+	RevocationSecretConfigured bool   `json:"revocation_secret_configured"`
+	Enabled                    bool   `json:"enabled"`
+	ClientSecretConfigured     bool   `json:"client_secret_configured"`
 }
 
 type githubOAuthSettingsRequest struct {
-	ClientID          string `json:"client_id"`
-	ClientSecret      string `json:"client_secret"`
-	CallbackURL       string `json:"callback_url"`
-	Enabled           bool   `json:"enabled"`
-	ClearClientSecret bool   `json:"clear_client_secret"`
+	RevocationSecret      string `json:"revocation_secret"`
+	ClientID              string `json:"client_id"`
+	ClientSecret          string `json:"client_secret"`
+	CallbackURL           string `json:"callback_url"`
+	ClearRevocationSecret bool   `json:"clear_revocation_secret"`
+	Enabled               bool   `json:"enabled"`
+	ClearClientSecret     bool   `json:"clear_client_secret"`
 }
 
 func githubOAuthSettings(configValue config.GitHubOAuthConfig) githubOAuthSettingsResponse {
 	return githubOAuthSettingsResponse{
-		ClientID:               configValue.ClientID,
-		CallbackURL:            configValue.CallbackURL,
-		Enabled:                configValue.Enabled,
-		ClientSecretConfigured: strings.TrimSpace(configValue.ClientSecret) != "",
+		RevocationSecretConfigured: configValue.RevocationSecret != "",
+		ClientID:                   configValue.ClientID,
+		CallbackURL:                configValue.CallbackURL,
+		Enabled:                    configValue.Enabled,
+		ClientSecretConfigured:     strings.TrimSpace(configValue.ClientSecret) != "",
 	}
 }
 
@@ -88,6 +92,15 @@ func normalizeGitHubOAuthSettings(current config.GitHubOAuthConfig,
 	next.Enabled = request.Enabled
 	next.ClientID = strings.TrimSpace(request.ClientID)
 	next.CallbackURL = strings.TrimSpace(request.CallbackURL)
+	if request.ClearRevocationSecret || next.ClientID != current.ClientID {
+		next.RevocationSecret = ""
+	}
+	if request.RevocationSecret != "" && !request.ClearRevocationSecret {
+		next.RevocationSecret = request.RevocationSecret
+	}
+	if next.RevocationSecret != "" && (len(next.RevocationSecret) < 32 || !validGitHubCredential(next.RevocationSecret, 4096)) {
+		return config.GitHubOAuthConfig{}, errors.New("GitHub revocation secret is invalid")
+	}
 	if request.ClearClientSecret || next.ClientID != current.ClientID {
 		next.ClientSecret = ""
 	}

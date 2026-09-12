@@ -18,7 +18,7 @@ description: 整合したバックアップ、復元演習、バックエンド�
 
 | データ            | 代表的な場所                                    | 復旧時の役割                                                      |
 |:------------------|:------------------------------------------------|:------------------------------------------------------------------|
-| メイン設定        | `config.yaml` または `RENOP_CONFIG`             | Listener、database、proxy、security、preview、updater             |
+| メイン設定        | `renop-settings.db` または `RENOP_SETTINGS_DB`             | Listener、database、proxy、security、preview、updater             |
 | リポジトリ定義    | データベース | Format、visibility、mirror、storage backend、policy               |
 | データベース      | `renop.db` または外部 DSN                       | Account、permission、session、token、team、review、audit、message |
 | ローカルデータ    | `storage_path`                                  | Published package、upload、upstream cache                         |
@@ -44,11 +44,11 @@ index snapshot、local storage tree をコピーします。
 
 ```bash
 install -d /backup/renop
-cp config.yaml renop.db index.json /backup/renop/
+cp renop-settings.db renop.db index.json /backup/renop/
 rsync -a storage/ /backup/renop/storage/
 ```
 
-実際の path は `RENOP_CONFIG`、`RENOP_INDEX`、database DSN、`storage_path` に従います。
+実際の path は `RENOP_SETTINGS_DB`、`RENOP_INDEX`、database DSN、`storage_path` に従います。
 所有者、permission、必要な extended attribute を保持し、temporary upload 用の空き容量も確保します。
 
 ## 外部データベースをバックアップする
@@ -83,7 +83,7 @@ Mirror cache は再取得できる場合がありますが、local publication �
 
 まず隔離した host または network に復元します。Backup を作成した RenoP version で動作確認し、必要な upgrade は別工程にします。
 
-1. `config.yaml`、certificate、integration secret を厳しい permission で復元する。
+1. `renop-settings.db`、certificate、integration secret を厳しい permission で復元する。
 2. Database を復元し、hostname、credential、TLS setting を確認する。
 3. Local storage を復元するか、同じ S3 bucket と prefix に接続する。
 4. `index.json` があれば復元し、なければ authoritative storage から再構築させる。
@@ -118,3 +118,5 @@ Database だけでなく complete service の RPO と RTO を定義します。�
 
 Restore したことのない backup は未検証の仮定です。最終 runbook を
 [本番デプロイチェックリスト](./production-checklist.md)から参照できるようにし、offline copy も保持してください。
+
+S3 の共有データは非公開の `.renop-content-v1` 名前空間に保存します。バックアップにはリポジトリのオブジェクトとこの名前空間を含め、再起動後のメタデータ読み取りを減らすため非公開のインデックスも保持してください。インデックスはバージョン付き JSON レコードストリームを使用し、旧スナップショットも読み取れます。重複排除と復元については[リポジトリ設定](/docs/configuration/repositories)を参照してください。

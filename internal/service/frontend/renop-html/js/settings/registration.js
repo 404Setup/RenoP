@@ -13,9 +13,13 @@ import {makeCustomSelect} from '@renop/ui/custom-select';
 import {buildInput, createSection} from '../cfg-ui.js';
 import {createFieldRow, createIcon, createToggleRow} from '../components.js';
 import {t} from '../i18n.js';
+import {createPermissionEditor} from '../permission-editor.js';
+
+let permissionEditor;
 
 /** Render live registration policy and its persistent account and provider limits. */
 export function renderRegistrationSettings(container, data, changed) {
+    permissionEditor?.dispose();
     const wrap = el('div', {class: 'cfg-layout'});
     const section = createSection(createIcon('user'), t('registration.settingsTitle'), t('registration.settingsHint'), {defaultCollapsed: true});
     section.id = 'settings-registration';
@@ -24,6 +28,11 @@ export function renderRegistrationSettings(container, data, changed) {
         data.enabled = checked;
         changed();
     }));
+    permissionEditor = createPermissionEditor(data.default_permissions ?? ['base'], permissions => {
+        data.default_permissions = permissions;
+        changed();
+    });
+    fields.appendChild(createFieldRow(t('registration.defaultPermissions'), t('registration.defaultPermissionsHint'), permissionEditor.element, 'cfg-field-row--stacked'));
     const limit = buildInput('number', data.ip_limit, '1', event => {
         data.ip_limit = Number(event.target.value);
         changed();

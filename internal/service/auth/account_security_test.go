@@ -217,6 +217,10 @@ func TestPrivateEmailPasswordPolicyAndRecoveryRoutes(t *testing.T) {
 		"new_password": "recovered-password",
 	}
 	response = accountSecurityRequest(t, app, http.MethodPost, "/auth/recovery/password", recoveryBody, "")
+	require.Equal(t, http.StatusUnauthorized, response.StatusCode)
+	require.NoError(t, response.Body.Close())
+	recoveryBody["identifier"] = "alice@example.com"
+	response = accountSecurityRequest(t, app, http.MethodPost, "/auth/recovery/password", recoveryBody, "")
 	require.Equal(t, http.StatusOK, response.StatusCode)
 	require.NoError(t, response.Body.Close())
 	assert.Nil(t, state.GetSession(sessionToken))

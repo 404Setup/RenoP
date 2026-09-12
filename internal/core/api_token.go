@@ -13,8 +13,8 @@ package core
 import (
 	"crypto/rand"
 	"crypto/sha256"
-	"encoding/hex"
 	"errors"
+	"renop/pkg/hex"
 
 	"github.com/emmansun/base64"
 )

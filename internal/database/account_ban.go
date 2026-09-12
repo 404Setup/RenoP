@@ -45,7 +45,7 @@ func (db *DB) SetAccountBan(username string, ban *core.AccountBan, banIPs ...boo
 		return core.ErrAccountBanInvalid
 	}
 	if ban != nil {
-		reason, valid := core.NormalizeAccountBanReason(ban.Reason)
+		reason, valid := core.NormalizeConfiguredBanReason(ban.Reason, ban.ReasonCode)
 		if !valid || ban.CreatedAt <= 0 || (ban.ExpiresAt != nil && *ban.ExpiresAt <= ban.CreatedAt) {
 			return core.ErrAccountBanInvalid
 		}

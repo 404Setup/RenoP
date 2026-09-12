@@ -77,7 +77,7 @@ test('email verification preserves rejected input state and discards responses a
         },
     });
     const button = readFileSync(new URL('../js/components/button.js', import.meta.url), 'utf8');
-    context.runButtonAction = vm.runInContext(button.slice(button.indexOf('export async function runButtonAction')).replace('export ', '') + '; runButtonAction', context);
+    context.runButtonAction = vm.runInContext(button.slice(button.indexOf('export async function runButtonAction')).replaceAll('export ', '') + '; runButtonAction', context);
     const source = readFileSync(new URL('../js/profile-email-verification.js', import.meta.url), 'utf8').replace(/^import .*;\r?\n/gm, '').replace('export async function', 'async function');
     vm.runInContext(source, context);
     const settle = async () => {

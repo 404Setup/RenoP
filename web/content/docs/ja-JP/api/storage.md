@@ -7,7 +7,7 @@ description: リポジトリ直接操作と制限付き再開可能アップロ�
 
 # ストレージとアップロード API
 
-直接ストレージルートは Maven と `files` 用です。npm、Cargo、Docker はネイティブプロトコルを使用します。
+直接ストレージルートは Maven、`files`、管理対象のネイティブリポジトリ用です。npm、Cargo、Docker はネイティブプロトコルを使用します。
 変更操作では API Token scope、リポジトリ権限、形式、Maven ドメインポリシーをすべて確認します。
 
 ## リポジトリ直接操作
@@ -78,3 +78,24 @@ description: リポジトリ直接操作と制限付き再開可能アップロ�
 
 Maven で GPG が必須の場合、隔離中は `release_id` を含む `202 Accepted` になることがあります。
 `purpose=updater` の成功はリポジトリパスではなく `ready_to_restart` を返します。
+
+## 管理対象ネイティブリソース API
+
+APK、apt、Conan、Conda/Conda native、rpm/yum の公開リソースを管理する JSON API です。変更にはブラウザー Cookie
+セッションが必要です。クライアントは引き続きネイティブパスを使用し、Token のリポジトリ scope と現在のリソース権限の両方を確認します。
+
+| 操作     | エンドポイント                                                          | 用途                                                                                     |
+|----------|-------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
+| `GET`    | `/api/native/repositories/{repo}/resources`                             | リソース一覧。`name` で詳細を選び、`limit` は1–100、`offset` は最大10000です。           |
+| `POST`   | `/api/native/repositories/{repo}/resources`                             | `{"name":"example"}` でリソースを登録します。リポジトリの公開権限が必要です。            |
+| `PUT`    | `/api/native/repositories/{repo}/resources`                             | `name`、`description`、公開 `signing_key` を更新します。L3 が必要です。                  |
+| `DELETE` | `/api/native/repositories/{repo}/resources`                             | `name` で指定した空のリソースを解除します。L4 が必要で、審査待ちは許可されません。       |
+| `PUT`    | `/api/native/repositories/{repo}/resources/members`                     | `name`、`username`、`level`（0–4、削除は-1）を指定します。最後の L4 所有者は保持します。 |
+| `GET`    | `/api/native/repositories/{repo}/resources/key?name={name}`             | 公開者の公開鍵を取得します。未公開リソースの可視性制限も適用します。                     |
+| `GET`    | `/api/native/repositories/{repo}/resources/users?name={name}&q={query}` | L3 権限編集用に、閲覧可能なユーザー名を最大8件検索します。                               |
+
+`new_packages` は最初の公開、`every_version` は各バージョンを審査します。`202` のファイルは署名完了または審査を待って非公開です。審査には
+`X-RenoP-Review-ID` が返ります。ファイル名はメタデータと一致する必要があり、生成インデックスはアップロードできません。APK と
+RPM は設定した公開鍵による署名検証が必須です。Conan は `scripts/conan/sign.py` の署名マニフェストを必要とします。APT
+はリポジトリインデックスを署名し、Conda は追加の分離署名を要求しません。[リポジトリ設定](/docs/configuration/repositories)
+を参照してください。

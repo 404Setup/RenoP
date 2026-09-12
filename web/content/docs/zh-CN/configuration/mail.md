@@ -57,7 +57,7 @@ mail:
 禁用邮件服务或单个账号会暂停发送。已入队邮件的有效期仍然保留。
 
 `delay` 支持秒、分钟、小时，设为 0 则不额外等待，但仍按顺序发送。
-`manual_rate` 按 IP 限制手动请求，包括测试邮件；周期支持分钟、小时、日。
+`manual_rate` 在不同邮件场景间按 IP、IPv6 /64 网段、不可变账号和收件人共享配置额度，包括测试邮件。周期支持分钟、小时、日。收件人键采用带密钥的哈希；额度扣减与邮件入队原子提交，失败会回滚。
 `account_rate` 按邮件账号统计系统及手动发件尝试，周期还支持秒。
 两种限额及其周期数值必须大于 0。默认每个 IP 每两分钟一次手动请求，每个账号每分钟 50 次发件尝试。
 
@@ -180,10 +180,9 @@ Cloudflare 直接使用初始响应，不调用不存在的单封邮件轮询接
 
 ```text
 registration_verify, registration_success, password_reset, password_changed,
-email_verify, email_changed, quota_changed, review_status, review_requested,
-permission_changed, account_banned, account_unbanned, collaboration_invitation,
-super_team_invitation, pending_reviews, unusual_login, security_changed,
-account_retired, notification, test
+email_verify, email_changed, account_banned, account_unbanned,
+collaboration_invitation, super_team_invitation, unusual_login,
+security_changed, account_retired, test
 ```
 
 密码和 Passkey 变更、权限更新、封禁解封、用户配额覆盖、审核事件、邀请和站内消息使用持久事件生成邮件。
@@ -237,7 +236,9 @@ SMTP 只有在主机和用户名均未改变时才保留已保存的凭证。
 最多保留 2048 个活跃任务及 12048 条总记录；维护会将已完成记录缩减至约 8000 条，并删除超过七天的记录。
 过期 IP 计数会删除，已移除账号的状态在 24 小时后清理。
 
-任务正文与轮换凭证由私有配置文件中的持久 `mail.encryption_key` 加密。
+任务正文与轮换凭证由私有设置数据库 `renop-settings.db` 中的持久 `mail.encryption_key` 加密。
 应同时备份该密钥和数据库，密钥丢失或被替换后，无法解密排队邮件及账号状态。
 工作进程完成的任务会移除 HTML 和纯文本；中断提交的加密正文保留至历史清理。
 日志和状态 API 不公开邮件正文或收件地址。
+
+对于没有可用单封邮件状态查询能力的服务商，成功提交后记录为 `accepted` 并停止状态轮询，包括 Cloudflare 和阿里云邮件推送。接受请求不代表已投递。旧的 `queued_provider` 记录显示为 `accepted`，不会重试发件。

@@ -8,6 +8,7 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
+import {demoMode} from './demo-mode.js';
 import {apiRequest} from './api.js';
 import {getAvailableLanguages, getLanguage, setLanguage, t} from './i18n.js';
 import {showAlert} from './alert.js';
@@ -116,6 +117,7 @@ export function installAccountLanguageSync() {
     }
 
     window.addEventListener('authChanged', event => {
+        if (demoMode.enabled) { active?.controller.abort(); active = null; return; }
         const username = event.detail?.isLoggedIn ? event.detail.username : '';
         if (active?.username === username) return;
         active?.controller.abort();

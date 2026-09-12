@@ -3,6 +3,8 @@
  *
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
  *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
+ *
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
@@ -106,6 +108,8 @@ func requestEmailPasswordReset(c fiber.Ctx, state *core.AppState) error {
 			reason = "mail_no_account"
 		case errors.Is(err, mailqueue.ErrRecipientBlocked):
 			status, reason = 400, "mail_recipient_blocked"
+		case errors.Is(err, core.ErrEmailCodeInvalid):
+			status, reason = 400, "ACCOUNT_EMAIL_INVALID"
 		}
 		return passwordResetError(c, status, reason)
 	}

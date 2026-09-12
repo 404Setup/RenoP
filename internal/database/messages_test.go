@@ -36,21 +36,21 @@ func TestUserMessageLifecycle(t *testing.T) {
 	}
 	require.NoError(t, db.SaveMessages(messages))
 
-	page, err := db.ListMessages("alice", 1, 0, "", now)
+	page, err := db.ListMessages("alice", 1, 0, "", now, "")
 	require.NoError(t, err)
 	require.Len(t, page, 1)
 	require.Equal(t, "Second", page[0].Title)
 
-	next, err := db.ListMessages("alice", 10, page[0].CreatedAt, page[0].ID, now)
+	next, err := db.ListMessages("alice", 10, page[0].CreatedAt, page[0].ID, now, "")
 	require.NoError(t, err)
 	require.Len(t, next, 1)
 	require.Equal(t, "First", next[0].Title)
 
-	unread, err := db.CountUnreadMessages("alice", now)
+	unread, err := db.CountUnreadMessages("alice", now, "")
 	require.NoError(t, err)
 	require.Equal(t, 2, unread)
 
-	changed, err := db.MarkMessageRead(messages[0].ID, "alice", now+2)
+	changed, err := db.MarkMessageRead(messages[0].ID, "alice", now+2, "")
 	require.NoError(t, err)
 	require.True(t, changed)
 
@@ -58,11 +58,11 @@ func TestUserMessageLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, transitioned)
 
-	deleted, err := db.DeleteUserMessage(messages[1].ID, "alice")
+	deleted, err := db.DeleteUserMessage(messages[1].ID, "alice", "")
 	require.NoError(t, err)
 	require.True(t, deleted)
 
-	unread, err = db.CountUnreadMessages("alice", now+4)
+	unread, err = db.CountUnreadMessages("alice", now+4, "")
 	require.NoError(t, err)
 	require.Zero(t, unread)
 }
@@ -78,7 +78,7 @@ func TestPendingActionMessageCannotBeDeleted(t *testing.T) {
 		ActionKind: "cargo_invite", ActionStatus: core.MessageActionPending, CreatedAt: time.Now().UnixMilli(),
 	}
 	require.NoError(t, db.SaveMessages([]*core.UserMessage{message}))
-	deleted, err := db.DeleteUserMessage(message.ID, "alice")
+	deleted, err := db.DeleteUserMessage(message.ID, "alice", "")
 	require.NoError(t, err)
 	require.False(t, deleted)
 }
@@ -102,14 +102,14 @@ func TestMessageDedupeKeyIsIdempotent(t *testing.T) {
 	inserted, err = db.SaveMessageIfAbsent(&duplicate)
 	require.NoError(t, err)
 	require.False(t, inserted)
-	page, err := db.ListMessages("alice", 10, 0, "", now+1)
+	page, err := db.ListMessages("alice", 10, 0, "", now+1, "")
 	require.NoError(t, err)
 	require.Len(t, page, 1)
 	require.Equal(t, first.ID, page[0].ID)
 	deleted, err := db.DeleteMessagesByDedupeKey(first.DedupeKey)
 	require.NoError(t, err)
 	require.EqualValues(t, 1, deleted)
-	page, err = db.ListMessages("alice", 10, 0, "", now+2)
+	page, err = db.ListMessages("alice", 10, 0, "", now+2, "")
 	require.NoError(t, err)
 	require.Empty(t, page)
 }

@@ -19,7 +19,6 @@ import (
 	"debug/elf"
 	"debug/macho"
 	"debug/pe"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -30,6 +29,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"renop/pkg/hex"
 	"runtime"
 	"strings"
 	"sync"
@@ -535,6 +535,9 @@ func SaveAndExtractUploadedZip(fileHeader *multipart.FileHeader) (string, error)
 
 // SaveAndExtractUploadedPackage streams an uploaded ZIP or Brotli package to bounded temporary storage.
 func SaveAndExtractUploadedPackage(fileHeader *multipart.FileHeader) (string, error) {
+	if inContainer() {
+		return "", ErrContainerManaged
+	}
 	if fileHeader == nil || !IsSupportedUpdatePackageName(fileHeader.Filename) {
 		return "", errors.New("uploaded file must be a .br or .zip package")
 	}
@@ -657,6 +660,9 @@ func downloadHTTPClient() *http.Client {
 }
 
 func DownloadAndExtract(ctx context.Context, downloadURL, expectedSHA256 string) (string, error) {
+	if inContainer() {
+		return "", ErrContainerManaged
+	}
 	parsedURL, err := url.Parse(downloadURL)
 	if err != nil || parsedURL.Scheme != "https" || parsedURL.Host == "" || parsedURL.User != nil {
 		return "", errors.New("update download URL must be an HTTPS URL without user info")
@@ -770,6 +776,9 @@ func moveOrCopyFile(src, dst string) error {
 }
 
 func CleanOldExecutables() {
+	if inContainer() {
+		return
+	}
 	currentExe, err := os.Executable()
 	if err != nil {
 		return
@@ -811,6 +820,9 @@ func cleanupStaleUpdaterTemps() {
 }
 
 func ApplyUpdateAndRestart(newBinaryPath string) error {
+	if inContainer() {
+		return ErrContainerManaged
+	}
 	currentExe, err := os.Executable()
 	if err != nil {
 		return err
@@ -844,6 +856,9 @@ func ApplyUpdateAndRestart(newBinaryPath string) error {
 // RestartProcess re-executes the current binary without applying an update.
 // Used by Settings → Restart when no pending update package is ready.
 func RestartProcess() error {
+	if inContainer() {
+		return ErrContainerManaged
+	}
 	currentExe, err := os.Executable()
 	if err != nil {
 		return err

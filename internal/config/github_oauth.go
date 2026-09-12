@@ -14,10 +14,11 @@ import "strings"
 
 // GitHubOAuthConfig controls GitHub OAuth login and identity authorization.
 type GitHubOAuthConfig struct {
-	ClientID     string `json:"client_id" yaml:"client_id"`
-	ClientSecret string `json:"client_secret" yaml:"client_secret"`
-	CallbackURL  string `json:"callback_url" yaml:"callback_url"`
-	Enabled      bool   `json:"enabled" yaml:"enabled"`
+	ClientID         string `json:"client_id" yaml:"client_id"`
+	ClientSecret     string `json:"client_secret" yaml:"client_secret"`
+	CallbackURL      string `json:"callback_url" yaml:"callback_url"`
+	RevocationSecret string `json:"revocation_secret" yaml:"revocation_secret"`
+	Enabled          bool   `json:"enabled" yaml:"enabled"`
 }
 
 // Configured reports whether GitHub OAuth can be used without exposing its secret.
@@ -29,9 +30,10 @@ func (c GitHubOAuthConfig) Configured() bool {
 // DeepCopy returns an independent GitHub OAuth configuration.
 func (c GitHubOAuthConfig) DeepCopy() GitHubOAuthConfig {
 	return GitHubOAuthConfig{
-		ClientID:     strings.Clone(c.ClientID),
-		ClientSecret: strings.Clone(c.ClientSecret),
-		CallbackURL:  strings.Clone(c.CallbackURL),
-		Enabled:      c.Enabled,
+		ClientID:         strings.Clone(c.ClientID),
+		ClientSecret:     strings.Clone(c.ClientSecret),
+		CallbackURL:      strings.Clone(c.CallbackURL),
+		RevocationSecret: strings.Clone(c.RevocationSecret),
+		Enabled:          c.Enabled,
 	}
 }

@@ -477,6 +477,31 @@ function buildRepoSection(container, data, repoKey, repo) {
     const formatValue = el('span', {class: 'cfg-readonly-value'}, t(format.labelKey));
     fields.appendChild(makeFieldRow(t('repos.format'), t('repos.formatImmutableDesc'), formatValue));
 
+    const capacity = el('input', {
+        type: 'number', min: '0', step: 'any', class: 'cfg-input',
+        value: String((Number(repo.capacity_limit_bytes) || 0) / 1048576),
+        'aria-label': t('repos.capacityLimit'),
+    });
+    capacity.addEventListener('input', () => capacity.setCustomValidity(''));
+    capacity.addEventListener('change', async () => {
+        const mib = Number(capacity.value), bytes = Math.round(mib * 1048576);
+        if (capacity.value.trim() === '' || !Number.isFinite(mib) || mib < 0 || !Number.isSafeInteger(bytes) || mib > 0 && bytes === 0) {
+            capacity.setCustomValidity(t('repos.capacityInvalid'));
+            capacity.reportValidity();
+            return;
+        }
+        const previous = repo.capacity_limit_bytes || 0;
+        repo.capacity_limit_bytes = bytes;
+        capacity.disabled = true;
+        try {
+            if (!await saveRepoSettings(repoKey, repo)) {
+                repo.capacity_limit_bytes = previous;
+                capacity.value = String(previous / 1048576);
+            }
+        } finally { capacity.disabled = false; }
+    });
+    fields.appendChild(makeFieldRow(t('repos.capacityLimit'), t('repos.capacityHint'), capacity));
+
     const visOptions = [
         {value: 'PUBLIC', label: t('repos.visibilityPublic')},
         {value: 'HIDDEN', label: t('repos.visibilityHidden')},
@@ -610,7 +635,7 @@ function buildRepoSection(container, data, repoKey, repo) {
         ));
     }
     if (format.protocol === 'maven' || format.protocol === 'npm' ||
-        format.protocol === 'cargo' || format.protocol === 'docker') {
+        format.protocol === 'cargo' || format.protocol === 'docker' || format.managedNative) {
         let reviewSelect = null;
         reviewSelect = makeCustomSelect([
             {value: 'off', label: t('repos.publicationReviewOff')},

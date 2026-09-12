@@ -12,6 +12,7 @@ package api
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -25,6 +26,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+
+	"renop/pkg/pb"
 
 	"renop/internal/config"
 	"renop/internal/core"
@@ -330,7 +334,8 @@ func TestCreateDockerImageRejectsLocalAndUpstreamNameConflicts(t *testing.T) {
 			strings.NewReader(`{"image":"`+image+`"}`))
 		request.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
 		request.Header.Set(fiber.HeaderAuthorization, "Bearer admin-test-token")
-		response, err := app.Test(request)
+		// Auth discovery and the image probe each use the configured upstream timeout.
+		response, err := app.Test(request, fiber.TestConfig{Timeout: 12 * time.Second, FailOnTimeout: true})
 		require.NoError(t, err)
 		require.NoError(t, response.Body.Close())
 		return response.StatusCode
@@ -700,12 +705,16 @@ func TestDockerRESTAPIs(t *testing.T) {
 	if err != nil || searchUserResp.StatusCode != http.StatusOK {
 		t.Fatalf("Search users failed: %v (status: %d)", err, searchUserResp.StatusCode)
 	}
-	var searchUserResult struct {
-		Users []string `json:"users"`
+	var searchUserResult pb.UserSearchResponse
+	searchUserBody, err := io.ReadAll(searchUserResp.Body)
+	if err != nil {
+		t.Fatalf("read search body: %v", err)
 	}
-	_ = json.NewDecoder(searchUserResp.Body).Decode(&searchUserResult)
+	if err := proto.Unmarshal(searchUserBody, &searchUserResult); err != nil {
+		t.Fatalf("unmarshal user search result: %v", err)
+	}
 	if len(searchUserResult.Users) != 1 || searchUserResult.Users[0] != "bob" {
-		t.Fatalf("unexpected user search result: %+v", searchUserResult)
+		t.Fatalf("unexpected user search result: %+v", &searchUserResult)
 	}
 
 	ownersReq := httptest.NewRequest(http.MethodGet, "/api/docker/repositories/docker-pub/owners?image=web/backend", nil)
@@ -781,7 +790,7 @@ func TestDockerRESTAPIs(t *testing.T) {
 		t.Fatalf("pending-invitation error code = %q, want invitation_pending", code)
 	}
 
-	messages, err := db.ListMessages("carol", 10, 0, "", time.Now().UnixMilli()+1000)
+	messages, err := db.ListMessages("carol", 10, 0, "", time.Now().UnixMilli()+1000, "")
 	if err != nil || len(messages) == 0 {
 		t.Fatalf("expected invitation message for carol, got err: %v, msgs: %+v", err, messages)
 	}

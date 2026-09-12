@@ -10,6 +10,9 @@
 
 import {createButton as createButtonBase} from '@renop/ui/button';
 import {createIcon} from './icon.js';
+import {showAlert} from '../alert.js';
+import {caughtErrorMessage} from '../response-errors.js';
+import {t} from '../i18n.js';
 
 /**
  * Create a styled button element with optional icon and click handler.
@@ -34,8 +37,36 @@ export async function runButtonAction(button, action) {
     if (!button || typeof action !== 'function' || button.disabled) return undefined;
     button.disabled = true;
     try {
-        return await action();
+        return await action(button);
     } finally {
         button.disabled = false;
     }
+}
+
+/**
+ * Run one UI action with duplicate-click protection and localized feedback.
+ * Return false from the callback when validation or cancellation should suppress success feedback.
+ * @param {HTMLButtonElement} button - Trigger.
+ * @param {Function} action - Asynchronous work.
+ * @param {{errorKey: string, successKey?: string}} feedback - Locale keys.
+ * @returns {Promise<unknown>} Action result or false after a reported failure.
+ */
+export function runUIAction(button, action, {errorKey, successKey}) {
+    return runButtonAction(button, async () => {
+        try {
+            const result = await action(button);
+            if (result !== false && successKey) showAlert(t(successKey), 'success');
+            return result;
+        } catch (error) {
+            if (error?.message !== 'Unauthorized') showAlert(caughtErrorMessage(error, errorKey), 'error');
+            return false;
+        }
+    });
+}
+
+/** Create a button that owns its asynchronous state and localized feedback. */
+export function createActionButton(text, action, {errorKey, successKey, ...props}) {
+    const button = createButton(text, props);
+    button.addEventListener('click', () => runUIAction(button, action, {errorKey, successKey}));
+    return button;
 }

@@ -9,6 +9,7 @@
  */
 
 export default {
+    "language.loadFailed": "Could not load this language. Please try again.",
     "nav.api": "API",
     "api.title": "API reference",
     "api.lead": "HTTP API reference and integration guides.",
@@ -38,8 +39,6 @@ export default {
     "home.feature2.desc": "Proxy approved upstreams with local and negative caching, timeouts, and per-artifact filters.",
     "home.feature3.title": "Operations and access control",
     "home.feature3.desc": "Manage users, API tokens, teams, reviews, storage, audit history, and service status from the web UI.",
-    "home.cta.title": "Open source",
-    "home.cta.desc": "The same self-hosted feature set is available for personal, community, and commercial deployments, without ads or hidden telemetry.",
 
 
     "docs.title": "Documentation",

@@ -9,12 +9,21 @@
  */
 
 import {el} from '@renop/ui/dom';
+import {createSettingsGuide} from './documentation.js';
 import {makeCustomSelect} from '@renop/ui/custom-select';
-import {apiRequest} from '../api.js';
+import {collapseElement, expandElement} from '@renop/ui/height-anim';
+import {apiRequest, createJSONClient} from '../api.js';
 import {buildInput, createSection, makeTagListInput} from '../cfg-ui.js';
-import {createCallout, createFieldRow, createIcon, createToggleRow, runButtonAction} from '../components.js';
+import {
+    createActionButton,
+    createCallout,
+    createFieldRow,
+    createIcon,
+    createSubHeader,
+    createToggle,
+    createToggleRow
+} from '../components.js';
 import {showAlert} from '../alert.js';
-import {LocalizedResponseError, responseErrorMessage} from '../response-errors.js';
 import {formatTimestamp} from '../time.js';
 import {t} from '../i18n.js';
 import {MAIL_STATUSES as STATUSES, mailStatusLabel} from '../mail-status.js';
@@ -32,24 +41,11 @@ const PROVIDERS = {
 };
 const SECRET_KEYS = ['password', 'api_key', 'api_secret', 'session_token', 'client_secret', 'access_token', 'refresh_token'];
 
-/** Request JSON while exposing only localized, stable failure messages. */
-async function requestJSON(path, options) {
-    const response = await apiRequest('/api/settings/mail' + path, options);
-    if (!response.ok) throw new LocalizedResponseError(await responseErrorMessage(response, 'mail.requestFailed'), response.status);
-    return response.json();
-}
+const requestJSON = createJSONClient('/api/settings/mail', 'mail.requestFailed');
 
 /** Build a button with shared async feedback and localized failures. */
 function action(label, callback) {
-    const button = el('button', {type: 'button', class: 'pill-btn pill-btn--soft'}, label);
-    button.addEventListener('click', () => runButtonAction(button, async () => {
-        try {
-            await callback();
-        } catch (error) {
-            showAlert(error instanceof LocalizedResponseError ? error.message : t('mail.requestFailed'), 'error');
-        }
-    }));
-    return button;
+    return createActionButton(label, callback, {class: 'pill-btn pill-btn--soft', errorKey: 'mail.requestFailed'});
 }
 
 /** Apply provider defaults without retaining another provider's credentials. */
@@ -198,24 +194,51 @@ export function renderMailSettings(container, data, changed) {
     const accountsFields = accountsSection.querySelector('.cfg-fields');
     const accountsList = el('div', {class: 'cfg-service-stack', style: {marginTop: '1rem'}});
     const loadError = el('div', {class: 'mail-status', role: 'status'});
-    const add = action(t('mail.addAccount'), async () => {
-        if (data.accounts.length >= 64 || !presets.length) return;
-        const preset = presets.find(value => value.id === 'smtp-custom') || presets[0];
-        const id = Array.from(crypto.getRandomValues(new Uint32Array(4)), part => part.toString(16).padStart(8, '0')).join('');
-        const account = {id, name: '', enabled: true, from: '', from_name: '', scenes: []};
-        applyMailPreset(account, preset);
-        data.accounts.push(account);
-        changed();
-        renderAccounts(account.id);
-        const newCard = accountsList.querySelector(`[data-account-id="${account.id}"]`);
-        newCard?.querySelector('input')?.focus();
-    });
+    const add = createActionButton(
+        t('mail.addAccount'),
+        async () => {
+            if (data.accounts.length >= 64 || !presets.length) return;
+            const preset = presets.find(value => value.id === 'smtp-custom') || presets[0];
+            const id = Array.from(crypto.getRandomValues(new Uint32Array(4)), part => part.toString(16).padStart(8, '0')).join('');
+            const account = {id, name: '', enabled: true, from: '', from_name: '', scenes: []};
+            applyMailPreset(account, preset);
+            data.accounts.push(account);
+            changed();
+            renderAccounts(account.id);
+            const newCard = accountsList.querySelector(`[data-account-id="${account.id}"]`);
+            if (newCard) void expandElement(newCard, {duration: 280});
+            newCard?.querySelector('input')?.focus();
+        },
+        {icon: 'plus', class: 'pill-btn pill-btn--primary', errorKey: 'mail.requestFailed'}
+    );
     add.disabled = true;
-    accountsFields.append(el('div', {class: 'mail-actions'}, add), loadError, accountsList);
+
+    const countBadge = el('span', {class: 'cfg-service-count-badge'}, `${data.accounts.length} / 64`);
+    const toolbar = el('div', {class: 'cfg-service-toolbar'},
+        el('div', {class: 'cfg-service-toolbar-left'},
+            countBadge,
+            createSettingsGuide('mail')
+        ),
+        add
+    );
+    accountsFields.append(toolbar, loadError, accountsList);
+
+    const MAIL_PROVIDER_ICONS = {
+        cloudflare: 'cloudflare',
+        graph: 'microsoft',
+        gmail: 'google',
+        smtp: 'send',
+        ses: 'network',
+        sendgrid: 'send',
+        aliyun: 'network',
+        tencent: 'network',
+        feishu: 'send'
+    };
 
     /** Display each account as its own collapsible section. */
     function renderAccounts(newId = null) {
         add.disabled = !presets.length || data.accounts.length >= 64;
+        countBadge.textContent = `${data.accounts.length} / 64`;
         updateTestAccountOptions();
 
         const currentlyExpanded = new Set();
@@ -233,24 +256,13 @@ export function renderMailSettings(container, data, changed) {
             return;
         }
 
-const MAIL_PROVIDER_ICONS = {
-    cloudflare: 'cloudflare',
-    graph: 'microsoft',
-    gmail: 'google',
-    smtp: 'send',
-    ses: 'network',
-    sendgrid: 'send',
-    aliyun: 'network',
-    tencent: 'network',
-    feishu: 'send'
-};
-
         data.accounts.forEach(account => {
             const isExpanded = newId ? account.id === newId : currentlyExpanded.has(account.id);
-            const providerIcon = MAIL_PROVIDER_ICONS[account.provider] || 'send';
+            const providerKey = account.provider || 'smtp';
+            const providerIcon = MAIL_PROVIDER_ICONS[providerKey] || 'send';
             const accSection = createSection(
                 createIcon(providerIcon),
-                account.name || account.from || PROVIDERS[account.provider] || account.id,
+                account.name || account.from || PROVIDERS[providerKey] || account.id,
                 '',
                 {defaultCollapsed: !isExpanded}
             );
@@ -258,43 +270,102 @@ const MAIL_PROVIDER_ICONS = {
             const accFields = accSection.querySelector('.cfg-fields');
             const accTitle = accSection.querySelector('.cfg-section-title');
             const accSubtitle = accSection.querySelector('.cfg-section-subtitle');
+            const iconDiv = accSection.querySelector('.cfg-section-icon');
+            const chevron = accSection.querySelector('.cfg-section-chevron');
+
+            let drawerToggle = null;
+            let quickToggle = null;
 
             const updateHeader = () => {
-                const providerName = PROVIDERS[account.provider] || account.provider || 'SMTP';
+                const currentProviderKey = account.provider || 'smtp';
+                const providerName = PROVIDERS[currentProviderKey] || currentProviderKey.toUpperCase();
                 const displayName = account.name || account.from || providerName;
+
+                if (iconDiv) {
+                    iconDiv.className = `cfg-section-icon is-${currentProviderKey}`;
+                    iconDiv.replaceChildren(createIcon(MAIL_PROVIDER_ICONS[currentProviderKey] || 'send', {width: 20, height: 20}));
+                }
+
                 if (accTitle) {
                     accTitle.replaceChildren(
-                        el('span', {class: 'cfg-service-title-text'}, displayName),
-                        el('span', {class: `cfg-service-badge ${account.enabled ? 'cfg-service-badge--active' : 'cfg-service-badge--disabled'}`},
-                            account.enabled ? t('mail.enabled') : t('common.no')
-                        ),
-                        el('span', {class: 'cfg-service-badge cfg-service-badge--provider'}, providerName)
+                        el('div', {class: 'cfg-service-title-row'},
+                            el('span', {class: 'cfg-service-title-text'}, displayName),
+                            el('span', {class: 'cfg-service-pill'}, providerName),
+                            el('span', {class: `cfg-service-status ${account.enabled ? 'is-active' : 'is-disabled'}`},
+                                el('span', {class: 'cfg-service-status-dot'}),
+                                account.enabled ? t('common.active') : t('common.inactive')
+                            )
+                        )
                     );
                 }
+
                 if (accSubtitle) {
-                    const metaParts = [];
-                    if (account.from && displayName !== account.from) metaParts.push(account.from);
-                    if (account.provider === 'smtp' && account.smtp_host) metaParts.push(account.smtp_host + (account.smtp_port ? `:${account.smtp_port}` : ''));
-                    if (account.scenes && account.scenes.length > 0) metaParts.push(`${account.scenes.length} ${t('mail.scenes') || 'scenes'}`);
-                    accSubtitle.textContent = metaParts.join(' · ') || account.from || providerName;
+                    const chips = [];
+                    if (account.from) {
+                        chips.push(el('span', {class: 'cfg-service-chip'},
+                            createIcon('send', {width: 12, height: 12}),
+                            account.from
+                        ));
+                    }
+                    if (currentProviderKey === 'smtp' && account.smtp_host) {
+                        chips.push(el('span', {class: 'cfg-service-chip'},
+                            createIcon('network', {width: 12, height: 12}),
+                            account.smtp_host + (account.smtp_port ? `:${account.smtp_port}` : '')
+                        ));
+                    } else if (currentProviderKey !== 'smtp' && account.endpoint) {
+                        chips.push(el('span', {class: 'cfg-service-chip'},
+                            createIcon('network', {width: 12, height: 12}),
+                            account.endpoint
+                        ));
+                    }
+                    if (account.scenes && account.scenes.length > 0) {
+                        const sceneText = account.scenes.includes('*')
+                            ? t('mail.scene.all')
+                            : `${account.scenes.length} ${t('mail.scenes') || 'scenes'}`;
+                        chips.push(el('span', {class: 'cfg-service-chip is-accent'},
+                            createIcon('compliance', {width: 12, height: 12}),
+                            sceneText
+                        ));
+                    }
+                    if (chips.length > 0) {
+                        accSubtitle.replaceChildren(el('div', {class: 'cfg-service-meta-row'}, ...chips));
+                    } else {
+                        accSubtitle.textContent = '';
+                    }
                 }
-                const iconDiv = accSection.querySelector('.cfg-section-icon');
-                if (iconDiv) {
-                    iconDiv.replaceChildren(createIcon(MAIL_PROVIDER_ICONS[account.provider] || 'send', {width: 20, height: 20}));
-                }
+
                 accSection.classList.toggle('cfg-service-card--active', Boolean(account.enabled));
                 updateTestAccountOptions();
             };
             updateHeader();
 
+            if (chevron) {
+                quickToggle = createToggle(account.enabled === true, checked => {
+                    account.enabled = checked;
+                    if (drawerToggle) drawerToggle.checked = checked;
+                    updateHeader();
+                    changed();
+                });
+                quickToggle.classList.add('cfg-service-quick-toggle');
+                quickToggle.setAttribute('aria-label', t('mail.accountEnabled'));
+                quickToggle.addEventListener('click', e => e.stopPropagation());
+                chevron.before(quickToggle);
+            }
+
+            // Section 1: Basic & Provider Info
+            accFields.appendChild(createSubHeader('user', t('mail.provider')));
+
             const nameInput = input(accFields, account, 'name');
             nameInput.addEventListener('input', updateHeader);
 
-            accFields.appendChild(createToggleRow(t('mail.accountEnabled'), '', account.enabled === true, checked => {
+            const drawerToggleRow = createToggleRow(t('mail.accountEnabled'), '', account.enabled === true, checked => {
                 account.enabled = checked;
+                if (quickToggle) quickToggle.checked = checked;
                 updateHeader();
                 changed();
-            }));
+            });
+            drawerToggle = drawerToggleRow.querySelector('renop-toggle');
+            accFields.appendChild(drawerToggleRow);
 
             const provider = makeCustomSelect(Object.entries(PROVIDERS).map(([value, label]) => ({
                 value,
@@ -308,7 +379,8 @@ const MAIL_PROVIDER_ICONS = {
                 changed();
                 renderAccounts(account.id);
             });
-            accFields.appendChild(createFieldRow(t('mail.provider'), '', provider));
+            accFields.appendChild(createFieldRow(t('mail.provider'), '',
+                el('div', {class: 'mail-inline'}, provider, createSettingsGuide(account.provider === 'smtp' ? 'mail' : 'mailPermissions'))));
 
             const choices = presets.filter(value => value.account.provider === account.provider);
             const picker = makeCustomSelect([{
@@ -343,16 +415,22 @@ const MAIL_PROVIDER_ICONS = {
             fromInput.addEventListener('input', updateHeader);
             input(accFields, account, 'from_name');
 
+            // Section 2: Connection & Credentials
+            accFields.appendChild(createSubHeader('ssl', t('mail.endpoint')));
+
             if (account.provider === 'smtp') {
-                input(accFields, account, 'smtp_host');
-                input(accFields, account, 'smtp_port', {type: 'number', min: 1, max: 65535});
+                const hostInput = input(accFields, account, 'smtp_host');
+                hostInput.addEventListener('input', updateHeader);
+                const portInput = input(accFields, account, 'smtp_port', {type: 'number', min: 1, max: 65535});
+                portInput.addEventListener('input', updateHeader);
                 select(accFields, account, 'smtp_security', [{value: 'plain', label: 'SMTP'}, {
                     value: 'tls',
                     label: 'SMTP SSL/TLS'
                 }, {value: 'starttls', label: 'STARTTLS'}]);
                 input(accFields, account, 'username');
             } else {
-                input(accFields, account, 'endpoint');
+                const endpointInput = input(accFields, account, 'endpoint');
+                endpointInput.addEventListener('input', updateHeader);
             }
 
             if (['ses', 'aliyun', 'tencent'].includes(account.provider)) input(accFields, account, 'region');
@@ -383,18 +461,36 @@ const MAIL_PROVIDER_ICONS = {
                 }));
             }
 
-            const sceneList = el('div', {class: 'mail-scenes'});
+            // Section 3: Delivery Scenes
+            accFields.appendChild(createSubHeader('send', t('mail.scenes')));
+
+            const scenesGrid = el('div', {class: 'mail-scenes-grid'});
             for (const scene of ['*', ...scenes]) {
-                const checkbox = el('input', {type: 'checkbox', checked: account.scenes?.includes(scene) || false});
+                const isSelected = account.scenes?.includes(scene) || false;
+                const checkbox = el('input', {type: 'checkbox', checked: isSelected});
+                const chip = el('label', {class: `mail-scene-chip ${isSelected ? 'is-selected' : ''}`},
+                    checkbox,
+                    el('span', {}, t(`mail.scene.${scene === '*' ? 'all' : scene}`))
+                );
                 checkbox.addEventListener('change', () => {
                     const values = new Set(account.scenes || []);
-                    if (checkbox.checked) values.add(scene); else values.delete(scene);
+                    if (checkbox.checked) {
+                        values.add(scene);
+                        chip.classList.add('is-selected');
+                    } else {
+                        values.delete(scene);
+                        chip.classList.remove('is-selected');
+                    }
                     account.scenes = [...values];
+                    updateHeader();
                     changed();
                 });
-                sceneList.appendChild(el('label', {}, checkbox, el('span', {}, t(`mail.scene.${scene === '*' ? 'all' : scene}`))));
+                scenesGrid.appendChild(chip);
             }
-            accFields.appendChild(createFieldRow(t('mail.scenes'), t('mail.routingHint'), sceneList));
+            accFields.appendChild(createFieldRow(t('mail.scenes'), t('mail.routingHint'), scenesGrid));
+
+            // Section 4: Quota & Pricing
+            accFields.appendChild(createSubHeader('chartBar', t('mail.quota')));
 
             input(accFields, account.quota, 'limit', {
                 type: 'number',
@@ -463,9 +559,13 @@ const MAIL_PROVIDER_ICONS = {
             }
             renderTiers();
 
+            // Section 5: Operations & Status
             const accStatus = el('div', {class: 'mail-status', role: 'status'});
             let accStatusGen = 0;
-            accFields.append(tiers, el('div', {class: 'mail-actions'}, action(t('mail.refreshStatus'), async () => {
+            accFields.append(tiers, el('div', {
+                class: 'mail-actions',
+                style: {marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)'}
+            }, action(t('mail.refreshStatus'), async () => {
                 const gen = ++accStatusGen;
                 const value = await requestJSON('/accounts/' + encodeURIComponent(account.id));
                 if (gen !== accStatusGen || !wrap.isConnected) return;
@@ -478,6 +578,8 @@ const MAIL_PROVIDER_ICONS = {
                 ]) accStatus.appendChild(el('p', {}, t(`mail.${key}`) + ': ' + (amount ?? t('common.unknown'))));
                 if (value.calibration_error) accStatus.appendChild(el('p', {}, t('mail.calibrationFailed')));
             }), action(t('mail.removeAccount'), async () => {
+                if (window.showConfirm && !(await window.showConfirm(t('common.delete') + ': ' + (account.name || account.from || account.id) + '?'))) return;
+                await collapseElement(accSection, {duration: 240, marginTop: false});
                 data.accounts.splice(data.accounts.indexOf(account), 1);
                 if (data.clear_secrets) delete data.clear_secrets[account.id];
                 changed();

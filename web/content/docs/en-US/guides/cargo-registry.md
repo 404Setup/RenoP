@@ -88,7 +88,7 @@ content, have no local owner, and remain pull-only until a distinct available na
 ## Cargodoc
 
 When documentation is uploaded, RenoP validates and extracts rustdoc into a sandboxed viewer. Enable Cargodoc and set
-its size limits in `config.yaml`.
+its size limits in system settings.
 
 Access URL: `http://localhost:3000/cargodoc/{repo}/{crate}/{version}/index.html`
 

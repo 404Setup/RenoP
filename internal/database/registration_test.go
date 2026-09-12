@@ -79,6 +79,27 @@ func TestRegistrationBoundaries(t *testing.T) {
 		_, err = db.RegisterAccount(r, cfg, now)
 		require.ErrorIs(t, err, core.ErrRegistrationInvalid)
 	})
+	t.Run("configured permission grant is applied only to new accounts", func(t *testing.T) {
+		custom := cfg.DeepCopy()
+		custom.DefaultPermissions = []string{"base", "canview:private", "canupdate:packages"}
+		r := request("custom_permissions")
+		_, err := db.RegisterAccount(r, custom, now)
+		require.NoError(t, err)
+		account, err := db.GetTokenByName(r.Username)
+		require.NoError(t, err)
+		require.Equal(t, custom.DefaultPermissions, account.Permissions)
+		custom.DefaultPermissions[1] = "admin"
+		account, err = db.GetTokenByName(r.Username)
+		require.NoError(t, err)
+		require.Equal(t, []string{"base", "canview:private", "canupdate:packages"}, account.Permissions)
+		custom.DefaultPermissions = []string{"canview:"}
+		r = request("invalid_permissions")
+		_, err = db.RegisterAccount(r, custom, now)
+		require.ErrorIs(t, err, core.ErrRegistrationInvalid)
+		account, err = db.GetTokenByName(r.Username)
+		require.NoError(t, err)
+		require.Nil(t, account)
+	})
 	t.Run("concurrent confirmations create exactly one account", func(t *testing.T) {
 		r, _ := challenge("concurrent")
 		results := make(chan error, 2)

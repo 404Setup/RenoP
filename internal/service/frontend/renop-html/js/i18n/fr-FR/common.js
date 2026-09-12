@@ -9,6 +9,10 @@
  */
 
 export default Object.freeze({
+    "common.add": "Ajouter",
+    "updater.containerDisabled": "Géré par le conteneur",
+    "updater.containerManaged": "Les mises à jour et les redémarrages sont gérés par le moteur de conteneurs. Téléchargez une nouvelle image et recréez le conteneur.",
+    "nav.backPrevious": "Retour à la page précédente",
     "resourceLock.inheritedNotice": "Les verrouillages hérités restent actifs jusqu’à leur suppression sur la ressource parente.",
     "resourceLock.manage": "Gérer le verrouillage",
     "resourceLock.mode": "Type de verrouillage",
@@ -69,6 +73,8 @@ export default Object.freeze({
     "common.ok": "OK",
     "common.yes": "Oui",
     "common.no": "Non",
+    "common.active": "Actif",
+    "common.inactive": "Inactif",
     "common.none": "Aucun",
     "common.remove": "Retirer",
     "common.loading": "Chargement…",

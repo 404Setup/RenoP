@@ -37,7 +37,7 @@ func NewIndexSaveTask(state *core.AppState, path string) func(context.Context) {
 		file, err := os.Create(tmpPath)
 		if err == nil {
 			writer := bufio.NewWriterSize(file, 64*1024)
-			err = state.Inner.FileIndex.WriteJSONTo(writer)
+			err = state.Inner.FileIndex.WritePersistentJSONTo(writer)
 			if flushErr := writer.Flush(); err == nil {
 				err = flushErr
 			}

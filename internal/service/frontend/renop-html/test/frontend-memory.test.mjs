@@ -12,9 +12,43 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {dirname, join} from 'node:path';
 import test from 'node:test';
+import vm from 'node:vm';
 import {fileURLToPath} from 'node:url';
 
 const frontendRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+test('profile invalidation rejects stale cache fills without stranding a queued lookup', async () => {
+    const queued = [];
+    let release, requests = 0;
+    const context = vm.createContext({
+        t: key => key, window: {dispatchEvent() {}}, CustomEvent: class {},
+        queueMicrotask: task => queued.push(task),
+        fetch: async url => {
+            const attempt = ++requests;
+            if (attempt === 1) await new Promise(resolve => { release = resolve; });
+            return {ok: true, json: async () => url.includes('names=')
+                ? {profiles: [{username: 'bobby', nickname: 'Current'}]}
+                : {username: 'alice', nickname: attempt === 1 ? 'Old' : 'Current'}};
+        }
+    });
+    const source = readFileSync(join(frontendRoot, 'js/user-profiles.js'), 'utf8');
+    vm.runInContext(source.replace(/^import .*;\r?\n/gm, '').replaceAll('export ', ''), context);
+    const old = context.getUserProfile('alice', {refresh: true});
+    context.invalidateUserProfiles('alice');
+    await context.getUserProfile('alice', {refresh: true});
+    context.syncUserProfile({username: 'alice', nickname: 'Saved'});
+    release();
+    await old;
+    assert.equal((await context.getUserProfile('alice')).nickname, 'Saved');
+    const first = context.getUserProfile('bobby');
+    context.invalidateUserProfiles('bobby');
+    const second = context.getUserProfile('bobby');
+    queued.shift()();
+    const profiles = await Promise.all([first, second]);
+    assert.equal(profiles[0].nickname, 'Current');
+    assert.equal(profiles[1].nickname, 'Current');
+    assert.equal(requests, 3);
+});
 
 test('profile and prefetch caches have explicit lifecycle and capacity bounds', () => {
     const profiles = readFileSync(join(frontendRoot, 'js/user-profiles.js'), 'utf8');

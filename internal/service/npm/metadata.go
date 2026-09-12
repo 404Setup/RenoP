@@ -13,11 +13,11 @@ package npm
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"renop/pkg/hex"
 	"strings"
 	"time"
 

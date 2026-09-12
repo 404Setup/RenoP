@@ -17,14 +17,17 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
 	"renop/internal/config"
 	"renop/internal/core"
 	"renop/internal/database"
+	"renop/internal/service/auth"
 	"renop/internal/testutil"
 	"renop/internal/utils/protohttp"
 	"renop/pkg/pb"
@@ -86,11 +89,89 @@ func TestManagerSendsTargetedNotification(t *testing.T) {
 	require.True(t, respMsg.Ok)
 	require.EqualValues(t, 1, respMsg.Sent)
 
-	messages, err := db.ListMessages("alice", 10, 0, "", 1)
+	messages, err := db.ListMessages("alice", 10, 0, "", 1, "")
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
 	require.Equal(t, "Maintenance", messages[0].Title)
 	require.Equal(t, "warning", messages[0].Severity)
+}
+
+func TestSessionNotificationIsolation(t *testing.T) {
+	state, db := messageTestState(t)
+	defer db.Close()
+	saveMessageTestToken(t, db, "alice")
+	now := time.Now().UnixMilli()
+	apiSecret, err := core.GenerateAPITokenSecret()
+	require.NoError(t, err)
+	require.NoError(t, db.CreateAPIToken("alice", &core.APIToken{
+		ID: uuid.NewString(), Name: "Message client", Scopes: []string{core.APITokenScopeMessagesRead}, CreatedAt: now,
+	}, core.HashAPITokenSecret(apiSecret)))
+	for _, name := range []string{"target", "other"} {
+		session := &core.Session{PublicID: name, Username: "alice", CreatedAt: now}
+		session.LastActive.Store(now)
+		require.NoError(t, state.SaveSession(session, name+"-secret"))
+	}
+	private := &core.UserMessage{Recipient: "alice", SessionID: "target", Kind: "announcement", Title: "Private", Body: "Only one session"}
+	public := &core.UserMessage{Recipient: "alice", Kind: "announcement", Title: "Public", Body: "Every credential"}
+	require.NoError(t, DeliverBatch(state, []*core.UserMessage{private, public}))
+	app := fiber.New()
+	app.Use(auth.AuthMiddleware(state))
+	SetupRoutes(app.Group("/api"), state)
+	request := func(method, path, cookie, authorization string) *http.Response {
+		t.Helper()
+		req := httptest.NewRequest(method, path, nil)
+		req.Header.Set("Cookie", "renop_session="+cookie)
+		if authorization != "" {
+			req.Header.Set("Authorization", authorization)
+		}
+		resp, err := app.Test(req)
+		require.NoError(t, err)
+		t.Cleanup(func() { resp.Body.Close() })
+		return resp
+	}
+	for _, tc := range []struct {
+		name, cookie, authorization string
+		count                       int
+	}{
+		{"target", "target-secret", "", 2},
+		{"other", "other-secret", "", 1},
+		{"api-with-target-cookie", "target-secret", "Bearer " + apiSecret, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := request("GET", "/api/messages?session_id=target", tc.cookie, tc.authorization)
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			var page pb.UserMessageList
+			require.NoError(t, proto.Unmarshal(body, &page))
+			require.Len(t, page.Messages, tc.count)
+			require.EqualValues(t, tc.count, page.UnreadCount)
+		})
+	}
+	for _, method := range []string{"POST", "DELETE"} {
+		path := "/api/messages/" + private.ID
+		if method == "POST" {
+			path += "/read"
+		}
+		require.Equal(t, http.StatusNotFound, request(method, path, "other-secret", "").StatusCode)
+		require.Equal(t, http.StatusNotFound, request(method, path, "target-secret", "Bearer "+apiSecret).StatusCode)
+	}
+	require.Equal(t, http.StatusOK, request("POST", "/api/messages/read-all", "other-secret", "").StatusCode)
+	stored, err := db.GetUserMessage(private.ID, "alice", now, "target")
+	require.NoError(t, err)
+	require.Zero(t, stored.ReadAt)
+	require.Equal(t, http.StatusOK, request("DELETE", "/api/messages", "target-secret", "Bearer "+apiSecret).StatusCode)
+	stored, err = db.GetUserMessage(private.ID, "alice", now, "target")
+	require.NoError(t, err)
+	require.NotNil(t, stored)
+	mail, err := db.MailMessageEvents(0)
+	require.NoError(t, err)
+	require.Empty(t, mail)
+	require.Equal(t, http.StatusOK, request("POST", "/api/messages/"+private.ID+"/read", "target-secret", "").StatusCode)
+	require.Equal(t, http.StatusOK, request("DELETE", "/api/messages/"+private.ID, "target-secret", "").StatusCode)
+	_, err = state.RevokeSession("target-secret")
+	require.NoError(t, err)
+	require.ErrorIs(t, Deliver(state, &core.UserMessage{Recipient: "alice", SessionID: "target", Kind: "announcement", Title: "Stale"}), core.ErrMessageSessionUnavailable)
 }
 
 func TestUserCannotReadAnotherUsersMessage(t *testing.T) {
@@ -218,11 +299,11 @@ func TestUserClearsOnlyOwnDismissibleMessages(t *testing.T) {
 	require.True(t, result.Ok)
 	require.EqualValues(t, 2, result.Deleted)
 
-	aliceMessages, err := db.ListMessages("alice", 10, 0, "", 1)
+	aliceMessages, err := db.ListMessages("alice", 10, 0, "", 1, "")
 	require.NoError(t, err)
 	require.Len(t, aliceMessages, 1)
 	require.Equal(t, core.MessageActionPending, aliceMessages[0].ActionStatus)
-	bobMessages, err := db.ListMessages("bob", 10, 0, "", 1)
+	bobMessages, err := db.ListMessages("bob", 10, 0, "", 1, "")
 	require.NoError(t, err)
 	require.Len(t, bobMessages, 1)
 }

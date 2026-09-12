@@ -8,7 +8,8 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
-import defaultLocale, {loadLocale} from './i18n/catalog.generated.js';
+import {loadLocale} from './i18n/catalog.generated.js';
+import {loadInitialLocales} from '@renop/ui/i18n-startup';
 import {createLangCard} from '@renop/ui/lang-card';
 import {bindModalChrome} from '@renop/ui/modal';
 import {
@@ -21,9 +22,7 @@ import {
 
 const STORAGE_KEY = 'renop_language';
 const DEFAULT_LANG = 'en-US';
-const languages = {
-    [DEFAULT_LANG]: defaultLocale,
-};
+const languages = {};
 
 const languageAliases = {
     'en-US': 'en-US',
@@ -571,6 +570,7 @@ export async function setLanguage(lang, source = 'user-set', signal) {
             console.error(`[i18n] Failed to load language '${resolved}'.`, error);
             resolved = DEFAULT_LANG;
             source = 'fallback';
+            await ensureLanguage(DEFAULT_LANG);
         }
         if (requestID !== languageRequestID || signal?.aborted) return currentLang;
 
@@ -613,13 +613,10 @@ export async function initI18n() {
     const detected = detectLanguage();
     currentLang = detected.lang;
     currentSource = detected.source;
-    try {
-        await ensureLanguage(currentLang);
-    } catch (error) {
-        console.error(`[i18n] Failed to load detected language '${currentLang}'.`, error);
-        currentLang = DEFAULT_LANG;
-        currentSource = 'fallback';
-    }
+    const initial = await loadInitialLocales(loadLocale, currentLang);
+    Object.assign(languages, initial.dictionaries);
+    if (initial.locale !== currentLang) currentSource = 'fallback';
+    currentLang = initial.locale;
 
     window.setLanguage = setLanguage;
     window.getLanguage = getLanguage;

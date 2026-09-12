@@ -23,7 +23,7 @@ RenoP は HTTP を直接使用するため、プロバイダーの SDK は不要
 | Amazon SES v2       | `ses:SendEmail`                              | `ses:GetMessageInsights`                         | `ses:GetAccount`、残高照会なし                                |
 | SendGrid            | `mail.send`                                  | `messages.read` と Email Activity 履歴アドオン   | `user.credits.read`、現金残高照会なし                         |
 | Gmail               | `https://www.googleapis.com/auth/gmail.send` | `https://www.googleapis.com/auth/gmail.metadata` | 送信可能数や残高の照会なし                                    |
-| Alibaba Direct Mail | `dm:SingleSendMail`                          | `dm:SenderStatisticsDetailByParam`               | `dm:DescAccountSummary`、任意で `bss:DescribeAcccount`        |
+| Alibaba Direct Mail | `dm:SingleSendMail`                          | —               | `dm:DescAccountSummary`、任意で `bss:DescribeAcccount`        |
 | Tencent SES         | `ses:SendEmail`                              | `ses:GetSendEmailStatus`                         | 任意で `finance:DescribeAccountBalance`、送信可能数の照会なし |
 | Feishu / Lark       | `mail:user_mailbox.message:send`             | `mail:user_mailbox.message:readonly`             | 該当する照会なし                                              |
 
@@ -40,7 +40,7 @@ Email Routing 権限では外部への送信を許可できません。ドメイ
 `https://api.cloudflare.com/client/v4` の `POST /accounts/{account_id}/email/sending/send` を使用します。
 構造化したアドレスとテキスト/HTML を送信し、`message_id`、`delivered`、`permanent_bounces`、`queued`、`suppressed_recipients`
 を読み取ります。
-キューに入った結果は `queued_provider` のままです。Cloudflare の別のイベント購読は使用しません。
+メッセージ単位の状態照会に対応しないサービスでは、送信要求の成功後に `accepted` として記録し、ポーリングを終了します。Cloudflare と Alibaba Direct Mail が該当します。受理は配信完了を意味しません。既存の `queued_provider` は `accepted` と表示され、再送されません。
 [設定と権限](https://developers.cloudflare.com/email-service/get-started/send-emails/)
 および[送信仕様](https://developers.cloudflare.com/api/resources/email_sending/methods/send/)を参照してください。
 
@@ -131,14 +131,14 @@ Testing のままの外部アプリでは、7 日で失効するリフレッシ�
 ## Alibaba Cloud Direct Mail
 
 Direct Mail を有効にし、選択したリージョンでドメインを検証して送信者アドレスを設定します。
-RAM キーに `dm:SingleSendMail`、`dm:DescAccountSummary`、`dm:SenderStatisticsDetailByParam` を付与します。リソースは `*`
+RAM キーに `dm:SingleSendMail`、`dm:DescAccountSummary` を付与します。リソースは `*`
 です。
 任意の残高校正には **`bss:DescribeAcccount`** を付与します。連続する 3 つの `c` は公式の綴りです。
 残高 API の操作名は `QueryAccountBalance`、バージョンは `2017-12-14` で、`dm:` 権限ではありません。
 
 RenoP は署名付き RPC POST と Direct Mail バージョン `2015-11-23` を使用します。
 `SingleSendMail` は `EnvId`、`DescAccountSummary` は無料枠とアカウント状態を返します。
-公開配信統計には信頼できるメッセージ ID がないため、受信者だけで結果を推定せず、照会後は `unknown` とします。
+メッセージ単位の状態照会に対応しないサービスでは、送信要求の成功後に `accepted` として記録し、ポーリングを終了します。Cloudflare と Alibaba Direct Mail が該当します。受理は配信完了を意味しません。既存の `queued_provider` は `accepted` と表示され、再送されません。
 送信者表示名は 15 文字以内にします。課金エンドポイントは送信リージョンとは別に商用アカウントの地域に合わせ、料金通貨を応答通貨に合わせてください。
 
 [送信と制限](https://www.alibabacloud.com/help/en/direct-mail/api-dm-2015-11-23-singlesendmail)、

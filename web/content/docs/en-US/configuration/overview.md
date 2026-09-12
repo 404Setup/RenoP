@@ -7,25 +7,34 @@ description: Configuration files, server settings, storage, proxies, branding, a
 
 # Configuration Overview
 
-RenoP reads `config.yaml` from the working directory unless `RENOP_CONFIG` overrides it. Settings written through the
-administrator UI use the same validated structures and private-file permissions.
+RenoP stores system settings in the private SQLite database `renop-settings.db`, selected by `RENOP_SETTINGS_DB`. Edit
+them in the administrator settings pages, including listener IP/port and the application database connection. Listener
+changes require a restart. Legal documents are part of Frontend; index controls are part of Storage. The examples below
+describe saved fields; do not create or edit a YAML configuration file.
+
+The settings navigation groups appearance and policies, accounts and sign-in, publishing, storage and cache, service and
+network, and mail. Subpages retain independent drafts and saves.
+
+On first startup only, an existing `config.yaml` (or `RENOP_CONFIG`) is imported and archived after commit. Later
+startups use the database snapshot exclusively. Back up both the settings database and the application database;
+encryption keys are held in the settings database.
 
 ## Configuration files
 
-| File                | Override             | Purpose                                                          |
-|:--------------------|:---------------------|:-----------------------------------------------------------------|
-| `config.yaml`       | `RENOP_CONFIG`       | Server, database, previews, proxy, frontend, audit, and updater  |
-| Database | Database DSN | Repository engines, visibility, mirrors, Maven policy, and S3    |
-| `index.json`        | `RENOP_INDEX`        | Persisted file-index snapshot rebuilt from storage when required |
+| File                | Override            | Purpose                                                          |
+|:--------------------|:--------------------|:-----------------------------------------------------------------|
+| `renop-settings.db` | `RENOP_SETTINGS_DB` | Server, database, previews, proxy, frontend, audit, and updater  |
+| Database            | Database DSN        | Repository engines, visibility, mirrors, Maven policy, and S3    |
+| `index.json`        | `RENOP_INDEX`       | Persisted file-index snapshot rebuilt from storage when required |
 
 Accounts, API tokens, sessions, teams, audit logs, and messages are database records. They are not configured in YAML.
-Keep configuration files and database backups readable only by the service account because they may contain credentials.
+Keep settings and database backups readable only by the service account because they may contain credentials.
 
 Repository definitions are part of the database backup. Legacy YAML is imported only when the database has no
 repository configuration; it cannot override an existing snapshot. Preserve any migration archive separately if
 rollback to an older RenoP version is required.
 
-## `config.yaml` schema
+## Saved settings fields
 
 ### Storage and documentation previews
 

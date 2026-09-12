@@ -8,6 +8,7 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
+import './shell.js';
 import {initTheme} from '@renop/ui/theme';
 import {initI18n, t, updatePageTranslations} from './i18n.js';
 import {initRouter, registerRoute, renderRoute} from './router.js';
@@ -19,7 +20,7 @@ import {renderContributors} from './pages/contributors.js';
 import {$} from '@renop/ui/jquery';
 
 initTheme();
-initI18n();
+await initI18n();
 
 /**
  * Fill the footer copyright line with the current year and translated notice.
@@ -31,7 +32,7 @@ function updateCopyrightFooter() {
     const year = new Date().getFullYear();
     el.innerHTML = '';
     const a = document.createElement('a');
-    a.href = 'https://github.com/404Setup/SRC-RenoP';
+    a.href = 'https://github.com/404Setup/RenoP';
     a.target = '_blank';
     a.rel = 'noopener noreferrer';
     a.textContent = 'RenoP';

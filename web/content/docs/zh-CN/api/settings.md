@@ -13,7 +13,7 @@ description: 按域管理服务设置、存储库与索引重建
 ## 查询设置域
 
 - **路径**：`GET /api/settings/domains`
-- **响应**：服务端当前支持的稳定域名，包括 `server`、`proxy`、`storage`、`updater` 与 `index`。
+- **响应**：服务端当前支持的稳定域名，包括 `server`、`proxy`、`storage`、`updater` 与 `frontend`。
 
 ## 浏览器设置分页
 
@@ -24,9 +24,7 @@ description: 按域管理服务设置、存储库与索引重建
 保存成功后自动清除前端缓存的临时输入。
 在未保存状态下离开或切换页面时，界面提供防丢失提示。
 
-GPG 密钥属于核心服务配置；全局团队配额、公开注册、底层缓存、邮件外发、
-OAuth 提供商及发布域安全策略均设有专有配置页面，并提供对应的管理接口。
-各表单配置支持即时校验，保障实例运行参数的规范性与安全性。
+GPG 密钥属于核心服务配置；全局团队配额、注册、缓存、邮件、OAuth 服务商及发布域安全策略均有独立页面。法律文档及统一 OAuth 设置使用二进制 protobuf，其他页面保留其文档规定的格式。标签与提示仍关联到控件，页面导航会将焦点移至标题。
 
 ## 读取与更新设置域
 
@@ -35,7 +33,7 @@ OAuth 提供商及发布域安全策略均设有专有配置页面，并提供�
 - **行为**：请求与响应结构取决于 `:name`。未知字段和无效值会被拒绝。主机、端口、TLS、数据库及部分运行时
   参数变更可能要求重启服务。
 
-**第三方登录**：`GET /api/settings/oauth-providers` 返回内置 GitHub 条目、脱敏客户端和预设。`PUT /api/settings/oauth-providers` 必须包含 `providers` 数组，并原子保存两组配置。支持 GitHub 加最多 32 个其他客户端，请求上限为 128 KiB。为兼容旧客户端，省略 GitHub 会保留其配置；应关闭该条目并使用 `clear_client_secret` 清除密钥。空数组仅移除其他客户端。兼容端点 `GET /api/settings/github-oauth` 和 `PUT /api/settings/github-oauth` 继续管理同一份 GitHub 配置。
+**第三方登录**：`GET /api/settings/oauth-providers` 返回二进制 protobuf `OAuthSettings`，包含内置 GitHub 条目、脱敏客户端和预设。`PUT /api/settings/oauth-providers` 必须包含 `replace_providers: true` 及 `providers` 列表，在 128 KiB 内原子保存两组配置。支持 GitHub 加最多 12 个其他客户端。省略 GitHub 会保留其配置；关闭该条目并使用 `clear_client_secret` 清除凭据。空列表仅移除其他客户端。`revocation_secret` 为只写，同一客户端留空时保留，使用 `clear_revocation_secret` 清除。兼容端点 `GET /api/settings/github-oauth` 和 `PUT /api/settings/github-oauth` 保留 JSON，管理同一份 GitHub 配置。
 
 [OAuth](../security/oauth-login.md)
 
@@ -72,7 +70,7 @@ OAuth 提供商及发布域安全策略均设有专有配置页面，并提供�
 ```
 
 `release_value` 是 1–100 的整数；`release_unit` 支持 `month` 或 `year`，按 UTC 日历计算。
-配置文件在 `maven_domains` 下保存相同字段。保存后仅影响新建安全锁，
+设置数据库在 `maven_domains` 下保存相同字段。保存后仅影响新建安全锁，
 不会改变已有释放日期，也不会改变主动关闭的独立 31 天保留期。
 参见 [Maven 发布域状态](maven.md)。
 
@@ -83,3 +81,7 @@ OAuth 提供商及发布域安全策略均设有专有配置页面，并提供�
 内置资源从可执行文件流式发送。RenoP 缓存资源类型、长度和 ETag，不再在 Go 堆中额外保留每个脚本包与压缩版本的完整副本，仍支持预压缩协商和条件请求。
 
 [安全验证](../security/captcha.md)
+
+`capacity_limit_bytes` 是单个存储库的已安装字节上限，`0` 表示不限；界面使用 MiB。Disk 和 S3 的软件包、生成的校验文件、待审核对象及镜像缓存均计入，临时暂存副本不计入。提交前预留容量，并发上传共享同一上限。超限写入返回 `507` 和 `repository_capacity_exceeded`；有效的镜像响应仍可直接传输，但不写入缓存。上限降至已有用量以下不会删除文件或阻止读取。通过 RenoP 之外的方式修改存储后，请重建索引或重启以重新统计。旧客户端省略该可选字段时保留原上限。
+
+法律文档合并到前端设置并与品牌设置原子保存；省略 `legal` 时保留原文档。索引控制合并到存储设置，原法律与索引兼容接口仍可使用。服务设置展示监听 IP、端口、TLS、数据库和性能选项；监听与数据库变更需重启。

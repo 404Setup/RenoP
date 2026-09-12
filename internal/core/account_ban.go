@@ -28,9 +28,44 @@ var (
 
 // AccountBan is a durable administrator suspension. A nil ExpiresAt is permanent.
 type AccountBan struct {
-	Reason    string `json:"reason" yaml:"reason"`
-	CreatedAt int64  `json:"created_at" yaml:"created_at"`
-	ExpiresAt *int64 `json:"expires_at,omitempty" yaml:"expires_at,omitempty"`
+	ReasonCode string `json:"reason_code,omitempty" yaml:"reason_code,omitempty"`
+	Reason     string `json:"reason" yaml:"reason"`
+	CreatedAt  int64  `json:"created_at" yaml:"created_at"`
+	ExpiresAt  *int64 `json:"expires_at,omitempty" yaml:"expires_at,omitempty"`
+}
+
+// AccountBanReasonText returns the canonical fallback for an explicit localized preset.
+func AccountBanReasonText(code string) (string, bool) {
+	switch code {
+	case "harassment_abuse":
+		return "Harassment or abuse", true
+	case "spam_misleading":
+		return "Spam or misleading content", true
+	case "automation":
+		return "Automation", true
+	case "alternate_accounts":
+		return "Alternate accounts", true
+	case "security_rules":
+		return "Security rules triggered (protective suspension)", true
+	case "harmful_content":
+		return "Malware or harmful content", true
+	case "terms_violation":
+		return "Terms of service violation", true
+	case "impersonation":
+		return "Impersonation", true
+	case "copyright":
+		return "Copyright infringement", true
+	default:
+		return "", false
+	}
+}
+
+// NormalizeConfiguredBanReason keeps custom text distinct from localized presets.
+func NormalizeConfiguredBanReason(reason, code string) (string, bool) {
+	if code != "" {
+		return AccountBanReasonText(code)
+	}
+	return NormalizeAccountBanReason(reason)
 }
 
 // AccountBanStatus is the private administrator view of an account suspension.

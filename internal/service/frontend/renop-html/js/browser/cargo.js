@@ -262,7 +262,7 @@ function cargoCatalogCount() {
  * @returns {HTMLElement} Package-catalog section.
  */
 function buildCargoCatalogSection() {
-    const section = el('section', {class: 'cargo-page-section cargo-versions-section'},
+    const section = el('section', {class: 'cargo-page-section cargo-catalog-section'},
         el('div', {class: 'cargo-section-header'},
             el('div', {},
                 el('h3', {}, t('cargo.packageCatalog')),
@@ -679,7 +679,7 @@ function buildCargoVersionsSection() {
     const packageRecord = activePackageDetails.package;
     const canManageVersions = !packageRecord.deprecated &&
         (activeAdministrator || Number(packageRecord.permission_level) >= 2);
-    const section = el('section', {class: 'cargo-page-section'},
+    const section = el('section', {class: 'cargo-page-section cargo-versions-section'},
         el('div', {class: 'cargo-section-header'},
             el('div', {},
                 el('h3', {}, t('cargo.versions')),
@@ -1006,7 +1006,7 @@ function buildCargoTeamSection(animate = false) {
                     type: 'button', class: 'pill-btn pill-btn--danger pill-btn--sm',
                     'data-cargo-action': 'remove-member', 'data-cargo-user': username,
                     'data-cargo-user-id': String(member.user_id || '')
-                }, isSelf ? t('team.leave') : t('common.remove')));
+                }, createIcon(isSelf ? 'logout' : 'delete'), el('span', {}, isSelf ? t('team.leave') : t('common.remove'))));
             }
             row.appendChild(controls);
         } else if (isSelf && memberLevel < 4 && !resourceWriteLocked(packageRecord)) {
@@ -1015,7 +1015,7 @@ function buildCargoTeamSection(animate = false) {
                     type: 'button', class: 'pill-btn pill-btn--danger pill-btn--sm',
                     'data-cargo-action': 'remove-member', 'data-cargo-user': username,
                     'data-cargo-user-id': String(member.user_id || '')
-                }, t('team.leave'))
+                }, createIcon('logout'), el('span', {}, t('team.leave')))
             ));
         }
         list.appendChild(row);

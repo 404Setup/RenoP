@@ -79,7 +79,7 @@ func TestRebuildRepositoryCatalogStreamsS3IndexAndIgnoresArbitraryFiles(t *testi
 		},
 	}
 	state.Inner.Config.Store(cfg)
-	state.Inner.FileIndex = index.NewFileIndexCustom(true)
+	state.Inner.FileIndex = index.NewFileIndex()
 	state.Inner.FileIndex.InsertDir(repositoryRoot)
 	state.Inner.FileIndex.EnsureParentDirs(artifactPath)
 	state.Inner.FileIndex.InsertFile(artifactPath, index.FileInfo{Size: 42, ModTime: time.Now().UnixNano()})

@@ -9,6 +9,10 @@
  */
 
 export default Object.freeze({
+    "common.add": "添加",
+    "updater.containerDisabled": "由容器管理",
+    "updater.containerManaged": "更新和重启由容器运行时管理。请拉取新镜像并重新创建容器。",
+    "nav.backPrevious": "返回上一页",
     "resourceLock.inheritedNotice": "继承的锁定会一直生效，直到在父级资源上解除。",
     "resourceLock.manage": "管理锁定",
     "resourceLock.mode": "锁定类型",
@@ -69,6 +73,8 @@ export default Object.freeze({
     "common.ok": "确定",
     "common.yes": "是",
     "common.no": "否",
+    "common.active": "已启用",
+    "common.inactive": "已停用",
     "common.none": "无",
     "common.remove": "移除",
     "common.loading": "加载中…",

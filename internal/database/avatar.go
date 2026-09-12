@@ -13,9 +13,9 @@ package database
 import (
 	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"errors"
 	"fmt"
+	"renop/pkg/hex"
 	"strings"
 	"sync"
 

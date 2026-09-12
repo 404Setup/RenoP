@@ -24,7 +24,7 @@ accès au contenu de ses messages.
 | Amazon SES v2       | `ses:SendEmail`                              | `ses:GetMessageInsights`                                  | `ses:GetAccount` ; aucun solde                                                        |
 | SendGrid            | `mail.send`                                  | `messages.read` et supplément d'historique Email Activity | `user.credits.read` ; aucun solde monétaire                                           |
 | Gmail               | `https://www.googleapis.com/auth/gmail.send` | `https://www.googleapis.com/auth/gmail.metadata`          | Aucun quota d'envoi ni solde                                                          |
-| Alibaba Direct Mail | `dm:SingleSendMail`                          | `dm:SenderStatisticsDetailByParam`                        | `dm:DescAccountSummary` ; facultativement `bss:DescribeAcccount`                      |
+| Alibaba Direct Mail | `dm:SingleSendMail`                          | —                        | `dm:DescAccountSummary` ; facultativement `bss:DescribeAcccount`                      |
 | Tencent SES         | `ses:SendEmail`                              | `ses:GetSendEmailStatus`                                  | Facultativement `finance:DescribeAccountBalance` ; aucun quota d'envoi pris en charge |
 | Feishu / Lark       | `mail:user_mailbox.message:send`             | `mail:user_mailbox.message:readonly`                      | Aucune consultation correspondante                                                    |
 
@@ -45,8 +45,7 @@ droits nécessaires à l'exécution.
 RenoP appelle `POST /accounts/{account_id}/email/sending/send` sous `https://api.cloudflare.com/client/v4`.
 Il transmet des adresses structurées, du texte et du HTML, puis lit `message_id`, `delivered`, `permanent_bounces`,
 `queued` et `suppressed_recipients`.
-Un résultat en attente reste `queued_provider` ; RenoP ne consomme pas les abonnements aux événements distincts de
-Cloudflare.
+Après une soumission réussie, RenoP enregistre `accepted` et arrête le suivi si le connecteur ne permet pas une consultation fiable par message, notamment Cloudflare et Alibaba Direct Mail. L’acceptation ne prouve pas la livraison. Les anciens enregistrements `queued_provider` sont affichés comme `accepted`, sans nouvel envoi.
 Consultez
 la [configuration et les permissions](https://developers.cloudflare.com/email-service/get-started/send-emails/) et
 le [schéma d'envoi](https://developers.cloudflare.com/api/resources/email_sending/methods/send/).
@@ -155,7 +154,7 @@ et [configuration OAuth](https://developers.google.com/identity/protocols/oauth2
 ## Alibaba Cloud Direct Mail
 
 Activez Direct Mail, vérifiez le domaine et configurez l'expéditeur dans la région choisie.
-Utilisez une clé RAM avec `dm:SingleSendMail`, `dm:DescAccountSummary` et `dm:SenderStatisticsDetailByParam`, sur la
+Utilisez une clé RAM avec `dm:SingleSendMail`, `dm:DescAccountSummary`, sur la
 ressource `*`.
 Pour le recalage facultatif du solde, accordez **`bss:DescribeAcccount`** : les trois `c` consécutifs font partie du nom
 officiel.
@@ -163,8 +162,7 @@ L'action API reste `QueryAccountBalance`, version `2017-12-14` ; il ne s'agit pa
 
 RenoP utilise des requêtes RPC POST signées, version Direct Mail `2015-11-23`.
 `SingleSendMail` renvoie `EnvId` ; `DescAccountSummary` expose les quotas gratuits et l'état du compte.
-Les statistiques publiques n'ont pas d'ID individuel fiable ; RenoP renvoie donc `unknown` après consultation sans
-attribuer un résultat à partir du seul destinataire.
+Après une soumission réussie, RenoP enregistre `accepted` et arrête le suivi si le connecteur ne permet pas une consultation fiable par message, notamment Cloudflare et Alibaba Direct Mail. L’acceptation ne prouve pas la livraison. Les anciens enregistrements `queued_provider` sont affichés comme `accepted`, sans nouvel envoi.
 Limitez le nom affiché de l'expéditeur à 15 caractères. Choisissez le service de facturation selon la région commerciale
 du compte, indépendamment de la région d'envoi, et alignez la devise sur celle renvoyée.
 

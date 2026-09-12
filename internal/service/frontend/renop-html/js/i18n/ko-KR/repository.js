@@ -9,6 +9,26 @@
  */
 
 export default Object.freeze({
+    "repos.formatConan": "Conan",
+    "repos.formatConanDesc": "Conan 레시피, 바이너리 패키지, 리비전 및 기본 클라이언트 업로드.",
+    "repos.formatConda": "Conda",
+    "repos.formatCondaNative": "Conda native",
+    "repos.formatApk": "Alpine APK",
+    "repos.formatApt": "apt",
+    "repos.formatRpm": "rpm / yum",
+    "repos.formatCondaDesc": "패키지 인덱스 자동 생성, 기본 클라이언트 다운로드, 기존 인덱스 및 서명 업로드를 지원합니다.",
+    "repos.formatCondaNativeDesc": "패키지 인덱스 자동 생성, 기본 클라이언트 다운로드, 기존 인덱스 및 서명 업로드를 지원합니다.",
+    "repos.formatApkDesc": "패키지 인덱스 자동 생성, 기본 클라이언트 다운로드, 기존 인덱스 및 서명 업로드를 지원합니다.",
+    "repos.formatAptDesc": "패키지 인덱스 자동 생성, 기본 클라이언트 다운로드, 기존 인덱스 및 서명 업로드를 지원합니다.",
+    "repos.formatRpmDesc": "패키지 인덱스 자동 생성, 기본 클라이언트 다운로드, 기존 인덱스 및 서명 업로드를 지원합니다.",
+    "details.nativeTitle": "클라이언트 설정",
+    "details.nativeSubtitle": "리소스를 등록한 후 기본 클라이언트로 게시하세요. 게시된 파일에서 인덱스를 생성합니다.",
+    "details.nativeClientTab": "클라이언트",
+
+    "repos.capacityLimit": "용량 제한 (MiB)",
+    "repos.capacityHint": "0은 무제한입니다. 저장된 아티팩트, 미러 및 체크섬 파일을 포함하며 임시 스테이징 복사본은 제외합니다.",
+    "repos.capacityInvalid": "0 이상의 용량을 MiB 단위로 입력하세요.",
+    "repos.capacityExceeded": "이 저장소가 용량 제한에 도달했습니다. 아티팩트를 삭제하거나 제한을 늘리세요.",
     "common.create": "만들기",
     "repos.title": "저장소 목록",
     "repos.addRepoBtn": "저장소 추가",

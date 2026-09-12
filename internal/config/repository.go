@@ -19,7 +19,8 @@ import (
 )
 
 type Repository struct {
-	Name string `json:"name" yaml:"name"`
+	CapacityLimitBytes int64  `json:"capacity_limit_bytes,omitempty" yaml:"capacity_limit_bytes,omitempty"`
+	Name               string `json:"name" yaml:"name"`
 	// Format selects the client protocol. Empty is treated as Maven for
 	// backwards compatibility with existing repositories.yaml files.
 	Format              string                `json:"format,omitempty" yaml:"format,omitempty"`
@@ -42,6 +43,7 @@ type MavenRestoreSettings struct {
 }
 
 type repositorySerialization struct {
+	CapacityLimitBytes  int64                 `json:"capacity_limit_bytes,omitempty" yaml:"capacity_limit_bytes,omitempty"`
 	Name                string                `json:"name" yaml:"name"`
 	Format              string                `json:"format,omitempty" yaml:"format,omitempty"`
 	Visibility          string                `json:"visibility" yaml:"visibility"`
@@ -61,6 +63,13 @@ const (
 	RepositoryFormatCargo        = "cargo"
 	RepositoryFormatDocker       = "docker"
 	RepositoryFormatNPM          = "npm"
+	RepositoryFormatConan        = "conan"
+	RepositoryFormatConda        = "conda"
+	RepositoryFormatCondaNative  = "conda-native"
+	RepositoryFormatAPK          = "apk"
+	RepositoryFormatAPT          = "apt"
+	RepositoryFormatRPM          = "rpm"
+	RepositoryFormatYUM          = "yum"
 
 	PublicationReviewOff          = "off"
 	PublicationReviewNewPackages  = "new_packages"
@@ -98,12 +107,7 @@ func (r *Repository) SupportsPublicationReview() bool {
 	if r == nil {
 		return false
 	}
-	switch r.NormalizedFormat() {
-	case RepositoryFormatMaven, RepositoryFormatNPM, RepositoryFormatCargo, RepositoryFormatDocker:
-		return true
-	default:
-		return false
-	}
+	return r.Engine().PublicationReview
 }
 
 // NormalizedFormat returns the protocol name while preserving the historical
@@ -145,30 +149,31 @@ func (r *Repository) UsesModernMavenLayout() bool {
 // templates, Docker omits GPG policy, and file storage keeps replacement only.
 func (r Repository) serialization() repositorySerialization {
 	serialized := repositorySerialization{
-		Name: r.Name, Format: r.ConfiguredFormat(), Visibility: r.Visibility, S3: r.S3,
+		CapacityLimitBytes: r.CapacityLimitBytes,
+		Name:               r.Name, Format: r.ConfiguredFormat(), Visibility: r.Visibility, S3: r.S3,
 		Mirrors: make([]Mirror, len(r.Mirrors)), MavenRestore: r.MavenRestore.DeepCopy(),
 		DownloadStatistics: cloneRepositoryBool(r.DownloadStatistics), PublicationReview: r.PublicationReviewPolicy(),
 	}
 	for i := range r.Mirrors {
 		serialized.Mirrors[i] = r.Mirrors[i].DeepCopy()
 	}
-	if r.NormalizedFormat() == RepositoryFormatCargo || r.NormalizedFormat() == RepositoryFormatDocker ||
-		r.NormalizedFormat() == RepositoryFormatNPM ||
-		r.NormalizedFormat() == RepositoryFormatFiles {
-		if r.NormalizedFormat() != RepositoryFormatNPM && r.NormalizedFormat() != RepositoryFormatCargo &&
-			r.NormalizedFormat() != RepositoryFormatDocker {
-			serialized.PublicationReview = ""
-		}
-		if r.NormalizedFormat() == RepositoryFormatDocker || r.NormalizedFormat() == RepositoryFormatFiles {
-			serialized.AllowRedeployment = &r.AllowRedeployment
-		}
-		return serialized
+	engine := r.Engine()
+	if !engine.PublicationReview {
+		serialized.PublicationReview = ""
 	}
-	serialized.AllowRedeployment = &r.AllowRedeployment
-	serialized.RequireGPGSignature = &r.RequireGPGSignature
-	for i := range serialized.Mirrors {
-		serialized.Mirrors[i].ArtifactURL = ""
+	if engine.Redeployment {
+		serialized.AllowRedeployment = &r.AllowRedeployment
 	}
+	if engine.GPG {
+		serialized.RequireGPGSignature = &r.RequireGPGSignature
+	}
+	// Preserve the historical serialized mirror fields for structured registries.
+	if engine.Protocol == RepositoryFormatMaven {
+		for i := range serialized.Mirrors {
+			serialized.Mirrors[i].ArtifactURL = ""
+		}
+	}
+
 	return serialized
 }
 
@@ -204,13 +209,8 @@ func (r Repository) MarshalYAML() (any, error) {
 
 // IsSupportedRepositoryFormat reports whether the repository protocol is implemented.
 func IsSupportedRepositoryFormat(format string) bool {
-	switch strings.ToLower(strings.TrimSpace(format)) {
-	case "", RepositoryFormatMaven, RepositoryFormatMavenClassic, RepositoryFormatFiles,
-		RepositoryFormatCargo, RepositoryFormatDocker, RepositoryFormatNPM:
-		return true
-	default:
-		return false
-	}
+	_, supported := LookupRepositoryEngine(format)
+	return supported
 }
 
 type MirroredRepositorySettings struct {
@@ -322,6 +322,9 @@ func (m *MavenSettings) validatePublicationReviewPolicies() error {
 	for name, repo := range m.Repositories {
 		if repo == nil {
 			continue
+		}
+		if repo.CapacityLimitBytes < 0 {
+			return fmt.Errorf("repository %q has a negative capacity limit", name)
 		}
 		policy, valid := NormalizePublicationReviewPolicy(repo.PublicationReview)
 		if !valid {
@@ -444,6 +447,7 @@ func (r *Repository) DeepCopy() *Repository {
 		return nil
 	}
 	cloned := &Repository{
+		CapacityLimitBytes:  r.CapacityLimitBytes,
 		Name:                strings.Clone(r.Name),
 		Format:              strings.Clone(r.Format),
 		Visibility:          strings.Clone(r.Visibility),

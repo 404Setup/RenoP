@@ -50,6 +50,7 @@ type notificationRequest struct {
 	Severity   string   `json:"severity"`
 	Title      string   `json:"title"`
 	Body       string   `json:"body"`
+	SessionID  string   `json:"session_id"`
 }
 
 func SetupRoutes(router fiber.Router, state *core.AppState) {
@@ -59,6 +60,7 @@ func SetupRoutes(router fiber.Router, state *core.AppState) {
 	router.Post("/messages/:id/read", func(c fiber.Ctx) error { return markRead(c, state) })
 	router.Delete("/messages", func(c fiber.Ctx) error { return clear(c, state) })
 	router.Delete("/messages/:id", func(c fiber.Ctx) error { return remove(c, state) })
+	router.Get("/messages/admin/sessions", func(c fiber.Ctx) error { return listRecipientSessions(c, state) })
 	router.Get("/messages/admin/users", func(c fiber.Ctx) error { return searchUsers(c, state) })
 	router.Post("/messages/admin", func(c fiber.Ctx) error { return sendNotification(c, state) })
 }
@@ -119,6 +121,53 @@ func authenticatedUsername(c fiber.Ctx) (string, error) {
 	return strings.ToLower(user.Username), nil
 }
 
+// currentMessageSession derives scope from the authenticated credential, never request parameters or an unrelated cookie.
+func currentMessageSession(c fiber.Ctx, state *core.AppState) string {
+	user := auth.GetUser(c)
+	session := state.GetSession(auth.CurrentSessionToken(c))
+	if user == nil || session == nil || !strings.EqualFold(session.Username, user.Username) ||
+		session.LastActive.Load()+core.SessionIdleTimeoutMillis <= time.Now().UnixMilli() {
+		return ""
+	}
+	return session.PublicID
+}
+
+func listRecipientSessions(c fiber.Ctx, state *core.AppState) error {
+	manager := auth.GetUser(c)
+	if manager == nil || !manager.IsManager() {
+		return fiber.ErrForbidden
+	}
+	c.Set(fiber.HeaderCacheControl, "no-store")
+	username := strings.ToLower(strings.TrimSpace(c.Query("username")))
+	if username == "" || len(username) > 255 {
+		return fiber.ErrBadRequest
+	}
+	account := state.GetTokenByName(username)
+	now := time.Now().UnixMilli()
+	if account == nil || account.DeletedAt > 0 || account.Ban.IsActive(now) ||
+		(account.ExpiresAt != nil && *account.ExpiresAt <= now) {
+		return fiber.ErrNotFound
+	}
+	db := state.GetDB()
+	if db == nil {
+		return fiber.ErrServiceUnavailable
+	}
+	beforeAt, beforeID, err := decodeCursor(c.Query("cursor"))
+	if err != nil {
+		return fiber.ErrBadRequest
+	}
+	sessions, err := db.ListActiveUserSessions(username, beforeAt, beforeID, maxPageSize, now)
+	if err != nil {
+		return fiber.ErrInternalServerError
+	}
+	result := pb.FromSessionList(sessions)
+	if len(sessions) == maxPageSize {
+		last := sessions[len(sessions)-1]
+		result.NextCursor = encodeCursor(last.CreatedAt, last.PublicID)
+	}
+	return protohttp.Write(c, result)
+}
+
 func list(c fiber.Ctx, state *core.AppState) error {
 	username, err := authenticatedUsername(c)
 	if err != nil {
@@ -137,11 +186,11 @@ func list(c fiber.Ctx, state *core.AppState) error {
 		return c.Status(fiber.StatusServiceUnavailable).SendString("Message center is unavailable")
 	}
 	now := time.Now().UnixMilli()
-	messages, err := db.ListMessages(username, limit, beforeAt, beforeID, now)
+	messages, err := db.ListMessages(username, limit, beforeAt, beforeID, now, currentMessageSession(c, state))
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString("Failed to list messages")
 	}
-	unread, err := db.CountUnreadMessages(username, now)
+	unread, err := db.CountUnreadMessages(username, now, currentMessageSession(c, state))
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString("Failed to count messages")
 	}
@@ -163,7 +212,7 @@ func unreadCount(c fiber.Ctx, state *core.AppState) error {
 	if db == nil {
 		return c.Status(fiber.StatusServiceUnavailable).SendString("Message center is unavailable")
 	}
-	count, err := db.CountUnreadMessages(username, time.Now().UnixMilli())
+	count, err := db.CountUnreadMessages(username, time.Now().UnixMilli(), currentMessageSession(c, state))
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString("Failed to count messages")
 	}
@@ -184,12 +233,12 @@ func markRead(c fiber.Ctx, state *core.AppState) error {
 	if db == nil {
 		return c.Status(fiber.StatusServiceUnavailable).SendString("Message center is unavailable")
 	}
-	changed, err := db.MarkMessageRead(id, username, time.Now().UnixMilli())
+	changed, err := db.MarkMessageRead(id, username, time.Now().UnixMilli(), currentMessageSession(c, state))
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString("Failed to update message")
 	}
 	if !changed {
-		message, lookupErr := db.GetUserMessage(id, username, time.Now().UnixMilli())
+		message, lookupErr := db.GetUserMessage(id, username, time.Now().UnixMilli(), currentMessageSession(c, state))
 		if lookupErr != nil {
 			return c.Status(fiber.StatusInternalServerError).SendString("Failed to update message")
 		}
@@ -209,7 +258,7 @@ func markAllRead(c fiber.Ctx, state *core.AppState) error {
 	if db == nil {
 		return c.Status(fiber.StatusServiceUnavailable).SendString("Message center is unavailable")
 	}
-	updated, err := db.MarkAllMessagesRead(username, time.Now().UnixMilli())
+	updated, err := db.MarkAllMessagesRead(username, time.Now().UnixMilli(), currentMessageSession(c, state))
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString("Failed to update messages")
 	}
@@ -225,7 +274,7 @@ func clear(c fiber.Ctx, state *core.AppState) error {
 	if db == nil {
 		return c.Status(fiber.StatusServiceUnavailable).SendString("Message center is unavailable")
 	}
-	deleted, err := db.DeleteUserMessages(username)
+	deleted, err := db.DeleteUserMessages(username, currentMessageSession(c, state))
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString("Failed to clear messages")
 	}
@@ -245,12 +294,12 @@ func remove(c fiber.Ctx, state *core.AppState) error {
 	if db == nil {
 		return c.Status(fiber.StatusServiceUnavailable).SendString("Message center is unavailable")
 	}
-	deleted, err := db.DeleteUserMessage(id, username)
+	deleted, err := db.DeleteUserMessage(id, username, currentMessageSession(c, state))
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString("Failed to delete message")
 	}
 	if !deleted {
-		if message, lookupErr := db.GetUserMessage(id, username, time.Now().UnixMilli()); lookupErr != nil {
+		if message, lookupErr := db.GetUserMessage(id, username, time.Now().UnixMilli(), currentMessageSession(c, state)); lookupErr != nil {
 			return c.Status(fiber.StatusInternalServerError).SendString("Failed to delete message")
 		} else if message != nil && message.ActionStatus == core.MessageActionPending {
 			return c.Status(fiber.StatusConflict).SendString("Pending action messages cannot be deleted")
@@ -265,10 +314,8 @@ func sendNotification(c fiber.Ctx, state *core.AppState) error {
 	if sender == nil || !sender.IsManager() {
 		return c.Status(fiber.StatusForbidden).SendString("Forbidden")
 	}
-	if c.Is("json") {
-		if _, err := utils.ReadRequestBodyLimited(c, maxRequestSize); err != nil {
-			return err
-		}
+	if _, err := utils.ReadRequestBodyLimited(c, maxRequestSize); err != nil {
+		return err
 	}
 	var protoReq pb.SendNotificationRequest
 	readErr := protohttp.Read(c, &protoReq)
@@ -280,7 +327,7 @@ func sendNotification(c fiber.Ctx, state *core.AppState) error {
 	}
 	request := notificationRequest{
 		Recipients: protoReq.Recipients, All: protoReq.All, Severity: protoReq.Severity,
-		Title: protoReq.Title, Body: protoReq.Body,
+		Title: protoReq.Title, Body: protoReq.Body, SessionID: protoReq.SessionId,
 	}
 	request.Title = strings.TrimSpace(request.Title)
 	request.Body = strings.TrimSpace(request.Body)
@@ -300,7 +347,10 @@ func sendNotification(c fiber.Ctx, state *core.AppState) error {
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).SendString(err.Error())
 	}
-	if state.Inner.Config.Load().Mail.Enabled {
+	if request.SessionID != "" && (request.All || len(recipients) != 1 || len(request.SessionID) > 255) {
+		return c.Status(fiber.StatusBadRequest).SendString("Invalid notification session")
+	}
+	if request.SessionID == "" && state.Inner.Config.Load().Mail.Enabled {
 		if err := captcha.Require(c, state, config.CaptchaManualMail); err != nil {
 			return err
 		}
@@ -310,6 +360,7 @@ func sendNotification(c fiber.Ctx, state *core.AppState) error {
 	for _, recipient := range recipients {
 		messages = append(messages, &core.UserMessage{
 			Recipient: recipient,
+			SessionID: request.SessionID,
 			Sender:    strings.ToLower(sender.Username),
 			Kind:      "announcement",
 			Severity:  request.Severity,
@@ -320,6 +371,9 @@ func sendNotification(c fiber.Ctx, state *core.AppState) error {
 		})
 	}
 	if err := DeliverBatch(state, messages); err != nil {
+		if errors.Is(err, core.ErrMessageSessionUnavailable) {
+			return c.Status(fiber.StatusConflict).SendString("Notification session is unavailable")
+		}
 		return c.Status(fiber.StatusInternalServerError).SendString("Failed to send notification")
 	}
 	user, operator, authMethod, sessionID, ip := audit.ExtractAuthDetails(c, state)
@@ -348,7 +402,7 @@ func searchUsers(c fiber.Ctx, state *core.AppState) error {
 	if db == nil {
 		return c.Status(fiber.StatusServiceUnavailable).SendString("Message center is unavailable")
 	}
-	users, err := db.SearchTokenNames(query, maxUserSuggestions, time.Now().UnixMilli())
+	users, err := db.SearchTokenNames(query, maxUserSuggestions, time.Now().UnixMilli(), manager.CanViewPrivateProfiles())
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString("Failed to search users")
 	}

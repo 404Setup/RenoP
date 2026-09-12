@@ -14,10 +14,9 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
-	"encoding/base32"
-	"encoding/hex"
 	"errors"
 	"fmt"
+	"renop/pkg/hex"
 	"strconv"
 	"strings"
 	"time"
@@ -27,6 +26,7 @@ import (
 	"golang.org/x/crypto/argon2"
 
 	"renop/internal/core"
+	"renop/pkg/base32"
 )
 
 const (

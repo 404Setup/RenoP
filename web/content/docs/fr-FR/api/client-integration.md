@@ -27,27 +27,19 @@ paquet
 
 ## Utiliser la représentation déclarée
 
-Les API de gestion fondées sur les schémas acceptent JSON (`application/json`) et protobuf binaire
-(`application/x-protobuf` ou `application/protobuf`). `Content-Type` choisit le décodage du corps ; `Accept` choisit la
-réponse. Sans valeur reconnue pour `Accept`, la réponse reste en protobuf pour les anciens clients. Un corps sans type
-reste décodé en protobuf. Les messages sont définis dans `proto/api/v1/api.proto`.
+Les API de gestion avec schéma utilisent protobuf binaire. Envoyez `Content-Type: application/x-protobuf` ; les requêtes
+acceptent aussi `application/protobuf` et `application/octet-stream`. Sans Content-Type, protobuf reste le défaut.
+Un corps JSON est rejeté avec une erreur `400` ou `415` selon l’endpoint. Les réponses utilisent toujours `application/x-protobuf` ; `Accept`
+n’active pas JSON. Utilisez `proto/api/v1/api.proto` de la version déployée.
+
+Les requêtes restent limitées à 1 MiB, avec les limites plus basses propres aux endpoints. Les exemples JSON associés
+aux messages protobuf montrent les champs décodés, pas un format de transport JSON. Les endpoints exclusivement JSON,
+protocoles natifs, parties binaires, texte de santé et erreurs conservent leurs formats déclarés.
 
 ```http
 Content-Type: application/x-protobuf
 Accept: application/x-protobuf
 ```
-
-Pour des requêtes et réponses JSON, définissez les deux en-têtes :
-
-```http
-Content-Type: application/json
-Accept: application/json
-```
-
-Le JSON conserve les noms snake_case ; l’entrée accepte aussi les noms camelCase de protobuf. Les entiers 64 bits
-sont des chaînes décimales et les octets des chaînes Base64. Les champs JSON inconnus ou dupliqués sont rejetés. La
-limite reste de 1 MiB, avec conservation des limites plus basses propres aux endpoints. Les protocoles de dépôt, les
-parties binaires, le texte de santé et les erreurs conservent leur représentation.
 
 ## Choisir l’identifiant selon l’appelant
 
@@ -120,9 +112,7 @@ stables et arrêtez lorsque la page indique la fin. Un filtre d’interface ne m
 ## Garder les contrats d’une même version
 
 `web/assets/openapi.yaml` / `proto/api/v1/api.proto`
-
-Conservez les définitions OpenAPI et protobuf de la version déployée. Les entiers et octets ProtoJSON suivent les
-règles ci-dessus ; les clients de paquets natifs continuent à utiliser leurs propres protocoles.
+Conservez les définitions OpenAPI et protobuf de la version déployée. Décodez les réponses binaires avec le type de message correspondant ; les clients natifs gardent les formats de leur protocole.
 
 Avant mise à niveau, testez hors production : connexion, autorisation par jeton, liste des dépôts, lecture et écriture
 de

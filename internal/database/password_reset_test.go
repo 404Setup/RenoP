@@ -3,6 +3,8 @@
  *
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
  *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
+ *
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
@@ -172,11 +174,10 @@ func TestEmailPasswordResetLifecycle(t *testing.T) {
 			resetInvalid(t, email, at)
 		})
 	}
-	t.Run("unknown mailbox cannot reset a later registration", func(t *testing.T) {
+	t.Run("unknown mailbox cannot be queued for password reset", func(t *testing.T) {
 		email := "later@example.com"
-		queue(t, email, now)
-		account(t, "later")
-		resetInvalid(t, email, now+1)
+		_, err := db.QueueEmailPasswordReset(job(email, now), hash, cfg.EncryptionKey, "192.0.2.1", cfg.ManualRate)
+		require.ErrorIs(t, err, core.ErrEmailCodeInvalid)
 	})
 	t.Run("new code invalidates old code and banned account remains banned", func(t *testing.T) {
 		email := account(t, "banned")
@@ -193,6 +194,7 @@ func TestEmailPasswordResetLifecycle(t *testing.T) {
 		require.True(t, token.Ban.IsActive(now+60002))
 	})
 	t.Run("proof capacity rolls back mail insertion and expired proofs release capacity", func(t *testing.T) {
+		overflowEmail := account(t, "overflow")
 		tx, err := db.Begin()
 		require.NoError(t, err)
 		var count int
@@ -204,7 +206,7 @@ func TestEmailPasswordResetLifecycle(t *testing.T) {
 			require.NoError(t, err)
 		}
 		require.NoError(t, tx.Commit())
-		candidate := job("overflow@example.com", now+1)
+		candidate := job(overflowEmail, now+1)
 		created, err := db.QueueEmailPasswordReset(candidate, hash, cfg.EncryptionKey, "192.0.2.3", cfg.ManualRate)
 		require.ErrorIs(t, err, mail.ErrQueueFull)
 		require.False(t, created)
@@ -213,6 +215,6 @@ func TestEmailPasswordResetLifecycle(t *testing.T) {
 		require.Nil(t, stored)
 		require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM user_password_resets`).Scan(&count))
 		require.Equal(t, mail.MaxPendingJobs, count)
-		queue(t, "overflow@example.com", now+600000)
+		queue(t, overflowEmail, now+600000)
 	})
 }

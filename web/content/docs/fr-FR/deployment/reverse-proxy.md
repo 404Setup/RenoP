@@ -66,8 +66,8 @@ Caddy gère automatiquement TLS. `flush_interval -1` évite de retenir les répo
 ### Configuration automatique
 
 Lancez l’installateur depuis le répertoire de déploiement de RenoP. Il recherche le Caddyfile dans les emplacements
-usuels, valide le nouveau site avec le binaire Caddy, met les deux fichiers à jour comme une transaction puis recharge
-Caddy. Le `config.yaml` reçoit le nom d’hôte public, une écoute loopback et la délégation TLS à Caddy.
+usuels, valide le nouveau site avec le binaire Caddy, met le Caddyfile et la base de paramètres à jour comme une transaction puis recharge
+Caddy. Le `renop-settings.db` reçoit le nom d’hôte public, une écoute loopback et la délégation TLS à Caddy.
 
 ```bash
 ./renop --install-caddy --hostname renop.example.com
@@ -75,7 +75,7 @@ Caddy. Le `config.yaml` reçoit le nom d’hôte public, une écoute loopback et
 # Explicit paths or offline preparation
 ./renop --install-caddy --hostname renop.example.com \
   --caddyfile /etc/caddy/Caddyfile \
-  --config /opt/renop/config.yaml \
+  --settings-db /opt/renop/renop-settings.db \
   --skip-reload
 ```
 

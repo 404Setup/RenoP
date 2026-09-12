@@ -40,7 +40,7 @@ func TestEnrichNPMProjectMetadataNormalizesReadmePeopleAndLinks(t *testing.T) {
 		},
 		"keywords":       []any{"registry", "RenoP", "registry"},
 		"engines":        map[string]any{"node": ">=20"},
-		"packageManager": "pnpm@11.20.0",
+		"packageManager": "pnpm@12.4.1",
 	})
 	require.NoError(t, err)
 	details := &core.NPMPackageDetails{
@@ -64,7 +64,7 @@ func TestEnrichNPMProjectMetadataNormalizesReadmePeopleAndLinks(t *testing.T) {
 	assert.Equal(t, []string{"https://fund.example.test/demo"}, details.Project.Funding)
 	assert.Equal(t, []string{"registry", "RenoP"}, details.Project.Keywords)
 	assert.Equal(t, ">=20", details.Project.NodeEngine)
-	assert.Equal(t, "pnpm@11.20.0", details.Project.PackageManager)
+	assert.Equal(t, "pnpm@12.4.1", details.Project.PackageManager)
 }
 
 func TestNPMReadmeIsBoundedAndMissingSentinelIsHidden(t *testing.T) {

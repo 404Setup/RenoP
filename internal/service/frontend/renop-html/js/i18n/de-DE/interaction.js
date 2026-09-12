@@ -15,7 +15,12 @@ export default Object.freeze({
     "resourceLock.versionsLocked": "Einige Versionen sind gesperrt",
 
     "resourceLock.unlock": "Entsperren",
-    "maven.manageDomainTeam": "Domain-Team verwalten",
+    "ticket.back": "Zurück zu Tickets",
+    "maven.managePackageTeam": "Paket-Team verwalten",
+    "maven.forceRemoveDomain": "Veröffentlichungsdomain erzwingend löschen",
+    "maven.confirmForceRemoveDomain": "Veröffentlichungsdomain {domain} endgültig ohne Wartezeit löschen? Dies kann nicht rückgängig gemacht werden.",
+    "maven.forceRemoveDomainFailed": "Erzwingendes Löschen der Veröffentlichungsdomain fehlgeschlagen",
+    "maven.forceRemoveDomainSuccess": "Veröffentlichungsdomain wurde endgültig gelöscht",
     "maven.domainTeamHint": "Maven-Mitwirkende gehören zur Veröffentlichungsdomain. Änderungen betreffen alle Pakete dieser Domain.",
     "ticket.reasonTitle": "Meldegrund",
     "ticket.reason.choose": "Grund auswählen",

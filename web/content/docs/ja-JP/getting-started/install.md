@@ -89,3 +89,5 @@ pwsh ./build.ps1         # Full cross-compilation matrix
 
 script は Brotli encoder CLI を自動 install します。compile は最大 4 task で、target 完了ごとに compression を
 開始し、独立した最大 8 worker で並列処理します。
+
+両方の HTML 入口はメタ情報とアプリのマウント先だけを保持します。`js/shell.js` は共有 DOM ヘルパーと `js/views/` のコンポーネントでナビゲーション、ページ、ダイアログを作成します。フロントエンドの `js/bootstrap.js` は、初期化時に要素を検索する処理モジュールより先に画面を配置します。ブランド設定はエスケープ済みの HTML data 属性から DOM のテキストやプロパティへ渡されます。JS コンポーネントを編集して `pnpm run build:frontend` または `pnpm run build:web` を実行します。ビューも i18n 検証対象です。保存した管理タブは `/` のみで復元し、直接リンクを維持します。

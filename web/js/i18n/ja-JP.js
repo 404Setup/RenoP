@@ -9,6 +9,7 @@
  */
 
 export default {
+    "language.loadFailed": "言語を読み込めませんでした。もう一度お試しください。",
     "nav.api": "API",
     "api.title": "API リファレンス",
     "api.lead": "HTTP API リファレンスと統合ガイド。",
@@ -38,8 +39,6 @@ export default {
     "home.feature2.desc": "許可した上流をプロキシし、ローカルキャッシュ、ネガティブキャッシュ、有効期限、アーティファクト単位のフィルターを適用します。",
     "home.feature3.title": "運用とアクセス制御",
     "home.feature3.desc": "ユーザー、API トークン、チーム、レビュー、ストレージ、監査履歴、サービス状態を Web UI から管理します。",
-    "home.cta.title": "オープンソース",
-    "home.cta.desc": "個人、コミュニティ、商用のいずれでも、広告や隠れたテレメトリなしで同じセルフホスト機能を利用できます。",
 
 
     "docs.title": "ドキュメント",

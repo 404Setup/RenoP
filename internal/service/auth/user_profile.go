@@ -30,6 +30,7 @@ type userProfileUpdateRequest struct {
 }
 
 type userProfileResponse struct {
+	Private                      bool                         `json:"private"`
 	UserID                       string                       `json:"user_id"`
 	Username                     string                       `json:"username"`
 	Nickname                     string                       `json:"nickname"`
@@ -43,7 +44,7 @@ type userProfileResponse struct {
 	CargoPackageCount            int                          `json:"cargo_package_count"`
 	DockerImageCount             int                          `json:"docker_image_count"`
 	NPMPackageCount              int                          `json:"npm_package_count"`
-	Links                        core.PublicLinks             `json:"links"`
+	Links                        core.UserProfileLinks        `json:"links"`
 	AvatarURL                    string                       `json:"avatar_url,omitempty"`
 	AvatarMaxSizeBytes           uint32                       `json:"avatar_max_size_bytes,omitempty"`
 	GitHub                       *githubProfileStatus         `json:"github,omitempty"`
@@ -60,12 +61,12 @@ func updateOwnUserProfileLinks(c fiber.Ctx, state *core.AppState) error {
 	if len(c.Body()) > 10<<10 {
 		return c.Status(fiber.StatusRequestEntityTooLarge).SendString("Profile links are too large")
 	}
-	var links core.PublicLinks
+	var links core.UserProfileLinks
 	var valid bool
 	if err := c.Bind().Body(&links); err != nil {
 		return c.Status(fiber.StatusBadRequest).SendString("Invalid profile links")
 	}
-	if links, valid = core.NormalizePublicLinks(links); !valid {
+	if links, valid = core.NormalizeUserProfileLinks(links); !valid {
 		return c.Status(fiber.StatusBadRequest).SendString("Invalid profile links")
 	}
 	updated, err := state.GetDB().UpdateUserProfileLinks(user.Username, links, time.Now().UnixMilli())
@@ -81,10 +82,15 @@ func updateOwnUserProfileLinks(c fiber.Ctx, state *core.AppState) error {
 		Details: "Public profile links updated", AuthMethod: authMethod, SessionID: sessionID, IP: ip,
 	})
 	c.Set(fiber.HeaderCacheControl, "no-store")
-	return c.JSON(updated.Links)
+	publicLinks, err := userProfileLinks(state, updated, true)
+	if err != nil {
+		return c.SendStatus(fiber.StatusServiceUnavailable)
+	}
+	return c.JSON(publicLinks)
 }
 
 func publicUserProfile(c fiber.Ctx, state *core.AppState) error {
+	setPrivateResponseHeaders(c)
 	username := strings.ToLower(strings.TrimSpace(c.Params("username")))
 	db := state.GetDB()
 	if db == nil {
@@ -98,6 +104,9 @@ func publicUserProfile(c fiber.Ctx, state *core.AppState) error {
 		return c.Status(fiber.StatusInternalServerError).SendString("Failed to load user profile")
 	}
 	current := GetUser(c)
+	if !canReadUserProfile(current, profile) {
+		return c.SendStatus(fiber.StatusNotFound)
+	}
 	own := current != nil && strings.EqualFold(current.Username, profile.Username)
 	administrator := current != nil && current.IsManager()
 	mavenMemberships, err := visibleUserPackageMemberships(c, state, profile, config.RepositoryFormatMaven)
@@ -130,6 +139,7 @@ func publicUserProfile(c fiber.Ctx, state *core.AppState) error {
 }
 
 func publicUserMemberships(c fiber.Ctx, state *core.AppState) error {
+	setPrivateResponseHeaders(c)
 	username := strings.ToLower(strings.TrimSpace(c.Params("username")))
 	format := strings.ToLower(strings.TrimSpace(c.Query("format")))
 	if format != config.RepositoryFormatMaven && format != config.RepositoryFormatCargo &&
@@ -147,6 +157,9 @@ func publicUserMemberships(c fiber.Ctx, state *core.AppState) error {
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString("Failed to load user profile")
 	}
+	if !canReadUserProfile(GetUser(c), profile) {
+		return c.SendStatus(fiber.StatusNotFound)
+	}
 	memberships, err := visibleUserPackageMemberships(c, state, profile, format)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString("Failed to load package memberships")
@@ -156,6 +169,7 @@ func publicUserMemberships(c fiber.Ctx, state *core.AppState) error {
 }
 
 func publicUserSuperTeams(c fiber.Ctx, state *core.AppState) error {
+	setPrivateResponseHeaders(c)
 	username := strings.ToLower(strings.TrimSpace(c.Params("username")))
 	profile, err := state.GetDB().GetUserProfile(username)
 	if errors.Is(err, core.ErrUserProfileNotFound) {
@@ -163,6 +177,9 @@ func publicUserSuperTeams(c fiber.Ctx, state *core.AppState) error {
 	}
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString("Failed to load user profile")
+	}
+	if !canReadUserProfile(GetUser(c), profile) {
+		return c.SendStatus(fiber.StatusNotFound)
 	}
 	limit, _ := strconv.Atoi(c.Query("limit", "12"))
 	offset, _ := strconv.Atoi(c.Query("offset", "0"))
@@ -265,6 +282,7 @@ func visibleUserPackageMemberships(c fiber.Ctx, state *core.AppState, profile *c
 }
 
 func publicUserProfiles(c fiber.Ctx, state *core.AppState) error {
+	setPrivateResponseHeaders(c)
 	rawNames := strings.TrimSpace(c.Query("names"))
 	if rawNames == "" || len(rawNames) > 4096 {
 		return c.Status(fiber.StatusBadRequest).SendString("Choose between 1 and 50 usernames")
@@ -285,7 +303,7 @@ func publicUserProfiles(c fiber.Ctx, state *core.AppState) error {
 	response := make([]userProfileResponse, 0, len(profiles))
 	for _, username := range usernames {
 		profile := profiles[strings.ToLower(strings.TrimSpace(username))]
-		if profile == nil {
+		if !canReadUserProfile(current, profile) {
 			continue
 		}
 		own := current != nil && strings.EqualFold(current.Username, profile.Username)
@@ -357,16 +375,12 @@ func updateOwnUserProfile(c fiber.Ctx, state *core.AppState, opChan chan<- token
 			return c.Status(fiber.StatusBadRequest).SendString(err.Error())
 		}
 	}
-	github, err := githubProfileStatusForAccount(state, current.Username)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).SendString("Failed to load account connections")
-	}
 	if newUsername == current.Username && nickname == current.Nickname {
-		response := profileResponse(current, true, time.Now().UnixMilli())
-		response.PrivateDetails = true
-		response.AvatarMaxSizeBytes = state.Inner.Config.Load().Server.AvatarMaxSizeBytes
+		response, err := profileResponseWithPrivateDetails(state, current, true, true, time.Now().UnixMilli())
+		if err != nil {
+			return c.SendStatus(fiber.StatusServiceUnavailable)
+		}
 		response.AdministratorView = user.IsManager()
-		response.GitHub = &github
 		c.Set(fiber.HeaderCacheControl, "no-store")
 		return c.JSON(response)
 	}
@@ -393,21 +407,11 @@ func updateOwnUserProfile(c fiber.Ctx, state *core.AppState, opChan chan<- token
 	}
 	logProfileUpdate(c, state, current, updated)
 	c.Set(fiber.HeaderCacheControl, "no-store")
-	response := profileResponse(updated, true, changedAt)
-	response.PrivateDetails = true
-	response.AvatarMaxSizeBytes = state.Inner.Config.Load().Server.AvatarMaxSizeBytes
+	response, err := profileResponseWithPrivateDetails(state, updated, true, true, changedAt)
+	if err != nil {
+		return c.SendStatus(fiber.StatusServiceUnavailable)
+	}
 	response.AdministratorView = user.IsManager()
-	response.GitHub = &github
-	limits := state.Inner.Config.Load().SuperTeams
-	response.SuperTeamLimits, err = db.GetSuperTeamLimitStatus(
-		updated.Username, limits.CreateLimit, limits.JoinLimit)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).SendString("Profile updated but team limits could not be loaded")
-	}
-	response.PublicationQuota, err = profilePublicationQuotaStatus(state, updated.Username, changedAt)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).SendString("Profile updated but publication quota could not be loaded")
-	}
 	return c.JSON(response)
 }
 
@@ -417,6 +421,11 @@ func profileResponseWithPrivateDetails(state *core.AppState, profile *core.UserP
 	if account := state.GetTokenByName(profile.Username); account != nil && account.DeletedAt > 0 {
 		return userProfileResponse{Username: profile.Username, DeletedAt: account.DeletedAt}, nil
 	}
+	links, err := userProfileLinks(state, profile, own)
+	if err != nil {
+		return userProfileResponse{}, err
+	}
+	response.Links = links
 	if own {
 		github, err := githubProfileStatusForAccount(state, profile.Username)
 		if err != nil {
@@ -430,7 +439,6 @@ func profileResponseWithPrivateDetails(state *core.AppState, profile *core.UserP
 	}
 	response.PrivateDetails = true
 	limits := state.Inner.Config.Load().SuperTeams
-	var err error
 	response.SuperTeamLimits, err = state.GetDB().GetSuperTeamLimitStatus(
 		profile.Username, limits.CreateLimit, limits.JoinLimit)
 	if err != nil {
@@ -455,7 +463,8 @@ func profilePublicationQuotaStatus(state *core.AppState, username string, now in
 
 func profileResponse(profile *core.UserProfile, own bool, now int64) userProfileResponse {
 	response := userProfileResponse{
-		UserID: profile.UserID, Username: profile.Username, Nickname: profile.Nickname,
+		Private: profile.Private,
+		UserID:  profile.UserID, Username: profile.Username, Nickname: profile.Nickname,
 		CreatedAt: profile.CreatedAt, OwnProfile: own,
 		MavenDomainCount: profile.MavenDomainCount, CargoPackageCount: profile.CargoPackageCount,
 		DockerImageCount: profile.DockerImageCount, NPMPackageCount: profile.NPMPackageCount,
@@ -465,6 +474,7 @@ func profileResponse(profile *core.UserProfile, own bool, now int64) userProfile
 		response.AvatarURL = "/api/users/" + profile.Username + "/avatar?v=" + profile.AvatarHash
 	}
 	if !own {
+		response.Links.Visibility = nil
 		return response
 	}
 	windowActive := profile.UsernameChangeWindowAt > 0 && now >= profile.UsernameChangeWindowAt &&

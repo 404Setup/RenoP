@@ -176,7 +176,6 @@ func TestMailProviderStatusCorrelationAndFailures(t *testing.T) {
 		{"graph", `{"value":[{"id":"sent-message","isDraft":false}]}`, "sent"},
 		{"gmail", `{"id":"provider-id","labelIds":["SENT"]}`, "sent"},
 		{"feishu", `{"code":0,"data":{"message_id":"provider-id","details":[{"recipient":{"mail_address":"receiver@example.com"},"status":4}]}}`, "delivered"},
-		{"aliyun", `{"data":{"mailDetail":[{"accountName":"receiver@example.com","status":"1"}]}}`, "unknown"},
 	} {
 		t.Run(scenario.provider, func(t *testing.T) {
 			called := 0
@@ -613,7 +612,7 @@ func TestMailProviderSubmissionAndStatusContracts(t *testing.T) {
 				require.False(t, result.Check)
 			} else {
 				require.Equal(t, "accepted", result.Status)
-				require.True(t, result.Check)
+				require.Equal(t, provider != "aliyun", result.Check)
 			}
 		})
 	}

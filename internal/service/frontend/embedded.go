@@ -12,11 +12,11 @@ package frontend
 
 import (
 	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"io"
 	"io/fs"
 	"path/filepath"
+	"renop/pkg/hex"
 	"sort"
 	"strconv"
 	"strings"
@@ -85,6 +85,9 @@ func loadEmbeddedFile(cacheKey, publicPath, encoding string) (*embeddedFile, err
 		assetPath: assetPath, size: int(size),
 		etag:        `W/"` + hex.EncodeToString(hasher.Sum(nil))[:16] + `"`,
 		contentType: utils.ContentTypeByExt(filepath.Ext(publicPath)), contentEncoding: encoding,
+	}
+	if strings.HasPrefix(strings.TrimPrefix(publicPath, "/"), "assets/i18n/") && strings.HasSuffix(publicPath, ".pb") {
+		candidate.contentType = "application/x-protobuf"
 	}
 	actual, _ := embeddedFileCache.LoadOrStore(cacheKey, candidate)
 	return actual, nil
@@ -211,6 +214,12 @@ func ServeEmbeddedFile(c fiber.Ctx, path string) error {
 	c.Set(fiber.HeaderCacheControl, frontendAssetCacheControl)
 	c.Set(fiber.HeaderPragma, "no-cache")
 	c.Set(fiber.HeaderExpires, "0")
+	if strings.HasPrefix(strings.TrimPrefix(path, "/"), "assets/i18n/") && strings.HasSuffix(path, ".pb") {
+		c.Set(fiber.HeaderContentDisposition, "inline")
+		c.Set(fiber.HeaderCacheControl, "public, max-age=31536000, immutable")
+		c.Response().Header.Del(fiber.HeaderPragma)
+		c.Response().Header.Del(fiber.HeaderExpires)
+	}
 
 	if clientETag := c.Get(fiber.HeaderIfNoneMatch); clientETag != "" && clientETag == file.etag {
 		return c.SendStatus(fiber.StatusNotModified)

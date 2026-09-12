@@ -1,7 +1,10 @@
 /*
  * Copyright (c) 2026 404Setup. All rights reserved.
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
- * If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
+ *
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
@@ -9,6 +12,8 @@ package config
 
 import (
 	"errors"
+	"slices"
+	"strings"
 	"time"
 )
 
@@ -30,20 +35,24 @@ func (i RegistrationInterval) Duration() time.Duration {
 
 // RegistrationConfig controls self-service account creation and persistent abuse limits.
 type RegistrationConfig struct {
-	Enabled          bool                 `json:"enabled" yaml:"enabled"`
-	IPLimit          int64                `json:"ip_limit" yaml:"ip_limit"`
-	IPInterval       RegistrationInterval `json:"ip_interval" yaml:"ip_interval"`
-	ProviderCooldown RegistrationInterval `json:"provider_cooldown" yaml:"provider_cooldown"`
+	DefaultPermissions []string             `json:"default_permissions" yaml:"default_permissions"`
+	Enabled            bool                 `json:"enabled" yaml:"enabled"`
+	IPLimit            int64                `json:"ip_limit" yaml:"ip_limit"`
+	IPInterval         RegistrationInterval `json:"ip_interval" yaml:"ip_interval"`
+	ProviderCooldown   RegistrationInterval `json:"provider_cooldown" yaml:"provider_cooldown"`
 }
 
 // DefaultRegistrationConfig keeps public registration closed until an administrator enables it.
 func DefaultRegistrationConfig() RegistrationConfig {
-	return RegistrationConfig{IPLimit: 1, IPInterval: RegistrationInterval{3, "week"},
+	return RegistrationConfig{DefaultPermissions: []string{"base"}, IPLimit: 1, IPInterval: RegistrationInterval{3, "week"},
 		ProviderCooldown: RegistrationInterval{12, "hour"}}
 }
 
 func (c *RegistrationConfig) setDefaults() {
 	defaults := DefaultRegistrationConfig()
+	if c.DefaultPermissions == nil {
+		c.DefaultPermissions = defaults.DefaultPermissions
+	}
 	if c.IPLimit == 0 && c.IPInterval.Unit == "" {
 		c.IPLimit, c.IPInterval = defaults.IPLimit, defaults.IPInterval
 	}
@@ -57,5 +66,52 @@ func (c RegistrationConfig) Validate() error {
 	if c.IPLimit <= 0 || c.IPLimit > 10000 || c.IPInterval.Duration() == 0 || c.ProviderCooldown.Duration() == 0 {
 		return errors.New("registration settings are invalid")
 	}
+	if len(c.DefaultPermissions) > 64 {
+		return errors.New("too many default registration permissions")
+	}
+	seen := make(map[string]bool, len(c.DefaultPermissions))
+	for _, permission := range c.DefaultPermissions {
+		if seen[permission] || !validRegistrationPermission(permission) {
+			return errors.New("invalid default registration permission")
+		}
+		seen[permission] = true
+	}
 	return nil
+}
+
+// Permissions returns an independent grant, preserving defaults for older settings.
+func (c RegistrationConfig) Permissions() []string {
+	if c.DefaultPermissions == nil {
+		return []string{"base"}
+	}
+	return slices.Clone(c.DefaultPermissions)
+}
+
+// DeepCopy keeps mutable permission selections outside published configuration snapshots.
+func (c RegistrationConfig) DeepCopy() RegistrationConfig {
+	c.DefaultPermissions = slices.Clone(c.DefaultPermissions)
+	return c
+}
+
+func validRegistrationPermission(permission string) bool {
+	switch permission {
+	case "admin", "manager", "base", "showing", "allview", "proview":
+		return true
+	}
+	kind, repository, found := strings.Cut(permission, ":")
+	if !found || (kind != "canview" && kind != "canupdate" && kind != "canmoderate") {
+		return false
+	}
+	if repository == "*" {
+		return true
+	}
+	if repository == "" || len(repository) > 128 || repository == "." || repository == ".." {
+		return false
+	}
+	for _, char := range repository {
+		if !(char >= 'a' && char <= 'z' || char >= 'A' && char <= 'Z' || char >= '0' && char <= '9' || char == '-' || char == '_' || char == '.') {
+			return false
+		}
+	}
+	return true
 }

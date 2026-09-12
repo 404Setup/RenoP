@@ -108,6 +108,38 @@ func TestAccountIPBanLifecycle(t *testing.T) {
 	check("2001:db8::1", false)
 }
 
+func TestAccountBanPresetsPersistWithoutTranslatingCustomReasons(t *testing.T) {
+	cfg := config.DatabaseConfig{Driver: "sqlite", Dsn: filepath.Join(testutil.TempDir(t), "ban-reasons.db")}
+	db, err := InitDB(cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, db.Close()) })
+	require.NoError(t, db.SaveToken(&core.AccessToken{Name: "alice", Permissions: []string{"base"}}))
+	now := time.Now().UnixMilli()
+	_, err = db.UpdateAccountEmail("alice", "alice@example.com", now)
+	require.NoError(t, err)
+	require.NoError(t, db.SetAccountBan("alice", &core.AccountBan{ReasonCode: "security_rules", CreatedAt: now}))
+	require.NoError(t, db.Close())
+	db, err = InitDB(cfg)
+	require.NoError(t, err)
+	account, err := db.GetTokenByEmail("alice@example.com")
+	require.NoError(t, err)
+	require.Equal(t, "security_rules", account.Ban.ReasonCode)
+	reason, valid := core.AccountBanReasonText("security_rules")
+	require.True(t, valid)
+	require.Equal(t, reason, account.Ban.Reason)
+	require.ErrorIs(t, db.SetAccountBan("alice", &core.AccountBan{ReasonCode: "unknown", CreatedAt: now}), core.ErrAccountBanInvalid)
+	custom := "users.banReason.security_rules"
+	require.NoError(t, db.SetAccountBan("alice", &core.AccountBan{Reason: custom, CreatedAt: now}))
+	status, err := db.GetAccountBanStatus("alice")
+	require.NoError(t, err)
+	require.Empty(t, status.Ban.ReasonCode)
+	require.Equal(t, custom, status.Ban.Reason)
+	require.NoError(t, db.SetAccountBan("alice", nil))
+	var code string
+	require.NoError(t, db.QueryRow(`SELECT ban_reason_code FROM tokens WHERE name = ?`, "alice").Scan(&code))
+	require.Empty(t, code)
+}
+
 func TestAccountIPBanBounds(t *testing.T) {
 	db, err := InitDB(config.DatabaseConfig{Driver: "sqlite", Dsn: filepath.Join(testutil.TempDir(t), "bounded-ip-bans.db")})
 	require.NoError(t, err)
@@ -169,7 +201,7 @@ func TestAccountBanLifecycle(t *testing.T) {
 	account, err = db.GetTokenByName("alice2")
 	require.NoError(t, err)
 	require.NotNil(t, account.Ban)
-	names, err := db.SearchTokenNames("ali", 8, now)
+	names, err := db.SearchTokenNames("ali", 8, now, false)
 	require.NoError(t, err)
 	assert.Empty(t, names)
 
@@ -177,7 +209,7 @@ func TestAccountBanLifecycle(t *testing.T) {
 	require.NoError(t, db.SetAccountBan("alice2", &core.AccountBan{
 		Reason: "Expired suspension", CreatedAt: now - 2, ExpiresAt: &expiredAt,
 	}))
-	names, err = db.SearchTokenNames("ali", 8, now)
+	names, err = db.SearchTokenNames("ali", 8, now, false)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"alice2"}, names)
 	require.NoError(t, db.SetAccountBan("alice2", nil))

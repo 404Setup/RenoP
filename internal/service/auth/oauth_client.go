@@ -19,6 +19,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"renop/internal/config"
 	"renop/internal/core"
@@ -27,13 +28,17 @@ import (
 )
 
 type oauthTokens struct {
-	AccessToken string          `json:"access_token"`
-	IDToken     string          `json:"id_token"`
-	TokenType   string          `json:"token_type"`
-	Error       json.RawMessage `json:"error"`
+	AccessToken  string          `json:"access_token"`
+	RefreshToken string          `json:"refresh_token"`
+	IDToken      string          `json:"id_token"`
+	TokenType    string          `json:"token_type"`
+	Error        json.RawMessage `json:"error"`
 }
 
 type oauthUserInfo struct {
+	Issuer        string
+	SessionID     string
+	AuthorizedAt  int64
 	Identity      core.OAuthIdentity
 	Username      string
 	Name          string
@@ -44,7 +49,7 @@ type oauthUserInfo struct {
 
 func validateOAuthTokens(p config.OAuthProviderConfig, tokens oauthTokens) error {
 	if len(tokens.Error) != 0 && string(tokens.Error) != "null" || tokens.AccessToken == "" || len(tokens.AccessToken) > 16384 ||
-		strings.ContainsAny(tokens.AccessToken, "\r\n\x00") || len(tokens.IDToken) > 16384 ||
+		strings.ContainsAny(tokens.AccessToken+tokens.RefreshToken, "\r\n\x00") || len(tokens.IDToken) > 16384 || len(tokens.RefreshToken) > 16384 ||
 		tokens.TokenType != "" && !strings.EqualFold(tokens.TokenType, "bearer") || tokens.TokenType == "" && p.Type != "stackexchange" {
 		return errors.New("OAuth provider rejected the authorization code")
 	}
@@ -203,6 +208,8 @@ func oauthEmailProof(raw json.RawMessage, p config.OAuthProviderConfig) (core.Pr
 func fetchOAuthUserInfo(ctx context.Context, client *http.Client, p config.OAuthProviderConfig, tokens oauthTokens, nonce string) (oauthUserInfo, error) {
 	issuer := p.Issuer
 	subject := ""
+	providerSession := ""
+	authorizedAt := time.Now().UnixMilli()
 	var tokenEmail core.ProviderEmail
 	if issuer != "" {
 		claims, err := verifyOAuthIDToken(ctx, client, p, tokens, nonce)
@@ -214,6 +221,12 @@ func fetchOAuthUserInfo(ctx context.Context, client *http.Client, p config.OAuth
 			issuer = p.Issuer
 		}
 		subject, _ = claims.GetSubject()
+		providerSession, _ = claims["sid"].(string)
+		if len(providerSession) > 255 || strings.ContainsAny(providerSession, "\x00\r\n") {
+			return oauthUserInfo{}, errors.New("invalid OAuth session")
+		}
+		issued, _ := claims.GetIssuedAt()
+		authorizedAt = issued.Time.UnixMilli()
 		rawClaims, err := json.Marshal(claims)
 		if err != nil {
 			return oauthUserInfo{}, err
@@ -248,7 +261,7 @@ func fetchOAuthUserInfo(ctx context.Context, client *http.Client, p config.OAuth
 	if subject != "" && id != subject {
 		return oauthUserInfo{}, errors.New("OAuth user-info subject does not match the ID token")
 	}
-	info := oauthUserInfo{Identity: core.OAuthIdentity{ProviderID: p.ID, Subject: id, Authority: p.Authority(issuer)},
+	info := oauthUserInfo{Issuer: issuer, SessionID: providerSession, AuthorizedAt: authorizedAt, Identity: core.OAuthIdentity{ProviderID: p.ID, Subject: id, Authority: p.Authority(issuer)},
 		Username: oauthString(raw, p.Claims.Username, false), Name: oauthString(raw, p.Claims.Name, false),
 		AvatarURL: oauthString(raw, p.Claims.Avatar, false)}
 	profileEmail, err := oauthEmailProof(raw, p)

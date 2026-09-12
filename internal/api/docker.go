@@ -29,6 +29,8 @@ import (
 	"renop/internal/service/captcha"
 	"renop/internal/service/docker"
 	"renop/internal/utils"
+	"renop/internal/utils/protohttp"
+	"renop/pkg/pb"
 )
 
 const (
@@ -389,7 +391,8 @@ func DeprecateDockerImageAPI(c fiber.Ctx, state *core.AppState) error {
 
 // UpdateDockerImageDescriptionRequest represents the payload for updating an image description / README.
 type UpdateDockerImageDescriptionRequest struct {
-	Description string `json:"description"`
+	Description *string `json:"description"`
+	Readme      *string `json:"readme"`
 }
 
 // UpdateDockerImageDescriptionAPI handles PUT /api/docker/repositories/:repo_name/images/*
@@ -438,24 +441,41 @@ func UpdateDockerImageDescriptionAPI(c fiber.Ctx, state *core.AppState) error {
 	} else if err != nil {
 		return dockerAPIError(c, fiber.StatusBadRequest, "invalid_request", "Invalid request body")
 	}
-	if len(req.Description) > maxDockerReadmeBytes {
-		return dockerAPIError(c, fiber.StatusRequestEntityTooLarge, "readme_too_large", "README exceeds the size limit")
+	if req.Description == nil && req.Readme == nil {
+		return dockerAPIError(c, fiber.StatusBadRequest, "invalid_request", "No fields to update")
 	}
 
-	if err := db.UpdateDockerImageDescription(repoName, imageName, req.Description); err != nil {
-		if errors.Is(err, core.ErrDockerImageNotFound) {
-			return dockerAPIError(c, fiber.StatusNotFound, "image_not_found", "Image not found")
+	res := fiber.Map{"status": "updated"}
+	if req.Description != nil {
+		if len(*req.Description) > maxDockerReadmeBytes {
+			return dockerAPIError(c, fiber.StatusRequestEntityTooLarge, "readme_too_large", "README exceeds the size limit")
 		}
-		return dockerAPIError(c, fiber.StatusInternalServerError, "internal_error", "Failed to update README")
+		if err := db.UpdateDockerImageDescription(repoName, imageName, *req.Description); err != nil {
+			if errors.Is(err, core.ErrDockerImageNotFound) {
+				return dockerAPIError(c, fiber.StatusNotFound, "image_not_found", "Image not found")
+			}
+			return dockerAPIError(c, fiber.StatusInternalServerError, "internal_error", "Failed to update description")
+		}
+		res["description"] = *req.Description
+	}
+
+	if req.Readme != nil {
+		if len(*req.Readme) > maxDockerReadmeBytes {
+			return dockerAPIError(c, fiber.StatusRequestEntityTooLarge, "readme_too_large", "README exceeds the size limit")
+		}
+		if err := db.UpdateDockerImageReadme(repoName, imageName, *req.Readme); err != nil {
+			if errors.Is(err, core.ErrDockerImageNotFound) {
+				return dockerAPIError(c, fiber.StatusNotFound, "image_not_found", "Image not found")
+			}
+			return dockerAPIError(c, fiber.StatusInternalServerError, "internal_error", "Failed to update README")
+		}
+		res["readme"] = *req.Readme
 	}
 
 	logDockerAudit(c, state, audit.ActionDockerImageUpdate, fmt.Sprintf("Repository: %s, image: %s", repoName, imageName))
 
 	c.Set(fiber.HeaderContentType, "application/json; charset=utf-8")
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"status":      "updated",
-		"description": req.Description,
-	})
+	return c.Status(fiber.StatusOK).JSON(res)
 }
 
 // DeleteDockerImageAPI handles DELETE /api/docker/repositories/:repo_name/images/*
@@ -1053,14 +1073,12 @@ func SearchDockerUsersAPI(c fiber.Ctx, state *core.AppState) error {
 		return c.Status(fiber.StatusServiceUnavailable).SendString("Database unavailable")
 	}
 
-	users, err := db.SearchTokenNames(query, 10, time.Now().UnixMilli())
+	users, err := db.SearchTokenNames(query, 10, time.Now().UnixMilli(), user.CanViewPrivateProfiles())
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString("Failed to search users")
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"users": users,
-	})
+	return protohttp.Write(c, pb.FromUserSearch(users))
 }
 
 // RespondDockerInvitationAPI handles POST /api/docker/repositories/:repo_name/invitations/:id/:decision

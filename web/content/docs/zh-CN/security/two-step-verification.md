@@ -69,3 +69,5 @@ Passkey 仍保留绑定，可重新用于初次登录。通过邮件重置密码
 
 RenoP 在启动时于配置顶层创建私有 `mfa_encryption_key`。验证器密钥使用 AES-GCM 加密，并绑定不可变用户
 ID；该加密密钥不会出现在设置响应中。备份时请同时保存配置和数据库，迁移实例时保留此密钥。丢失密钥会导致验证器无法验证，可使用离线恢复代码恢复访问。
+
+启用二次验证后，修改密码必须提供已配置的 TOTP 验证码或二次验证 Passkey；启用发件服务时也可向当前主邮箱发送验证码。`PUT /api/auth/profile/password` 接收二进制 `UpdatePasswordRequest`，包含 `factor`（`totp`、`passkey`、`email`）及对应证明（`totp_code`、`challenge_id` 加 `passkey_credential`、或 `email_code`）。Passkey 证明通过 `POST /api/auth/profile/password/passkey/begin` 开始，绑定当前浏览器会话和凭据状态，仅可使用一次；成功后撤销其他会话。

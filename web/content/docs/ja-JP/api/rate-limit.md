@@ -26,12 +26,12 @@ RenoP は複数段階のレート制限と異常検知を組み合わせ、総�
 
 ## 同時実行数 (`max_active_requests`)
 
-`config.yaml` の `server.max_active_requests` を設定します。既定値は 512 です。
+システム設定 の `server.max_active_requests` を設定します。既定値は 512 です。
 
 - 実行中リクエストが上限に達すると、新しいリクエストは `503 Service Unavailable` になります。
 
 ## 信頼するプロキシ
 
-リバースプロキシまたは CDN の背後では、`config.yaml` の `server.trusted_proxies` と
+リバースプロキシまたは CDN の背後では、システム設定 の `server.trusted_proxies` と
 `server.cdn_ip_header` を設定します。RenoP は信頼済み送信元から検証した実クライアント IP のみを
 レート制限に使用します。

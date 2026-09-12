@@ -56,6 +56,7 @@ nbproject/private/
 build/
 nbbuild/
 dist/
+container-bin/
 nbdist/
 .nb-gradle/
 
@@ -97,6 +98,7 @@ run/
 *.log
 *.pprof
 *.db
+*.db-journal
 *.db-shm
 *.db-wal
 
@@ -109,9 +111,17 @@ renop
 internal/service/frontend/renop-html/js/i18n/catalog.generated.js
 internal/service/frontend/renop-html/js/i18n/catalog.*.*.js
 internal/service/frontend/renop-html/js/proto/api.js
+packages/renop-ui/js/i18n.pb.js
+web/js/i18n/catalog.generated.js
 pkg/pb/*.pb.go
+storage/apk
+storage/apt
+storage/conan
+storage/conda
+storage/conda-nt
 storage/private
 storage/releases
+storage/rpm
 storage/snapshots
 storage/rust-id
 storage/dci

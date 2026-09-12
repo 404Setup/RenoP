@@ -16,16 +16,19 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
+	"google.golang.org/protobuf/proto"
 
 	"renop/internal/config"
 	"renop/internal/core"
 	"renop/internal/database"
 	"renop/internal/service/index"
+	"renop/internal/utils/protohttp"
+	"renop/pkg/pb"
 )
 
 func TestGeneratePomFilenameAppending(t *testing.T) {
@@ -81,15 +84,26 @@ func TestGeneratePomFilenameAppending(t *testing.T) {
 		return GeneratePom(c, state)
 	})
 
-	payload := PomDetails{
-		GroupID:    "com.example",
-		ArtifactID: "test-artifact",
+	payload := &pb.PomDetails{
+		GroupId:    "com.example",
+		ArtifactId: "test-artifact",
 		Version:    "1.0.0",
 	}
-	body, _ := json.Marshal(payload)
+	body, _ := proto.Marshal(payload)
+
+	// JSON request should be rejected as protobuf is required:
+	jsonReq := httptest.NewRequest("POST", "/maven/generate/pom/test-repo/com/example/test-artifact/1.0.0/test-artifact-1.0.0.pom", strings.NewReader(`{"group_id":"com.example"}`))
+	jsonReq.Header.Set("Content-Type", "application/json")
+	jsonResp, err := app.Test(jsonReq)
+	if err != nil {
+		t.Fatalf("json test request failed: %v", err)
+	}
+	if jsonResp.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected status 400 for JSON request, got %d", jsonResp.StatusCode)
+	}
 
 	req := httptest.NewRequest("POST", "/maven/generate/pom/test-repo/com/example/test-artifact/1.0.0/test-artifact-1.0.0.pom", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", protohttp.ContentType)
 	resp, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("test request failed: %v", err)
@@ -108,14 +122,14 @@ func TestGeneratePomFilenameAppending(t *testing.T) {
 		t.Fatalf("failed to read generated POM: %v", err)
 	}
 	cfg.Maven.Repositories["test-repo"].AllowRedeployment = false
-	redeployPayload := PomDetails{
-		GroupID:    "com.replaced",
-		ArtifactID: "test-artifact",
+	redeployPayload := &pb.PomDetails{
+		GroupId:    "com.replaced",
+		ArtifactId: "test-artifact",
 		Version:    "1.0.0",
 	}
-	redeployBody, _ := json.Marshal(redeployPayload)
+	redeployBody, _ := proto.Marshal(redeployPayload)
 	redeployReq := httptest.NewRequest("POST", "/maven/generate/pom/test-repo/com/example/test-artifact/1.0.0/test-artifact-1.0.0.pom", bytes.NewReader(redeployBody))
-	redeployReq.Header.Set("Content-Type", "application/json")
+	redeployReq.Header.Set("Content-Type", protohttp.ContentType)
 	redeployResp, err := app.Test(redeployReq)
 	if err != nil {
 		t.Fatalf("redeployment request failed: %v", err)
@@ -123,9 +137,9 @@ func TestGeneratePomFilenameAppending(t *testing.T) {
 	if redeployResp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("expected mismatched POM coordinates rejected with 400, got %d", redeployResp.StatusCode)
 	}
-	matchingBody, _ := json.Marshal(payload)
+	matchingBody, _ := proto.Marshal(payload)
 	matchingReq := httptest.NewRequest("POST", "/maven/generate/pom/test-repo/com/example/test-artifact/1.0.0/test-artifact-1.0.0.pom", bytes.NewReader(matchingBody))
-	matchingReq.Header.Set("Content-Type", "application/json")
+	matchingReq.Header.Set("Content-Type", protohttp.ContentType)
 	matchingResp, err := app.Test(matchingReq)
 	if err != nil {
 		t.Fatalf("matching redeployment request failed: %v", err)
@@ -149,15 +163,15 @@ func TestGeneratePomFilenameAppending(t *testing.T) {
 	dummyFile := filepath.Join(folderPath, "dummy.txt")
 	_ = os.WriteFile(dummyFile, []byte("dummy"), 0644)
 
-	payload2 := PomDetails{
-		GroupID:    "com.example",
-		ArtifactID: "test-artifact",
+	payload2 := &pb.PomDetails{
+		GroupId:    "com.example",
+		ArtifactId: "test-artifact",
 		Version:    "2.0.0",
 	}
-	body2, _ := json.Marshal(payload2)
+	body2, _ := proto.Marshal(payload2)
 
 	req2 := httptest.NewRequest("POST", "/maven/generate/pom/test-repo/com/example/test-artifact/2.0.0", bytes.NewReader(body2))
-	req2.Header.Set("Content-Type", "application/json")
+	req2.Header.Set("Content-Type", protohttp.ContentType)
 	resp2, err := app.Test(req2)
 	if err != nil {
 		t.Fatalf("test request 2 failed: %v", err)

@@ -9,6 +9,26 @@
  */
 
 export default Object.freeze({
+    "repos.formatConan": "Conan",
+    "repos.formatConanDesc": "Conan 配方、二进制包、修订版本和原生客户端上传。",
+    "repos.formatConda": "Conda",
+    "repos.formatCondaNative": "Conda native",
+    "repos.formatApk": "Alpine APK",
+    "repos.formatApt": "apt",
+    "repos.formatRpm": "rpm / yum",
+    "repos.formatCondaDesc": "自动生成包索引，支持原生客户端下载及上传已有索引和签名。",
+    "repos.formatCondaNativeDesc": "自动生成包索引，支持原生客户端下载及上传已有索引和签名。",
+    "repos.formatApkDesc": "自动生成包索引，支持原生客户端下载及上传已有索引和签名。",
+    "repos.formatAptDesc": "自动生成包索引，支持原生客户端下载及上传已有索引和签名。",
+    "repos.formatRpmDesc": "自动生成包索引，支持原生客户端下载及上传已有索引和签名。",
+    "details.nativeTitle": "客户端配置",
+    "details.nativeSubtitle": "登记资源后使用原生客户端发布，索引由已发布内容生成。",
+    "details.nativeClientTab": "客户端",
+
+    "repos.capacityLimit": "容量上限（MiB）",
+    "repos.capacityHint": "0 表示不限制。计入已提交的制品、镜像缓存和校验文件，不计临时暂存副本。",
+    "repos.capacityInvalid": "请输入非负的容量上限（MiB）。",
+    "repos.capacityExceeded": "此存储库已达到容量上限，请删除制品或提高上限。",
     "common.create": "创建",
     "repos.title": "仓库列表",
     "repos.addRepoBtn": "添加仓库",

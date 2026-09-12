@@ -86,6 +86,10 @@ func finishGitHubEmailVerification(c fiber.Ctx, state *core.AppState, record cor
 		c.Cookies(sessionCookieName) != session || fmt.Sprintf("%x", sha256.Sum256([]byte(session))) != record.SessionHash {
 		return oauthResultRedirect(c, record.ReturnTo, "session_changed")
 	}
+	githubStatus, err := state.GetDB().GetGitHubIdentity(profile.Username)
+	if err != nil || githubStatus == nil || githubStatus.GitHubUserID == 0 {
+		return oauthResultRedirect(c, record.ReturnTo, "oauth_invalid")
+	}
 	email, err := fetchGitHubVerifiedEmail(ctx, client, provider, accessToken)
 	if err != nil {
 		return oauthResultRedirect(c, record.ReturnTo, "email_failed")

@@ -23,8 +23,10 @@ import (
 
 	"renop/internal/cache"
 	"renop/internal/config"
+	"renop/internal/configstore"
 	"renop/internal/core"
 	"renop/internal/database"
+	"renop/internal/demo"
 	"renop/internal/middleware"
 	"renop/internal/service/audit"
 	"renop/internal/service/auth"
@@ -35,6 +37,7 @@ import (
 	"renop/internal/service/javadocs"
 	"renop/internal/service/mailqueue"
 	"renop/internal/service/maven"
+	"renop/internal/service/nativesign"
 	"renop/internal/service/statistics"
 	"renop/internal/service/status"
 	"renop/internal/service/storage"
@@ -115,11 +118,17 @@ func (runtime *ServiceRuntime) Close() error {
 	return runtime.closeErr
 }
 
-func Initialize() (*core.AppState, BootstrapContext) {
-	configPath := os.Getenv("RENOP_CONFIG")
-	if configPath == "" {
-		configPath = "config.yaml"
+func Initialize(options ...demo.Options) (*core.AppState, BootstrapContext) {
+	if len(options) > 0 && options[0].Enabled {
+		state, err := demo.Open(options[0])
+		if err != nil {
+			log.Fatalf("Demo initialization failed: %v", err)
+		}
+		cfg := state.Inner.Config.Load()
+		frontend.RefreshIndexHTMLCache(&cfg.Frontend)
+		return state, BootstrapContext{ConfigPath: cfg.Runtime.SettingsDatabase}
 	}
+	configPath := configstore.LegacyPath()
 	cfg, err := LoadConfig(configPath)
 	if err != nil {
 		log.Fatalf("Configuration initialization failed: %v", err)
@@ -160,8 +169,19 @@ func Initialize() (*core.AppState, BootstrapContext) {
 	if concurrencyLimit <= 0 {
 		concurrencyLimit = 512
 	}
-	if concurrencyLimit > 262144 {
-		concurrencyLimit = 262144
+	// DON'T EDIT
+	if concurrencyLimit > 1024000 {
+		concurrencyLimit = 1024000
+	}
+	hasMirrors := false
+	for _, repo := range cfg.Maven.Repositories {
+		if len(repo.Mirrors) > 0 {
+			hasMirrors = true
+			break
+		}
+	}
+	if !hasMirrors && len(cfg.Proxy.Proxies) == 0 && cfg.Proxy.Selected == "" {
+		concurrencyLimit = 16
 	}
 	state.Inner.ProxyClientSemaphore = make(chan struct{}, concurrencyLimit)
 
@@ -191,6 +211,7 @@ func Initialize() (*core.AppState, BootstrapContext) {
 	}
 
 	state.Inner.FileIndex = fileIndex
+	storage.BindS3Index(fileIndex)
 	if err := storage.RestoreGPGReleaseState(state); err != nil {
 		log.Fatalf("Failed to restore GPG publication queue: %v", err)
 	}
@@ -198,7 +219,11 @@ func Initialize() (*core.AppState, BootstrapContext) {
 		log.Fatalf("Failed to restore publication review state: %v", err)
 	}
 
-	state.Inner.FileCache = core.NewFileByteCache(int(cfg.Server.FileCacheSizeMb) << 20)
+	if cfg.Server.FileCacheSizeMb > 0 {
+		state.Inner.FileCache = core.NewFileByteCache(int(cfg.Server.FileCacheSizeMb) << 20)
+	} else {
+		state.Inner.FileCache = core.NewFileByteCache(0)
+	}
 	remoteCache, err := cache.Open(cfg.Cache)
 	if err != nil {
 		log.Fatal("Failed to initialize cache: ", err)
@@ -211,7 +236,7 @@ func Initialize() (*core.AppState, BootstrapContext) {
 	frontend.RefreshIndexHTMLCache(&cfg.Frontend)
 
 	bootstrapCtx := BootstrapContext{
-		ConfigPath: configPath,
+		ConfigPath: configstore.PathForLegacy(configPath),
 		IndexPath:  indexPath,
 	}
 
@@ -221,6 +246,9 @@ func Initialize() (*core.AppState, BootstrapContext) {
 // StartServices starts event-driven workers and registers coalescible periodic
 // maintenance on one process-wide scheduler.
 func StartServices(state *core.AppState, bootstrapContext BootstrapContext) (*ServiceRuntime, error) {
+	if state.IsDemo() {
+		return &ServiceRuntime{state: state}, nil
+	}
 	if state == nil || state.Inner == nil {
 		return nil, errors.New("application state is unavailable")
 	}
@@ -251,6 +279,9 @@ func StartServices(state *core.AppState, bootstrapContext BootstrapContext) (*Se
 	if err := auth.EnsureMFAKey(state, bootstrapContext.ConfigPath); err != nil {
 		return nil, errors.Join(err, runtimeServices.Close())
 	}
+	if err := nativesign.EnsureKeys(state, bootstrapContext.ConfigPath); err != nil {
+		return nil, errors.Join(err, runtimeServices.Close())
+	}
 	stopMail, err := mailqueue.Start(state, bootstrapContext.ConfigPath)
 	if err != nil {
 		return nil, errors.Join(err, runtimeServices.Close())
@@ -273,6 +304,10 @@ func StartServices(state *core.AppState, bootstrapContext BootstrapContext) (*Se
 			status.UpdateStatusSnapshot(state)
 		}},
 		{"index-save", indexSaveInterval, indexSaveInterval, indexSave},
+		{"artifact-deduplication", 24 * time.Hour, time.Minute, func(ctx context.Context) {
+			storage.DeduplicateExisting(ctx, state)
+		}},
+		{"s3-content-collection", time.Minute, 2 * time.Minute, storage.NewS3ContentCollectionTask(state)},
 		{"maven-domain-health", time.Minute, time.Minute, func(ctx context.Context) {
 			maven.CheckDomainHealth(ctx, state)
 		}},

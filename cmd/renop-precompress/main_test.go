@@ -12,13 +12,14 @@ package main
 
 import (
 	"bytes"
-	"compress/gzip"
-	"compress/zlib"
 	"errors"
 	"io"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/klauspost/compress/gzip"
+	"github.com/klauspost/compress/zlib"
 
 	"github.com/klauspost/compress/zstd"
 	"github.com/molecule-man/go-brrr"

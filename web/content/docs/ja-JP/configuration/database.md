@@ -8,7 +8,7 @@ description: SQLite、MySQL、PostgreSQL、ClickHouse の接続と connection po
 # データベース設定
 
 RenoP はアカウント、RBAC、API Token、セッション、監査、チーム、メッセージをデータベースに永続化します。
-`config.yaml` の `database` を設定してください。マイグレーションは起動時に自動適用されます。
+システム設定 の `database` を設定してください。マイグレーションは起動時に自動適用されます。
 
 ## SQLite（既定）
 

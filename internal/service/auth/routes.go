@@ -89,8 +89,10 @@ func SetupAuthRoutes(app fiber.Router, state *core.AppState, opChan chan<- token
 	auth.Put("/profile", func(c fiber.Ctx) error { return updateOwnUserProfile(c, state, opChan) })
 	auth.Get("/profile/locale", func(c fiber.Ctx) error { return accountLocale(c, state) })
 	auth.Put("/profile/locale", func(c fiber.Ctx) error { return accountLocale(c, state) })
+	auth.Put("/profile/privacy", func(c fiber.Ctx) error { return updateProfilePrivacy(c, state) })
 	auth.Put("/profile/links", func(c fiber.Ctx) error { return updateOwnUserProfileLinks(c, state) })
 	setupAvatarRoutes(auth, state)
+	auth.Post("/profile/password/passkey/begin", func(c fiber.Ctx) error { return beginPasswordPasskey(c, state) })
 	auth.Put("/profile/password", func(c fiber.Ctx) error { return UpdatePassword(c, state, opChan) })
 	auth.Post("/profile/token", func(c fiber.Ctx) error { return GenerateUploadToken(c, state, opChan) })
 	auth.Get("/profile/sessions", func(c fiber.Ctx) error { return ListSessions(c, state) })
@@ -345,6 +347,8 @@ func resolveLogoutSessionToken(c fiber.Ctx) string {
 
 func PostAuthLogout(c fiber.Ctx, state *core.AppState) error {
 	user := GetUser(c)
+	sessionToken := resolveLogoutSessionToken(c)
+	proof, provider := logoutOAuthProof(state, state.GetSession(sessionToken), sessionToken)
 	if sessionID := resolveLogoutSessionToken(c); sessionID != "" {
 		if _, err := state.RevokeSession(sessionID); err != nil {
 			return c.Status(fiber.StatusInternalServerError).SendString("Failed to revoke session")
@@ -363,5 +367,13 @@ func PostAuthLogout(c fiber.Ctx, state *core.AppState) error {
 		})
 	}
 	setSessionCookie(c, "", -1)
+	if provider != "" {
+		status := "unavailable"
+		if proof != nil {
+			status = revokeProviderTokens(c.Context(), state.Inner.Config.Load(), proof)
+		}
+		setPrivateResponseHeaders(c)
+		return protohttp.Write(c, &pb.LogoutResponse{LocalRevoked: true, Provider: provider, ProviderStatus: status})
+	}
 	return c.SendStatus(fiber.StatusNoContent)
 }

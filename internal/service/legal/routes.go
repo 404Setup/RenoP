@@ -14,7 +14,6 @@ package legal
 import (
 	"github.com/gofiber/fiber/v3"
 
-	"renop/internal/config"
 	"renop/internal/core"
 )
 
@@ -63,36 +62,26 @@ func AcceptedRevision(c fiber.Ctx) string {
 
 // SetupRoutes exposes policy metadata and bounded Markdown documents.
 func SetupRoutes(router fiber.Router, state *core.AppState) {
+	cache := &legalCache{}
 	router.Get("/legal", func(c fiber.Ctx) error {
-		c.Set(fiber.HeaderCacheControl, "no-store")
-		value := state.Inner.Config.Load().Legal
-		return c.JSON(fiber.Map{"revision": value.Revision(), "cookie_banner": value.CookieBanner})
+		snapshot, err := cache.load(state.Inner.Config.Load())
+		if err != nil {
+			return err
+		}
+		return snapshot.serveMetadata(c)
 	})
 	router.Get("/legal/:document", func(c fiber.Ctx) error {
-		return serveDocument(c, state.Inner.Config.Load().Legal, c.Params("document"))
+		snapshot, err := cache.load(state.Inner.Config.Load())
+		if err != nil {
+			return err
+		}
+		return snapshot.serveDocument(c, c.Params("document"))
 	})
 	router.Get("/privacy-policy", func(c fiber.Ctx) error {
-		return serveDocument(c, state.Inner.Config.Load().Legal, "privacy-policy")
+		snapshot, err := cache.load(state.Inner.Config.Load())
+		if err != nil {
+			return err
+		}
+		return snapshot.serveDocument(c, "privacy-policy")
 	})
-}
-
-func serveDocument(c fiber.Ctx, value config.LegalConfig, document string) error {
-	var content string
-	switch document {
-	case "privacy-policy":
-		content = value.PrivacyPolicy
-	case "terms-of-service":
-		content = value.TermsOfService
-	case "legal-notice":
-		content = value.LegalNotice
-	default:
-		return fiber.ErrNotFound
-	}
-	if content == "" || len(content) > config.MaxLegalDocumentBytes {
-		return fiber.ErrServiceUnavailable
-	}
-	c.Set(fiber.HeaderCacheControl, "no-store")
-	c.Set(fiber.HeaderContentType, "text/plain; charset=utf-8")
-	c.Set(fiber.HeaderXContentTypeOptions, "nosniff")
-	return c.SendString(content)
 }

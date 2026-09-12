@@ -12,8 +12,6 @@
 package main
 
 import (
-	"compress/gzip"
-	"compress/zlib"
 	"errors"
 	"flag"
 	"fmt"
@@ -23,6 +21,9 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/klauspost/compress/gzip"
+	"github.com/klauspost/compress/zlib"
 
 	"github.com/klauspost/compress/zstd"
 	"github.com/molecule-man/go-brrr"
@@ -50,7 +51,7 @@ var assetFormats = [...]assetFormat{
 
 var compressibleExtensions = map[string]struct{}{
 	".css": {}, ".html": {}, ".js": {}, ".json": {}, ".map": {},
-	".svg": {}, ".txt": {}, ".wasm": {}, ".xml": {},
+	".svg": {}, ".txt": {}, ".wasm": {}, ".xml": {}, ".pb": {},
 }
 
 func isPrecompressedPath(path string) bool {

@@ -8,6 +8,7 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
+import {renderHTML} from '../../../../../scripts/render-shell-test.mjs';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {dirname, join, resolve} from 'node:path';
@@ -27,7 +28,7 @@ function source(...parts) {
 }
 
 test('global teams use a routed account center and embedded profile limits', () => {
-    const html = source('index.html');
+    const html = renderHTML(join(frontendRoot, 'index.html'));
     const main = source('js', 'main.js');
     const profile = source('js', 'profile.js');
     assert.match(html, /data-account-action="super-teams"/);

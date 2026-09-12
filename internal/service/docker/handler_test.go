@@ -300,7 +300,7 @@ func TestDockerReadLocksCoverDigestsAliasesAndSharedBlobOperations(t *testing.T)
 		store.manifests["docker-local/"+image+"/"+digest] = manifestBody
 	}
 	store.blobs["docker-local/"+blob] = blobBody
-	lock := &core.ResourceLock{ResourceLockTarget: core.ResourceLockTarget{Format: "docker", Repository: "docker-local", Name: "locked", Version: digest},
+	lock := &core.ResourceLock{Format: "docker", Repository: "docker-local", Name: "locked", Version: digest,
 		Source: core.ResourceLockSystem, Mode: core.ResourceLockRead, Reason: "trojan", LockedAt: time.Now().UnixMilli()}
 	require.NoError(t, db.SetResourceLock(lock, "", ""))
 	for _, check := range []struct {
@@ -347,6 +347,67 @@ func TestDockerReadLocksCoverDigestsAliasesAndSharedBlobOperations(t *testing.T)
 		} else {
 			require.Empty(t, tags.Tags)
 		}
+	}
+}
+
+func TestDockerRegistryLoginProbe(t *testing.T) {
+	app, state, _ := setupTestDockerApp(t)
+	for _, path := range []string{"/v2/token", "/v2/auth"} {
+		request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(
+			"grant_type=password&username=admin&password=admin-secret-token&scope=repository:docker-local/my-app:pull,push"))
+		request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		response, err := app.Test(request)
+		require.NoError(t, err)
+		require.NoError(t, response.Body.Close())
+		require.Equal(t, http.StatusNotFound, response.StatusCode, "OAuth POST must trigger the standard GET fallback")
+	}
+	request := httptest.NewRequest(http.MethodGet, "/v2/token?service=example.com", nil)
+	request.SetBasicAuth("admin", "admin-secret-token")
+	response, err := app.Test(request)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, response.StatusCode)
+	var grant TokenResponse
+	require.NoError(t, json.NewDecoder(response.Body).Decode(&grant))
+	require.NoError(t, response.Body.Close())
+	for _, path := range []string{"/v2", "/v2/"} {
+		for _, method := range []string{http.MethodGet, http.MethodHead} {
+			request = httptest.NewRequest(method, path, nil)
+			request.Header.Set("Authorization", "Bearer "+grant.Token)
+			response, err = app.Test(request)
+			require.NoError(t, err)
+			require.NoError(t, response.Body.Close())
+			require.Equal(t, http.StatusOK, response.StatusCode, "%s %s", method, path)
+		}
+	}
+	require.NoError(t, state.GetDB().SaveToken(&core.AccessToken{Name: "suspended"}))
+	suspended, err := GenerateDockerToken(state.GetDockerSecret(), "suspended", "example.com", nil, time.Hour)
+	require.NoError(t, err)
+	require.NoError(t, state.GetDB().SetAccountBan("suspended", &core.AccountBan{Reason: "test", CreatedAt: time.Now().UnixMilli()}))
+	for _, check := range []struct {
+		name, subject, audience string
+		ttl                     time.Duration
+	}{
+		{"guest", "guest", "example.com", time.Hour},
+		{"missing account", "missing", "example.com", time.Hour},
+		{"wrong audience", "admin", "other.example", time.Hour},
+		{"expired", "admin", "example.com", -time.Hour},
+	} {
+		invalid, err := GenerateDockerToken(state.GetDockerSecret(), check.subject, check.audience, nil, check.ttl)
+		require.NoError(t, err)
+		request = httptest.NewRequest(http.MethodGet, "/v2/", nil)
+		request.Header.Set("Authorization", "Bearer "+invalid)
+		response, err = app.Test(request)
+		require.NoError(t, err)
+		require.NoError(t, response.Body.Close())
+		require.Equal(t, http.StatusUnauthorized, response.StatusCode, check.name)
+	}
+	for _, invalid := range []string{suspended, grant.Token + "corrupt"} {
+		request = httptest.NewRequest(http.MethodGet, "/v2/", nil)
+		request.Header.Set("Authorization", "Bearer "+invalid)
+		response, err = app.Test(request)
+		require.NoError(t, err)
+		require.NoError(t, response.Body.Close())
+		require.Equal(t, http.StatusUnauthorized, response.StatusCode)
 	}
 }
 
@@ -1126,6 +1187,7 @@ func TestDockerHeadRequestsAndDigests(t *testing.T) {
 	if headBlobResp.Header.Get(DockerDigestHeader) != blobDigest {
 		t.Fatalf("expected digest %s, got %s", blobDigest, headBlobResp.Header.Get(DockerDigestHeader))
 	}
+	require.Equal(t, int64(len(blobPayload)), headBlobResp.ContentLength, "HEAD must advertise the complete blob size")
 	blobBody, _ := io.ReadAll(headBlobResp.Body)
 	if len(blobBody) != 0 {
 		t.Fatal("HEAD response body must be empty")
@@ -1147,6 +1209,7 @@ func TestDockerHeadRequestsAndDigests(t *testing.T) {
 	if headManifestResp.Header.Get(DockerDigestHeader) != manifestDigest {
 		t.Fatalf("expected digest %s, got %s", manifestDigest, headManifestResp.Header.Get(DockerDigestHeader))
 	}
+	require.Equal(t, int64(len(manifestJSON)), headManifestResp.ContentLength, "HEAD must advertise the complete manifest size")
 	manifestBody, _ := io.ReadAll(headManifestResp.Body)
 	if len(manifestBody) != 0 {
 		t.Fatal("HEAD response body must be empty")
@@ -1158,6 +1221,7 @@ func TestDockerHeadRequestsAndDigests(t *testing.T) {
 	if err != nil || headByDigestResp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200 OK on HEAD manifest by digest, got %d (err: %v)", headByDigestResp.StatusCode, err)
 	}
+	require.Equal(t, int64(len(manifestJSON)), headByDigestResp.ContentLength, "digest HEAD must retain the representation size")
 
 	headBadManifestReq := httptest.NewRequest(http.MethodHead, "/v2/docker-local/head-app/manifests/v9.9.9", nil)
 	headBadManifestReq.Header.Set("Authorization", "Bearer "+tok.Token)

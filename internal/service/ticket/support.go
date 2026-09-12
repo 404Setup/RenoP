@@ -12,6 +12,7 @@ package ticket
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -109,4 +110,99 @@ func transitionTask(c fiber.Ctx, state *core.AppState) error {
 	}
 	logSupportAudit(c, state, task, audit.ActionTicketUpdate, fmt.Sprintf("Ticket: %s, action: %s", task.ID, action.Action))
 	return getTask(c, state)
+}
+
+type ticketCloseRequest struct {
+	Reason  string `json:"reason"`
+	Comment string `json:"comment"`
+}
+
+func closeTask(c fiber.Ctx, state *core.AppState) error {
+	username, _, err := currentUser(c)
+	if err != nil {
+		return reviewError(c, err)
+	}
+	var request ticketCloseRequest
+	_ = utils.ReadJSONLimited(c, &request, 16<<10)
+	reason := strings.ToLower(strings.TrimSpace(request.Reason))
+	if reason != core.TicketCloseReasonInvalid &&
+		reason != core.TicketCloseReasonResolved &&
+		reason != core.TicketCloseReasonPlanned {
+		reason = core.TicketCloseReasonResolved
+	}
+	ticketMutationLock.Lock()
+	defer ticketMutationLock.Unlock()
+	task, err := state.GetDB().TransitionTicket(c.Params("id"), username, auth.CurrentSessionToken(c), core.TicketAction{
+		Action:   "close",
+		Outcome:  reason,
+		Response: request.Comment,
+	}, time.Now().UnixMilli())
+	if err != nil {
+		return reviewError(c, err)
+	}
+	ticketnotify.DeliverDecision(state, task)
+	logSupportAudit(c, state, task, audit.ActionTicketUpdate, fmt.Sprintf("Ticket: %s, closed: %s", task.ID, reason))
+	return getTask(c, state)
+}
+
+type createMessageRequest struct {
+	Body string `json:"body"`
+}
+
+func listMessages(c fiber.Ctx, state *core.AppState) error {
+	username, _, err := currentUser(c)
+	if err != nil {
+		return reviewError(c, err)
+	}
+	task, err := state.GetDB().GetTicket(c.Params("id"), username)
+	if err != nil {
+		return reviewError(c, err)
+	}
+	limit, err := strconv.Atoi(c.Query("limit", "50"))
+	if err != nil || limit < 1 || limit > 100 {
+		return reviewError(c, core.ErrReviewInvalidRequest)
+	}
+	messages, next, err := state.GetDB().ListTicketMessages(task.ID, c.Query("before"), limit)
+	if err != nil {
+		return reviewError(c, err)
+	}
+	requester := task.RequestedBy == username
+	if requester {
+		for _, m := range messages {
+			if m.AuthorRole != "author" {
+				m.AuthorName = "Staff"
+				m.AuthorID = ""
+			}
+		}
+	}
+	if next != "" {
+		c.Set("X-Renop-Next-Cursor", next)
+	}
+	c.Set(fiber.HeaderCacheControl, "no-store")
+	return c.JSON(messages)
+}
+
+func createMessage(c fiber.Ctx, state *core.AppState) error {
+	username, _, err := currentUser(c)
+	if err != nil {
+		return reviewError(c, err)
+	}
+	var request createMessageRequest
+	if err := utils.ReadJSONLimited(c, &request, 24<<10); err != nil {
+		return reviewError(c, fiber.ErrBadRequest)
+	}
+	body := strings.TrimSpace(request.Body)
+	if body == "" {
+		return reviewError(c, fiber.ErrBadRequest)
+	}
+	msg := &core.TicketMessage{
+		TaskID:    c.Params("id"),
+		Body:      body,
+		CreatedAt: time.Now().UnixMilli(),
+	}
+	if err := state.GetDB().AddTicketMessage(msg, username, auth.CurrentSessionToken(c)); err != nil {
+		return reviewError(c, err)
+	}
+	c.Set(fiber.HeaderCacheControl, "no-store")
+	return c.Status(fiber.StatusCreated).JSON(msg)
 }

@@ -9,6 +9,26 @@
  */
 
 export default Object.freeze({
+    "repos.formatConan": "Conan",
+    "repos.formatConanDesc": "Conan 配方、二進位套件、修訂版本和原生用戶端上傳。",
+    "repos.formatConda": "Conda",
+    "repos.formatCondaNative": "Conda native",
+    "repos.formatApk": "Alpine APK",
+    "repos.formatApt": "apt",
+    "repos.formatRpm": "rpm / yum",
+    "repos.formatCondaDesc": "自動產生套件索引，支援原生用戶端下載及上傳既有索引和簽章。",
+    "repos.formatCondaNativeDesc": "自動產生套件索引，支援原生用戶端下載及上傳既有索引和簽章。",
+    "repos.formatApkDesc": "自動產生套件索引，支援原生用戶端下載及上傳既有索引和簽章。",
+    "repos.formatAptDesc": "自動產生套件索引，支援原生用戶端下載及上傳既有索引和簽章。",
+    "repos.formatRpmDesc": "自動產生套件索引，支援原生用戶端下載及上傳既有索引和簽章。",
+    "details.nativeTitle": "用戶端設定",
+    "details.nativeSubtitle": "登記資源後使用原生用戶端發佈，索引由已發佈內容產生。",
+    "details.nativeClientTab": "用戶端",
+
+    "repos.capacityLimit": "容量上限（MiB）",
+    "repos.capacityHint": "0 表示不限制。計入已提交的製品、鏡像快取和校驗檔案，不計臨時暫存副本。",
+    "repos.capacityInvalid": "請輸入非負的容量上限（MiB）。",
+    "repos.capacityExceeded": "此儲存庫已達容量上限，請刪除製品或提高上限。",
     "common.create": "建立",
     "repos.title": "儲存庫列表",
     "repos.addRepoBtn": "新增儲存庫",

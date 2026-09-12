@@ -18,11 +18,13 @@ import {cachedIsManager} from './auth.js';
 import {showAlert} from './alert.js';
 import {t} from './i18n.js';
 import {localizedResponseError} from './response-errors.js';
+import {createNotificationSessions} from './notification-sessions.js';
 import {SendNotificationRequest, SendNotificationResponse, UserSearchResponse} from './proto/index.js';
 
 let initialized = false;
 let severitySelect = null;
 let broadcastToggle = null;
+let sessionTarget = null;
 let recipientSuggestions = [];
 let activeRecipientSuggestion = -1;
 let recipientSuggestionTimer = 0;
@@ -44,12 +46,15 @@ export function initNotificationComposer() {
     document.getElementById('message-compose-form')?.addEventListener('submit', submitNotification);
     document.getElementById('message-compose-recipients')?.addEventListener('input', handleRecipientInput);
     document.getElementById('message-compose-recipients')?.addEventListener('keydown', handleRecipientKeydown);
+    document.getElementById('message-compose-recipients')?.addEventListener('blur', handleRecipientBlur);
     document.getElementById('message-recipient-suggestions')?.addEventListener('click', handleRecipientSuggestionClick);
     document.addEventListener('click', handleRecipientDocumentClick);
     window.addEventListener('authChanged', updateComposerVisibility);
     window.addEventListener('languageChanged', handleLanguageChanged);
     initializeSeveritySelect();
     initializeBroadcastToggle();
+    sessionTarget = createNotificationSessions(document.getElementById('message-compose-session-field'),
+        document.getElementById('message-compose-session'), document.getElementById('message-compose-session-status'));
 }
 
 /**
@@ -141,6 +146,7 @@ function handleBroadcastToggleChange(checked) {
  */
 function handleLanguageChanged() {
     severitySelect?.setOptions(severityOptions(), 'info');
+    sessionTarget?.translate();
     syncBroadcastToggleLabel();
 }
 
@@ -169,6 +175,13 @@ function handleBroadcastChange() {
     if (!recipients) return;
     recipients.disabled = Boolean(broadcastToggle?.checked);
     if (recipients.disabled) hideRecipientSuggestions();
+    updateSessionTarget();
+}
+
+/** Synchronize the session selector with the current recipient and broadcast mode. */
+function updateSessionTarget() {
+    sessionTarget?.update(parseRecipientNames(document.getElementById('message-compose-recipients')?.value || ''),
+        open && !broadcastToggle?.checked);
 }
 
 /**
@@ -177,6 +190,7 @@ function handleBroadcastChange() {
  */
 function handleRecipientInput() {
     hideRecipientSuggestions();
+    updateSessionTarget();
     const input = document.getElementById('message-compose-recipients');
     if (!cachedIsManager || !input || input.disabled || !currentRecipientQuery(input)) return;
     recipientSuggestionTimer = window.setTimeout(fetchRecipientSuggestions, 160);
@@ -326,6 +340,7 @@ function insertRecipientSuggestion(username) {
     input.focus();
     input.setSelectionRange(Math.min(nextCaret, input.value.length), Math.min(nextCaret, input.value.length));
     hideRecipientSuggestions();
+    updateSessionTarget();
 }
 
 /**
@@ -336,6 +351,11 @@ function insertRecipientSuggestion(username) {
 function handleRecipientDocumentClick(event) {
     const wrapper = document.querySelector('.message-recipient-input-wrap');
     if (wrapper && !wrapper.contains(event.target)) hideRecipientSuggestions();
+}
+
+/** Close recipient suggestions when focus moves to the session selector or another field. */
+function handleRecipientBlur(event) {
+    if (!document.querySelector('.message-recipient-input-wrap')?.contains(event.relatedTarget)) hideRecipientSuggestions();
 }
 
 /**
@@ -363,7 +383,7 @@ function hideRecipientSuggestions() {
  * @returns {Array<string>} Non-empty usernames.
  */
 function parseRecipientNames(value) {
-    return value.split(/[\s,]+/u).filter(Boolean);
+    return [...new Set(value.toLowerCase().split(/[\s,]+/u).filter(Boolean))];
 }
 
 /**
@@ -377,6 +397,7 @@ function setSubmitState(state) {
     const close = document.getElementById('message-compose-close');
     const form = document.getElementById('message-compose-form');
     const isSending = state === 'sending';
+    document.getElementById('message-compose-region')?.toggleAttribute('inert', isSending);
     if (submit) {
         submit.disabled = isSending;
         submit.classList.toggle('is-sending', isSending);
@@ -411,6 +432,7 @@ async function submitNotification(event) {
     const severity = severitySelect?.getValue() || 'info';
     const title = document.getElementById('message-compose-title')?.value.trim() || '';
     const body = document.getElementById('message-compose-body')?.value.trim() || '';
+    const session_id = all ? '' : sessionTarget?.value(recipients) || '';
     if ((!all && recipients.length === 0) || !title || !body) {
         showAlert(t('messages.invalidNotification'), 'error');
         return;
@@ -419,7 +441,7 @@ async function submitNotification(event) {
     setSubmitState('sending');
     try {
         const {response, data} = await postProto('/api/messages/admin', SendNotificationRequest,
-            {all, recipients, severity, title, body}, SendNotificationResponse);
+            {all, recipients, severity, title, body, session_id}, SendNotificationResponse);
         if (!response.ok) throw await localizedResponseError(response, 'messages.sendFailed');
         sending = false;
         setSubmitState('success');

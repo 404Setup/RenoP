@@ -11,8 +11,8 @@
 package api
 
 import (
-	"encoding/hex"
 	"errors"
+	"renop/pkg/hex"
 	"strings"
 	"time"
 

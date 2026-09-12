@@ -15,6 +15,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"renop/internal/config"
+	"renop/internal/core"
+	"renop/internal/service/legal"
+
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/require"
 )
@@ -97,4 +101,26 @@ func TestAPINoCacheMiddlewareLeavesNonAPIResponsesAlone(t *testing.T) {
 	apiaryResp, err := app.Test(httptest.NewRequest(http.MethodGet, "/apiary", nil))
 	require.NoError(t, err)
 	require.Empty(t, apiaryResp.Header.Get(fiber.HeaderCacheControl))
+}
+
+func TestPublicLegalResponsesRetainRevalidationHeaders(t *testing.T) {
+	state := core.NewAppState()
+	state.Inner.Config.Store(config.DefaultConfig())
+	app := fiber.New()
+	app.Use(APINoCacheMiddleware())
+	legal.SetupRoutes(app.Group("/api"), state)
+	for _, path := range []string{"/api/legal", "/api/legal/privacy-policy"} {
+		resp, err := app.Test(httptest.NewRequest(http.MethodGet, path, nil))
+		require.NoError(t, err)
+		require.Equal(t, "public, no-cache", resp.Header.Get(fiber.HeaderCacheControl))
+		etag := resp.Header.Get(fiber.HeaderETag)
+		require.NoError(t, resp.Body.Close())
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set(fiber.HeaderIfNoneMatch, etag)
+		resp, err = app.Test(req)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusNotModified, resp.StatusCode)
+		require.Equal(t, "public, no-cache", resp.Header.Get(fiber.HeaderCacheControl))
+		require.NoError(t, resp.Body.Close())
+	}
 }

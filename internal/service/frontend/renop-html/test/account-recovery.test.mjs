@@ -74,7 +74,7 @@ test('account recovery validates distinct codes, submits once, clears secrets, a
         console,
     });
     const buttonSource = readFileSync(new URL('../js/components/button.js', import.meta.url), 'utf8');
-    const action = vm.runInContext(buttonSource.slice(buttonSource.indexOf('export async function runButtonAction')).replace('export ', '') + '; runButtonAction', context);
+    const action = vm.runInContext(buttonSource.slice(buttonSource.indexOf('export async function runButtonAction')).replaceAll('export ', '') + '; runButtonAction', context);
     context.runButtonAction = (button, task) => {
         const result = action(button, task);
         if (!pending) pending = result;

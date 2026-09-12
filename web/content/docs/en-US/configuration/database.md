@@ -10,7 +10,7 @@ description: SQLite, MySQL, PostgreSQL, and ClickHouse database connections and 
 RenoP uses a database backend to persist user accounts, RBAC permissions, Personal Access Tokens (PATs), browser
 sessions, audit logs, and message center notifications.
 
-Configure database options under the `database` section in `config.yaml`.
+Configure database options under the `database` section in system settings.
 
 ## SQLite (Default)
 

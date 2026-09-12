@@ -12,7 +12,7 @@ repository gate が進行中操作と直列化します。
 
 ## ローカルファイルシステム
 
-ルートは `config.yaml` の `storage_path` で、既定は `storage` です。
+ルートは システム設定 の `storage_path` で、既定は `storage` です。
 
 ### 配置
 
@@ -73,3 +73,5 @@ manager を使い、Git リポジトリへ鍵を commit しないでください
   bucket を非公開に保ち、S3 URL を隠せます。
 - **Direct redirect (`redirect_downloads: true`)**: 認可後に短期 presigned URL への `302 Found` を返し、
   RenoP の帯域使用を減らします。
+
+S3 の共有データは非公開の `.renop-content-v1` 名前空間に保存します。バックアップにはリポジトリのオブジェクトとこの名前空間を含め、再起動後のメタデータ読み取りを減らすため非公開のインデックスも保持してください。インデックスはバージョン付き JSON レコードストリームを使用し、旧スナップショットも読み取れます。重複排除と復元については[リポジトリ設定](/docs/configuration/repositories)を参照してください。

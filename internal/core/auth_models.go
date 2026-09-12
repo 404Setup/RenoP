@@ -72,6 +72,7 @@ type LoginRequest struct {
 }
 
 type Session struct {
+	OAuthGrant             *SessionOAuthGrant
 	AuthenticationSnapshot string
 	FidoCredentialID       []byte
 	PublicID               string

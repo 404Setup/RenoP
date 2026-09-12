@@ -3,6 +3,8 @@
  *
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
  *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
+ *
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
@@ -66,45 +68,41 @@ func TestEmailPasswordResetRoutes(t *testing.T) {
 	cfg.Mail.Enabled = true
 	state.Inner.Config.Store(cfg)
 	var knownCode string
-	for _, email := range []string{"Alice@Example.COM", "unknown@example.com"} {
-		response := accountSecurityRequest(t, app, "POST", "/api/auth/password-reset/request", map[string]string{"email": email}, "")
-		require.Equal(t, 202, response.StatusCode)
-		require.Equal(t, "no-store", response.Header.Get("Cache-Control"))
-		var receipt mailqueue.Receipt
-		require.NoError(t, json.NewDecoder(response.Body).Decode(&receipt))
-		require.NoError(t, response.Body.Close())
-		require.NotEmpty(t, receipt.Ticket)
-		require.Equal(t, "queued", receipt.Status)
-		job, err := db.GetMailJob(receipt.ID, cfg.Mail.EncryptionKey)
-		require.NoError(t, err)
-		require.NotNil(t, job)
-		require.Equal(t, strings.ToLower(email), job.Message.To)
-		code := regexp.MustCompile(`(?m)^\d{8}$`).FindString(job.Message.Text)
-		require.Len(t, code, 8)
-		require.NotContains(t, job.Message.Text, "alice")
-		require.LessOrEqual(t, job.ExpiresAt-job.CreatedAt, int64(600000))
-		request := httptest.NewRequest("GET", "/api/auth/mail/"+receipt.ID, nil)
-		request.Header.Set("X-Renop-Mail-Ticket", receipt.Ticket)
-		response, err = app.Test(request)
-		require.NoError(t, err)
-		require.Equal(t, 200, response.StatusCode)
-		body, err := io.ReadAll(response.Body)
-		require.NoError(t, err)
-		require.NoError(t, response.Body.Close())
-		for _, secret := range []string{email, code, receipt.Ticket, "user_id", "username"} {
-			require.NotContains(t, string(body), secret)
-		}
-		if strings.HasPrefix(email, "Alice") {
-			require.Contains(t, job.Message.HTML, `lang="ja-JP"`)
-			knownCode = code
-		} else {
-			require.Contains(t, job.Message.HTML, `lang="en-US"`)
-			response = accountSecurityRequest(t, app, "POST", "/api/auth/password-reset/confirm", map[string]string{"email": email, "code": code, "new_password": "new-password"}, "")
-			require.Equal(t, 401, response.StatusCode)
-			require.NoError(t, response.Body.Close())
-		}
+	response := accountSecurityRequest(t, app, "POST", "/api/auth/password-reset/request", map[string]string{"email": "unknown@example.com"}, "")
+	require.Equal(t, 400, response.StatusCode)
+	require.Equal(t, "ACCOUNT_EMAIL_INVALID", response.Header.Get("X-Renop-Error-Code"))
+	require.NoError(t, response.Body.Close())
+
+	response = accountSecurityRequest(t, app, "POST", "/api/auth/password-reset/request", map[string]string{"email": "Alice@Example.COM"}, "")
+	require.Equal(t, 202, response.StatusCode)
+	require.Equal(t, "no-store", response.Header.Get("Cache-Control"))
+	var receipt mailqueue.Receipt
+	require.NoError(t, json.NewDecoder(response.Body).Decode(&receipt))
+	require.NoError(t, response.Body.Close())
+	require.NotEmpty(t, receipt.Ticket)
+	require.Equal(t, "queued", receipt.Status)
+	job, err := db.GetMailJob(receipt.ID, cfg.Mail.EncryptionKey)
+	require.NoError(t, err)
+	require.NotNil(t, job)
+	require.Equal(t, "alice@example.com", job.Message.To)
+	code := regexp.MustCompile(`(?m)^\d{8}$`).FindString(job.Message.Text)
+	require.Len(t, code, 8)
+	require.NotContains(t, job.Message.Text, "alice")
+	require.LessOrEqual(t, job.ExpiresAt-job.CreatedAt, int64(600000))
+	request := httptest.NewRequest("GET", "/api/auth/mail/"+receipt.ID, nil)
+	request.Header.Set("X-Renop-Mail-Ticket", receipt.Ticket)
+	response, err = app.Test(request)
+	require.NoError(t, err)
+	require.Equal(t, 200, response.StatusCode)
+	body, err := io.ReadAll(response.Body)
+	require.NoError(t, err)
+	require.NoError(t, response.Body.Close())
+	for _, secret := range []string{"alice@example.com", code, receipt.Ticket, "user_id", "username"} {
+		require.NotContains(t, string(body), secret)
 	}
-	response := accountSecurityRequest(t, app, "POST", "/api/auth/password-reset/request", map[string]string{"email": "alice@example.com"}, "")
+	require.Contains(t, job.Message.HTML, `lang="ja-JP"`)
+	knownCode = code
+	response = accountSecurityRequest(t, app, "POST", "/api/auth/password-reset/request", map[string]string{"email": "alice@example.com"}, "")
 	require.Equal(t, 429, response.StatusCode)
 	require.NoError(t, response.Body.Close())
 	for index, code := range []string{knownCode[:7] + string('0'+(knownCode[7]-'0'+1)%10), knownCode, knownCode} {

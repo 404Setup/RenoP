@@ -4,6 +4,13 @@ package renop.api.v1;
 
 option go_package = "renop/pkg/pb";
 
+message DemoInfo {
+  bool enabled = 1;
+  bool temporary = 2;
+  string username = 3;
+  string password = 4;
+}
+
 message AccessTokenIdentifier {
   string type = 1;
   int32 value = 2;
@@ -13,6 +20,7 @@ message AccountBan {
   string reason = 1;
   int64 created_at = 2;
   optional int64 expires_at = 3;
+  string reason_code = 4;
 }
 
 message AccessTokenDto {
@@ -74,6 +82,7 @@ message SessionDto {
 
 message SessionList {
   repeated SessionDto sessions = 1;
+  string next_cursor = 2;
 }
 
 // StatusOk is a simple success body for mutating profile/session endpoints.
@@ -224,6 +233,8 @@ message Repository {
   bool require_gpg_signature = 6;
   // "maven" (default), "maven-classic", "files", "cargo", "docker", or "npm".
   string format = 7;
+  // Maximum committed artifact bytes, including mirrors; zero is unlimited.
+  optional int64 capacity_limit_bytes = 8;
 }
 
 message MavenRepositoriesResponse {
@@ -287,6 +298,9 @@ message FrontendConfig {
   string public_security_filing = 9;
   string font_preset = 10;
   string font_url = 11;
+  string font_css = 12;
+  // Administrator settings only; omitted by public frontend projections.
+  LegalSettings legal = 13;
 }
 
 message AuditLogConfig {
@@ -448,6 +462,13 @@ message GpgReleaseList {
 
 message UpdatePasswordRequest {
   string new_password = 1;
+  // Empty only when the account has no second factor; otherwise totp, passkey, or email.
+  string factor = 2;
+  string totp_code = 3;
+  string challenge_id = 4;
+  // The browser WebAuthn assertion encoded as UTF-8 JSON.
+  bytes passkey_credential = 5;
+  string email_code = 6;
 }
 
 message GenerateTokenResponse {
@@ -549,6 +570,113 @@ message SendNotificationRequest {
   string severity = 3;
   string title = 4;
   string body = 5;
+  // Empty delivers to every credential of the recipient. Otherwise requires exactly one recipient.
+  string session_id = 6;
+}
+
+message LegalMetadata {
+  string revision = 1;
+  bool cookie_banner = 2;
+  string content_revision = 3;
+}
+
+message LegalSettings {
+  string privacy_policy = 1;
+  string terms_of_service = 2;
+  string legal_notice = 3;
+  bool cookie_banner = 4;
+}
+
+message LogoutResponse {
+  bool local_revoked = 1;
+  string provider = 2;
+  // revoked, failed, unavailable, or unsupported; local logout is independent of provider availability.
+  string provider_status = 3;
+}
+
+// OAuth-only providers or trusted webhook adapters sign these exact bytes with HMAC-SHA256.
+message ProviderRevocationRequest {
+  string event_id = 1;
+  string subject = 2;
+  string session_id = 3;
+  int64 issued_at = 4;
+  string issuer = 5;
+}
+
+message OAuthClaims {
+  string subject = 1;
+  string username = 2;
+  string name = 3;
+  string email = 4;
+  string email_verified = 5;
+  string avatar = 6;
+}
+
+message OAuthProviderSettings {
+  string id = 1;
+  string type = 2;
+  string name = 3;
+  bool enabled = 4;
+  string client_id = 5;
+  string client_secret = 6;
+  string callback_url = 7;
+  string tenant = 8;
+  string base_url = 9;
+  string site = 10;
+  string api_key = 11;
+  string authorize_url = 12;
+  string token_url = 13;
+  string userinfo_url = 14;
+  string issuer = 15;
+  string jwks_url = 16;
+  string scopes = 17;
+  string token_auth = 18;
+  bool disable_pkce = 19;
+  OAuthClaims claims = 20;
+  bool client_secret_configured = 21;
+  bool api_key_configured = 22;
+  bool clear_client_secret = 23;
+  bool clear_api_key = 24;
+  string revocation_url = 25;
+  string revocation_secret = 26;
+  bool revocation_secret_configured = 27;
+  bool clear_revocation_secret = 28;
+}
+
+message OAuthSettings {
+  repeated OAuthProviderSettings providers = 1;
+  repeated OAuthProviderSettings presets = 2;
+  bool replace_providers = 3;
+}
+
+message PublicOAuthProvider {
+  string id = 1;
+  string name = 2;
+  string type = 3;
+  bool can_revoke = 4;
+}
+
+message PublicOAuthProviders {
+  repeated PublicOAuthProvider providers = 1;
+}
+
+message OAuthProfileStatus {
+  string id = 1;
+  string name = 2;
+  string type = 3;
+  string login = 4;
+  bool configured = 5;
+  bool linked = 6;
+  bool can_disconnect = 7;
+  bool can_verify_email = 8;
+  bool can_import_avatar = 9;
+  int64 authorized_at = 10;
+  int32 principal_count = 11;
+  bool can_revoke = 12;
+}
+
+message OAuthProfileProviders {
+  repeated OAuthProfileStatus providers = 1;
 }
 
 message SendNotificationResponse {

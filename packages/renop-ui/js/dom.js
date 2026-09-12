@@ -66,6 +66,14 @@ export function el(tag, attrs = {}, ...children) {
     return node;
 }
 
+/** Create an SVG element in its native namespace. @param {string} tag @param {object} attrs @param {...Node} children */
+export function svg(tag, attrs = {}, ...children) {
+    const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (const [name, value] of Object.entries(attrs)) node.setAttribute(name, String(value));
+    node.append(...children.flat());
+    return node;
+}
+
 /**
  * Remove all child nodes from an element.
  * @param {Node} node - Parent to empty.

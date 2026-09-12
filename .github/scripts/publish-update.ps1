@@ -32,6 +32,9 @@
 
 .PARAMETER BaseUrl
     Update host origin (default https://mvnc.pkg.one)
+
+.PARAMETER IndexTool
+    Native renop-release-index executable built from the current protobuf schema
 #>
 [CmdletBinding()]
 param(
@@ -53,6 +56,7 @@ param(
 
     [string]$ChangelogFile = '',
 
+    [Parameter(Mandatory)][string]$IndexTool,
     [string]$BaseUrl = 'https://mvnc.pkg.one'
 )
 
@@ -114,6 +118,7 @@ $httpHandler.PooledConnectionLifetime = [TimeSpan]::FromMinutes(5)
 $httpHandler.PooledConnectionIdleTimeout = [TimeSpan]::FromSeconds(30)
 $httpHandler.MaxConnectionsPerServer = 16
 $httpHandler.EnableMultipleHttp2Connections = $true
+$httpHandler.AllowAutoRedirect = $false
 
 $httpClient = [System.Net.Http.HttpClient]::new($httpHandler)
 $httpClient.Timeout = [TimeSpan]::FromSeconds(600)
@@ -324,7 +329,7 @@ if ($Channel -eq 'nightly') {
                 $dl = if ($i -le 1) {
                     "$BaseUrl/$channelRoot/$ver/$file"
                 } else {
-                    "https://github.com/404Setup/SRC-RenoP/releases/download/$tag/$file"
+                    "https://github.com/404Setup/RenoP/releases/download/$tag/$file"
                 }
                 $relTargets.Add([ordered]@{
                     os           = [string]$t.os
@@ -356,16 +361,19 @@ if ($Channel -eq 'nightly') {
 }
 
 $retention = if ($Channel -eq 'nightly') { $nightlyPackageRetention } else { 2 }
-$allowedMvncVersions = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-$allowedMvncVersions.Add($Version) | Out-Null
-foreach ($release in ($updatedReleases | Select-Object -First $retention)) {
-    $allowedMvncVersions.Add([string]$release.version) | Out-Null
+# The changelog is not a storage inventory: Git can backfill unpublished commits,
+# change short SHA lengths, or evict old versions when the 100-entry window moves.
+. (Join-Path $PSScriptRoot 'package-retention.ps1')
+$resolvedIndexTool = (Resolve-Path -LiteralPath $IndexTool).Path
+function Get-PackageDirectories {
+    $json = & $resolvedIndexTool -url "$BaseUrl/api/repositories/details/$channelRoot"
+    if ($LASTEXITCODE -ne 0) { throw 'Could not read the remote package inventory' }
+    return @($json | ConvertFrom-Json)
 }
-$candidatesToDelete = @(
-    $updatedReleases | Select-Object -Skip $retention -First 100 | ForEach-Object { [string]$_.version } |
-        Where-Object { $_ -match '^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$' -and -not $allowedMvncVersions.Contains($_) } |
-        Select-Object -Unique
-)
+$directories = @(Get-PackageDirectories)
+$candidatesToDelete = @(Get-ObsoletePackageVersions -Releases @($updatedReleases) `
+    -DirectoryVersions $directories -Channel $Channel -Retention $retention)
+Write-Host "Inventory: $($directories.Count) version directories; $($candidatesToDelete.Count) obsolete; retention=$retention"
 
 $targets | ForEach-Object -Parallel {
     $t = $_
@@ -398,43 +406,49 @@ $targets | ForEach-Object -Parallel {
 $info = [ordered]@{
     releases = $updatedReleases
 }
-$infoJson = $info | ConvertTo-Json -Depth 8
-$infoLocal = Join-Path $DistDir 'info.json'
-[System.IO.File]::WriteAllText($infoLocal, $infoJson, [System.Text.UTF8Encoding]::new($false))
 
-Write-Host "PUT info.json -> $infoUrl"
-$infoBytes = [System.Text.Encoding]::UTF8.GetBytes($infoJson)
-$infoContent = [System.Net.Http.ByteArrayContent]::new($infoBytes)
-$infoContent.Headers.ContentType = [System.Net.Http.Headers.MediaTypeHeaderValue]::Parse('application/json')
-$infoReq = [System.Net.Http.HttpRequestMessage]::new([System.Net.Http.HttpMethod]::Put, $infoUrl)
-$infoReq.Content = $infoContent
-
-$infoResp = $httpClient.SendAsync($infoReq).GetAwaiter().GetResult()
-$infoCode = [int]$infoResp.StatusCode
-if ($infoCode -ne 200 -and $infoCode -ne 201 -and $infoCode -ne 204) {
-    throw "PUT $infoUrl returned unexpected status $infoCode ($($infoResp.ReasonPhrase))"
-}
-
-Write-Host "Published $Channel $Version ($($targets.Count) targets) to $BaseUrl/$channelRoot/"
-
-# Retire obsolete trees only after the new packages and metadata are durable.
-$deleted = 0
-foreach ($oldVersion in $candidatesToDelete) {
-    $dirUrl = "$BaseUrl/$channelRoot/$oldVersion"
-    $request = [System.Net.Http.HttpRequestMessage]::new([System.Net.Http.HttpMethod]::Delete, $dirUrl)
+function Publish-InfoJson {
+    $infoJson = $info | ConvertTo-Json -Depth 8
+    [IO.File]::WriteAllText((Join-Path $DistDir 'info.json'), $infoJson, [Text.UTF8Encoding]::new($false))
+    $request = [Net.Http.HttpRequestMessage]::new([Net.Http.HttpMethod]::Put, $infoUrl)
     $response = $null
     try {
+        $request.Content = [Net.Http.ByteArrayContent]::new([Text.Encoding]::UTF8.GetBytes($infoJson))
+        $request.Content.Headers.ContentType = [Net.Http.Headers.MediaTypeHeaderValue]::Parse('application/json')
         $response = $httpClient.SendAsync($request).GetAwaiter().GetResult()
-        $code = [int]$response.StatusCode
-        if ($code -eq 404) { continue }
-        if ($code -notin @(200, 204)) { throw "DELETE $dirUrl returned HTTP $code" }
-        Write-Host "Deleted obsolete package tree: $dirUrl"
-        $deleted++
-        if ($deleted -eq 5) { break }
+        if ([int]$response.StatusCode -notin @(200, 201, 204)) {
+            throw "PUT info.json returned HTTP $([int]$response.StatusCode)"
+        }
     } finally {
         if ($null -ne $response) { $response.Dispose() }
         $request.Dispose()
     }
 }
-Write-Host "Cleaned $deleted obsolete package tree(s)."
-$httpClient.Dispose()
+
+try {
+    Publish-InfoJson
+    Write-Host "Published $Channel $Version ($($targets.Count) targets) to $BaseUrl/$channelRoot/"
+    # Retire obsolete trees only after the new packages and metadata are durable.
+    $removed = @(Remove-ObsoletePackageVersions -Versions $candidatesToDelete -DeleteVersion {
+        param($oldVersion)
+        $dirUrl = "$BaseUrl/$channelRoot/$oldVersion"
+        $request = [Net.Http.HttpRequestMessage]::new([Net.Http.HttpMethod]::Delete, $dirUrl)
+        $response = $null
+        try {
+            $response = $httpClient.SendAsync($request).GetAwaiter().GetResult()
+            return [int]$response.StatusCode
+        } finally {
+            if ($null -ne $response) { $response.Dispose() }
+            $request.Dispose()
+        }
+    })
+    if ($removed.Count -gt 0) {
+        $remainingDirectories = @(Get-PackageDirectories)
+        $stillPresent = @($removed | Where-Object { $_ -in $remainingDirectories })
+        if ($stillPresent.Count -gt 0) {
+            throw "Package deletion did not remove the directory: $($stillPresent -join ', ')"
+        }
+    }
+} finally {
+    $httpClient.Dispose()
+}

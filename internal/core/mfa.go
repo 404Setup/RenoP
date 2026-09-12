@@ -14,24 +14,36 @@ import (
 	"crypto/hmac"
 	"crypto/sha1"
 	"crypto/subtle"
-	"encoding/base32"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"time"
+
+	"renop/pkg/base32"
 )
 
 // ErrMFAInvalid indicates a stale challenge, rejected code, or changed authentication policy.
 var ErrMFAInvalid = errors.New("multi-factor verification is invalid")
 
+// ErrMFARequired indicates that a protected action needs a fresh second factor.
+var ErrMFARequired = errors.New("second-factor verification required")
+
+// PasswordChange binds server-verified proof to one live account, session, and credential snapshot.
+type PasswordChange struct {
+	Username, Session, Snapshot, PasswordHash string
+	Factor, Email, EmailCodeHash              string
+	CredentialID                              []byte
+	TOTPStep, Now                             int64
+}
+
 // MFAState is private persisted second-factor state. Secret contains authenticated ciphertext.
 type MFAState struct {
-	PasswordLoginEnabled                             bool
 	UserID, Secret, Revision, Snapshot, PasswordHash string
 	GitHubID                                         int64
-	Passkey                                          bool
 	LastStep, WindowStart                            int64
 	Failures                                         int
+	PasswordLoginEnabled                             bool
+	Passkey                                          bool
 }
 
 // Enabled reports whether browser login requires an additional factor.

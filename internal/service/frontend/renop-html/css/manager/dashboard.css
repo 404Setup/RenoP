@@ -574,7 +574,14 @@ html.dark .dashboard-section-badge {
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-x: contain;
     touch-action: pan-x;
-    scrollbar-width: thin;
+}
+
+.sessions-table-wrap::-webkit-scrollbar {
+    height: 6px;
+}
+
+.sessions-table-wrap::-webkit-scrollbar-thumb {
+    border-radius: 3px;
 }
 
 .sessions-table-wrap.is-dragging {
@@ -794,7 +801,7 @@ html.dark .dashboard-section-badge {
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    font-family: sans-serif;
+    font-family: inherit;
 }
 
 #backend-offline h2 {
@@ -809,4 +816,5 @@ html.dark .dashboard-section-badge {
     cursor: pointer;
     font-size: 16px;
     text-decoration: none;
+    font-family: inherit;
 }

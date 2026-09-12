@@ -13,6 +13,7 @@ package core
 import (
 	"errors"
 	"strings"
+	"time"
 
 	"golang.org/x/net/idna"
 )
@@ -26,6 +27,8 @@ const (
 	MaxEmailLength = 254
 	// MaxAccountEmails bounds primary and secondary login addresses per account.
 	MaxAccountEmails = 128
+	// PrimaryEmailRecoveryPeriod protects a replaced primary email and existing recovery credentials.
+	PrimaryEmailRecoveryPeriod = 14 * 24 * time.Hour
 )
 
 var (
@@ -34,6 +37,7 @@ var (
 	ErrEmailVerificationRequired = errors.New("provider email requires ownership verification")
 	ErrAccountEmailLimit         = errors.New("account email limit reached")
 	ErrPrimaryEmail              = errors.New("primary email cannot be removed as an alias")
+	ErrSecurityHold              = errors.New("security changes are temporarily locked after a primary email change")
 	// ErrLastLoginMethod indicates that an operation would remove the account's final usable login method.
 	ErrLastLoginMethod = errors.New("account must retain another login method")
 	// ErrPasswordNotConfigured indicates that password login cannot be enabled without a password hash.
@@ -46,20 +50,28 @@ var (
 
 // AccountSecurity is the private authentication state visible only to its account owner.
 type AccountSecurity struct {
-	EmailAliases              []string `json:"email_aliases"`
-	TOTPEnabled               bool     `json:"totp_enabled"`
-	PasskeySecondFactor       bool     `json:"passkey_second_factor"`
-	Email                     string   `json:"email"`
-	EmailVerificationRequired bool     `json:"email_verification_required"`
-	RecoveryGeneratedAt       int64    `json:"recovery_generated_at,omitempty"`
-	RecoveryCodeCount         int      `json:"recovery_code_count"`
-	RecoveryCodesRemaining    int      `json:"recovery_codes_remaining"`
-	FidoDeviceCount           int      `json:"fido_device_count"`
-	PasswordLoginEnabled      bool     `json:"password_login_enabled"`
-	PasswordConfigured        bool     `json:"password_configured"`
-	GitHubLinked              bool     `json:"github_linked"`
-	OAuthIdentityCount        int      `json:"oauth_identity_count"`
-	CanDisablePasswordLogin   bool     `json:"can_disable_password_login"`
+	Email                     string                 `json:"email"`
+	PreviousPrimaryEmails     []PreviousPrimaryEmail `json:"previous_primary_emails"`
+	EmailAliases              []string               `json:"email_aliases"`
+	SecurityHoldUntil         int64                  `json:"security_hold_until"`
+	RecoveryGeneratedAt       int64                  `json:"recovery_generated_at,omitempty"`
+	RecoveryCodeCount         int                    `json:"recovery_code_count"`
+	RecoveryCodesRemaining    int                    `json:"recovery_codes_remaining"`
+	FidoDeviceCount           int                    `json:"fido_device_count"`
+	OAuthIdentityCount        int                    `json:"oauth_identity_count"`
+	TOTPEnabled               bool                   `json:"totp_enabled"`
+	PasskeySecondFactor       bool                   `json:"passkey_second_factor"`
+	EmailVerificationRequired bool                   `json:"email_verification_required"`
+	PasswordLoginEnabled      bool                   `json:"password_login_enabled"`
+	PasswordConfigured        bool                   `json:"password_configured"`
+	GitHubLinked              bool                   `json:"github_linked"`
+	CanDisablePasswordLogin   bool                   `json:"can_disable_password_login"`
+}
+
+// PreviousPrimaryEmail is an owner-visible, time-limited recovery address.
+type PreviousPrimaryEmail struct {
+	Email     string `json:"email"`
+	ExpiresAt int64  `json:"expires_at"`
 }
 
 // ProviderEmail is an address asserted by a freshly authenticated provider.
@@ -109,7 +121,7 @@ func NormalizeEmail(value string) (string, bool) {
 	if err != nil || asciiDomain == "" || len(asciiDomain) > 253 {
 		return "", false
 	}
-	for _, label := range strings.Split(asciiDomain, ".") {
+	for label := range strings.SplitSeq(asciiDomain, ".") {
 		if label == "" || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
 			return "", false
 		}

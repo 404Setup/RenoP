@@ -86,6 +86,58 @@ type queueRoundTrip func(*http.Request) (*http.Response, error)
 
 func (f queueRoundTrip) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
+func TestMailWithoutStatusAPIFinalizesAfterSubmission(t *testing.T) {
+	for _, provider := range []string{"cloudflare", "aliyun"} {
+		t.Run(provider, func(t *testing.T) {
+			state, db := queueTestState(t)
+			cfg := state.Inner.Config.Load().DeepCopy()
+			cfg.Mail.Accounts[0].Provider = provider
+			cfg.Mail.Accounts[0].APISecret = "signing-secret"
+			cfg.Mail.Accounts[0].Region = "cn-hangzhou"
+			state.Inner.Config.Store(cfg)
+			calls := 0
+			client := mail.NewClient(queueRoundTrip(func(r *http.Request) (*http.Response, error) {
+				calls++
+				require.Equal(t, http.MethodPost, r.Method)
+				body := `{"success":true,"result":{"message_id":"provider-id","queued":["receiver@example.com"]}}`
+				if provider == "aliyun" {
+					body = `{"EnvId":"provider-id"}`
+				}
+				return &http.Response{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(body))}, nil
+			}))
+			defer client.Close()
+			control, owned, err := db.AcquireMailLease("worker", time.Now().UnixMilli())
+			require.NoError(t, err)
+			require.True(t, owned)
+			receipt, err := Enqueue(state, Request{To: "receiver@example.com", Scene: "test"})
+			require.NoError(t, err)
+			job, err := db.GetMailJob(receipt.ID, cfg.Mail.EncryptionKey)
+			require.NoError(t, err)
+			w := &worker{state: state, owner: "worker", client: client}
+			require.NoError(t, w.process(context.Background(), cfg.Mail, control, job, time.Now()))
+			stored, err := db.GetMailJob(receipt.ID, cfg.Mail.EncryptionKey)
+			require.NoError(t, err)
+			require.Equal(t, "accepted", stored.Status)
+			require.False(t, stored.Result.Check)
+			require.Zero(t, stored.NextAt)
+			require.Empty(t, stored.Message.HTML)
+			next, err := db.NextMailJob(cfg.Mail.EncryptionKey, time.Now().Add(time.Hour).UnixMilli())
+			require.NoError(t, err)
+			require.Nil(t, next)
+			_, err = client.Check(context.Background(), cfg.Mail.Accounts[0], job.Message, stored.Result)
+			require.NoError(t, err)
+			require.Equal(t, 1, calls, "no status request or resend after acceptance")
+			// Existing terminal provider-queue records must also display and filter as accepted.
+			_, err = db.Exec("UPDATE mail_jobs SET status = 'queued_provider' WHERE id = ?", job.ID)
+			require.NoError(t, err)
+			history, count, err := db.ListMailJobs("", "accepted", cfg.Mail.EncryptionKey, 10, 0)
+			require.NoError(t, err)
+			require.Equal(t, 1, count)
+			require.Equal(t, "accepted", history[0].Status)
+		})
+	}
+}
+
 func TestMailOAuthFailureCountsTowardAccountRateWithoutQuotaDebit(t *testing.T) {
 	state, db := queueTestState(t)
 	cfg := state.Inner.Config.Load().DeepCopy()
@@ -291,6 +343,44 @@ func TestMailQueueConcurrentManualRequestsAndRestart(t *testing.T) {
 	require.Nil(t, next)
 }
 
+func TestManualMailLimitsShareRecipientAccountAndIPv6Budgets(t *testing.T) {
+	for _, tc := range []struct {
+		name, firstIP, nextIP, firstTo, nextTo, username string
+	}{
+		{"recipient", "192.0.2.10", "192.0.2.11", "receiver@example.com", "RECEIVER@example.com", ""},
+		{"account", "192.0.2.10", "192.0.2.11", "first@example.com", "second@example.com", "alice"},
+		{"ipv6 network", "2001:db8:1::1", "2001:db8:1::2", "first@example.com", "second@example.com", ""},
+		{"mapped ipv4", "192.0.2.10", "::ffff:192.0.2.10", "first@example.com", "second@example.com", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			state, db := queueTestState(t)
+			if tc.username != "" {
+				require.NoError(t, db.SaveToken(&core.AccessToken{Name: tc.username}))
+			}
+			_, err := Enqueue(state, Request{To: tc.firstTo, Username: tc.username, Scene: "test", Manual: true, IP: tc.firstIP})
+			require.NoError(t, err)
+			_, err = Enqueue(state, Request{To: tc.nextTo, Username: tc.username, Scene: "email_verify", Manual: true, IP: tc.nextIP})
+			require.ErrorIs(t, err, mail.ErrRateLimited)
+			// A denied transaction must not consume the new recipient's allowance.
+			_, err = Enqueue(state, Request{To: "unrelated@example.com", Scene: "test", Manual: true, IP: "198.51.100.1"})
+			require.NoError(t, err)
+			// Automatic notifications continue through their own queue/account controls.
+			_, err = Enqueue(state, Request{To: tc.firstTo, Scene: "test"})
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestManualMailDeniedRecipientDoesNotDebitAnotherIP(t *testing.T) {
+	state, _ := queueTestState(t)
+	_, err := Enqueue(state, Request{To: "receiver@example.com", Scene: "test", Manual: true, IP: "192.0.2.1"})
+	require.NoError(t, err)
+	_, err = Enqueue(state, Request{To: "receiver@example.com", Scene: "test", Manual: true, IP: "192.0.2.2"})
+	require.ErrorIs(t, err, mail.ErrRateLimited)
+	_, err = Enqueue(state, Request{To: "another@example.com", Scene: "test", Manual: true, IP: "192.0.2.2"})
+	require.NoError(t, err)
+}
+
 func TestMailNotificationEventsAndRetirement(t *testing.T) {
 	state, db := queueTestState(t)
 	cfg := state.Inner.Config.Load()
@@ -319,7 +409,7 @@ func TestMailNotificationEventsAndRetirement(t *testing.T) {
 	require.True(t, scenes["account_banned"])
 	require.True(t, scenes["account_unbanned"])
 	require.True(t, scenes["super_team_invitation"])
-	inAppMessages, err := db.ListMessages("alice", 10, 0, "", time.Now().UnixMilli())
+	inAppMessages, err := db.ListMessages("alice", 10, 0, "", time.Now().UnixMilli(), "")
 	require.NoError(t, err)
 	hasPermissionMessage := false
 	for _, msg := range inAppMessages {

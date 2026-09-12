@@ -12,22 +12,22 @@ package storage
 
 import (
 	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"renop/pkg/hex"
 	"strings"
 
 	"github.com/google/uuid"
 
 	"renop/internal/core"
+	"renop/internal/repositorycapacity"
 	"renop/internal/service/docker"
 	"renop/internal/service/index"
 	"renop/internal/service/status"
-	"renop/internal/utils"
 )
 
 type dockerStore struct {
@@ -71,56 +71,13 @@ func (s *dockerStore) manifestPath(repository, imageName, digest string) string 
 
 func (s *dockerStore) OpenBlob(repository, digest string) (io.ReadCloser, int64, bool, error) {
 	path := s.blobPath(repository, digest)
-	if IsS3Enabled(path) {
-		reader, info, err := DownloadFromS3(utils.GetS3Key(path))
-		if err != nil {
-			if isS3NotFound(err) {
-				return nil, 0, false, nil
-			}
-			return nil, 0, false, err
-		}
-		return reader, info.Size, true, nil
-	}
-
-	info, err := os.Stat(path)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil, 0, false, nil
-		}
-		return nil, 0, false, err
-	}
-
-	file, err := os.Open(path)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil, 0, false, nil
-		}
-		return nil, 0, false, err
-	}
-	return file, info.Size(), true, nil
+	return backendFor(path).Open(path)
 }
 
 func (s *dockerStore) BlobExists(repository, digest string) (bool, int64, error) {
 	path := s.blobPath(repository, digest)
-	if IsS3Enabled(path) {
-		info, err := StatS3(utils.GetS3Key(path))
-		if err == nil {
-			return true, info.Size, nil
-		}
-		if isS3NotFound(err) {
-			return false, 0, nil
-		}
-		return false, 0, err
-	}
-
-	info, err := os.Stat(path)
-	if err == nil {
-		return true, info.Size(), nil
-	}
-	if errors.Is(err, fs.ErrNotExist) {
-		return false, 0, nil
-	}
-	return false, 0, err
+	size, found, err := backendFor(path).Stat(path)
+	return found, size, err
 }
 
 func (s *dockerStore) BlobFilePath(repository, digest string) (string, bool) {
@@ -223,6 +180,9 @@ func (b *dockerStagedBlob) Digest() (string, error) {
 }
 
 func (s *dockerStore) CommitBlob(state *core.AppState, repository, uploadUUID, digest string) (int64, error) {
+	if state.IsDemo() {
+		return 0, core.ErrDemoReadOnly
+	}
 	if state != nil && state.GetDB() != nil {
 		if err := state.GetDB().EnsureDockerBlobMutable(repository, digest); err != nil {
 			return 0, err
@@ -253,19 +213,18 @@ func (s *dockerStore) CommitBlob(state *core.AppState, repository, uploadUUID, d
 		return 0, fmt.Errorf("digest mismatch: expected %s, got %s", digest, actualDigest)
 	}
 
+	capacity, err := reserveRepositoryCapacity(state, repositorycapacity.Object{Path: targetPath, Size: size})
+	if err != nil {
+		return 0, err
+	}
+	defer capacity.Release()
+
 	if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
 		return 0, err
 	}
 
-	if IsS3Enabled(targetPath) {
-		if err := UploadToS3(tempPath, utils.GetS3Key(targetPath)); err != nil {
-			return 0, err
-		}
-		_ = os.Remove(tempPath)
-	} else {
-		if err := utils.SafeRename(tempPath, targetPath); err != nil {
-			return 0, err
-		}
+	if err := backendFor(targetPath).Commit(tempPath, targetPath); err != nil {
+		return 0, err
 	}
 
 	if state != nil && state.Inner != nil && state.Inner.FileIndex != nil {
@@ -274,20 +233,17 @@ func (s *dockerStore) CommitBlob(state *core.AppState, repository, uploadUUID, d
 		state.InvalidateFileCache(targetPath)
 	}
 	status.MarkStorageUpdated()
+	capacity.Commit()
 	return size, nil
 }
 
 func (s *dockerStore) DeleteBlob(state *core.AppState, repository, digest string) error {
 	path := s.blobPath(repository, digest)
-	if IsS3Enabled(path) {
-		if err := DeleteFromS3(utils.GetS3Key(path)); err != nil && !isS3NotFound(err) {
-			return err
-		}
-	} else {
-		if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return err
-		}
+	defer invalidateRepositoryCapacity(state, path)
+	if err := backendFor(path).Delete(path); err != nil {
+		return err
 	}
+
 	if state != nil && state.Inner != nil && state.Inner.FileIndex != nil {
 		state.Inner.FileIndex.RemoveFile(path)
 		state.InvalidateFileCache(path)
@@ -298,38 +254,12 @@ func (s *dockerStore) DeleteBlob(state *core.AppState, repository, digest string
 
 func (s *dockerStore) OpenManifest(repository, imageName, digest string) ([]byte, bool, error) {
 	path := s.manifestPath(repository, imageName, digest)
-	if IsS3Enabled(path) {
-		reader, info, err := DownloadFromS3(utils.GetS3Key(path))
-		if err != nil {
-			if isS3NotFound(err) {
-				return nil, false, nil
-			}
-			return nil, false, err
-		}
-		defer reader.Close()
-		data, err := readDockerManifest(reader, info.Size)
-		if err != nil {
-			return nil, false, err
-		}
-		if docker.CalculateDigest(data) != strings.TrimSpace(digest) {
-			return nil, false, docker.ErrManifestDigestMismatch
-		}
-		return data, true, nil
-	}
-
-	file, err := os.Open(path)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil, false, nil
-		}
+	reader, size, found, err := backendFor(path).Open(path)
+	if err != nil || !found {
 		return nil, false, err
 	}
-	defer file.Close()
-	info, err := file.Stat()
-	if err != nil {
-		return nil, false, err
-	}
-	data, err := readDockerManifest(file, info.Size())
+	defer reader.Close()
+	data, err := readDockerManifest(reader, size)
 	if err != nil {
 		return nil, false, err
 	}
@@ -354,6 +284,9 @@ func readDockerManifest(reader io.Reader, size int64) ([]byte, error) {
 }
 
 func (s *dockerStore) PutManifest(state *core.AppState, repository, imageName, digest string, data []byte) error {
+	if state.IsDemo() {
+		return core.ErrDemoReadOnly
+	}
 	if len(data) > docker.MaxManifestSize {
 		return docker.ErrManifestTooLarge
 	}
@@ -361,6 +294,11 @@ func (s *dockerStore) PutManifest(state *core.AppState, repository, imageName, d
 		return docker.ErrManifestDigestMismatch
 	}
 	path := s.manifestPath(repository, imageName, digest)
+	capacity, err := reserveRepositoryCapacity(state, repositorycapacity.Object{Path: path, Size: int64(len(data))})
+	if err != nil {
+		return err
+	}
+	defer capacity.Release()
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err
 	}
@@ -370,17 +308,9 @@ func (s *dockerStore) PutManifest(state *core.AppState, repository, imageName, d
 		return err
 	}
 
-	if IsS3Enabled(path) {
-		if err := UploadToS3(tempPath, utils.GetS3Key(path)); err != nil {
-			_ = os.Remove(tempPath)
-			return err
-		}
+	if err := backendFor(path).Commit(tempPath, path); err != nil {
 		_ = os.Remove(tempPath)
-	} else {
-		if err := utils.SafeRename(tempPath, path); err != nil {
-			_ = os.Remove(tempPath)
-			return err
-		}
+		return err
 	}
 
 	if state != nil && state.Inner != nil && state.Inner.FileIndex != nil {
@@ -389,20 +319,17 @@ func (s *dockerStore) PutManifest(state *core.AppState, repository, imageName, d
 		state.InvalidateFileCache(path)
 	}
 	status.MarkStorageUpdated()
+	capacity.Commit()
 	return nil
 }
 
 func (s *dockerStore) DeleteManifest(state *core.AppState, repository, imageName, digest string) error {
 	path := s.manifestPath(repository, imageName, digest)
-	if IsS3Enabled(path) {
-		if err := DeleteFromS3(utils.GetS3Key(path)); err != nil && !isS3NotFound(err) {
-			return err
-		}
-	} else {
-		if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return err
-		}
+	defer invalidateRepositoryCapacity(state, path)
+	if err := backendFor(path).Delete(path); err != nil {
+		return err
 	}
+
 	if state != nil && state.Inner != nil && state.Inner.FileIndex != nil {
 		state.Inner.FileIndex.RemoveFile(path)
 		state.InvalidateFileCache(path)

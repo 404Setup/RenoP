@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"renop/internal/configstore"
 	"renop/internal/utils"
 )
 
@@ -118,7 +119,10 @@ func Install(options Options) (Result, error) {
 	if err != nil {
 		return result, fmt.Errorf("read Caddyfile: %w", err)
 	}
-	configOriginal, configMode, configExists, err := readOptionalFile(configPath)
+	if _, err := configstore.Load(configPath, configstore.LegacyPath()); err != nil {
+		return result, fmt.Errorf("load RenoP settings database: %w", err)
+	}
+	configOriginal, err := configstore.Read(configPath)
 	if err != nil {
 		return result, fmt.Errorf("read RenoP configuration: %w", err)
 	}
@@ -151,13 +155,13 @@ func Install(options Options) (Result, error) {
 	configChanged := !bytes.Equal(configOriginal, configUpdated)
 	caddyChanged := !bytes.Equal(caddyOriginal, caddyUpdated)
 	if configChanged {
-		if err := replaceIfUnchanged(configPath, configOriginal, configUpdated, 0600, configExists); err != nil {
+		if err := configstore.CompareAndSwap(configPath, configOriginal, configUpdated); err != nil {
 			return result, fmt.Errorf("write RenoP configuration: %w", err)
 		}
 	}
 	if caddyChanged {
 		if err := replaceIfUnchanged(caddyfilePath, caddyOriginal, caddyUpdated, caddyMode, true); err != nil {
-			rollbackErr := rollbackFile(configPath, configUpdated, configOriginal, configMode, configExists, configChanged)
+			rollbackErr := rollbackSettings(configPath, configUpdated, configOriginal, configChanged)
 			return result, errors.Join(fmt.Errorf("write Caddyfile: %w", err), rollbackErr)
 		}
 	}
@@ -166,7 +170,7 @@ func Install(options Options) (Result, error) {
 	if !options.SkipReload {
 		if err := runner.Reload(binaryPath, caddyfilePath); err != nil {
 			caddyRollback := rollbackFile(caddyfilePath, caddyUpdated, caddyOriginal, caddyMode, true, caddyChanged)
-			configRollback := rollbackFile(configPath, configUpdated, configOriginal, configMode, configExists, configChanged)
+			configRollback := rollbackSettings(configPath, configUpdated, configOriginal, configChanged)
 			var restoredReload error
 			if caddyRollback == nil && binaryPath != "" {
 				if reloadErr := runner.Reload(binaryPath, caddyfilePath); reloadErr != nil {
@@ -191,10 +195,10 @@ func Install(options Options) (Result, error) {
 
 func resolveConfigPath(path string) (string, error) {
 	if strings.TrimSpace(path) == "" {
-		path = strings.TrimSpace(os.Getenv("RENOP_CONFIG"))
+		path = configstore.Path()
 	}
 	if path == "" {
-		path = "config.yaml"
+		path = configstore.Path()
 	}
 	absPath, err := filepath.Abs(filepath.Clean(path))
 	if err != nil {
@@ -339,4 +343,11 @@ func commandError(action string, output []byte, err error) error {
 		return fmt.Errorf("%s: %w", action, err)
 	}
 	return fmt.Errorf("%s: %w: %s", action, err, detail)
+}
+
+func rollbackSettings(path string, expected, original []byte, changed bool) error {
+	if !changed {
+		return nil
+	}
+	return configstore.CompareAndSwap(path, expected, original)
 }

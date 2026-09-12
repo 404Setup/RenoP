@@ -1,0 +1,368 @@
+/*
+ * Copyright (c) 2026 404Setup. All rights reserved.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
+ *
+ * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
+ */
+
+.cfg-service-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+#settings-form-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.cfg-section + .cfg-section {
+    margin-top: 1.5rem;
+}
+
+.cfg-layout > .cfg-section + .cfg-section,
+.cfg-service-stack > .cfg-section + .cfg-section,
+#settings-form-container > .cfg-section + .cfg-section {
+    margin-top: 0;
+}
+
+.cfg-service-stack .cfg-section {
+    position: relative;
+    background: var(--card-bg, #ffffff);
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+    transition: border-color 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cfg-service-stack .cfg-section.cfg-service-card--active {
+    border-color: color-mix(in srgb, #10b981 35%, var(--border-color));
+}
+
+.cfg-service-stack .cfg-section:hover {
+    border-color: color-mix(in srgb, var(--link-hover-color) 35%, var(--border-color));
+    box-shadow: 0 6px 20px -4px color-mix(in srgb, var(--link-hover-color) 14%, transparent), 0 2px 6px rgba(0, 0, 0, 0.03);
+    transform: translateY(-1px);
+}
+
+.cfg-service-stack .cfg-section-header {
+    padding: 0.85rem 1.15rem;
+    gap: 0.85rem;
+}
+
+.cfg-service-stack .cfg-section-icon {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 0.625rem;
+    border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
+    background: var(--btn-soft-bg, rgba(0, 0, 0, 0.04));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.25s ease;
+}
+
+.cfg-service-stack .cfg-section-header:hover .cfg-section-icon {
+    transform: scale(1.05);
+}
+
+/* Provider branded icon backgrounds */
+.cfg-service-stack .cfg-section-icon.is-github {
+    background: color-mix(in srgb, #24292f 10%, var(--card-bg));
+    color: var(--text-color);
+}
+.cfg-service-stack .cfg-section-icon.is-google {
+    background: color-mix(in srgb, #ea4335 10%, var(--card-bg));
+}
+.cfg-service-stack .cfg-section-icon.is-microsoft,
+.cfg-service-stack .cfg-section-icon.is-entra {
+    background: color-mix(in srgb, #00a4ef 10%, var(--card-bg));
+}
+.cfg-service-stack .cfg-section-icon.is-gitlab {
+    background: color-mix(in srgb, #fc6d26 10%, var(--card-bg));
+}
+.cfg-service-stack .cfg-section-icon.is-cloudflare {
+    background: color-mix(in srgb, #f38020 10%, var(--card-bg));
+}
+.cfg-service-stack .cfg-section-icon.is-smtp,
+.cfg-service-stack .cfg-section-icon.is-sendgrid {
+    background: color-mix(in srgb, var(--link-hover-color) 10%, var(--card-bg));
+    color: var(--link-hover-color);
+}
+.cfg-service-stack .cfg-section-icon.is-ses,
+.cfg-service-stack .cfg-section-icon.is-aliyun,
+.cfg-service-stack .cfg-section-icon.is-tencent {
+    background: color-mix(in srgb, #ea580c 10%, var(--card-bg));
+    color: #ea580c;
+}
+.cfg-service-stack .cfg-section-icon.is-feishu {
+    background: color-mix(in srgb, #00d6b9 10%, var(--card-bg));
+    color: #059669;
+}
+
+.cfg-service-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.cfg-service-title-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+.cfg-service-title-text {
+    font-size: 0.925rem;
+    font-weight: 600;
+    color: var(--text-color);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cfg-service-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.1rem 0.45rem;
+    font-size: 0.68rem;
+    font-weight: 600;
+    border-radius: 0.35rem;
+    line-height: 1.3;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    border: 1px solid color-mix(in srgb, var(--border-color) 80%, transparent);
+    background: color-mix(in srgb, var(--text-color) 4%, transparent);
+    color: var(--text-color);
+}
+
+.cfg-service-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.1rem 0.45rem;
+    font-size: 0.68rem;
+    font-weight: 550;
+    border-radius: 9999px;
+    line-height: 1.3;
+    letter-spacing: 0.01em;
+}
+
+.cfg-service-status.is-active {
+    background: rgba(16, 185, 129, 0.1);
+    color: #059669;
+    border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+html.dark .cfg-service-status.is-active {
+    color: #34d399;
+    background: rgba(16, 185, 129, 0.15);
+}
+
+.cfg-service-status.is-disabled {
+    background: rgba(148, 163, 184, 0.1);
+    color: var(--muted-text, #64748b);
+    border: 1px solid var(--border-color);
+}
+
+.cfg-service-status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.cfg-service-status.is-active .cfg-service-status-dot {
+    background-color: #10b981;
+    box-shadow: 0 0 5px rgba(16, 185, 129, 0.6);
+}
+
+.cfg-service-status.is-disabled .cfg-service-status-dot {
+    background-color: #94a3b8;
+}
+
+.cfg-service-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+    font-size: 0.78rem;
+    color: var(--muted-text);
+}
+
+.cfg-service-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.12rem 0.4rem;
+    border-radius: 0.35rem;
+    background: color-mix(in srgb, var(--card-bg) 60%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent);
+    font-size: 0.75rem;
+    line-height: 1.25;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cfg-service-chip svg {
+    width: 12px;
+    height: 12px;
+    opacity: 0.7;
+    flex-shrink: 0;
+}
+
+.cfg-service-chip.is-accent {
+    color: var(--link-hover-color);
+    background: color-mix(in srgb, var(--link-hover-color) 6%, transparent);
+    border-color: color-mix(in srgb, var(--link-hover-color) 18%, transparent);
+}
+
+.cfg-service-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.cfg-service-quick-toggle {
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+/* Clean selectable scene tags */
+.mail-scenes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr));
+    gap: 0.5rem;
+    width: 100%;
+}
+
+.mail-scene-chip {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.45rem 0.75rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--border-color);
+    background: var(--card-bg);
+    cursor: pointer;
+    font-size: 0.82rem;
+    color: var(--text-color);
+    transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+    user-select: none;
+}
+
+.mail-scene-chip:hover {
+    border-color: color-mix(in srgb, var(--link-hover-color) 40%, var(--border-color));
+    background: color-mix(in srgb, var(--link-hover-color) 4%, var(--card-bg));
+}
+
+.mail-scene-chip.is-selected {
+    border-color: var(--link-hover-color);
+    background: color-mix(in srgb, var(--link-hover-color) 10%, var(--card-bg));
+    color: var(--link-hover-color);
+    font-weight: 550;
+}
+
+.mail-scene-chip input[type="checkbox"] {
+    accent-color: var(--link-hover-color);
+    margin: 0;
+    cursor: pointer;
+}
+
+/* Callback URL row with copy button */
+.oauth-callback-container {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+}
+
+.oauth-callback-container .cfg-input {
+    flex: 1;
+    min-width: 0;
+}
+
+.oauth-copy-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    padding: 0.45rem 0.75rem;
+    font-size: 0.8rem;
+    flex-shrink: 0;
+}
+
+/* Service toolbar */
+.cfg-service-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    border-radius: 0.75rem;
+    background: color-mix(in srgb, var(--item-hover-bg) 40%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent);
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+.cfg-service-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.cfg-service-count-badge {
+    font-size: 0.82rem;
+    color: var(--muted-text);
+    font-weight: 500;
+}
+
+/* Backward compatibility */
+.cfg-service-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.12rem 0.5rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    border-radius: 9999px;
+    line-height: 1.3;
+    letter-spacing: 0.02em;
+}
+
+.cfg-service-badge--active {
+    background: rgba(16, 185, 129, 0.12);
+    color: #059669;
+    border: 1px solid rgba(16, 185, 129, 0.28);
+}
+
+.cfg-service-badge--disabled {
+    background: rgba(148, 163, 184, 0.14);
+    color: var(--text-muted, #64748b);
+    border: 1px solid var(--border-color);
+}
+
+.cfg-service-badge--provider {
+    background: rgba(37, 99, 235, 0.08);
+    color: var(--link-hover-color, #2563eb);
+    border: 1px solid rgba(37, 99, 235, 0.2);
+    font-weight: 500;
+}
+

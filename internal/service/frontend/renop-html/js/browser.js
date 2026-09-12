@@ -24,13 +24,10 @@ import {
 import {updateSnippets} from './browser/snippets.js';
 import {initUpload, updateUploadZone} from './browser/upload.js';
 import {fetchRepoDetails, hideRepoStats, updateRepoStats} from './browser/stats.js';
-import {hideCargoRepositoryView, renderCargoRepository} from './browser/cargo.js';
-import {hideDockerRepositoryView, renderDockerRepository} from './browser/docker.js';
-import {hideMavenRepositoryView, renderMavenRepository} from './browser/maven.js';
-import {hideNPMRepositoryView, renderNPMRepository} from './browser/npm.js';
 import {localizeRepositorySearch, updateRepositorySearch} from './browser/search.js';
 import {FileDetails, GpgSignatureDetails} from './proto/index.js';
 import {getRepositoryFormat} from './repository-formats.js';
+import {getRepositoryBrowserEngine, hideOtherRepositoryEngines} from './browser/engines.js';
 import {formatTimestamp} from './time.js';
 import {caughtErrorMessage, localizedResponseError} from './response-errors.js';
 
@@ -233,7 +230,7 @@ function setStateVisibility({empty = false, error = false} = {}) {
  * @returns {void}
  */
 function setRepositoryContentMode(format = '') {
-    const customMode = format === 'maven' || format === 'cargo' || format === 'docker' || format === 'npm';
+    const customMode = Boolean(getRepositoryBrowserEngine(format));
     if (fileListContainer) {
         fileListContainer.hidden = customMode;
         if (customMode) {
@@ -247,10 +244,7 @@ function setRepositoryContentMode(format = '') {
         }
     }
     if (browserAdjustments instanceof HTMLElement) browserAdjustments.hidden = customMode;
-    if (format !== 'maven') hideMavenRepositoryView();
-    if (format !== 'cargo') hideCargoRepositoryView();
-    if (format !== 'docker') hideDockerRepositoryView();
-    if (format !== 'npm') hideNPMRepositoryView();
+    hideOtherRepositoryEngines(format);
 }
 
 /**
@@ -708,8 +702,7 @@ export async function loadDirectory(path) {
     const seq = ++currentLoadSeq;
     const pathParts = path.split('/').filter(p => p.length > 0);
     const repositoryName = pathParts[0] || '';
-    const canReuseFormatDetails = (currentRepositoryFormat === 'maven' || currentRepositoryFormat === 'cargo' ||
-            currentRepositoryFormat === 'docker' || currentRepositoryFormat === 'npm') &&
+    const canReuseFormatDetails = Boolean(getRepositoryBrowserEngine(currentRepositoryFormat, path)) &&
         repositoryName !== '' && repositoryName === currentRepositoryName && currentRepoDetails !== null;
 
     let direction = 'fade';
@@ -761,36 +754,15 @@ export async function loadDirectory(path) {
         currentRepositoryFormat = getRepositoryFormat(repoDetails?.format).id;
         currentRepoDetails = repoDetails;
         currentRepositoryName = repoDetails ? repositoryName : '';
-        const isMavenRepository = currentRepositoryFormat === 'maven' && repoDetails && pathParts.length >= 1;
-        const isCargoRepository = currentRepositoryFormat === 'cargo' && pathParts.length >= 1;
-        const isDockerRepository = currentRepositoryFormat === 'docker' && pathParts.length >= 1;
-        const isNPMRepository = currentRepositoryFormat === 'npm' && pathParts.length >= 1;
-        setRepositoryContentMode(isMavenRepository ? 'maven' : (isCargoRepository ? 'cargo' :
-            (isDockerRepository ? 'docker' : (isNPMRepository ? 'npm' : ''))));
+        const engineView = repoDetails && pathParts.length >= 1
+            ? getRepositoryBrowserEngine(currentRepositoryFormat, path) : null;
+        setRepositoryContentMode(engineView ? currentRepositoryFormat : '');
         updateRepositorySearch(repoDetails ? pathParts[0] : '', currentRepositoryFormat, navigateToPath);
         renderBreadcrumb(path);
 
-        if (isMavenRepository) {
+        if (engineView) {
             setStateVisibility({empty: false, error: false});
-            await renderMavenRepository(path, repoDetails, navigateToPath);
-            return;
-        }
-
-        if (isCargoRepository) {
-            setStateVisibility({empty: false, error: false});
-            await renderCargoRepository(path, repoDetails, navigateToPath);
-            return;
-        }
-
-        if (isDockerRepository) {
-            setStateVisibility({empty: false, error: false});
-            await renderDockerRepository(path, repoDetails, navigateToPath);
-            return;
-        }
-
-        if (isNPMRepository) {
-            setStateVisibility({empty: false, error: false});
-            await renderNPMRepository(path, repoDetails, navigateToPath);
+            await engineView.render(path, repoDetails, navigateToPath);
             return;
         }
 

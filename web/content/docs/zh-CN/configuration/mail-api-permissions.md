@@ -23,7 +23,7 @@ RenoP 直接发起 HTTP 请求，无需安装服务商 SDK。
 | Amazon SES v2   | `ses:SendEmail`                              | `ses:GetMessageInsights`                           | `ses:GetAccount`；无余额查询                              |
 | SendGrid        | `mail.send`                                  | `messages.read` 和 Email Activity 历史记录附加产品 | `user.credits.read`；无现金余额查询                       |
 | Gmail           | `https://www.googleapis.com/auth/gmail.send` | `https://www.googleapis.com/auth/gmail.metadata`   | 无发信额度或余额查询                                      |
-| 阿里云邮件推送  | `dm:SingleSendMail`                          | `dm:SenderStatisticsDetailByParam`                 | `dm:DescAccountSummary`；可选 `bss:DescribeAcccount`      |
+| 阿里云邮件推送  | `dm:SingleSendMail`                          | —                 | `dm:DescAccountSummary`；可选 `bss:DescribeAcccount`      |
 | 腾讯云 SES      | `ses:SendEmail`                              | `ses:GetSendEmailStatus`                           | 可选 `finance:DescribeAccountBalance`；未接入发信额度查询 |
 | 飞书 / Lark     | `mail:user_mailbox.message:send`             | `mail:user_mailbox.message:readonly`               | 未接入对应查询                                            |
 
@@ -39,7 +39,7 @@ Email Routing 权限不能代替对外发送权限。域名和 DNS 配置权限�
 
 RenoP 在 `https://api.cloudflare.com/client/v4` 下调用 `POST /accounts/{account_id}/email/sending/send`。
 请求包含结构化地址及文本/HTML，读取 `message_id`、`delivered`、`permanent_bounces`、`queued` 和 `suppressed_recipients`。
-服务商排队结果保持为 `queued_provider`；RenoP 未消费 Cloudflare 独立的事件订阅。
+对于没有可用单封邮件状态查询能力的服务商，成功提交后记录为 `accepted` 并停止状态轮询，包括 Cloudflare 和阿里云邮件推送。接受请求不代表已投递。旧的 `queued_provider` 记录显示为 `accepted`，不会重试发件。
 参见[配置和令牌权限](https://developers.cloudflare.com/email-service/get-started/send-emails/)
 及[发送接口定义](https://developers.cloudflare.com/api/resources/email_sending/methods/send/)。
 
@@ -126,14 +126,14 @@ RenoP 通过带 `format=minimal` 的 `GET /users/me/messages/{message_id}` 查�
 ## 阿里云邮件推送
 
 开通邮件推送，在所选区域验证域名并配置发信地址。
-使用具有 `dm:SingleSendMail`、`dm:DescAccountSummary`、`dm:SenderStatisticsDetailByParam` 的 RAM 密钥；这些操作使用资源
+使用具有 `dm:SingleSendMail`、`dm:DescAccountSummary` 的 RAM 密钥；这些操作使用资源
 `*`。
 可选余额校准需要 **`bss:DescribeAcccount`**，其中连续三个 `c` 是官方权限名称的原有拼写。
 余额 API 操作仍名为 `QueryAccountBalance`，版本 `2017-12-14`，不属于 `dm:` 权限。
 
 RenoP 使用签名 RPC POST 请求，邮件推送版本为 `2015-11-23`。
 `SingleSendMail` 返回 `EnvId`；`DescAccountSummary` 返回免费额度及账号状态。
-公开的投递统计结果没有可靠的单封邮件 ID，因此查询后返回 `unknown`，不会仅按收件人推断结果。
+对于没有可用单封邮件状态查询能力的服务商，成功提交后记录为 `accepted` 并停止状态轮询，包括 Cloudflare 和阿里云邮件推送。接受请求不代表已投递。旧的 `queued_provider` 记录显示为 `accepted`，不会重试发件。
 发件人别名不得超过 15 个字符。计费地址应按账号所属商业区域选择，不直接等同于发信区域；价格币种应与返回币种一致。
 
 参见[发送和限制](https://www.alibabacloud.com/help/en/direct-mail/api-dm-2015-11-23-singlesendmail)、

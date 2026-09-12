@@ -13,7 +13,7 @@ package frontend
 
 import (
 	"crypto/sha256"
-	"encoding/hex"
+	"renop/pkg/hex"
 
 	"github.com/gofiber/fiber/v3"
 

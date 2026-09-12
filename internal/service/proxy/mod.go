@@ -27,6 +27,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 
+	"renop/internal/artifactstore"
 	"renop/internal/config"
 	"renop/internal/core"
 	"renop/internal/service/cargo"
@@ -43,6 +44,7 @@ var (
 	OnArtifactStored          func(localPath string)
 	OnArtifactStoredWithState func(state *core.AppState, repo *config.Repository, localPath string)
 	OnMirrorArtifactStored    func(state *core.AppState, repo *config.Repository, localPath string, size, modTime int64)
+	ReserveMirrorCapacity     func(state *core.AppState, repo *config.Repository, path string, size int64) (func(bool), error)
 	// AuthorizeMirrorWrite checks additional protocol restrictions while holding the repository mutation gate.
 	AuthorizeMirrorWrite func(state *core.AppState, repo *config.Repository, path string) error
 )
@@ -164,7 +166,14 @@ func canAllocateProxyDisk(state *core.AppState, bytes uint64) bool {
 	return status.CanAllocateDiskSpace(state, bytes+proxyDiskReserve)
 }
 
-func saveToDiskAndS3(state *core.AppState, repo *config.Repository, localFilePath string, data []byte) bool {
+func saveToDiskAndS3(state *core.AppState, repo *config.Repository, localFilePath string, data []byte) (saved bool) {
+	if ReserveMirrorCapacity != nil {
+		finish, err := ReserveMirrorCapacity(state, repo, localFilePath, int64(len(data)))
+		if err != nil {
+			return false
+		}
+		defer func() { finish(saved) }()
+	}
 	defer status.MarkStorageUpdated()
 	if IsS3Enabled != nil && IsS3Enabled(repo) && UploadStreamToS3 != nil {
 		s3Key := utils.GetS3Key(localFilePath)
@@ -195,7 +204,7 @@ func saveToDiskAndS3(state *core.AppState, repo *config.Repository, localFilePat
 		return false
 	}
 
-	if err := os.Rename(tmpPath, localFilePath); err == nil {
+	if err := artifactstore.CommitMutable(tmpPath, localFilePath); err == nil {
 		storedAt := time.Now().UnixNano()
 		state.Inner.FileIndex.EnsureParentDirs(localFilePath)
 		state.Inner.FileIndex.InsertFile(localFilePath, index.FileInfo{
@@ -212,6 +221,9 @@ func saveToDiskAndS3(state *core.AppState, repo *config.Repository, localFilePat
 }
 
 func ProxyArtifact(state *core.AppState, repo *config.Repository, path string, storagePath string, pathStr string, dl *core.InFlightDownload) (io.ReadCloser, error) {
+	if state.IsDemo() {
+		return nil, core.ErrDemoReadOnly
+	}
 	releaseMutation := repositorygate.AcquireMutation(repo.Name)
 	mutationTransferred := false
 	defer func() {
@@ -394,6 +406,12 @@ func ProxyArtifact(state *core.AppState, repo *config.Repository, path string, s
 				onSuccess,
 				responseLimit,
 				func(next uint64) bool { return canAllocateProxyDisk(state, next) },
+				func(size int64) (func(bool), error) {
+					if ReserveMirrorCapacity == nil {
+						return func(bool) {}, nil
+					}
+					return ReserveMirrorCapacity(state, repo, localFilePath, size)
+				},
 			)
 			mutationTransferred = true
 			return &repositoryMutationReadCloser{ReadCloser: stream, release: releaseMutation}, nil

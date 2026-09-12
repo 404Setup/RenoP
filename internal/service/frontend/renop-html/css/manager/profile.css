@@ -174,7 +174,7 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.profile-links-editor label {
+.profile-links-editor > label {
     display: grid;
     gap: 0.35rem;
     min-width: 0;
@@ -183,7 +183,8 @@
     font-weight: 650;
 }
 
-.profile-links-editor label:last-child {
+.profile-links-editor > label:last-child,
+.profile-provider-visibility {
     grid-column: 1 / -1;
 }
 
@@ -721,12 +722,80 @@
 }
 
 .profile-api-token-scope-entry {
+    position: relative;
     display: grid;
     min-width: 0;
     gap: 0.4rem;
 }
 
-.profile-api-token-scope-option {
+.profile-api-token-scope-entry:has(.profile-api-token-target-edit) .profile-api-token-scope-option {
+    padding-right: 2.5rem;
+}
+
+.profile-api-token-target-edit {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    display: grid;
+    place-items: center;
+    width: 1.65rem;
+    height: 1.65rem;
+    border: 0;
+    border-radius: 0.4rem;
+    color: var(--link-hover-color);
+    background: transparent;
+    cursor: pointer;
+}
+
+.profile-api-token-target-edit:disabled {
+    visibility: hidden;
+}
+
+.profile-api-token-target-edit:hover {
+    background: color-mix(in srgb, var(--link-hover-color) 12%, transparent);
+}
+
+.profile-api-token-target-summary {
+    color: var(--text-muted);
+    font-size: 0.7rem;
+}
+
+.profile-api-token-target-dialog {
+    display: grid;
+    gap: 0.65rem;
+}
+
+.profile-api-token-target-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+    gap: 0.5rem;
+    max-height: 35dvh;
+    overflow-y: auto;
+}
+
+.profile-api-token-target-dialog .profile-api-token-target-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.55rem;
+    min-width: 0;
+    padding: 0.7rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.6rem;
+    cursor: pointer;
+    overflow-wrap: anywhere;
+}
+
+.profile-api-token-target-card:has(input:checked) {
+    border-color: var(--link-hover-color);
+    background: color-mix(in srgb, var(--link-hover-color) 8%, transparent);
+}
+
+.profile-api-token-target-card input {
+    flex: 0 0 auto;
+    accent-color: var(--link-hover-color);
+}
+
+.profile-api-token-scopes .profile-api-token-scope-option {
     display: flex;
     align-items: flex-start;
     gap: 0.55rem;
@@ -762,21 +831,6 @@
 .profile-api-token-scope-copy code {
     color: var(--text-muted);
     font-size: 0.68rem;
-}
-
-.profile-api-token-target-editor {
-    display: grid;
-    min-width: 0;
-    gap: 0.3rem;
-    padding: 0 0.3rem 0.35rem;
-    color: var(--text-muted);
-    font-size: 0.72rem;
-    font-weight: 650;
-    overflow: hidden;
-}
-
-.profile-api-token-target-editor[hidden] {
-    display: none;
 }
 
 .profile-api-token-targets {
@@ -841,6 +895,11 @@
 .profile-api-token-create-modal {
     height: auto;
     max-height: min(85vh, calc(100dvh - 2rem));
+}
+
+.modal-content.profile-api-token-create-modal,
+.modal-content.profile-api-token-target-modal {
+    background: var(--card-bg);
 }
 
 .profile-api-token-create-modal .modal-body {

@@ -180,6 +180,16 @@ func TestGitHubEmailVerificationBindsSessionAndUsesVerifiedContact(t *testing.T)
 	provider := githubOAuthProvider{AuthorizeURL: providerServer.URL + "/authorize", TokenURL: providerServer.URL + "/token", APIURL: providerServer.URL}
 	setupGitHubRoutesWithProvider(app.Group("/api/auth"), state, nil, provider)
 	var oauthCookie *http.Cookie
+	// Unbound GitHub should be rejected with oauth_invalid:
+	unboundResponse := accountSecurityRequest(t, app, "GET", "/api/auth/github/start?intent=email&return_to=%2Fuser%2Falice%2Fedit", nil, "original-session")
+	require.Equal(t, 303, unboundResponse.StatusCode)
+	require.Contains(t, unboundResponse.Header.Get("Location"), "github_oauth=oauth_invalid")
+	require.NoError(t, unboundResponse.Body.Close())
+
+	profile, err := db.GetUserProfile("alice")
+	require.NoError(t, err)
+	require.NoError(t, db.StoreGitHubIdentity(profile.UserID, 12345, "alice-gh", []core.GitHubPrincipal{{Type: "user", GitHubID: 12345, Login: "alice-gh"}}, time.Now().UnixMilli()))
+
 	start := func() string {
 		response := accountSecurityRequest(t, app, "GET", "/api/auth/github/start?intent=email&return_to=%2Fuser%2Falice%2Fedit", nil, "original-session")
 		require.Equal(t, 303, response.StatusCode)
@@ -210,7 +220,8 @@ func TestGitHubEmailVerificationBindsSessionAndUsesVerifiedContact(t *testing.T)
 	require.Equal(t, "real@example.com", security.Email)
 	identity, err := db.GetGitHubIdentity("alice")
 	require.NoError(t, err)
-	require.Nil(t, identity, "email verification must not create a login binding")
+	require.NotNil(t, identity)
+	require.Equal(t, int64(12345), identity.GitHubUserID)
 	path = start()
 	_, err = db.UpdateAccountEmail("alice", "changed@example.com", time.Now().UnixMilli())
 	require.NoError(t, err)

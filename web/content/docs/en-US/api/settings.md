@@ -14,11 +14,11 @@ to the operation. Responses use protobuf where defined in `proto/api/v1/api.prot
 
 - **Path**: `GET /api/settings/domains`
 - **Response**: Stable domain names currently supported by the server, including `server`, `proxy`, `storage`,
-  `updater`, and `index`.
+  `updater`, and `frontend`.
 
 ## Settings pages in the browser
 
-The settings interface provides a separate page for each of the 15 advertised domains. Desktop navigation lists
+The settings interface provides a separate page for each of the 13 advertised domains. Desktop navigation lists
 the sections beside the form; smaller screens use a section selector. Previous and next controls follow the same
 ordered pages. Opening a page fetches its configuration only, rather than fetching every service configuration.
 
@@ -28,9 +28,7 @@ after confirmation. Pending changes are marked in the navigation. Browser reload
 but drafts are held only in memory and are cleared at logout or account change. Stored write-only credentials stay
 hidden, and entered secrets are cleared from a draft after a successful save.
 
-GPG remains part of the service configuration. Global-team limits, publication quotas, registration, cache, email,
-OAuth providers, and publishing-domain security have their own pages and retain their existing JSON APIs. Form labels
-and hints are associated with controls, and page navigation moves keyboard focus to the new heading.
+GPG remains part of the service configuration. Global-team limits, publication quotas, registration, cache, email, OAuth providers, and publishing-domain security have separate pages. Legal and unified OAuth settings use binary protobuf; other pages retain their documented formats. Labels and hints remain associated with controls, and navigation moves focus to the page heading.
 
 Selected sections, unsaved markers, and muted text use the shared theme colors in both light and dark modes.
 
@@ -41,7 +39,7 @@ Selected sections, unsaved markers, and muted text use the shared theme colors i
 - **Behavior**: The request and response schema depends on `:name`. Unknown fields and invalid values are rejected.
   Host, port, TLS, database, and selected runtime changes may require a service restart.
 
-**Third-party login**: `GET /api/settings/oauth-providers` returns the built-in GitHub entry, redacted clients, and presets. `PUT /api/settings/oauth-providers` requires a `providers` array and saves both groups atomically. Up to 32 other clients plus GitHub and a 128 KiB request are supported. Omitting GitHub preserves it for older clients; disable its entry and use `clear_client_secret` to remove its credentials. An empty list removes only the other clients. The compatibility endpoints `GET /api/settings/github-oauth` and `PUT /api/settings/github-oauth` continue to manage the same GitHub configuration.
+**Third-party login**: `GET /api/settings/oauth-providers` returns binary protobuf `OAuthSettings` with the built-in GitHub entry, redacted clients, and presets. `PUT /api/settings/oauth-providers` requires `replace_providers: true` and a `providers` list, saving both groups atomically within 128 KiB. Up to 12 other clients plus GitHub are supported. Omitting GitHub preserves it; disable its entry and use `clear_client_secret` to remove credentials. An empty list removes only other clients. `revocation_secret` is write-only; blank retains it for the same client, and `clear_revocation_secret` erases it. Compatibility endpoints `GET /api/settings/github-oauth` and `PUT /api/settings/github-oauth` retain JSON and manage the same GitHub configuration.
 
 [OAuth](../security/oauth-login.md)
 
@@ -79,7 +77,7 @@ Discovery includes `maven_domains`. The default is:
 ```
 
 `release_value` is an integer from 1 to 100. `release_unit` accepts `month` or `year`, using UTC calendar arithmetic.
-The configuration file stores the same fields under `maven_domains`. A saved change applies to newly created security
+The settings database stores the same fields under `maven_domains`. A saved change applies to newly created security
 locks without changing existing release dates or the separate 31-day voluntary closure period.
 See [Maven domain health](maven.md).
 
@@ -90,3 +88,7 @@ Settings navigation, provider editors, and dependent fields use cancellable tran
 Embedded assets stream from the executable. RenoP caches their content type, length, and ETag without retaining another copy of every bundle and compression variant in the Go heap. Precompressed negotiation and conditional requests remain supported.
 
 [Security verification](../security/captcha.md)
+
+`capacity_limit_bytes` is the per-repository installed-byte limit; `0` means unlimited. The UI edits it in MiB. Disk and S3 commits count artifacts, generated checksums, pending-review objects, and cached mirror content, excluding temporary staging copies. Capacity is reserved before commits so concurrent uploads share the same limit. Excess writes return `507` with `repository_capacity_exceeded`; a valid mirror response can still stream without being cached. Existing files remain readable when the limit is lowered below usage. After out-of-band storage changes, rebuild the index or restart to remeasure usage. Omitting the optional field preserves the existing limit for older clients.
+
+Legal documents are edited under Frontend and saved atomically with branding; omitted `legal` preserves the prior documents. Index controls are under Storage. The compatibility legal and index endpoints remain available. Server settings expose listener IP/port, TLS, database and performance controls; listener and database changes require restart.

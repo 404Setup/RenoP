@@ -122,6 +122,9 @@ func ReconcileDomainCatalog(state *core.AppState, repository, domain, publisher 
 }
 
 func reconcileDomainCatalog(ctx context.Context, state *core.AppState, repository, domain, publisher string, released *core.MavenDomain, domains []*core.MavenDomain) error {
+	if state.IsDemo() {
+		return nil
+	}
 	if state == nil || state.Inner == nil || state.Inner.FileIndex == nil {
 		return core.ErrDatabaseUnavailable
 	}

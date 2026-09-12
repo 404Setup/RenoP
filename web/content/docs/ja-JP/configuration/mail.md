@@ -57,7 +57,7 @@ mail:
 サービスまたはアカウントを無効にすると送信は停止しますが、キュー内メールの有効期限は延長されません。
 
 `delay` は秒、分、時間に対応し、0 は追加待機なしを意味します。送信は引き続き逐次処理されます。
-`manual_rate` はテストメールを含む IP ごとの手動要求に適用され、期間は分、時間、日です。
+`manual_rate` はシーンをまたぎ、IP、IPv6 /64 ネットワーク、不変アカウント、受信者ごとに設定枠を共有します。テストメールも対象で、期間は分、時間、日です。受信者キーには鍵付きハッシュを使用し、枠の消費とキュー登録を同時に確定します。失敗時は取り消されます。
 `account_rate` は送信アカウントごとの自動・手動の試行を含み、期間には秒も指定できます。
 上限と期間の値は正数です。既定値は IP ごとに 2 分間で手動要求 1 回、アカウントごとに 1 分間で送信試行 50 回です。
 
@@ -189,10 +189,9 @@ Cloudflare は初回応答をそのまま使用し、未提供の個別照会 AP
 
 ```text
 registration_verify, registration_success, password_reset, password_changed,
-email_verify, email_changed, quota_changed, review_status, review_requested,
-permission_changed, account_banned, account_unbanned, collaboration_invitation,
-super_team_invitation, pending_reviews, unusual_login, security_changed,
-account_retired, notification, test
+email_verify, email_changed, account_banned, account_unbanned,
+collaboration_invitation, super_team_invitation, unusual_login,
+security_changed, account_retired, test
 ```
 
 パスワード・Passkey・権限の変更、停止と解除、ユーザークォータの上書き、審査、招待、受信メッセージは永続イベントを使用します。
@@ -247,7 +246,9 @@ SMTP の保存済み認証情報は、ホストとユーザー名が両方変わ
 実行中タスクは最大 2048、全記録は最大 12048 です。保守処理は完了履歴を約 8000 件に縮小し、7 日を超えた記録を削除します。
 期限切れ IP 集計を削除し、削除済み送信アカウントの状態は 24 時間後に清掃します。
 
-本文と更新認証情報は、非公開設定ファイルの永続 `mail.encryption_key` で暗号化します。
+本文と更新認証情報は、非公開の設定 DB `renop-settings.db` の永続 `mail.encryption_key` で暗号化します。
 このキーをデータベースと一緒にバックアップしてください。紛失・置換すると保留メールやアカウント状態を復号できません。
 ワーカーが確定したタスクの HTML とテキストは削除します。中断した送信の暗号化本文は履歴清掃まで残ります。
 ログと状態 API はメール本文や宛先を公開しません。
+
+メッセージ単位の状態照会に対応しないサービスでは、送信要求の成功後に `accepted` として記録し、ポーリングを終了します。Cloudflare と Alibaba Direct Mail が該当します。受理は配信完了を意味しません。既存の `queued_provider` は `accepted` と表示され、再送されません。

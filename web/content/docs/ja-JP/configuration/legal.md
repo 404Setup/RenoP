@@ -11,11 +11,13 @@ description: 規約ページ、ログイン時の同意、ブラウザー設定�
 
 管理者は法的文書の設定ページでプライバシーポリシー、利用規約、法的情報を編集します。共通の Markdown エディターと安全なプレビューを使い、各文書は UTF-8 で最大 512 KiB です。空欄は仮の文章に戻るため、実際の文書に置き換えてください。
 
-文書は `config.yaml` の `legal` に保存され、保存後すぐに反映されます。従来のプライバシーファイルは読み込まれません。更新前に内容を設定にコピーしてください。外部の法的情報 URL も廃止されます。既存ファイルは保持されます。
+文書は システム設定 の `legal` に保存され、保存後すぐに反映されます。従来のプライバシーファイルは読み込まれません。更新前に内容を設定にコピーしてください。外部の法的情報 URL も廃止されます。既存ファイルは保持されます。
 
 公開ページは `/privacy-policy`、`/terms-of-service`、`/legal-notice` です。認証情報が期限切れでも閲覧できます。`GET /api/legal` は現在のリビジョンと `cookie_banner` を返し、`GET /api/legal/:document` はサイズ制限付きのプレーンテキストを返します。`GET /api/privacy-policy` は別名として残ります。
 
-`GET /api/settings/legal` と `PUT /api/settings/legal` は設定管理権限が必要です。JSON フィールドは `privacy_policy`、`terms_of_service`、`legal_notice`、`cookie_banner` です。
+`GET /api/settings/legal` と `PUT /api/settings/legal` は設定管理権限を必要とし、バイナリ protobuf `LegalSettings`（`application/x-protobuf`）を使用します。フィールドは `privacy_policy`、`terms_of_service`、`legal_notice`、`cookie_banner` で、各文書の上限は引き続き 512 KiB です。
+
+`GET /api/legal` は文書キャッシュ更新用の `content_revision` を含むバイナリ protobuf `LegalMetadata` を返します。メタデータと文書は ETag、`304`、必須の再検証に対応します。構成が変わるまでハッシュと符号化済みメタデータを再利用します。ブラウザーは必要時またはリンクへのホバー時に取得し、訪問ごとに全文書を先読みしません。
 
 ## ログインと登録
 

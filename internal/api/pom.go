@@ -255,8 +255,8 @@ func GeneratePom(c fiber.Ctx, state *core.AppState) error {
 		latest := metadata.Versioning.Versions.Version[len(metadata.Versioning.Versions.Version)-1]
 		metadata.Versioning.Latest = &latest
 		metadata.Versioning.Release = nil
-		for index := len(metadata.Versioning.Versions.Version) - 1; index >= 0; index-- {
-			candidate := metadata.Versioning.Versions.Version[index]
+		for _, candidate := range slices.Backward(metadata.Versioning.Versions.Version) {
+
 			if !strings.Contains(strings.ToUpper(candidate), "SNAPSHOT") {
 				metadata.Versioning.Release = &candidate
 				break
@@ -306,6 +306,7 @@ func GeneratePom(c fiber.Ctx, state *core.AppState) error {
 	})
 
 	if err != nil {
+		log.Printf("[upload] GeneratePom mutation failed for %s: %v", basePath, err)
 		return c.Status(fiber.StatusInternalServerError).SendString("Internal Server Error")
 	}
 

@@ -13,12 +13,12 @@ package docker
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"renop/pkg/hex"
 	"strings"
 	"sync"
 	"time"

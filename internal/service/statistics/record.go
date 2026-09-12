@@ -151,7 +151,21 @@ func classifyRepositoryDownload(repo *config.Repository, path string) (namespace
 		}
 		return namespace, packageName, version, true
 	default:
-		return "", "", "", false
+		name := filepath.Base(path)
+		accepted := false
+		switch repo.Engine().Protocol {
+		case config.RepositoryFormatConda:
+			accepted = strings.HasSuffix(name, ".conda") || strings.HasSuffix(name, ".tar.bz2")
+		case config.RepositoryFormatAPK:
+			accepted = strings.HasSuffix(name, ".apk")
+		case config.RepositoryFormatAPT:
+			accepted = strings.HasSuffix(name, ".deb")
+		case config.RepositoryFormatRPM:
+			accepted = strings.HasSuffix(name, ".rpm")
+		case config.RepositoryFormatConan:
+			accepted = strings.Contains(path, "/packages/") && strings.HasPrefix(name, "conan_package.")
+		}
+		return "", path, "", accepted && !isDownloadCompanion(name)
 	}
 }
 

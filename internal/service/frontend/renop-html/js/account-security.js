@@ -23,6 +23,23 @@ import {$} from '@renop/ui/jquery';
 
 let accountSecuritySequence = 0;
 let currentSecurity = null;
+let securityHoldTimer;
+
+/** Whether the server currently protects this account's existing security credentials. */
+export function securityChangesLocked() {
+    return Number(currentSecurity?.security_hold_until) > Date.now();
+}
+
+/** Apply the hold to credential mutations while keeping existing credentials visible. */
+function applySecurityHold() {
+    const locked = securityChangesLocked();
+    for (const control of document.querySelectorAll('#btn-profile-recovery-codes, #profile-mfa-totp, #btn-add-fido-device, [data-security-mutation]')) {
+        const restricted = locked && (control.id !== 'btn-profile-recovery-codes' || Number(currentSecurity?.recovery_code_count) > 0);
+        control.disabled = restricted;
+        control.title = restricted ? t('profile.securityHold') : '';
+    }
+}
+
 
 /**
  * Render the current private account-security state.
@@ -31,10 +48,22 @@ let currentSecurity = null;
  */
 function renderAccountSecurity(security) {
     currentSecurity = security;
+    clearTimeout(securityHoldTimer);
+    const locked = securityChangesLocked();
+    applySecurityHold();
+    const hold = document.getElementById('profile-security-hold');
+    if (hold) {
+        hold.hidden = !locked;
+        hold.textContent = locked ? t('profile.securityHoldUntil', {date: formatTimestamp(security.security_hold_until)}) : '';
+    }
+    const previous = document.getElementById('profile-previous-primary-emails');
+    if (previous) previous.replaceChildren(...(security.previous_primary_emails || []).map(entry =>
+        el('p', {class: 'profile-security-hint'}, t('profile.previousPrimaryRecovery', {email: entry.email, date: formatTimestamp(entry.expires_at)}))));
+    if (locked) securityHoldTimer = setTimeout(() => void refreshAccountSecurity(), Math.min(security.security_hold_until - Date.now() + 1, 2147483647));
     const passkeyMFA = document.getElementById('profile-mfa-passkey');
     if (passkeyMFA) {
         passkeyMFA.checked = security.passkey_second_factor === true;
-        passkeyMFA.disabled = !passkeyMFA.checked && (!(Number(security.fido_device_count) > 0) ||
+        passkeyMFA.disabled = locked || !passkeyMFA.checked && (!(Number(security.fido_device_count) > 0) ||
             !(security.github_linked || Number(security.oauth_identity_count) > 0 || (security.password_configured && security.password_login_enabled)));
     }
     $('#profile-mfa-totp-status').text(t(security.totp_enabled ? 'mfa.enabled' : 'mfa.disabled'));
@@ -258,7 +287,7 @@ $('#profile-mfa-totp').on('click', event => void runButtonAction(event.currentTa
     } catch {
         showAlert(t('mfa.unavailable'), 'error');
     }
-}));
+}).finally(applySecurityHold));
 
 $('#profile-private-email-form').on('submit', async event => {
     event.preventDefault();
@@ -339,7 +368,10 @@ $('#btn-profile-recovery-codes').on('click', async event => {
     $(button).prop('disabled', true);
     try {
         const response = await apiRequest('/api/auth/profile/recovery-codes', {method: 'POST'});
-        if (!response.ok) throw new Error('Recovery-code generation failed');
+        if (!response.ok) {
+            await showMFASettingsError(response);
+            return;
+        }
         const result = await response.json();
         if (!Array.isArray(result.codes) || result.codes.length !== 12) {
             throw new Error('Recovery-code response is incomplete');
@@ -350,6 +382,12 @@ $('#btn-profile-recovery-codes').on('click', async event => {
         console.error('Failed to generate recovery codes', error);
         showAlert(t('profile.recoveryCodesGenerateFailed'), 'error');
     } finally {
-        $(button).prop('disabled', false);
+        $(button).prop('disabled', securityChangesLocked() && Number(currentSecurity?.recovery_code_count) > 0);
     }
+});
+
+window.addEventListener('authChanged', () => {
+    accountSecuritySequence++;
+    currentSecurity = null;
+    clearTimeout(securityHoldTimer);
 });

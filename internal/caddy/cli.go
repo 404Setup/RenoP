@@ -26,7 +26,7 @@ func RunCLI(args []string, input io.Reader, output io.Writer) error {
 	flags.SetOutput(output)
 	hostnameFlag := flags.String("hostname", "", "public hostname served by Caddy")
 	caddyfileFlag := flags.String("caddyfile", "", "explicit Caddyfile path")
-	configFlag := flags.String("config", "", "explicit RenoP config.yaml path")
+	configFlag := flags.String("settings-db", "", "explicit RenoP settings database path")
 	binaryFlag := flags.String("caddy-binary", "", "explicit Caddy executable path")
 	skipReloadFlag := flags.Bool("skip-reload", false, "write files without requiring or reloading Caddy")
 	flags.Usage = func() {

@@ -10,9 +10,11 @@
 
 import {createTicketReportButton} from './ticket-report.js';
 import {el} from '@renop/ui/dom';
+import {navigateBack} from './back-navigation.js';
 import {makeCustomSelect} from '@renop/ui/custom-select';
 import {morphElementHeight} from '@renop/ui/height-anim';
-import {apiRequest} from './api.js';
+import {apiRequest, fetchProto} from './api.js';
+import {UserSearchResponse} from './proto/index.js';
 import {cachedIsLoggedIn} from './auth.js';
 import {createResourceLockButton, createResourceLockNotices, resourceWriteLocked} from './resource-locks.js';
 import {showAlert, showConfirm} from './alert.js';
@@ -47,10 +49,12 @@ const userSuggestions = new RepositoryUserSuggestions({
     id: 'super-team-user-suggestions',
     async fetchUsers(query) {
         if (!activePrefix) return [];
-        const response = await apiRequest(`/api/super-teams/${encodeURIComponent(activePrefix)}/users/search?q=${encodeURIComponent(query)}`);
+        const {response, data} = await fetchProto(
+            `/api/super-teams/${encodeURIComponent(activePrefix)}/users/search?q=${encodeURIComponent(query)}`,
+            UserSearchResponse
+        );
         if (!response.ok) throw await localizedResponseError(response, 'superTeam.searchFailed', {}, SUPER_TEAM_ERROR_KEYS);
-        const payload = await response.json();
-        return Array.isArray(payload.users) ? payload.users : [];
+        return Array.isArray(data?.users) ? data.users : [];
     },
     onError(error) {
         console.error('Failed to search global team users', error);
@@ -280,18 +284,10 @@ function pager(total) {
 function openCreateDialog() {
     const prefix = el('input', {class: 'profile-input', maxlength: '64', autocomplete: 'off'});
     const name = el('input', {class: 'profile-input', maxlength: '80', autocomplete: 'off'});
-    const description = el('textarea', {
-        class: 'profile-input super-team-description-input',
-        maxlength: '512',
-        rows: '3'
-    });
-    const linksEditor = createPublicProfileLinksEditor(null);
     const form = el('div', {class: 'super-team-dialog-form'},
         el('label', {}, el('span', {}, t('superTeam.prefix')), prefix,
             el('small', {}, t('superTeam.prefixHint'))),
         el('label', {}, el('span', {}, t('superTeam.name')), name),
-        el('label', {}, el('span', {}, t('superTeam.description')), description),
-        linksEditor.element
     );
     RenopDialog.show({
         id: 'super-team-create-dialog', maxWidth: '560px', icon: 'identity',
@@ -304,10 +300,8 @@ function openCreateDialog() {
                     const payload = {
                         prefix: prefix.value.trim().toLowerCase(),
                         name: name.value.trim(),
-                        description: description.value.trim(),
-                        links: linksEditor.value(),
                     };
-                    if (!payload.prefix || !payload.name || !payload.links) {
+                    if (!payload.prefix || !payload.name) {
                         if (!payload.prefix) prefix.focus();
                         else if (!payload.name) name.focus();
                         showAlert(t('superTeam.invalidRequest'), 'error');
@@ -707,8 +701,8 @@ function teamDetailContent(details, prefix, {publicView = false, quotaStatus = n
     const hero = el('section', {class: 'super-team-detail-hero'},
         el('button', {
             type: 'button', class: 'super-team-back',
-            onclick: publicView ? () => navigateApplicationPath('/') : () => navigate('')
-        }, createIcon('chevronLeft'), el('span', {}, t(publicView ? 'nav.backHome' : 'superTeam.back'))),
+            onclick: publicView ? () => navigateBack() : () => navigate('')
+        }, createIcon('chevronLeft'), el('span', {}, t(publicView ? 'nav.backPrevious' : 'superTeam.back'))),
         el('div', {class: 'super-team-detail-heading'},
             el('span', {class: 'super-team-detail-icon'}, createIcon('identity')),
             el('div', {}, el('span', {class: 'super-team-prefix'}, team.prefix || prefix),

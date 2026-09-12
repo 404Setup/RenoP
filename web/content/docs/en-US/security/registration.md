@@ -16,10 +16,13 @@ following top-level configuration uses the defaults:
 ```yaml
 registration:
   enabled: false
+  default_permissions: [base]
   ip_limit: 1
   ip_interval: {value: 3, unit: week}
   provider_cooldown: {value: 12, unit: hour}
 ```
+
+The **Default permission group** setting grants the selected system and repository permissions when an account is created, including third-party registration. The default is `default_permissions: [base]`. Changing it does not change existing accounts. Older settings clients that omit `default_permissions` preserve the configured grant.
 
 Only successful registrations consume the IP allowance. The default is one account per three weeks, starting with the
 first successful registration. Equivalent IPv4 and IPv6 spellings share the same limit. Retirement does not restore this

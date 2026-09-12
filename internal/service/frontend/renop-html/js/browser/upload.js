@@ -11,14 +11,14 @@
 import {captchaFetch} from '../captcha.js';
 import {t} from '../i18n.js';
 import {showAlert} from '../alert.js';
-import {fetchProto, getAuthHeaders} from '../api.js';
+import {fetchProto, getAuthHeaders, PROTO_CONTENT_TYPE} from '../api.js';
 import {canUpdateRepo} from '../auth.js';
 import {loadDirectory} from '../browser.js';
 import {createUploadEntry} from '../components.js';
 import {shouldUseChunkedUpload, uploadFileChunked, uploadFileSinglePut,} from '../chunked-upload.js';
 import {collapseElement, expandElement} from '@renop/ui/height-anim';
 import {decodePathSegment, encodePathSegment, encodeRelativePath, formatBytes} from './utils.js';
-import {InstanceStatus, RepoDetailsResponse} from '../proto/index.js';
+import {InstanceStatus, PomDetails, RepoDetailsResponse} from '../proto/index.js';
 import {getRepositoryFormat} from '../repository-formats.js';
 
 let pendingFiles = [];
@@ -611,17 +611,18 @@ export function initUpload() {
                     try {
                         const relPath = dest.substring(repoName.length + 1) || '';
                         const encodedPomPath = encodeRelativePath(relPath);
+                        const pomBody = PomDetails.encode({
+                            group_id: groupId,
+                            artifact_id: artifactId,
+                            version: version,
+                        }).finish();
                         const pomResp = await captchaFetch(`/api/maven/generate/pom/${encodePathSegment(repoName)}/${encodedPomPath}`, {
                             method: 'POST',
                             headers: {
                                 ...getAuthHeaders(),
-                                'Content-Type': 'application/json'
+                                'Content-Type': PROTO_CONTENT_TYPE,
                             },
-                            body: JSON.stringify({
-                                group_id: groupId,
-                                artifact_id: artifactId,
-                                version: version
-                            })
+                            body: pomBody,
                         });
 
                         if (!pomResp.ok) {

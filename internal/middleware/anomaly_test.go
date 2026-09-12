@@ -25,6 +25,7 @@ import (
 	"renop/internal/core"
 	"renop/internal/database"
 	"renop/internal/testutil"
+	"renop/internal/utils/ratelimit"
 
 	"github.com/stretchr/testify/require"
 )
@@ -93,6 +94,46 @@ func TestIPLimiterCleanupRemovesInactiveEntries(t *testing.T) {
 	if got := limiter.count.Load(); got != 0 {
 		t.Fatalf("limiter count = %d, want 0", got)
 	}
+}
+
+func TestDownloadsHaveIndependentBudgetsIncludingAuthenticatedAndRangeReads(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Maven.Repositories = map[string]*config.Repository{"packages": {Name: "packages"}}
+	cfg.Server.CdnIPHeader = "X-Forwarded-For"
+	cfg.Server.TrustedProxies = []string{"0.0.0.0"}
+	cfg.Server.ParseTrustedProxies()
+	state := core.NewAppState()
+	state.Inner.Config.Store(cfg)
+	session := &core.Session{Username: "alice"}
+	session.LastActive.Store(time.Now().UnixMilli())
+	state.Inner.Sessions.Store("valid-download-session", session)
+	app := fiber.New()
+	t.Cleanup(func() { require.NoError(t, app.Shutdown()) })
+	app.Use(anomalyMiddleware(state, ratelimit.New(rate.Every(time.Hour), 2, 16)))
+	handled := 0
+	app.Use(func(c fiber.Ctx) error { handled++; return c.SendStatus(http.StatusOK) })
+	request := func(method, path, ip string, expected int) {
+		t.Helper()
+		req := httptest.NewRequest(method, path, nil)
+		req.Header.Set("X-Forwarded-For", ip)
+		req.Header.Set("Range", "bytes=0-1")
+		req.AddCookie(&http.Cookie{Name: "renop_session", Value: "valid-download-session"})
+		response, err := app.Test(req)
+		require.NoError(t, err)
+		require.Equal(t, expected, response.StatusCode)
+		require.NoError(t, response.Body.Close())
+		if expected == http.StatusTooManyRequests {
+			require.NotEmpty(t, response.Header.Get("Retry-After"))
+			require.Equal(t, "no-store", response.Header.Get("Cache-Control"))
+		}
+	}
+	request("GET", "/packages/pkg/file.jar", "2001:db8:2::1", http.StatusOK)
+	request("HEAD", "/packages/api/v1/crates/demo/1.0.0/download", "2001:db8:2::2", http.StatusOK)
+	request("GET", "/v2/packages/demo/blobs/sha256:digest", "2001:db8:2::3", http.StatusTooManyRequests)
+	require.Equal(t, 2, handled)
+	request("GET", "/api/tickets", "2001:db8:2::3", http.StatusOK)
+	request("GET", "/assets/app.js", "2001:db8:2::3", http.StatusOK)
+	request("GET", "/packages/demo/-/demo.tgz", "2001:db8:3::1", http.StatusOK)
 }
 
 func TestIPLimiterBoundsFreshEntries(t *testing.T) {

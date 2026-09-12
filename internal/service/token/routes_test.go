@@ -18,15 +18,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	"renop/internal/config"
 	"renop/internal/core"
 	"renop/internal/database"
 	"renop/internal/testutil"
+	"renop/internal/utils/protohttp"
+	"renop/pkg/pb"
 )
 
 func TestAutoRegisterAdminRejectsNilOperationChannel(t *testing.T) {
@@ -185,13 +187,13 @@ func TestUpsertToken(t *testing.T) {
 	SetupTokenRoutes(app, state, opChan)
 
 	initialNickname := "Initial Nickname"
-	payload := core.CreateAccessTokenRequest{
+	payload := &pb.CreateAccessTokenRequest{
 		Permissions: []string{"base"},
 		Nickname:    &initialNickname,
 	}
-	body, _ := json.Marshal(payload)
+	body, _ := proto.Marshal(payload)
 	req := httptest.NewRequest(http.MethodPut, "/tokens/instan", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", protohttp.ContentType)
 
 	resp, err := app.Test(req)
 	assert.NoError(t, err)
@@ -212,13 +214,13 @@ func TestUpsertToken(t *testing.T) {
 	}, "instan"))
 
 	updatedNickname := "Updated Nickname"
-	payload2 := core.CreateAccessTokenRequest{
+	payload2 := &pb.CreateAccessTokenRequest{
 		Permissions: []string{"base", "showing", "canmoderate:cargo"},
 		Nickname:    &updatedNickname,
 	}
-	body2, _ := json.Marshal(payload2)
+	body2, _ := proto.Marshal(payload2)
 	req2 := httptest.NewRequest(http.MethodPut, "/tokens/instan", bytes.NewReader(body2))
-	req2.Header.Set("Content-Type", "application/json")
+	req2.Header.Set("Content-Type", protohttp.ContentType)
 
 	resp2, err := app.Test(req2)
 	assert.NoError(t, err)
@@ -236,13 +238,13 @@ func TestUpsertToken(t *testing.T) {
 	assert.Equal(t, updatedNickname, profile.Nickname)
 
 	newName := "instan2"
-	payload3 := core.CreateAccessTokenRequest{
+	payload3 := &pb.CreateAccessTokenRequest{
 		NewName:     &newName,
 		Permissions: []string{"base", "showing", "canmoderate:cargo"},
 	}
-	body3, _ := json.Marshal(payload3)
+	body3, _ := proto.Marshal(payload3)
 	req3 := httptest.NewRequest(http.MethodPut, "/tokens/instan", bytes.NewReader(body3))
-	req3.Header.Set("Content-Type", "application/json")
+	req3.Header.Set("Content-Type", protohttp.ContentType)
 
 	resp3, err := app.Test(req3)
 	assert.NoError(t, err)
@@ -259,13 +261,13 @@ func TestUpsertToken(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, core.CargoPermissionOwner, packageDetails.Package.PermissionLevel)
 
-	payloadCreateDup := core.CreateAccessTokenRequest{
+	payloadCreateDup := &pb.CreateAccessTokenRequest{
 		Permissions: []string{"base"},
 		IsCreate:    true,
 	}
-	bodyDup, _ := json.Marshal(payloadCreateDup)
+	bodyDup, _ := proto.Marshal(payloadCreateDup)
 	reqDup := httptest.NewRequest(http.MethodPut, "/tokens/instan2", bytes.NewReader(bodyDup))
-	reqDup.Header.Set("Content-Type", "application/json")
+	reqDup.Header.Set("Content-Type", protohttp.ContentType)
 
 	respDup, err := app.Test(reqDup)
 	assert.NoError(t, err)
@@ -273,11 +275,11 @@ func TestUpsertToken(t *testing.T) {
 
 	renameUser := func(oldName, newName string) int {
 		t.Helper()
-		payload := core.CreateAccessTokenRequest{NewName: &newName, Permissions: []string{"base"}}
-		body, marshalErr := json.Marshal(payload)
+		payload := &pb.CreateAccessTokenRequest{NewName: &newName, Permissions: []string{"base"}}
+		body, marshalErr := proto.Marshal(payload)
 		require.NoError(t, marshalErr)
 		request := httptest.NewRequest(http.MethodPut, "/tokens/"+oldName, bytes.NewReader(body))
-		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Content-Type", protohttp.ContentType)
 		response, requestErr := app.Test(request)
 		require.NoError(t, requestErr)
 		defer response.Body.Close()

@@ -342,6 +342,237 @@
     padding: 3px 8px;
     border-radius: 4px;
     font-size: 0.72rem;
+}
+
+.docker-page-back {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-bottom: 0.8rem;
+    color: var(--link-hover-color);
+    font-size: 0.78rem;
+    font-weight: 650;
+    text-decoration: none;
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    padding: 0;
+    line-height: 1.2;
+    transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.docker-page-back .icon-svg,
+.docker-page-back renop-icon {
+    width: 14px;
+    height: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.docker-page-back:hover {
+    text-decoration: none;
+    transform: translateX(-3px);
+    color: var(--link-color);
+}
+
+.docker-hero-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.5rem;
+}
+
+.docker-hero-title {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    margin: 0;
+    font-size: clamp(1.2rem, 2.4vw, 1.55rem);
+    font-weight: 650;
+    color: var(--text-color);
+    letter-spacing: -0.025em;
+    line-height: 1.25;
+}
+
+.docker-hero-title .icon-svg,
+.docker-hero-title renop-icon {
+    color: var(--link-hover-color);
+    width: 1.3em;
+    height: 1.3em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.docker-hero-description-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0.25rem 0 0.5rem;
+    font-size: 0.88rem;
+    color: var(--muted-text);
+    line-height: 1.45;
+}
+
+.docker-hero-desc-text.is-empty {
+    font-style: italic;
+    opacity: 0.75;
+}
+
+.docker-hero-desc-edit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--muted-text);
+    cursor: pointer;
+    transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.docker-hero-desc-edit:hover {
+    color: var(--link-hover-color);
+    background: color-mix(in srgb, var(--link-hover-color) 10%, transparent);
+}
+
+.docker-hero-meta-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.65rem;
+}
+
+.docker-meta-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    background: color-mix(in srgb, var(--text-color) 4%, transparent);
+    padding: 0.3rem 0.65rem;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    line-height: 1.2;
+}
+
+.docker-meta-chip strong {
+    color: var(--text-color);
+    font-weight: 600;
+}
+
+.docker-meta-chip .icon-svg,
+.docker-meta-chip renop-icon {
+    width: 14px;
+    height: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.85;
+    flex-shrink: 0;
+}
+
+.docker-pull-box {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    background: var(--code-bg, rgba(0, 0, 0, 0.05));
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    margin-top: 0.85rem;
+    font-family: var(--font-mono, monospace);
+    font-size: 0.84rem;
+}
+
+.docker-pull-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    user-select: all;
+    color: var(--text-color);
+    font-weight: 500;
+}
+
+.docker-pull-copy-btn,
+.docker-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    margin: 0;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background: var(--card-bg);
+    color: var(--text-color);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease, transform 0.12s ease;
+    position: relative;
+    box-sizing: border-box;
+}
+
+.docker-pull-copy-btn .icon-svg,
+.docker-action-btn .icon-svg {
+    width: 14px;
+    height: 14px;
+    display: block;
+    margin: auto;
+    pointer-events: none;
+    flex-shrink: 0;
+}
+
+.docker-pull-copy-btn:hover,
+.docker-action-btn:hover {
+    border-color: var(--link-hover-color);
+    color: var(--link-hover-color);
+    background: color-mix(in srgb, var(--link-hover-color) 10%, transparent);
+    transform: translateY(-1px);
+}
+
+.docker-pull-copy-btn:active,
+.docker-action-btn:active {
+    transform: translateY(0) scale(0.96);
+}
+
+.docker-action-btn.docker-action-btn--delete:hover {
+    border-color: #ef4444;
+    color: #ef4444;
+    background: color-mix(in srgb, #ef4444 10%, transparent);
+}
+
+.docker-pull-copy-btn.copied,
+.docker-action-btn.copied {
+    background: rgba(16, 185, 129, 0.15) !important;
+    border-color: #10b981 !important;
+    color: #10b981 !important;
+}
+
+.docker-pull-copy-btn .copy-toast,
+.docker-action-btn .copy-toast {
+    position: absolute;
+    right: calc(100% + 8px);
+    top: 50%;
+    transform: translateY(-50%);
+    background: #10b981;
+    color: #ffffff;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 0.72rem;
     font-weight: 600;
     white-space: nowrap;
     pointer-events: none;
@@ -349,7 +580,7 @@
     dockerToastFadeOut 0.2s ease-out 1.4s forwards;
     z-index: 100;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
-    font-family: var(--font-sans, sans-serif);
+    font-family: inherit;
     line-height: 1.4;
 }
 
@@ -370,7 +601,7 @@
     dockerToastFadeOut 0.2s ease-out 1.4s forwards;
     z-index: 100;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
-    font-family: var(--font-sans, sans-serif);
+    font-family: inherit;
     line-height: 1.4;
 }
 

@@ -15,7 +15,12 @@ export default Object.freeze({
     "resourceLock.versionsLocked": "一部のバージョンがロックされています",
 
     "resourceLock.unlock": "ロック解除",
-    "maven.manageDomainTeam": "ドメインチームを管理",
+    "ticket.back": "チケット一覧に戻る",
+    "maven.managePackageTeam": "パッケージチームを管理",
+    "maven.forceRemoveDomain": "公開ドメインを強制削除",
+    "maven.confirmForceRemoveDomain": "公開ドメイン {domain} を強制削除しますか？この操作は取り消せず、保持期間を待たずに即座に解放されます。",
+    "maven.forceRemoveDomainFailed": "公開ドメインの強制削除に失敗しました",
+    "maven.forceRemoveDomainSuccess": "公開ドメインを強制削除しました",
     "maven.domainTeamHint": "Maven の共同作業者は公開ドメインに所属します。メンバー変更は、このドメインを使用するすべてのパッケージに適用されます。",
     "ticket.reasonTitle": "通報理由",
     "ticket.reason.choose": "理由を選択",

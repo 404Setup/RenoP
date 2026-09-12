@@ -75,4 +75,9 @@ export default Object.freeze({
     "updaterNotice.spaceBody": "磁盘可用空间不足，无法完成更新。",
     "updaterNotice.restartFailedTitle": "更新重启失败",
     "updaterNotice.restartFailedBody": "RenoP 无法通过重启应用已准备的更新，请检查服务器日志后重试。",
+    "messages.sessionTarget": "推送目标",
+    "messages.allSessions": "全量推送",
+    "messages.sessionsLoading": "正在加载活跃会话…",
+    "messages.sessionsEmpty": "没有活跃的浏览器会话。",
+    "messages.sessionsFailed": "无法加载会话，请重新输入用户重试。",
 });

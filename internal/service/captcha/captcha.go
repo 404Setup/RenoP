@@ -14,11 +14,11 @@ package captcha
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"math"
 	"net/http"
 	"net/url"
+	"renop/pkg/hex"
 	"strings"
 	"time"
 
@@ -68,6 +68,9 @@ func browserBinding(c fiber.Ctx) string {
 
 // Require checks only browser/anonymous actions; authenticated protocol and API-token clients remain exempt.
 func Require(c fiber.Ctx, state *core.AppState, scopes ...string) error {
+	if state.IsDemo() {
+		return nil
+	}
 	kind, _ := c.Locals("auth_credential_kind").(string)
 	if kind == "api_token" || kind == "password" {
 		return nil

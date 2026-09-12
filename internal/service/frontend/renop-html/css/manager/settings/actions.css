@@ -1,0 +1,122 @@
+/*
+ * Copyright (c) 2026 404Setup. All rights reserved.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
+ *
+ * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
+ */
+
+.action-btn {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    padding: 0.5rem 1rem;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.2s, transform 0.1s ease-in-out;
+}
+
+.action-btn:hover:not(:disabled) {
+    background-color: var(--item-hover-bg);
+    transform: translateY(-1px) scale(1.02);
+}
+
+.action-btn:active:not(:disabled) {
+    transform: translateY(0) scale(0.98);
+}
+
+.action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.primary-btn {
+    background-color: #3b82f6;
+    color: white;
+    border: none;
+    transition: background-color 0.2s, transform 0.1s ease-in-out;
+}
+
+.primary-btn:hover:not(:disabled) {
+    background-color: #2563eb;
+    transform: translateY(-1px) scale(1.02);
+}
+
+.primary-btn:active:not(:disabled) {
+    transform: translateY(0) scale(0.98);
+}
+
+.btn-danger {
+    background-color: #ef4444;
+    color: white;
+    border: none;
+    transition: background-color 0.2s, transform 0.1s ease-in-out;
+}
+
+.btn-danger:hover:not(:disabled) {
+    background-color: #dc2626;
+    transform: translateY(-1px) scale(1.02);
+}
+
+.btn-danger:active:not(:disabled) {
+    transform: translateY(0) scale(0.98);
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+    border-radius: 20px;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 14px;
+    width: 14px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+
+input:checked + .slider {
+    background-color: var(--link-hover-color);
+}
+
+input:focus + .slider {
+    box-shadow: 0 0 1px var(--link-hover-color);
+}
+
+input:checked + .slider:before {
+    transform: translateX(16px);
+}
+
+.settings-input, .settings-input-small {
+    padding: 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.25rem;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    box-sizing: border-box;
+}
+
+.settings-input {
+    max-width: 400px;
+    width: 100%;
+}
+
+.settings-input-small {
+    max-width: 100px;
+    width: 100%;
+}
+

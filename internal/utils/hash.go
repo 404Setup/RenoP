@@ -15,10 +15,10 @@ import (
 	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/sha512"
-	"encoding/hex"
 	"io"
 	"os"
 	"path/filepath"
+	"renop/pkg/hex"
 )
 
 func MD5(data []byte) string {

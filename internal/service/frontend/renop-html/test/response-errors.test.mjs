@@ -86,13 +86,22 @@ test('session restoration preserves credentials on forbidden responses and expir
         logout: reason => logouts.push(reason), updateAuthUI: (...args) => updates.push(args),
     });
     const auth = readFileSync(join(frontendRoot, 'js/auth.js'), 'utf8');
-    const start = auth.indexOf('export async function initializeSession()');
+    const start = auth.indexOf('export async function initializeSession(');
     const end = auth.indexOf('\n/**', start);
     vm.runInContext(auth.slice(start, end).replace('export ', ''), context);
     await context.initializeSession();
     assert.deepEqual(logouts, []);
     assert.equal(storage.get('username'), 'alice');
     assert.deepEqual(updates.at(-1), [true, 'alice', false]);
+    let release;
+    const beforePublish = new Promise(resolve => { release = resolve; });
+    const previousUpdates = updates.length;
+    const pending = context.initializeSession(beforePublish);
+    await Promise.resolve();
+    assert.equal(updates.length, previousUpdates, 'session state waits for demo initialization');
+    release();
+    await pending;
+    assert.equal(updates.length, previousUpdates + 1);
     status = 401;
     await context.initializeSession();
     assert.deepEqual(logouts, ['expired']);

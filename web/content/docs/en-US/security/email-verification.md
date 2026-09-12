@@ -25,9 +25,9 @@ any returned contact address belongs to another account, including an address re
 reservations, and account-security changes commit together; failure leaves the existing account unchanged. Emails never
 merge accounts.
 
-**Other login emails** lists private secondary addresses. They identify the same account for password or Passkey login,
-email password reset, and offline-code recovery; existing password and second-factor policies still apply. Notifications
-continue to use the primary email. Each account can retain up to 128 addresses, including its primary email.
+**Other login emails** lists private secondary addresses usable for password or Passkey login, with the existing second-factor policy. They cannot reset a password or recover an account. Notifications and email password recovery use the current primary email only. Each account can retain up to 128 addresses, including its primary email.
+
+Offline-code recovery accepts the current primary email, or a previous primary within 14 days of replacement, plus four unused codes. Recovery through a previous primary restores it, removes the replaced primary, and clears the recovery window. Usernames and ordinary aliases cannot identify recovery requests. A normal primary-email change blocks replacing recovery codes, adding/removing Passkeys, and changing second factors for 14 days (`ACCOUNT_SECURITY_HOLD`). Existing factors still work; an initial recovery-code set may be generated. Previous primaries cannot be removed during this window. The private security response includes `security_hold_until` and `previous_primary_emails` (`email`, `expires_at`).
 
 A provider must verify a returned address, or that address must already belong to the signed-in account. Otherwise,
 verify it with the provider or use **Add a verified email** before connecting. Adding an address requires RenoP email

@@ -13,6 +13,8 @@ import {t} from './i18n.js';
 import {responseErrorMessage} from './response-errors.js';
 import {passkeyErrorMessage, requestPasskeyAssertion} from './fido-utils.js';
 import {runButtonAction} from './components/button.js';
+import {decodeProtoResponse, PROTO_CONTENT_TYPE} from './api.js';
+import {SessionDetails} from './proto/index.js';
 
 const form = document.getElementById('mfa-login-form');
 const code = document.getElementById('mfa-login-code');
@@ -33,7 +35,10 @@ function showChallengeError(message) {
 function mfaRequest(path = '', body, method = 'POST') {
     return fetch('/api/auth/mfa' + path, {
         method, credentials: 'include', cache: 'no-store',
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/x-protobuf, application/json',
+        },
         body: body === undefined ? undefined : JSON.stringify(body),
         signal: abort?.signal,
     });
@@ -136,7 +141,13 @@ async function verifyFactor(factor) {
             code.focus();
             return;
         }
-        const session = await response.json();
+        let session;
+        const contentType = response.headers?.get?.('Content-Type') || '';
+        if (contentType.includes('application/x-protobuf') && typeof decodeProtoResponse === 'function') {
+            session = await decodeProtoResponse(response, SessionDetails);
+        } else {
+            session = await response.json();
+        }
         if (current !== sequence || controller.signal.aborted) return;
         active = false;
         resetMFALogin();

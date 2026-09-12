@@ -175,6 +175,13 @@
     padding: 1.15rem;
 }
 
+.cargo-commands-section,
+.cargo-facts-section,
+.cargo-versions-section {
+    width: 100%;
+    box-sizing: border-box;
+}
+
 .cargo-section-header {
     display: flex;
     align-items: flex-start;

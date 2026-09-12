@@ -14,6 +14,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -66,10 +67,11 @@ type PreparedUpload struct {
 }
 
 type GPGUploadResult struct {
-	Pending       bool
 	ReleaseID     string
-	ReviewPending bool
 	ReviewID      string
+	Pending       bool
+	ReviewPending bool
+	NativePending bool
 }
 
 // GPGUploadLockPath makes a protected artifact, its detached signature, and
@@ -470,6 +472,12 @@ func ProcessUploadedFile(ctx context.Context, state *core.AppState, repo *config
 func processUploadedFileWithReviewLocked(ctx context.Context, state *core.AppState, repo *config.Repository,
 	upload *PreparedUpload,
 ) (GPGUploadResult, error) {
+	if state == nil || state.Inner == nil || repo == nil || upload == nil {
+		return GPGUploadResult{}, errors.New("invalid prepared upload")
+	}
+	if repo.Engine().ManagedNative {
+		return processNativePublication(ctx, state, repo, upload)
+	}
 	if upload != nil && repo.NormalizedFormat() == config.RepositoryFormatMaven && MavenMutationGuard != nil {
 		cfg := state.Inner.Config.Load()
 		if cfg == nil {
@@ -536,7 +544,7 @@ func processUploadedFileLocked(ctx context.Context, state *core.AppState, repo *
 		return GPGUploadResult{}, ErrRepositoryFormatChanged
 	}
 	repo = currentRepo
-	if repo.NormalizedFormat() == config.RepositoryFormatFiles {
+	if repo.Engine().NativeFileLayout {
 		err := CommitUploadedFile(state, upload.LocalFilePath, upload.TempPath, upload.FileSize, upload.ModTime,
 			upload.Existed, false, nil)
 		return GPGUploadResult{}, err
@@ -622,6 +630,10 @@ func processUploadedFileLocked(ctx context.Context, state *core.AppState, repo *
 
 func GPGUploadErrorResponse(err error) (int, string) {
 	switch {
+	case errors.Is(err, ErrNativePackageInvalid):
+		return http.StatusBadRequest, ErrNativePackageInvalid.Error()
+	case errors.Is(err, core.ErrRepositoryCapacity):
+		return http.StatusInsufficientStorage, "Repository capacity exceeded"
 	case errors.Is(err, ErrGPGSignatureLarge):
 		return http.StatusRequestEntityTooLarge, "GPG detached signature exceeds the size limit"
 	case errors.Is(err, ErrGPGSignatureSuffix):
@@ -642,6 +654,7 @@ func GPGUploadErrorResponse(err error) (int, string) {
 	case errors.Is(err, ErrGPGRepositoryMissing):
 		return http.StatusNotFound, err.Error()
 	default:
+		log.Printf("[upload] unexpected upload processing error: %v", err)
 		if strings.HasPrefix(err.Error(), "Failed to upload to S3:") {
 			return http.StatusInternalServerError, err.Error()
 		}

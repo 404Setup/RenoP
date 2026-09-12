@@ -20,22 +20,22 @@ import (
 
 	"github.com/emmansun/base64"
 
+	"renop/internal/configstore"
 	"renop/internal/core"
-	"renop/internal/utils"
 	"renop/internal/utils/secretcipher"
 
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/gofiber/fiber/v3"
-	"go.yaml.in/yaml/v3"
 )
 
 const mfaCookieName = "renop_mfa"
 const mfaTTL = 5 * time.Minute
 
-var errMFARequired = errors.New("second-factor verification required")
+var errMFARequired = core.ErrMFARequired
 var errMFAPrimaryRequired = errors.New("a primary login method is required")
 
 type mfaChallenge struct {
+	oauth                                                 *oauthSessionProof
 	state                                                 *core.AppState
 	credentialID                                          []byte
 	username, method, snapshot, revision, session, secret string
@@ -64,11 +64,7 @@ func EnsureMFAKey(state *core.AppState, path string) error {
 	}
 	next := cfg.DeepCopy()
 	next.MFAEncryptionKey = base64.RawStdEncoding.EncodeToString(key)
-	data, err := yaml.Marshal(next)
-	if err != nil {
-		return err
-	}
-	if err := utils.WritePrivateFile(path, data); err != nil {
+	if err := configstore.Save(path, next); err != nil {
 		return err
 	}
 	state.Inner.Config.Store(next)
@@ -189,8 +185,9 @@ func prepareBrowserLogin(c fiber.Ctx, state *core.AppState, username, method, ex
 		return mfa.Snapshot, nil
 	}
 	credentialID, _ := c.Locals("verified_fido_credential").([]byte)
+	oauthProof, _ := c.Locals("oauth_session_proof").(*oauthSessionProof)
 	id, err := storeMFAChallenge(&mfaChallenge{state: state, username: username, method: method,
-		snapshot: mfa.Snapshot, revision: mfa.Revision, credentialID: bytes.Clone(credentialID)})
+		snapshot: mfa.Snapshot, revision: mfa.Revision, credentialID: bytes.Clone(credentialID), oauth: oauthProof})
 	if err != nil {
 		return "", err
 	}
@@ -202,10 +199,14 @@ func mfaError(c fiber.Ctx, err error) error {
 	setPrivateResponseHeaders(c)
 	status, code := 500, "MFA_UNAVAILABLE"
 	switch {
+	case errors.Is(err, core.ErrSecurityHold):
+		status, code = 409, "ACCOUNT_SECURITY_HOLD"
 	case errors.Is(err, errMFARequired):
 		status, code = 409, "MFA_REQUIRED"
 	case errors.Is(err, errMFAPrimaryRequired):
 		status, code = 409, "MFA_PRIMARY_REQUIRED"
+	case errors.Is(err, core.ErrEmailCodeInvalid):
+		status, code = 400, "ACCOUNT_EMAIL_CODE_INVALID"
 	case errors.Is(err, core.ErrMFAInvalid):
 		status, code = 400, "MFA_INVALID"
 	case errors.Is(err, core.ErrLastLoginMethod):

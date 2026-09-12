@@ -1,7 +1,10 @@
 /*
  * Copyright (c) 2026 404Setup. All rights reserved.
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
- * If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
+ *
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
@@ -44,7 +47,7 @@ func (db *DB) attachMavenArtifactLocks(artifacts []*core.MavenArtifact) error {
 	}
 	defer rows.Close()
 	for rows.Next() {
-		lock := &core.ResourceLock{ResourceLockTarget: core.ResourceLockTarget{Format: "maven"}}
+		lock := &core.ResourceLock{Format: "maven"}
 		var inherited int
 		if err := rows.Scan(&lock.Repository, &lock.Name, &lock.Source, &lock.Mode, &lock.Reason,
 			&lock.ReasonText, &lock.LockedAt, &inherited); err != nil {
@@ -121,9 +124,8 @@ func (db *DB) mavenViewerID(username string) (string, error) {
 }
 
 func mavenInspectCondition(alias, userID string, moderated []string, args *[]any) string {
-	*args = append(*args, userID, userID, userID)
+	*args = append(*args, userID, userID)
 	return `(EXISTS (SELECT 1 FROM maven_domain_members m WHERE m.repository = '' AND m.domain = ` + alias + `.domain AND m.user_id = ?)
-		OR EXISTS (SELECT 1 FROM super_team_members m WHERE m.team_prefix = ` + alias + `.super_team_prefix AND m.user_id = ?)
 		OR EXISTS (SELECT 1 FROM maven_domains d JOIN super_team_members m ON m.team_prefix = d.super_team_prefix
 		WHERE d.repository = '' AND d.domain = ` + alias + `.domain AND m.user_id = ?)
 		OR ` + resourceRepositoryCondition(alias+".repository", normalizeResourceRepositories(moderated), args) + `)`
@@ -311,7 +313,7 @@ func (db *DB) GetMavenPathLocks(repository, path string, descendants bool) ([]*c
 	}
 	defer rows.Close()
 	for rows.Next() {
-		lock := &core.ResourceLock{ResourceLockTarget: core.ResourceLockTarget{Format: "maven", Repository: strings.ToLower(repository)}}
+		lock := &core.ResourceLock{Format: "maven", Repository: strings.ToLower(repository)}
 		var inherited int
 		if err := rows.Scan(&lock.Name, &lock.Version, &lock.Source, &lock.Mode, &lock.Reason, &lock.ReasonText, &lock.LockedAt, &inherited); err != nil {
 			return nil, err

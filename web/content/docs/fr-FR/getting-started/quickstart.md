@@ -50,7 +50,7 @@ base et le stockage avec une opération authentifiée réelle avant d’ouvrir l
 
 | Variable                       | Défaut              | Usage                                        |
 |:-------------------------------|:--------------------|:---------------------------------------------|
-| `RENOP_CONFIG`                 | `config.yaml`       | Chemin de la configuration principale        |
+| `RENOP_SETTINGS_DB`                 | `renop-settings.db`       | Chemin de la configuration principale        |
 | `RENOP_REPOSITORIES`           | `repositories.yaml` | Import hérité ; ignoré après initialisation en base |
 | `RENOP_INDEX`                  | `index.json`        | Chemin de l’instantané d’index               |
 | `RENOP_DEFAULT_ADMIN_PASSWORD` | Généré une fois     | Mot de passe initial si `admin` n’existe pas |

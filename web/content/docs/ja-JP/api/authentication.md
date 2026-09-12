@@ -23,7 +23,7 @@ Passkey は最初のログイン方法にはなりません。オフライン復
 
 - **パス**: `POST /api/auth/login`
 - **認証**: なし。
-- **本文**: JSON / protobuf `LoginRequest`。以下は JSON 名です。`name` はユーザー名または非公開メールです。
+- **本文**: protobuf `LoginRequest`。以下は JSON 名です。`name` はユーザー名または非公開メールです。
 
 ### リクエスト
 
@@ -66,6 +66,8 @@ Microsoft、Google、GitLab、Cloudflare、Stack Exchange、カスタム OAuth
 - **ログアウト**: `POST /api/auth/logout`
 - **公開プロフィール**: `GET /api/users/:username/profile`
 - **パッケージ所属**: `GET /api/users/:username/memberships?format=cargo|docker|maven|npm`
+
+二次認証が有効な場合、パスワード変更には新しい TOTP コードまたは二次認証 Passkey が必要です。メール送信が有効なら現在のメインアドレスへのコードも選べます。`PUT /api/auth/profile/password` はバイナリの `UpdatePasswordRequest` で `factor`（`totp`、`passkey`、`email`）と証明（`totp_code`、`challenge_id` と `passkey_credential`、または `email_code`）を受け取ります。Passkey は `POST /api/auth/profile/password/passkey/begin` で開始します。証明は現在のセッションと認証情報に結び付き、一度だけ使用可能です。成功すると他のセッションを失効させます。
 
 公開ルートはユーザー名を使用し、不変 ID は内部に保ちます。`HIDDEN` の所属は除外し、非公開所属は許可された
 閲覧者だけに返します。
@@ -131,6 +133,8 @@ ID、メール、パスワード、安全状態の版を再確認します。後
 }
 ```
 
+オフライン復旧には現在のメインアドレス、または変更後14日以内の旧メインアドレスと未使用コード4個が必要です。旧アドレスによる復旧はそのアドレスを復元し、置き換えられたメインアドレスを削除して復旧期間を終了します。ユーザー名や通常の副アドレスは使えません。通常のメインアドレス変更後14日間は復旧コードの再発行、Passkey の追加・削除、二次認証の変更を禁止します（`ACCOUNT_SECURITY_HOLD`）。既存の認証は利用でき、初回のコード生成も可能です。この期間は旧メインアドレスを削除できません。非公開の応答に `security_hold_until` と `previous_primary_emails`（`email`、`expires_at`）が含まれます。
+
 ## ログイン方式の管理
 
 - **Passkey 一覧**: `GET /api/auth/profile/fido`
@@ -186,3 +190,27 @@ Passkey、セッション、API Token、写真、復旧コード、メッセー�
 [法的文書と Cookie の設定](../configuration/legal.md)
 
 [セキュリティ認証](../security/captcha.md)
+
+## 公開プロフィールのリンク
+
+PUT /api/auth/profile/links は、ウェブサイト、Discord、カスタムリンクと `visibility.github` / `visibility.gitlab` を含む JSON を受け取ります。両設定の既定値は false です。GitHub URL と `providers` は読み取り専用で、現在の連携済みアカウントから生成されます。GitLab は設定済みサービスの認証元との一致も必要です。表示設定は本人だけに返されます。グローバルチームの GitHub URL は引き続き編集できます。
+
+```json
+{"website":"https://example.com","visibility":{"github":true,"gitlab":false}}
+```
+
+## プロバイダーのログアウトと認可取り消し
+
+`POST /api/auth/logout` はログイン先プロバイダーに接続する前にローカルのブラウザーセッションを失効させます。外部認可のないセッションは `204`、それ以外はバイナリ protobuf `LogoutResponse` を返します。フィールドは `local_revoked`、`provider`、`provider_status`（`revoked`、`failed`、`unavailable`、`unsupported`）です。外部処理が失敗してもローカルセッションは復元されません。`POST /api/auth/oauth/:provider/revoke` は Cookie 認証された現在のセッションのプロバイダーを確認して同じ処理を行います。API トークンからは呼び出せません。
+
+`POST /api/auth/oauth/:provider/backchannel-logout` は標準フォームの `logout_token` を受け取ります。署名付き OIDC JWT には設定に一致する発行者と対象、`iat`、`exp`、`jti`、バックチャネルログアウトイベントが必要です。`sub`、`sid`、または両方を含め、`nonce` は含めてはいけません。10 分より古いイベントは拒否されます。
+
+`POST /api/auth/oauth/:provider/revoked` はバイナリ protobuf `ProviderRevocationRequest` を受け取ります。32 バイト以上の書き込み専用 `revocation_secret` を設定し、リクエストの元バイト列に対する HMAC-SHA256 の16進値を `X-Renop-Signature-256: sha256=<署名>` で送ります。メッセージは `event_id`、`subject`、`session_id`、Unix ミリ秒の `issued_at` を含み、OIDC では検証済み `issuer` も指定します。OAuth のみの場合は発行者を空にします。異なる Webhook 形式には信頼できるアダプターが必要で、元の本文は直接受け付けません。
+
+有効なイベントと重複は `200`、無効または古いクレームは `400`、無効な HMAC は `401`、受付制限や保存処理の障害は `429`/`503` です。設定された認可元で一致し、イベントより古いセッションだけを失効させます。ID の関連付けと API トークンは保持します。リプレイや遅れて完了した MFA 証明では失効したセッションを再作成できません。
+
+## アカウントの利用停止
+
+管理者は公開ユーザーページから利用停止と解除を操作できます。`GET /api/tokens/:name/ban` は状態と保護を確認し、`PUT /api/tokens/:name/ban` は JSON の `reason_code`、自由記述 `reason`、任意の Unix ミリ秒 `expires_at`、`ban_ip` を受け取ります。`DELETE /api/tokens/:name/ban` は解除します。管理者・モデレーターは保護対象の役割を先に解除する必要があります。以下のコードは翻訳された定型理由に対応し、空の `reason_code` は翻訳しない自由記述を使います。
+
+`harassment_abuse`, `spam_misleading`, `automation`, `alternate_accounts`, `security_rules`, `harmful_content`, `terms_violation`, `impersonation`, `copyright`.

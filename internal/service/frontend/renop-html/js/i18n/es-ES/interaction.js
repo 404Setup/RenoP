@@ -15,7 +15,12 @@ export default Object.freeze({
     "resourceLock.versionsLocked": "Algunas versiones están bloqueadas",
 
     "resourceLock.unlock": "Desbloquear",
-    "maven.manageDomainTeam": "Gestionar equipo del dominio",
+    "ticket.back": "Volver a tickets",
+    "maven.managePackageTeam": "Gestionar equipo del paquete",
+    "maven.forceRemoveDomain": "Forzar eliminación del dominio",
+    "maven.confirmForceRemoveDomain": "¿Eliminar definitivamente el dominio {domain} sin período de reserva? Esta acción no se puede deshacer.",
+    "maven.forceRemoveDomainFailed": "Error al forzar la eliminación del dominio",
+    "maven.forceRemoveDomainSuccess": "El dominio ha sido eliminado definitivamente",
     "maven.domainTeamHint": "Los colaboradores Maven pertenecen al dominio de publicación. Los cambios afectan a todos los paquetes de ese dominio.",
     "ticket.reasonTitle": "Motivo de la denuncia",
     "ticket.reason.choose": "Elige un motivo",

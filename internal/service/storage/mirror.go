@@ -17,6 +17,7 @@ import (
 
 	"renop/internal/config"
 	"renop/internal/core"
+	"renop/internal/repositorycapacity"
 	"renop/internal/service/cargo"
 	"renop/internal/service/npm"
 	"renop/internal/service/proxy"
@@ -24,6 +25,19 @@ import (
 )
 
 func init() {
+	proxy.ReserveMirrorCapacity = func(state *core.AppState, repo *config.Repository, path string, size int64) (func(bool), error) {
+		capacity, err := reserveRepositoryCapacity(state, repositorycapacity.Object{Path: path, Size: size})
+		if err != nil {
+			return nil, err
+		}
+		return func(success bool) {
+			if success {
+				capacity.Commit()
+			} else {
+				capacity.Release()
+			}
+		}, nil
+	}
 	proxy.OnMirrorArtifactStored = recordMirroredArtifact
 	proxy.AuthorizeMirrorWrite = func(state *core.AppState, repo *config.Repository, path string) error {
 		if repo != nil && repo.NormalizedFormat() == config.RepositoryFormatMaven && MavenMutationGuard != nil {

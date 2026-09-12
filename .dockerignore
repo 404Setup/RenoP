@@ -1,0 +1,6 @@
+**
+!Dockerfile
+!container-bin/
+!container-bin/**
+!LICENSE
+!THIRD_PARTY_NOTICES.md

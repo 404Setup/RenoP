@@ -3,6 +3,8 @@
  *
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
  *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
+ *
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
@@ -14,11 +16,11 @@ import (
 	"crypto/rand"
 	"crypto/sha1"
 	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"html"
 	"net/http"
 	"net/url"
+	"renop/pkg/hex"
 	"strconv"
 	"strings"
 	"time"
@@ -138,7 +140,7 @@ func (c *Client) Send(ctx context.Context, a Account, m Message) (Result, error)
 	var data map[string]any
 	var err error
 	var responseHeaders http.Header
-	result := Result{Status: "accepted", Check: true}
+	result := Result{Status: "accepted", Check: SupportsStatus(a.Provider)}
 	switch a.Provider {
 	case "cloudflare":
 		headers.Set("Authorization", "Bearer "+a.APIKey)
@@ -155,7 +157,7 @@ func (c *Client) Send(ctx context.Context, a Account, m Message) (Result, error)
 			if len(arrayAt(data, "result", "delivered")) > 0 {
 				result.Status = "delivered"
 			} else {
-				result.Status = "queued_provider"
+				result.Status = "accepted"
 			}
 		}
 	case "graph":

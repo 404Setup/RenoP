@@ -93,7 +93,7 @@ Blob 关联、标签和审核结果在同一事务中写入。镜像源导入不
 
 ## 查询任务
 
-GET /api/tickets 返回有界分页。`view` 为 `reviewer` 或 `requested`；`status` 为 `unprocessed`（默认）、`in_progress`、
+GET /api/tickets 返回有界分页。`view` 为 `reviewer` 或 `requested`；`status` 为 `unprocessed`、`in_progress`、
 `processed`、`closed`、`completed` 或 `all`。`limit` 为 1–100，`offset` 不得为负。逗号分隔的 `types` 支持原流程资源类型以及
 `support`、`user`、`superteam`、`maven-domain`、`maven`、`cargo`、`npm`、`docker`。
 
@@ -157,3 +157,9 @@ DELETE /api/tickets/{id} 允许申请人撤回待处理的支持、所有权转�
 每个账号最多有 64 个待处理申请，全局最多 4096 个。此类任务不提供审核文件包下载。
 
 举报窗口提供垃圾内容、滥用、恶意软件、版权、冒充身份及其他问题等可编辑的主题。自己的个人主页隐藏举报入口，服务端仍按不可变账户 ID 独立拒绝自我举报。工单类型与范围选择器复用设置中的带标签控件。
+
+## 会话消息与请求限制
+
+列表初始使用 `status=all`；重新打开工单中心会清除之前的筛选。
+
+GET /api/tickets/{id}/messages 按时间顺序返回最新 50 条消息。`limit` 支持 1–100；将响应头 `X-Renop-Next-Cursor` 作为 `before` 可读取更早的消息。POST /api/tickets/{id}/messages 接收最多 16384 字符的 `body`，JSON 请求上限为 24 KiB。提交时重新检查会话与工单权限，已关闭工单不接受新评论。每个账号每分钟最多 20 条、每小时最多 200 条评论，每个工单最多 1000 条。支持工单创建另有每十分钟六项限制。请求入口分别限制读取和写入，超限返回 `429` 和 `review_limit`。

@@ -8,14 +8,14 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
-import {captchaFetch} from './captcha.js';
+import {createJSONClient} from './api.js';
 import {ensureLegalConsent} from './legal-consent.js';
 import {t} from './i18n.js';
 import {showAlert} from './alert.js';
 import {runButtonAction} from './components/button.js';
 import {loginReturnTo, navigateToLogin} from './login-route.js';
 import {attachPasswordStrength, confirmWeakPasswordIfNeeded, getPasswordLengthError} from './password-strength.js';
-import {LocalizedResponseError, responseErrorMessage} from './response-errors.js';
+import {LocalizedResponseError} from './response-errors.js';
 import {mailStatusLabel} from './mail-status.js';
 
 const form = document.getElementById('registration-form');
@@ -33,17 +33,7 @@ const send = document.getElementById('registration-send');
 const importProfile = document.getElementById('registration-import');
 let active = false, epoch = 0, availabilityEpoch = 0, pending, receipt, timer, expiryTimer, strength;
 
-/** Read public auth results without treating a rejected confirmation as an expired login. */
-async function requestJSON(path, body) {
-    const response = await captchaFetch('/api/auth/' + path, {
-        credentials: 'include', cache: 'no-store',
-        signal: AbortSignal.timeout(15000), ...(body ? {
-            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body),
-        } : {})
-    });
-    if (!response.ok) throw new LocalizedResponseError(await responseErrorMessage(response, 'registration.unavailable'), response.status);
-    return response.json();
-}
+const requestJSON = createJSONClient('/api/auth/', 'registration.unavailable', {publicRequest: true, timeoutMS: 15000});
 
 /** Keep registration links and the active form aligned with the live administrator switch. */
 export async function refreshRegistrationAvailability() {
@@ -185,7 +175,7 @@ send.addEventListener('click', () => runButtonAction(send, async () => {
     const revision = epoch, address = email.value.trim();
     error.textContent = '';
     try {
-        const result = await requestJSON('registration/code', {email: address, provider: pending?.provider || ''});
+        const result = await requestJSON('registration/code', {json: {email: address, provider: pending?.provider || ''}});
         if (!active || revision !== epoch || address !== email.value.trim()) return;
         clearDelivery();
         receipt = {...result, deadline: Date.now() + 600000};
@@ -222,7 +212,7 @@ form.addEventListener('submit', event => {
         };
         if (!(await confirmWeakPasswordIfNeeded(body.password)) || !active || revision !== epoch) return;
         try {
-            const result = await requestJSON('registration', body);
+            const result = await requestJSON('registration', {json: body});
             if (!active || revision !== epoch) return;
             updateRegistrationPage(false);
             navigateToLogin(returnTo, {replace: true});

@@ -570,6 +570,18 @@ export function updateDashboardVersionUI(data) {
     const updateBtn = document.getElementById('btn-dashboard-update');
     if (!versionEl || !updateBtn) return;
 
+    if (data.status === 'disabled') {
+        if (longPressTimer) clearTimeout(longPressTimer);
+        longPressTimer = null;
+        updateBtn.classList.remove('is-pressing');
+        document.getElementById('dashboard-version-badge')?.remove();
+        updateBtn.disabled = true;
+        updateBtn.onclick = null;
+        updateBtn.textContent = t('updater.containerDisabled');
+        updateBtn.title = t('updater.containerManaged');
+        return;
+    }
+
     setupUpdateBtnLongPress(updateBtn);
 
     let badge = document.getElementById('dashboard-version-badge');

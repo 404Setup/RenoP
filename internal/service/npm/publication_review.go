@@ -12,8 +12,8 @@ package npm
 
 import (
 	"crypto/sha256"
-	"encoding/hex"
 	"errors"
+	"renop/pkg/hex"
 	"slices"
 	"strconv"
 	"strings"

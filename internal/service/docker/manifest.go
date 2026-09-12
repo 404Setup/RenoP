@@ -12,8 +12,8 @@ package docker
 
 import (
 	"crypto/sha256"
-	"encoding/hex"
 	"errors"
+	"renop/pkg/hex"
 	"strings"
 
 	"github.com/goccy/go-json"

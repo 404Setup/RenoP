@@ -47,6 +47,15 @@ func AcquireMigration(repository string) func() {
 	return gate.Unlock
 }
 
+// TryAcquireMaintenance avoids queuing background work ahead of active writers.
+func TryAcquireMaintenance(repository string) (func(), bool) {
+	gate := &gateStripes[repositoryStripeIndex(repository)]
+	if !gate.TryLock() {
+		return nil, false
+	}
+	return gate.Unlock, true
+}
+
 // AcquireMutations holds distinct repository gates in order for a cross-repository operation.
 func AcquireMutations(repositories ...string) func() {
 	stripes := make([]uint32, 0, len(repositories))
@@ -59,8 +68,8 @@ func AcquireMutations(repositories ...string) func() {
 		gateStripes[stripe].RLock()
 	}
 	return func() {
-		for i := len(stripes) - 1; i >= 0; i-- {
-			gateStripes[stripes[i]].RUnlock()
+		for _, stripe := range slices.Backward(stripes) {
+			gateStripes[stripe].RUnlock()
 		}
 	}
 }

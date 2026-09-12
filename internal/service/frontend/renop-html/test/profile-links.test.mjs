@@ -12,6 +12,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {dirname, join, resolve} from 'node:path';
 import test from 'node:test';
+import vm from 'node:vm';
 import {fileURLToPath} from 'node:url';
 
 const frontendRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -61,4 +62,34 @@ test('every database schema persists the shared profile-link fields', () => {
     for (const field of ['website_url', 'github_url', 'discord_url', 'custom_link_name', 'custom_link_url']) {
         for (const schema of schemas) assert.ok(schema.includes(field), `${field} missing from a database schema`);
     }
+});
+
+test('account links use provider visibility while team links retain the manual GitHub field', () => {
+    const toggles = [];
+    const context = vm.createContext({
+        URL, t: key => key, createIcon: () => ({}),
+        el: (tag, props, ...children) => ({tag, ...props, children, reportValidity: () => true}),
+        createToggleRow: (label, hint, checked, change) => {
+            const toggle = {label, hint, checked, change};
+            toggles.push(toggle);
+            return toggle;
+        }
+    });
+    vm.runInContext(source('js', 'profile-links.js').replace(/^import .*;$/gm, '').replace(/^export /gm, ''), context);
+    const account = context.createPublicProfileLinksEditor({github: 'https://github.com/derived'}, {boundProviders: true});
+    assert.equal(toggles.length, 2);
+    toggles[0].change(true);
+    const value = account.value();
+    assert.equal(Object.hasOwn(value, 'github'), false);
+    assert.equal(value.visibility.github, true);
+    assert.equal(value.visibility.gitlab, false);
+    const team = context.createPublicProfileLinksEditor({github: 'https://github.com/team'});
+    assert.equal(team.value().github, 'https://github.com/team');
+    assert.equal(Object.hasOwn(team.value(), 'visibility'), false);
+    const links = context.createPublicProfileLinks({providers: [
+        {name: 'Work GitLab', url: 'https://git.example/alice'},
+        {name: 'Bad', url: 'javascript:alert(1)'}
+    ]});
+    assert.equal(links.children.length, 1);
+    assert.equal(links.children[0].href, 'https://git.example/alice');
 });

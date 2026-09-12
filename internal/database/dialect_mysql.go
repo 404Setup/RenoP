@@ -65,6 +65,11 @@ func initMySQLSuperTeamIndexes(db *sql.DB) error {
 		{Name: "idx_npm_packages_super_team", Query: "CREATE INDEX idx_npm_packages_super_team ON npm_packages(super_team_prefix, repository);"},
 		{Name: "idx_maven_domains_super_team", Query: "CREATE INDEX idx_maven_domains_super_team ON maven_domains(super_team_prefix, domain);"},
 		{Name: "idx_maven_artifacts_super_team", Query: "CREATE INDEX idx_maven_artifacts_super_team ON maven_artifacts(super_team_prefix, repository);"},
+		{Name: "idx_native_resources_repository", Query: "CREATE INDEX idx_native_resources_repository ON native_resources(repository, name);"},
+		{Name: "idx_native_members_user", Query: "CREATE INDEX idx_native_members_user ON native_members(user_id, resource_id);"},
+		{Name: "idx_native_artifacts_resource", Query: "CREATE INDEX idx_native_artifacts_resource ON native_artifacts(resource_id, version);"},
+		{Name: "idx_native_artifacts_visibility", Query: "CREATE INDEX idx_native_artifacts_visibility ON native_artifacts(published, resource_id);"},
+		{Name: "idx_native_artifacts_repository", Query: "CREATE INDEX idx_native_artifacts_repository ON native_artifacts(repository);"},
 		{Name: "idx_review_tasks_team", Query: "CREATE INDEX idx_review_tasks_team ON review_tasks(review_team_prefix, status, kind, created_at);"},
 		{Name: "idx_review_tasks_requester", Query: "CREATE INDEX idx_review_tasks_requester ON review_tasks(requested_by_id, status, created_at);"},
 		{Name: "idx_review_task_files_task", Query: "CREATE INDEX idx_review_task_files_task ON review_task_files(task_id, added_at);"},
@@ -101,6 +106,7 @@ func (d *MySQLDialect) InitTables(db *sql.DB) error {
 		expires_at BIGINT NULL,
 		permissions_json TEXT NOT NULL,
 		ban_reason VARCHAR(2048) NOT NULL DEFAULT '',
+		ban_reason_code VARCHAR(64) NOT NULL DEFAULT '',
 		banned_at BIGINT NOT NULL DEFAULT 0,
 		banned_until BIGINT NULL,
 		deleted_at BIGINT NOT NULL DEFAULT 0,
@@ -117,6 +123,9 @@ func (d *MySQLDialect) InitTables(db *sql.DB) error {
 		locale VARCHAR(16) NOT NULL DEFAULT '',
 		website_url VARCHAR(2048) NOT NULL DEFAULT '',
 		github_url VARCHAR(2048) NOT NULL DEFAULT '',
+		show_github INT NOT NULL DEFAULT 0,
+		show_gitlab INT NOT NULL DEFAULT 0,
+		is_private INT NOT NULL DEFAULT 0,
 		discord_url VARCHAR(2048) NOT NULL DEFAULT '',
 		custom_link_name VARCHAR(160) NOT NULL DEFAULT '',
 		custom_link_url VARCHAR(2048) NOT NULL DEFAULT '',
@@ -362,6 +371,7 @@ func (d *MySQLDialect) InitTables(db *sql.DB) error {
 		repository VARCHAR(64) NOT NULL,
 		image_name VARCHAR(255) NOT NULL,
 		description TEXT NOT NULL,
+		readme MEDIUMTEXT,
 		publisher VARCHAR(255) NOT NULL DEFAULT '',
 		pull_count BIGINT NOT NULL DEFAULT 0,
 		super_team_prefix VARCHAR(64) NOT NULL DEFAULT '',
@@ -521,7 +531,9 @@ func (d *MySQLDialect) InitTables(db *sql.DB) error {
 	if err := initRepositorySettingsTable(db, true); err != nil {
 		return err
 	}
-	if err := initMavenTables(db, "MEDIUMTEXT NOT NULL"); err != nil {
+	// ValidMavenCoordinatePart already restricts versions to ASCII; retain all 255 characters
+	// while keeping the complete utf8mb4 composite key within InnoDB's index limit.
+	if err := initMavenTables(db, "MEDIUMTEXT NOT NULL", "VARCHAR(255) CHARACTER SET ascii COLLATE ascii_bin NOT NULL"); err != nil {
 		return err
 	}
 	if err := initNPMTables(db); err != nil {
@@ -548,7 +560,14 @@ func (d *MySQLDialect) InitTables(db *sql.DB) error {
 	if err := initPublicationQuotaTables(db); err != nil {
 		return err
 	}
+	if err := initNativeResourceTables(db); err != nil {
+		return err
+	}
 	if err := initReviewTables(db, true); err != nil {
+		return err
+	}
+
+	if err := initOAuthRevocationTable(db); err != nil {
 		return err
 	}
 
@@ -564,17 +583,22 @@ func (d *MySQLDialect) InitTables(db *sql.DB) error {
 	if err := initMySQLSuperTeamIndexes(db); err != nil {
 		return err
 	}
+	for _, migration := range oauthSessionIndexMigrations {
+		if _, err := db.Exec(strings.Replace(migration.Query, "IF NOT EXISTS ", "", 1)); err != nil && !strings.Contains(strings.ToLower(err.Error()), "duplicate key name") {
+			return fmt.Errorf("failed to apply migration %s: %w", migration.Name, err)
+		}
+	}
 
 	return nil
 }
 
 func (d *MySQLDialect) UpsertTokenQuery() string {
-	return `INSERT INTO tokens (name, type, type_value, encrypted_secret, password_hash, tokens_json, created_at, description, expires_at, permissions_json, ban_reason, banned_at, banned_until)
-	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	return `INSERT INTO tokens (name, type, type_value, encrypted_secret, password_hash, tokens_json, created_at, description, expires_at, permissions_json, ban_reason, ban_reason_code, banned_at, banned_until)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	ON DUPLICATE KEY UPDATE
 	type=VALUES(type), type_value=VALUES(type_value), encrypted_secret=VALUES(encrypted_secret), password_hash=VALUES(password_hash),
 	tokens_json=VALUES(tokens_json), created_at=VALUES(created_at), description=VALUES(description), expires_at=VALUES(expires_at),
-	permissions_json=VALUES(permissions_json), ban_reason=VALUES(ban_reason), banned_at=VALUES(banned_at), banned_until=VALUES(banned_until)`
+	permissions_json=VALUES(permissions_json), ban_reason=VALUES(ban_reason), ban_reason_code=VALUES(ban_reason_code), banned_at=VALUES(banned_at), banned_until=VALUES(banned_until)`
 }
 
 func (d *MySQLDialect) UpsertSessionQuery() string {

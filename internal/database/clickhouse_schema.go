@@ -78,13 +78,15 @@ func clickHouseSchemas() []clickHouseTableSchema {
 		{name: "tokens", keyColumns: []string{"name"}, columns: []string{
 			"`name` String", "`type` String", "`type_value` Int64", "`encrypted_secret` String",
 			"`password_hash` String", "`tokens_json` String", "`created_at` String", "`description` String",
-			"`expires_at` Nullable(Int64)", "`permissions_json` String", "`ban_reason` String DEFAULT ''",
+			"`expires_at` Nullable(Int64)", "`permissions_json` String", "`ban_reason` String DEFAULT ''", "`ban_reason_code` String DEFAULT ''",
 			"`banned_at` Int64 DEFAULT 0", "`banned_until` Nullable(Int64)", "`deleted_at` Int64 DEFAULT 0",
 			"`email_released_at` Int64 DEFAULT 0", "`audit_purged_at` Int64 DEFAULT 0",
 		}},
 		{name: "user_profiles", keyColumns: []string{"user_id"}, columns: []string{
 			"`user_id` String", "`username` String", "`nickname` String DEFAULT ''",
 			"`locale` String DEFAULT ''",
+			"`show_github` Int64 DEFAULT 0", "`show_gitlab` Int64 DEFAULT 0",
+			"`is_private` Int64 DEFAULT 0",
 			"`website_url` String DEFAULT ''", "`github_url` String DEFAULT ''", "`discord_url` String DEFAULT ''",
 			"`custom_link_name` String DEFAULT ''", "`custom_link_url` String DEFAULT ''",
 			"`rename_window_started_at` Int64 DEFAULT 0", "`rename_count` Int64 DEFAULT 0", "`updated_at` Int64 DEFAULT 0",
@@ -93,9 +95,15 @@ func clickHouseSchemas() []clickHouseTableSchema {
 			"`user_id` String", "`content_type` String", "`image_data` String", "`size` Int64",
 			"`sha256` String", "`updated_at` Int64",
 		}},
+		{name: "oauth_revocations", keyColumns: []string{"event_hash"}, columns: []string{
+			"`event_hash` String", "`provider_id` String", "`authority` String", "`subject` String", "`session_id` String", "`issued_at` Int64", "`expires_at` Int64",
+		}},
 		{name: "sessions", keyColumns: []string{"session_token"}, columns: []string{
 			"`session_token` String", "`public_id` String", "`username` String", "`ip` String", "`user_agent` String",
 			"`created_at` Int64", "`last_active` Int64", "`login_method` String DEFAULT 'password'",
+			"`oauth_provider` String DEFAULT ''", "`oauth_authority` String DEFAULT ''", "`oauth_subject` String DEFAULT ''", "`oauth_sid` String DEFAULT ''",
+			"`oauth_authorized_at` Int64 DEFAULT 0", "`oauth_grant` Nullable(String)",
+			"`oauth_subject_hash` String DEFAULT ''", "`oauth_sid_hash` String DEFAULT ''",
 		}},
 		{name: "fido_devices", keyColumns: []string{"id"}, columns: []string{
 			"`id` String", "`username` String", "`name` String", "`credential_id` String", "`public_key` String",
@@ -150,7 +158,7 @@ func clickHouseSchemas() []clickHouseTableSchema {
 			"`id` String", "`recipient` String", "`sender` String", "`kind` String", "`severity` String",
 			"`title` String", "`body` String", "`payload_json` String DEFAULT '{}'", "`action_kind` String DEFAULT ''",
 			"`action_status` String DEFAULT ''", "`created_at` Int64", "`read_at` Int64 DEFAULT 0",
-			"`acted_at` Int64 DEFAULT 0", "`expires_at` Int64 DEFAULT 0", "`dedupe_key` Nullable(String)",
+			"`acted_at` Int64 DEFAULT 0", "`expires_at` Int64 DEFAULT 0", "`dedupe_key` Nullable(String)", "`session_id` String DEFAULT ''",
 			"`email_processed_at` Int64 DEFAULT 0",
 		}},
 		{name: "cargo_packages", keyColumns: []string{"repository", "normalized_name"}, columns: []string{
@@ -176,7 +184,7 @@ func clickHouseSchemas() []clickHouseTableSchema {
 			"`inviter` String", "`recipient` String", "`permission_level` Int64", "`created_at` Int64",
 		}},
 		{name: "docker_images", keyColumns: []string{"repository", "image_name"}, columns: []string{
-			"`repository` String", "`image_name` String", "`description` String DEFAULT ''", "`publisher` String DEFAULT ''",
+			"`repository` String", "`image_name` String", "`description` String DEFAULT ''", "`readme` String DEFAULT ''", "`publisher` String DEFAULT ''",
 			"`pull_count` Int64 DEFAULT 0", "`super_team_prefix` String DEFAULT ''",
 			"`private` Int64 DEFAULT 0", "`push_enabled` Int64 DEFAULT 1",
 			"`created_at` Int64", "`updated_at` Int64",
@@ -243,6 +251,9 @@ func clickHouseSchemas() []clickHouseTableSchema {
 		{name: "user_email_addresses", keyColumns: []string{"email"}, columns: []string{
 			"`email` String", "`user_id` String", "`retained` Int32 DEFAULT 0",
 		}},
+		{name: "user_primary_email_history", keyColumns: []string{"user_id", "email"}, columns: []string{
+			"`user_id` String", "`email` String", "`expires_at` Int64",
+		}},
 		{name: "user_recovery_codes", keyColumns: []string{"user_id", "selector_hash"}, columns: []string{
 			"`user_id` String", "`selector_hash` String", "`password_hash` String", "`created_at` Int64", "`used_at` Int64 DEFAULT 0",
 		}},
@@ -296,6 +307,15 @@ func clickHouseSchemas() []clickHouseTableSchema {
 			"`files_reserved` Int64", "`bytes_reserved` Int64", "`publications_reserved` Int64",
 			"`expires_at` Int64", "`created_at` Int64",
 		}},
+		{name: "native_resources", keyColumns: []string{"id"}, columns: []string{
+			"`id` String", "`repository` String", "`format` String", "`name` String", "`description` String", "`signing_key` String", "`created_at` Int64", "`published_at` Int64 DEFAULT 0", "`archived` Int64 DEFAULT 0",
+		}},
+		{name: "native_members", keyColumns: []string{"resource_id", "user_id"}, columns: []string{
+			"`resource_id` String", "`user_id` String", "`permission_level` Int64", "`added_at` Int64",
+		}},
+		{name: "native_artifacts", keyColumns: []string{"id"}, columns: []string{
+			"`id` String", "`resource_id` String", "`repository` String", "`path` String", "`version` String", "`size` Int64", "`created_at` Int64", "`published` Int64 DEFAULT 0",
+		}},
 		{name: "review_tasks", keyColumns: []string{"id"}, columns: []string{
 			"`id` String", "`kind` String", "`resource_type` String", "`repository` String DEFAULT ''",
 			"`resource_key` String", "`resource_name` String", "`source_team_prefix` String DEFAULT ''",
@@ -309,6 +329,11 @@ func clickHouseSchemas() []clickHouseTableSchema {
 			"`assignee_id` String DEFAULT ''", "`assignee_admin` Int64 DEFAULT 0", "`admin_only` Int64 DEFAULT 0",
 			"`escalations` Int64 DEFAULT 0", "`escalated_by_id` String DEFAULT ''", "`revision` Int64 DEFAULT 0",
 			"`target_user_ids` String", "`outcome` String DEFAULT ''", "`response` String", "`changed_at` Int64 DEFAULT 0",
+		}},
+		{name: "ticket_messages", keyColumns: []string{"id"}, columns: []string{
+			"`id` String", "`task_id` String", "`author_id` String", "`author_name` String",
+			"`author_role` String DEFAULT ''", "`kind` String DEFAULT 'comment'", "`body` String",
+			"`created_at` Int64",
 		}},
 		{name: "review_task_files", keyColumns: []string{"task_id", "file_id"}, columns: []string{
 			"`task_id` String", "`file_id` String", "`path` String", "`size` Int64 DEFAULT 0",

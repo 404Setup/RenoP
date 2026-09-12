@@ -82,11 +82,13 @@ func TestPostgresUserProfileIntegration(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "PostgreSQL User", profile.Nickname)
 	stableUserID := profile.UserID
-	profile, err = db.UpdateUserProfileLinks("profile_pg", core.PublicLinks{
-		Website: "https://profile.pg.example", GitHub: "https://github.com/profile-pg",
+	profile, err = db.UpdateUserProfileLinks("profile_pg", core.UserProfileLinks{
+		Website:    "https://profile.pg.example",
+		Visibility: &core.ProfileLinkVisibility{GitHub: true},
 	}, changedAt+1)
 	require.NoError(t, err)
-	require.Equal(t, "https://github.com/profile-pg", profile.Links.GitHub)
+	require.Empty(t, profile.Links.GitHub)
+	require.True(t, profile.Links.Visibility.GitHub)
 	team := &core.SuperTeam{Prefix: "profile-pg", Name: "Profile PostgreSQL", CreatedAt: changedAt + 1}
 	require.NoError(t, db.CreateSuperTeam(team, "profile_pg", 2, 2))
 	require.NoError(t, db.SetSuperTeamMemberVisibility(team.Prefix, "profile_pg", false))
@@ -245,6 +247,8 @@ func TestPostgresAccountSecuritySerialization(t *testing.T) {
 			CreatedAt:    now + 2,
 		}
 	}
+	_, err = db.UpdateAccountEmail("security_pg", "security_pg@example.com", now+1)
+	require.NoError(t, err)
 	require.NoError(t, db.ReplaceRecoveryCodes("security_pg", recoveryHashes))
 	selectors := []string{
 		recoveryHashes[0].SelectorHash, recoveryHashes[1].SelectorHash,
@@ -258,7 +262,7 @@ func TestPostgresAccountSecuritySerialization(t *testing.T) {
 			defer workers.Done()
 			<-start
 			_, resetErr := db.ResetPasswordWithRecoveryCodes(
-				"security_pg", selectors, fmt.Sprintf("recovered-password-%d", index), now+int64(index)+3)
+				"security_pg@example.com", selectors, fmt.Sprintf("recovered-password-%d", index), now+int64(index)+3)
 			recoveryResults <- resetErr
 		}()
 	}

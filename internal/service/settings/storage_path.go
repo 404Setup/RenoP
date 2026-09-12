@@ -42,6 +42,9 @@ func sameStoragePath(a, b string) bool {
 }
 
 func onStoragePathChanged(state *core.AppState, storagePath string) {
+	if state.IsDemo() {
+		return
+	}
 	_ = os.MkdirAll(storagePath, 0755)
 	if cfg := state.Inner.Config.Load(); cfg != nil {
 		for repoName := range cfg.Maven.Repositories {

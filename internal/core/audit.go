@@ -12,7 +12,7 @@ package core
 
 import (
 	"crypto/sha256"
-	"encoding/hex"
+	"renop/pkg/hex"
 	"strings"
 )
 

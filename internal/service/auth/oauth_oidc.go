@@ -109,6 +109,34 @@ func verifyOAuthIDToken(ctx context.Context, client *http.Client, p config.OAuth
 	if tokens.IDToken == "" || len(tokens.IDToken) > 16384 || nonce == "" {
 		return nil, invalid
 	}
+	claims, err := parseOAuthJWT(ctx, client, p, tokens.IDToken)
+	if err != nil {
+		return nil, err
+	}
+	actualNonce, _ := claims["nonce"].(string)
+	subject, err := claims.GetSubject()
+	iat, iatErr := claims.GetIssuedAt()
+	if err != nil || subject == "" || len(subject) > 255 || iatErr != nil || iat == nil ||
+		iat.Time.Before(time.Now().Add(-10*time.Minute)) || subtle.ConstantTimeCompare([]byte(actualNonce), []byte(nonce)) != 1 {
+		return nil, invalid
+	}
+	audience, _ := claims.GetAudience()
+	azp, hasAZP := claims["azp"]
+	if len(audience) > 1 && !hasAZP || hasAZP && azp != p.ClientID {
+		return nil, invalid
+	}
+	if hash, exists := claims["at_hash"]; exists {
+		digest := sha256.Sum256([]byte(tokens.AccessToken))
+		if hash != base64.RawURLEncoding.EncodeToString(digest[:16]) {
+			return nil, invalid
+		}
+	}
+	return claims, nil
+}
+
+// parseOAuthJWT verifies the configured signing authority before callers apply token-specific claims.
+func parseOAuthJWT(ctx context.Context, client *http.Client, p config.OAuthProviderConfig, raw string) (jwt.MapClaims, error) {
+	invalid := errors.New("OAuth JWT verification failed")
 	var keys struct {
 		Keys []oauthJWK `json:"keys"`
 	}
@@ -119,7 +147,7 @@ func verifyOAuthIDToken(ctx context.Context, client *http.Client, p config.OAuth
 		return nil, invalid
 	}
 	claims := jwt.MapClaims{}
-	token, err := jwt.ParseWithClaims(tokens.IDToken, claims, func(token *jwt.Token) (any, error) {
+	token, err := jwt.ParseWithClaims(raw, claims, func(token *jwt.Token) (any, error) {
 		issuer, _ := claims.GetIssuer()
 		tenant, _ := claims["tid"].(string)
 		if !oauthIssuerAllowed(p, issuer, tenant) {
@@ -143,24 +171,6 @@ func verifyOAuthIDToken(ctx context.Context, client *http.Client, p config.OAuth
 		jwt.WithIssuedAt(), jwt.WithLeeway(30*time.Second), jwt.WithJSONNumber(), jwt.WithStrictDecoding())
 	if err != nil || !token.Valid {
 		return nil, invalid
-	}
-	actualNonce, _ := claims["nonce"].(string)
-	subject, err := claims.GetSubject()
-	iat, iatErr := claims.GetIssuedAt()
-	if err != nil || subject == "" || len(subject) > 255 || iatErr != nil || iat == nil ||
-		iat.Time.Before(time.Now().Add(-10*time.Minute)) || subtle.ConstantTimeCompare([]byte(actualNonce), []byte(nonce)) != 1 {
-		return nil, invalid
-	}
-	audience, _ := claims.GetAudience()
-	azp, hasAZP := claims["azp"]
-	if len(audience) > 1 && !hasAZP || hasAZP && azp != p.ClientID {
-		return nil, invalid
-	}
-	if hash, exists := claims["at_hash"]; exists {
-		digest := sha256.Sum256([]byte(tokens.AccessToken))
-		if hash != base64.RawURLEncoding.EncodeToString(digest[:16]) {
-			return nil, invalid
-		}
 	}
 	return claims, nil
 }

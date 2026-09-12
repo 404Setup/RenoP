@@ -12,9 +12,9 @@ package database
 
 import (
 	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"path/filepath"
+	"renop/pkg/hex"
 	"testing"
 	"time"
 

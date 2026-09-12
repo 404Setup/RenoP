@@ -352,6 +352,9 @@ func PostFidoRegisterBegin(c fiber.Ctx, state *core.AppState) error {
 	}
 	user := userInt.(*config.User)
 
+	if err := requireSecurityMutable(state, user.Username); err != nil {
+		return mfaError(c, err)
+	}
 	w, err := getWebAuthnEngine(c, state)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString("WebAuthn initialization failed")
@@ -446,6 +449,9 @@ func PostFidoRegisterFinish(c fiber.Ctx, state *core.AppState) error {
 	}
 
 	if err := state.SaveFidoDevice(device); err != nil {
+		if errors.Is(err, core.ErrSecurityHold) {
+			return mfaError(c, err)
+		}
 		return c.Status(fiber.StatusInternalServerError).SendString("Failed to save FIDO device")
 	}
 
@@ -502,6 +508,8 @@ func DeleteProfileFidoDevice(c fiber.Ctx, state *core.AppState) error {
 	if err := state.DeleteFidoDevice(user.Username, deviceID); errors.Is(err, core.ErrLastLoginMethod) {
 		c.Set("X-Renop-Error-Code", "ACCOUNT_LAST_LOGIN_METHOD")
 		return c.Status(fiber.StatusConflict).SendString("Another login method is required")
+	} else if errors.Is(err, core.ErrSecurityHold) {
+		return mfaError(c, err)
 	} else if err != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString("Failed to delete FIDO device")
 	}
@@ -542,6 +550,8 @@ func DeleteUserFidoDevice(c fiber.Ctx, state *core.AppState) error {
 	if err := state.DeleteFidoDevice(username, deviceID); errors.Is(err, core.ErrLastLoginMethod) {
 		c.Set("X-Renop-Error-Code", "ACCOUNT_LAST_LOGIN_METHOD")
 		return c.Status(fiber.StatusConflict).SendString("Another login method is required")
+	} else if errors.Is(err, core.ErrSecurityHold) {
+		return mfaError(c, err)
 	} else if err != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString("Failed to delete FIDO device")
 	}
@@ -760,8 +770,5 @@ func PostFidoLoginFinish(c fiber.Ctx, state *core.AppState, opChan chan<- token.
 	}
 
 	details := CreateSessionDetails(authenticatedUser, "")
-	if strings.Contains(c.Get(fiber.HeaderAccept), protohttp.ContentType) {
-		return protohttp.Write(c, pb.FromSessionDetails(details))
-	}
-	return c.JSON(details)
+	return protohttp.Write(c, pb.FromSessionDetails(details))
 }

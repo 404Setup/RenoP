@@ -1111,6 +1111,22 @@ func (db *DB) SetNPMVersionDeprecated(repository, packageName, version, deprecat
 	if err := ensureResourceMutableQuery(tx.QueryRow, npmLockTarget(repository, packageName, version), false); err != nil {
 		return err
 	}
+	if err := updateNPMVersionDeprecationTx(tx, repository, packageName, version, deprecated); err != nil {
+		return err
+	}
+	now := time.Now().UnixMilli()
+	if _, err := tx.Exec(`UPDATE npm_packages SET revision = revision + 1, updated_at = ?
+		WHERE repository = ? AND package_name = ?`, now, repository, packageName); err != nil {
+		return fmt.Errorf("update npm package deprecation revision: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit npm version deprecation: %w", err)
+	}
+	return nil
+}
+
+// updateNPMVersionDeprecationTx distinguishes a missing version from MySQL's zero changed rows on a no-op.
+func updateNPMVersionDeprecationTx(tx *Tx, repository, packageName, version, deprecated string) error {
 	result, err := tx.Exec(`UPDATE npm_versions SET deprecated = ? WHERE repository = ?
 		AND package_name = ? AND version = ? AND unpublished = 0`, deprecated, repository, packageName, version)
 	if err != nil {
@@ -1121,15 +1137,14 @@ func (db *DB) SetNPMVersionDeprecated(repository, packageName, version, deprecat
 		return fmt.Errorf("inspect npm version deprecation: %w", err)
 	}
 	if changed == 0 {
-		return core.ErrNPMVersionNotFound
-	}
-	now := time.Now().UnixMilli()
-	if _, err := tx.Exec(`UPDATE npm_packages SET revision = revision + 1, updated_at = ?
-		WHERE repository = ? AND package_name = ?`, now, repository, packageName); err != nil {
-		return fmt.Errorf("update npm package deprecation revision: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit npm version deprecation: %w", err)
+		var exists int
+		err := tx.QueryRow(`SELECT 1 FROM npm_versions WHERE repository = ? AND package_name = ? AND version = ? AND unpublished = 0`, repository, packageName, version).Scan(&exists)
+		if errors.Is(err, sql.ErrNoRows) {
+			return core.ErrNPMVersionNotFound
+		}
+		if err != nil {
+			return fmt.Errorf("inspect npm version deprecation target: %w", err)
+		}
 	}
 	return nil
 }
@@ -1161,17 +1176,8 @@ func (db *DB) UpdateNPMPackument(repository, packageName, actor string, expected
 	for version, deprecated := range deprecations {
 		version = SanitizeInputString(strings.TrimSpace(version), 128)
 		deprecated = SanitizeInputString(strings.TrimSpace(deprecated), 4000)
-		result, err := tx.Exec(`UPDATE npm_versions SET deprecated = ? WHERE repository = ?
-			AND package_name = ? AND version = ? AND unpublished = 0`, deprecated, repository, packageName, version)
-		if err != nil {
-			return fmt.Errorf("update npm packument deprecation: %w", err)
-		}
-		changed, err := result.RowsAffected()
-		if err != nil {
-			return fmt.Errorf("inspect npm packument deprecation: %w", err)
-		}
-		if changed == 0 {
-			return core.ErrNPMVersionNotFound
+		if err := updateNPMVersionDeprecationTx(tx, repository, packageName, version, deprecated); err != nil {
+			return err
 		}
 	}
 	if _, err := tx.Exec(`DELETE FROM npm_dist_tags WHERE repository = ? AND package_name = ?`,

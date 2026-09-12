@@ -15,19 +15,20 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"hash/crc32"
 	"image"
 	"image/jpeg"
 	"image/png"
 	"io"
 	"mime"
 	"net/http"
+	"renop/pkg/hex"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/klauspost/crc32"
 
 	"github.com/gofiber/fiber/v3"
 	"golang.org/x/image/webp"
@@ -319,6 +320,18 @@ func deleteOwnAvatar(c fiber.Ctx, state *core.AppState) error {
 }
 
 func getPublicAvatar(c fiber.Ctx, state *core.AppState) error {
+	// Visibility may change while the avatar hash stays the same.
+	setPrivateResponseHeaders(c)
+	profile, err := state.GetDB().GetUserProfile(c.Params("username"))
+	if errors.Is(err, core.ErrUserProfileNotFound) {
+		return c.SendStatus(fiber.StatusNotFound)
+	}
+	if err != nil {
+		return c.SendStatus(fiber.StatusServiceUnavailable)
+	}
+	if !canReadUserProfile(GetUser(c), profile) {
+		return c.SendStatus(fiber.StatusNotFound)
+	}
 	avatar, err := state.GetDB().GetUserAvatar(c.Params("username"))
 	if errors.Is(err, core.ErrUserAvatarNotFound) || errors.Is(err, core.ErrUserProfileNotFound) {
 		return c.SendStatus(fiber.StatusNotFound)
@@ -333,11 +346,6 @@ func getPublicAvatar(c fiber.Ctx, state *core.AppState) error {
 	c.Set(fiber.HeaderContentDisposition, `inline; filename="avatar`+map[string]string{
 		"image/png": ".png", "image/jpeg": ".jpg",
 	}[avatar.ContentType]+`"`)
-	if strings.EqualFold(strings.TrimSpace(c.Query("v")), avatar.SHA256) {
-		c.Set(fiber.HeaderCacheControl, "public, max-age=31536000, immutable")
-	} else {
-		c.Set(fiber.HeaderCacheControl, "public, max-age=300, must-revalidate")
-	}
 	if strings.TrimSpace(c.Get(fiber.HeaderIfNoneMatch)) == etag {
 		return c.SendStatus(fiber.StatusNotModified)
 	}

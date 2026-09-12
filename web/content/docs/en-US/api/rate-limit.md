@@ -27,11 +27,11 @@ For unauthenticated client IPs, requests are governed by a sliding-window token 
 
 ## Concurrency Limits (`max_active_requests`)
 
-Configure `server.max_active_requests` in `config.yaml` (default: 512):
+Configure `server.max_active_requests` in system settings (default: 512):
 
 - When active concurrent in-flight requests reach this ceiling, incoming requests receive `503 Service Unavailable`.
 
 ## Trusted Proxies
 
-When placed behind reverse proxies or CDNs, set `server.trusted_proxies` and `server.cdn_ip_header` in `config.yaml` so
+When placed behind reverse proxies or CDNs, set `server.trusted_proxies` and `server.cdn_ip_header` in system settings so
 rate limiting evaluates real client IPs rather than proxy IPs.

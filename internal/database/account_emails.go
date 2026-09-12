@@ -1,8 +1,9 @@
 /*
  * Copyright (c) 2026 404Setup. All rights reserved.
  *
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
- * If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
  *
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
@@ -155,7 +156,7 @@ func (db *DB) migrateAccountEmails() error {
 }
 
 func (db *DB) accountEmailAliases(userID, primary string) ([]string, error) {
-	rows, err := db.Query(`SELECT email FROM user_email_addresses WHERE user_id = ? AND email <> ? ORDER BY email LIMIT ?`,
+	rows, err := db.Query(`SELECT email FROM user_email_addresses WHERE user_id = ? AND email <> ? AND retained <> 0 ORDER BY email LIMIT ?`,
 		userID, primary, core.MaxAccountEmails)
 	if err != nil {
 		return nil, err
@@ -193,6 +194,14 @@ func (db *DB) DeleteAccountEmailAlias(username, session, email string, now int64
 	}
 	if email == primary {
 		return nil, core.ErrPrimaryEmail
+	}
+	var protected int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM user_primary_email_history WHERE user_id = ? AND email = ? AND expires_at > ?`,
+		account.UserID, email, now).Scan(&protected); err != nil {
+		return nil, err
+	}
+	if protected > 0 {
+		return nil, core.ErrSecurityHold
 	}
 	if _, err := tx.Exec(`DELETE FROM user_email_addresses WHERE user_id = ? AND email = ?`, account.UserID, email); err != nil {
 		return nil, err

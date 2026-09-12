@@ -104,7 +104,7 @@ catalog に書き込みません。同じ digest の既存 tag は影響を受�
 
 ## タスク一覧
 
-GET /api/tickets は上限付きページを返します。`view` は `reviewer` または `requested`、`status` は `unprocessed`（既定）、
+GET /api/tickets は上限付きページを返します。`view` は `reviewer` または `requested`、`status` は `unprocessed`、
 `in_progress`、`processed`、`closed`、`completed`、`all` です。`limit` は 1–100、`offset` は 0 以上です。カンマ区切りの `types`
 は既存処理の形式と `support`、`user`、`superteam`、`maven-domain`、`maven`、`cargo`、`npm`、`docker` に対応します。
 
@@ -174,3 +174,9 @@ HTTP `201` と状態 `pending` の `maven_restore` タスクを返します。�
 保留中の要求はアカウントごとに 64 件、全体で 4096 件までです。この種類にはダウンロード可能なレビュー用アーカイブはありません。
 
 通報フォームにはスパム、不正利用、マルウェア、著作権、なりすまし、その他の編集可能な件名があります。自分のプロフィールでは通報を非表示にし、サーバーも不変のアカウント ID で自己通報を拒否します。チケットの種類と範囲は設定画面と同じラベル付きコントロールを使います。
+
+## 会話メッセージと要求制限
+
+一覧の初期値は `status=all` です。チケットセンターを開くと以前の絞り込みを解除します。
+
+GET /api/tickets/{id}/messages は最新 50 件を時刻順に返します。`limit` は 1–100 で、`X-Renop-Next-Cursor` を `before` に渡すと以前のメッセージを取得できます。POST /api/tickets/{id}/messages は最大 16384 文字の `body` を受け取り、JSON 要求全体の上限は 24 KiB です。確定時にセッションと権限を再確認し、終了済みチケットへのコメントは拒否します。アカウントごとに毎分 20 件、毎時 200 件、チケットごとに合計 1000 件までです。チケット作成には 10 分間に 6 件の追加制限があります。読み取りと書き込みの要求枠は別で、超過時は `429` と `review_limit` を返します。

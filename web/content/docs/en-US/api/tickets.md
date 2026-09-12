@@ -117,8 +117,7 @@ digest. Approval atomically records the manifest, blob links, tag, and task deci
 
 ## List tasks
 
-GET /api/tickets returns a bounded page. `view` accepts `reviewer` or `requested`; `status` accepts `unprocessed`
-(default), `in_progress`, `processed`, `closed`, `completed`, or `all`. `limit` is 1–100 and `offset` is non-negative.
+GET /api/tickets returns a bounded page. `view` accepts `reviewer` or `requested`; `status` accepts `unprocessed`, `in_progress`, `processed`, `closed`, `completed`, or `all`. `limit` is 1–100 and `offset` is non-negative.
 The comma-separated `types` filter accepts workflow resource types plus `support`, `user`, `superteam`, `maven-domain`,
 `maven`, `cargo`, `npm`, and `docker`.
 
@@ -193,3 +192,9 @@ the artifact's restriction and downloads. Pending requests are limited to 64 per
 These tasks have no downloadable review bundle.
 
 The report composer offers editable subjects for spam, abuse, malware, copyright, impersonation, and other concerns. Own-profile report actions remain hidden, and the server independently rejects self-reports using immutable account IDs. Ticket category and scope selectors use the same labeled controls as settings.
+
+## Conversation messages and request limits
+
+The initial list uses `status=all`; opening the ticket center resets old filters.
+
+GET /api/tickets/{id}/messages returns the newest 50 messages in chronological order. `limit` accepts 1–100; pass `X-Renop-Next-Cursor` as `before` to read older messages. POST /api/tickets/{id}/messages accepts a `body` of up to 16384 characters in a 24 KiB JSON request. Session and ticket authority are rechecked at commit; closed tickets reject new comments. Each account may post 20 comments per minute and 200 per hour, with 1000 comments per ticket. Support creation additionally permits six requests per ten minutes. Request admission has separate read/write budgets; denials use `429` and `review_limit`.

@@ -12,8 +12,8 @@ package database
 
 import (
 	"database/sql"
-	"encoding/hex"
 	"errors"
+	"renop/pkg/hex"
 	"strings"
 
 	"renop/internal/core"

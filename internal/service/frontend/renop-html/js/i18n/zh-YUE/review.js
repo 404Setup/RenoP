@@ -11,6 +11,7 @@
 import base from '../zh-HK/review.js';
 
 export default Object.freeze({
+    "ticket.olderMessages": "之前嘅訊息",
     ...base,
     "audit.action.REVIEW_REQUEST": "提交審核",
     "audit.action.REVIEW_DECISION": "處理審核",

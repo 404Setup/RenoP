@@ -27,15 +27,14 @@ RenoP は、管理自動化、クライアント統合、監視向けの HTTP AP
 
 ## ワイヤ形式と Protobuf
 
-スキーマに基づく管理 API は JSON（`application/json`）とバイナリ protobuf（`application/x-protobuf` または
-`application/protobuf`）に対応します。`Content-Type` は要求のデコード、`Accept` は応答形式を選択します。
-`Accept` が未指定または非対応の場合、既存クライアント向けの protobuf 応答を維持します。型指定のない要求も
-protobuf としてデコードします。メッセージ定義は `proto/api/v1/api.proto` を参照してください。
+スキーマに基づく管理 API はバイナリ protobuf を使用します。`Content-Type: application/x-protobuf` を指定してください。
+要求は `application/protobuf` と `application/octet-stream` も受け付け、Content-Type が未指定の場合は protobuf です。
+JSON 本文は拒否され、エンドポイントに応じて `400` または `415` となります。応答は常に `application/x-protobuf` で、`Accept` で JSON に
+切り替えることはできません。稼働バージョンの `proto/api/v1/api.proto` を使用してください。
 
-JSON は元の snake_case フィールド名を出力し、入力では protobuf の camelCase 名も受け付けます。64 ビット整数は
-10 進文字列、バイト列は Base64 文字列です。不明なフィールドと重複フィールドは拒否します。要求上限は 1 MiB で、
-各エンドポイントのより小さい上限も維持します。ネイティブレジストリ形式、アップロードのバイナリ部分、ヘルスチェックの
-テキスト、個別のエラー形式は従来どおりです。
+制御要求の上限は 1 MiB で、各エンドポイントのより小さい上限も維持します。protobuf メッセージの JSON 例は
+デコード後のフィールドを示し、JSON 転送形式ではありません。JSON 専用のエンドポイント、パッケージのネイティブ
+プロトコル、アップロード部分、ヘルステキスト、個別エラーは宣言された形式を維持します。
 
 ## 認証方式
 

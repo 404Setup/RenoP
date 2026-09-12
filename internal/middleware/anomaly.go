@@ -25,6 +25,7 @@ import (
 	"renop/internal/core"
 	"renop/internal/service/auth"
 	"renop/internal/utils"
+	"renop/internal/utils/ratelimit"
 )
 
 const (
@@ -195,8 +196,8 @@ func isFrontendShellOrAssetPath(reqPath string) bool {
 		strings.HasPrefix(cleaned, "/svg/") {
 		return true
 	}
-	if strings.HasPrefix(cleaned, "/user/") {
-		remainder := strings.TrimPrefix(cleaned, "/user/")
+	if after, ok := strings.CutPrefix(cleaned, "/user/"); ok {
+		remainder := after
 		separator := strings.IndexByte(remainder, '/')
 		if separator < 0 {
 			return remainder != ""
@@ -212,8 +213,8 @@ func isFrontendShellOrAssetPath(reqPath string) bool {
 		return true
 	}
 	for _, prefix := range [...]string{"/account/teams/", "/account/maven-domains/"} {
-		if strings.HasPrefix(cleaned, prefix) {
-			remainder := strings.TrimPrefix(cleaned, prefix)
+		if after, ok := strings.CutPrefix(cleaned, prefix); ok {
+			remainder := after
 			return remainder != "" && !strings.Contains(remainder, "/")
 		}
 	}
@@ -221,6 +222,11 @@ func isFrontendShellOrAssetPath(reqPath string) bool {
 }
 
 func AnomalyMiddleware(state *core.AppState) fiber.Handler {
+	// Dependency resolution needs a larger burst than interactive APIs, but login is no exemption.
+	return anomalyMiddleware(state, ratelimit.New(rate.Limit(20), 240, maxIPLimiterEntries))
+}
+
+func anomalyMiddleware(state *core.AppState, downloads *ratelimit.Gate) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		cfg := state.Inner.Config.Load()
 
@@ -239,6 +245,12 @@ func AnomalyMiddleware(state *core.AppState) fiber.Handler {
 		}
 
 		ip := utils.ExtractIP(c, &cfg.Server)
+		isDownload := repositoryRead(c.Method(), c.Path(), cfg)
+		if isDownload {
+			if delay := downloads.Allow(ratelimit.NetworkKey(ip)); delay > 0 {
+				return downloadRateResponse(c, delay)
+			}
+		}
 		if db := state.GetDB(); db != nil {
 			banned, err := db.IsIPBanned(ip)
 			if err != nil {
@@ -260,8 +272,8 @@ func AnomalyMiddleware(state *core.AppState) fiber.Handler {
 		}
 
 		verifiedAuthentication := isVerifiedAuthenticatedRequest(c, state)
-		if !verifiedAuthentication {
-			limiter := GlobalIPLimiter.GetLimiter(ip)
+		if !verifiedAuthentication && !isDownload {
+			limiter := GlobalIPLimiter.GetLimiter(ratelimit.NetworkKey(ip))
 			if !limiter.Allow() {
 				c.Set(fiber.HeaderConnection, "close")
 				return c.SendStatus(fiber.StatusTooManyRequests)

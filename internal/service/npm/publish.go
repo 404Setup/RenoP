@@ -13,18 +13,19 @@ package npm
 import (
 	"archive/tar"
 	"bytes"
-	"compress/gzip"
 	"crypto/sha1"
 	"crypto/sha512"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"path"
 	"path/filepath"
+	"renop/pkg/hex"
 	"strings"
 	"sync/v2"
 	"time"
+
+	"github.com/klauspost/compress/gzip"
 
 	"github.com/emmansun/base64"
 
@@ -425,6 +426,10 @@ func publish(c fiber.Ctx, state *core.AppState, repo *config.Repository, store S
 		if reviewRequired {
 			state.Inner.FileIndex.UnblockFile(targetPath)
 			state.InvalidateFileCache(targetPath)
+		}
+		if errors.Is(err, core.ErrRepositoryCapacity) {
+			c.Set("X-Renop-Error-Code", "repository_capacity_exceeded")
+			return npmError(c, fiber.StatusInsufficientStorage, "repository_capacity_exceeded", "Repository capacity exceeded")
 		}
 		return npmError(c, fiber.StatusInternalServerError, "storage failure", "failed to store npm tarball")
 	}

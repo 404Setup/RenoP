@@ -23,6 +23,7 @@ import (
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/mem"
 
+	"renop/internal/configstore"
 	"renop/internal/core"
 	"renop/internal/service/index"
 	"renop/internal/service/updater"
@@ -176,7 +177,7 @@ func UpdateDiskStats(state *core.AppState) (renopUsed, diskUsed, diskTotal uint6
 				fixedBytes += uint64(fi.Size())
 			}
 		}
-		files := []string{"config.yaml", "index.json"}
+		files := []string{configstore.Path(), "index.json"}
 		for _, f := range files {
 			if fi, err := os.Stat(f); err == nil && !fi.IsDir() {
 				fixedBytes += uint64(fi.Size())

@@ -166,26 +166,27 @@ func (db *DB) GetTokenByEmail(email string) (*core.AccessToken, error) {
 	cacheGeneration := db.tokenCache.Generation()
 	row := db.QueryRow(`SELECT token.name, token.type, token.type_value, token.encrypted_secret,
 		token.password_hash, token.tokens_json, token.created_at, token.description,
-		token.expires_at, token.permissions_json, token.ban_reason, token.banned_at, token.banned_until,
+		token.expires_at, token.permissions_json, token.ban_reason, token.ban_reason_code, token.banned_at, token.banned_until,
 		token.deleted_at, token.email_released_at, token.audit_purged_at
 		FROM user_email_addresses security
 		JOIN user_profiles profile ON profile.user_id = security.user_id
 		JOIN tokens token ON token.name = profile.username
-		WHERE security.email = ?`, email)
-	var tokenName, tokenType, encryptedSecret, passwordHash, tokensJSON, createdAt, description, permissionsJSON, banReason string
+		LEFT JOIN user_account_security primary_email ON primary_email.user_id = profile.user_id
+		WHERE security.email = ? AND (security.retained <> 0 OR primary_email.email = security.email)`, email)
+	var tokenName, tokenType, encryptedSecret, passwordHash, tokensJSON, createdAt, description, permissionsJSON, banReason, banReasonCode string
 	var typeValue int32
 	var expiresAt, bannedUntil sql.NullInt64
 	var bannedAt, deletedAt, emailReleasedAt, auditPurgedAt int64
 	if err := row.Scan(&tokenName, &tokenType, &typeValue, &encryptedSecret, &passwordHash,
 		&tokensJSON, &createdAt, &description, &expiresAt, &permissionsJSON,
-		&banReason, &bannedAt, &bannedUntil, &deletedAt, &emailReleasedAt, &auditPurgedAt); err != nil {
+		&banReason, &banReasonCode, &bannedAt, &bannedUntil, &deletedAt, &emailReleasedAt, &auditPurgedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("get token by private email: %w", err)
 	}
 	token, err := parseTokenRow(tokenName, tokenType, typeValue, encryptedSecret, passwordHash,
-		tokensJSON, createdAt, description, expiresAt, permissionsJSON, banReason, bannedAt, bannedUntil,
+		tokensJSON, createdAt, description, expiresAt, permissionsJSON, banReason, banReasonCode, bannedAt, bannedUntil,
 		deletedAt, emailReleasedAt, auditPurgedAt)
 	if err != nil {
 		return nil, err
@@ -244,6 +245,9 @@ func (db *DB) GetAccountSecurity(username string) (*core.AccountSecurity, error)
 		security.GitHubLinked = githubLinked != 0
 		security.CanDisablePasswordLogin = (security.FidoDeviceCount > 0 && !mfa.Passkey) || security.GitHubLinked || security.OAuthIdentityCount > 0
 		security.EmailAliases, err = db.accountEmailAliases(mfa.UserID, security.Email)
+		if err == nil {
+			err = db.loadPrimaryEmailProtection(mfa.UserID, security)
+		}
 		return security, err
 	}
 	err = db.QueryRow(`SELECT COALESCE(security.email, ''),
@@ -275,6 +279,9 @@ func (db *DB) GetAccountSecurity(username string) (*core.AccountSecurity, error)
 	security.GitHubLinked = githubLinked != 0
 	security.CanDisablePasswordLogin = (security.FidoDeviceCount > 0 && !mfa.Passkey) || security.GitHubLinked || security.OAuthIdentityCount > 0
 	security.EmailAliases, err = db.accountEmailAliases(mfa.UserID, security.Email)
+	if err == nil {
+		err = db.loadPrimaryEmailProtection(mfa.UserID, security)
+	}
 	return security, err
 }
 
@@ -327,7 +334,12 @@ func (db *DB) UpdateAccountEmail(username, email string, updatedAt int64) (*core
 }
 
 func updateAccountEmailTx(tx *Tx, userID, email string, updatedAt int64) error {
-	if _, err := tx.Exec(`DELETE FROM user_email_addresses WHERE user_id = ? AND retained = 0 AND email <> ?`, userID, email); err != nil {
+	if err := rememberPrimaryEmailTx(tx, userID, email, updatedAt); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM user_email_addresses WHERE user_id = ? AND retained = 0 AND email <> ?
+		AND email NOT IN (SELECT email FROM user_primary_email_history WHERE user_id = ? AND expires_at > ?)`,
+		userID, email, userID, updatedAt); err != nil {
 		return err
 	}
 	if email != "" {

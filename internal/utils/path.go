@@ -15,6 +15,7 @@ import (
 	"bytes"
 	"encoding/xml"
 	"errors"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -41,10 +42,71 @@ func RemoveAll(path string) error {
 	return err
 }
 
-// SafeRename uses the platform's native replacement semantics without deleting
-// an existing destination when the rename itself fails.
+// SafeRename uses native replacement semantics with retry logic on Windows and fallback
+// copy-then-delete across filesystems or transient concurrent locks.
 func SafeRename(oldpath, newpath string) error {
-	return os.Rename(oldpath, newpath)
+	if err := os.MkdirAll(filepath.Dir(newpath), 0755); err != nil {
+		return err
+	}
+	var err error
+	for attempt := range 8 {
+		err = os.Rename(oldpath, newpath)
+		if err == nil {
+			return nil
+		}
+		if errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		time.Sleep(time.Duration(10*(attempt+1)) * time.Millisecond)
+	}
+	// Fallback for cross-device links or persistent locking
+	if _, statErr := os.Stat(oldpath); statErr == nil {
+		if copyErr := copyAndReplace(oldpath, newpath); copyErr == nil {
+			_ = os.Remove(oldpath)
+			return nil
+		}
+	}
+	return err
+}
+
+func copyAndReplace(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	parent := filepath.Dir(dst)
+	tmpDst, err := os.CreateTemp(parent, "renop-safe-rename-*")
+	if err != nil {
+		return err
+	}
+	tmpName := tmpDst.Name()
+	defer func() {
+		_ = os.Remove(tmpName)
+	}()
+
+	if _, err := io.Copy(tmpDst, in); err != nil {
+		_ = tmpDst.Close()
+		return err
+	}
+	if err := tmpDst.Sync(); err != nil {
+		_ = tmpDst.Close()
+		return err
+	}
+	if err := tmpDst.Close(); err != nil {
+		return err
+	}
+
+	var renameErr error
+	for attempt := range 8 {
+		renameErr = os.Rename(tmpName, dst)
+		if renameErr == nil {
+			return nil
+		}
+		time.Sleep(time.Duration(10*(attempt+1)) * time.Millisecond)
+	}
+	return renameErr
 }
 
 func EscapeXML(s string) string {
@@ -174,11 +236,11 @@ func IsReservedRepositoryName(name string) bool {
 }
 
 func IsImageFile(path string) bool {
-	idx := strings.LastIndexByte(path, '.')
-	if idx == -1 {
+	_, after, ok := strings.CutLast(path, ".")
+	if !ok {
 		return false
 	}
-	ext := path[idx+1:]
+	ext := after
 	l := len(ext)
 	if l != 3 && l != 4 {
 		return false

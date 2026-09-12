@@ -90,3 +90,5 @@ pwsh ./build.ps1         # Full cross-compilation matrix
 
 Le script installe automatiquement l’outil Go de compression Brotli. Les compilations sont bornées à quatre tâches ;
 les compressions démarrent dès qu’une cible est prête et utilisent jusqu’à huit workers parallèles indépendants.
+
+Les deux entrées HTML ne gardent que les métadonnées et le point de montage. `js/shell.js` crée navigation, pages et dialogues avec les composants `js/views/` et les outils DOM partagés. Le frontend `js/bootstrap.js` monte les éléments avant de charger les modules qui recherchent les contrôles lors de leur initialisation. Les paramètres visuels passent par des attributs HTML data échappés, puis deviennent du texte ou des propriétés DOM. Modifiez le composant JS et lancez `pnpm run build:frontend` ou `pnpm run build:web` ; les vues participent à la validation i18n. Les onglets administratifs mémorisés ne s’appliquent qu’à `/`, préservant les liens directs.

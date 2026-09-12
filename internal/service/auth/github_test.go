@@ -16,8 +16,12 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
+	"renop/pkg/pb"
 	"testing"
 	"time"
+
+	"github.com/emmansun/base64"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
@@ -61,6 +65,7 @@ func TestGitHubOAuthExistingAccountAndSingleUseSession(t *testing.T) {
 	t.Cleanup(providerServer.Close)
 
 	cfg := config.DefaultConfig()
+	cfg.MFAEncryptionKey = base64.RawStdEncoding.EncodeToString(make([]byte, 32))
 	cfg.Server.GitHubOAuth = config.GitHubOAuthConfig{
 		Enabled: true, ClientID: "client-id", ClientSecret: "client-secret",
 		CallbackURL: "https://repo.example/api/auth/github/callback",
@@ -153,7 +158,9 @@ func TestGitHubOAuthExistingAccountAndSingleUseSession(t *testing.T) {
 	publicBody, err := io.ReadAll(publicResponse.Body)
 	require.NoError(t, err)
 	require.NoError(t, publicResponse.Body.Close())
-	require.Contains(t, string(publicBody), `"id":"github"`)
+	var providerList pb.PublicOAuthProviders
+	require.NoError(t, proto.Unmarshal(publicBody, &providerList))
+	require.Equal(t, "github", providerList.Providers[0].Id)
 	require.NotContains(t, string(publicBody), "client-secret")
 
 	replayResponse, err := app.Test(httptest.NewRequest(http.MethodGet,

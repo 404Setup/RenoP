@@ -168,7 +168,7 @@ footer {
 }
 
 #footer-links a:hover {
-    text-decoration: underline;
+    text-decoration: none;
 }
 
 #footer-copyright {
@@ -184,7 +184,7 @@ footer {
 }
 
 #footer-copyright a:hover {
-    text-decoration: underline;
+    text-decoration: none;
 }
 
 .separator {

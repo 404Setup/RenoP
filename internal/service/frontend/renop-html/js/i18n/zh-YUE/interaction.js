@@ -15,7 +15,12 @@ export default Object.freeze({
     "resourceLock.versionsLocked": "部分版本已鎖定",
 
     "resourceLock.unlock": "解鎖",
-    "maven.manageDomainTeam": "管理發佈網域團隊",
+    "ticket.back": "返回工單列表",
+    "maven.managePackageTeam": "管理製品團隊",
+    "maven.forceRemoveDomain": "強制刪除發布域",
+    "maven.confirmForceRemoveDomain": "確認強制刪除發布域 {domain}？呢個操作唔可以復原，仲會即刻釋放呢個域而唔使等保留期。",
+    "maven.forceRemoveDomainFailed": "強制刪除發布域失敗",
+    "maven.forceRemoveDomainSuccess": "發布域已強制刪除",
     "maven.domainTeamHint": "發布域協作者會對使用呢個域嘅所有製品生效。",
     "ticket.reasonTitle": "舉報原因",
     "ticket.reason.choose": "揀一個原因",

@@ -42,7 +42,7 @@ func TestHiddenRepositoryIsNotDiscoverableButDirectFileRemainsReadable(t *testin
 		"public": {Name: "public", Format: config.RepositoryFormatFiles, Visibility: "PUBLIC"},
 	}
 	state.Inner.Config.Store(cfg)
-	state.Inner.FileIndex = index.NewFileIndexCustom(true)
+	state.Inner.FileIndex = index.NewFileIndex()
 	for _, file := range []string{hiddenFile, publicFile} {
 		state.Inner.FileIndex.EnsureParentDirs(file)
 		state.Inner.FileIndex.InsertFile(file, index.FileInfo{Size: 8, ModTime: 1})
@@ -130,7 +130,7 @@ func TestCreateFileDetailsDoesNotExposeBlockedPhysicalFile(t *testing.T) {
 	}
 
 	state := core.NewAppState()
-	state.Inner.FileIndex = index.NewFileIndexCustom(true)
+	state.Inner.FileIndex = index.NewFileIndex()
 	state.Inner.FileIndex.InsertFile(artifactPath, index.FileInfo{Size: 11, ModTime: 1})
 	state.Inner.FileIndex.BlockFile(artifactPath)
 

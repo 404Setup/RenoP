@@ -3,7 +3,7 @@ info:
   title: RenoP HTTP API
   version: "2.0"
   contact:
-    url: https://github.com/404Setup/SRC-RenoP
+    url: https://github.com/404Setup/RenoP
   description: |
     RenoP exposes its management API and its package-compatible repository endpoints from one self-hosted service.
     It supports Maven, generic files, Cargo sparse registries, npm registries, and Docker/OCI Distribution clients.
@@ -18,12 +18,12 @@ info:
     - Sandboxed documentation viewers: `/javadoc/{repo}/{path}` and `/cargodoc/{repo}/{path}`
 
     **Representations:**
-    Schema-backed management endpoints support `application/x-protobuf`, `application/protobuf`, and `application/json`.
-    Content-Type selects request decoding; Accept selects the response, retaining protobuf when no supported preference
-    is provided. JSON follows ProtoJSON with snake_case output, decimal strings for 64-bit integers, and Base64 bytes;
-    the schemas describe logical field types. JSON input also accepts protobuf camelCase names. Unknown and duplicate
-    JSON fields are rejected. Cargo, npm, Docker/OCI, raw upload parts, and endpoint-specific errors keep their native
-    representations. Control requests remain bounded to 1 MiB, with smaller endpoint-specific limits retained.
+    Schema-backed management endpoints accept binary protobuf (`application/x-protobuf`, `application/protobuf`, or
+    `application/octet-stream`); missing Content-Type defaults to protobuf. JSON bodies are rejected with endpoint-specific 400 or 415 errors.
+    Responses always use `application/x-protobuf`; Accept does not select JSON. Schemas describe decoded logical fields.
+    JSON-only endpoints, Cargo, npm, Docker/OCI, raw upload parts, and endpoint-specific errors retain their declared
+    representations. Control requests normally remain bounded to 1 MiB, with endpoint-specific limits retained.
+    Frontend settings allow an additional 512 KiB per legal document while branding metadata retains its 1 MiB bound.
 
     **Authentication boundaries:**
     Browser security operations use the HttpOnly `renop_session` cookie. Automation uses scoped Bearer API tokens whose
@@ -36,6 +36,11 @@ info:
     When present, `X-Renop-Error-Code` is a stable code for localized browser-management failures. Docker Distribution,
     Cargo, and npm protocol endpoints retain their native structured error shapes. Clients must not depend on an English
     error sentence remaining unchanged.
+
+    Repository capacity limits reject excess committed bytes with HTTP 507 and `repository_capacity_exceeded`.
+    A mirror response can be served without caching when its repository is full.
+    `--demo` uses isolated read-only presets; `--demo-temp` additionally permits persistent settings and repository
+    definition edits. Other mutations return 403 with `demo_read_only`; artifacts have no downloadable file content.
 
     Keep this contract and `proto/api/v1/api.proto` from the same RenoP release when generating clients. Package-protocol
     compatibility is defined by the implemented protocol routes; this document also covers RenoP-specific management
@@ -58,6 +63,8 @@ x-tagGroups:
     tags: [ docker ]
   - name: Global Collaboration
     tags: [ super-teams, publication-quotas ]
+  - name: Native Resources
+    tags: [ native ]
   - name: Administration
     tags: [ settings, messages, audit ]
   - name: Operations
@@ -82,6 +89,8 @@ tags:
     description: API-token-only hierarchical download aggregates and administrator repository controls.
   - name: updater
     description: Online and offline binary update management, and process restart.
+  - name: native
+    description: Managed native publishing resources, L0-L4 permissions, and publisher signing keys.
   - name: storage
     description: Maven-layout and unstructured-file access (GET, HEAD, PUT, POST, DELETE), including mirror resolution.
   - name: javadoc
@@ -221,7 +230,7 @@ components:
       in: query
       schema:
         type: string
-        enum: [ maven, files, cargo, docker, npm ]
+        enum: [ maven, files, cargo, docker, npm, conan, conda, conda-native, apk, apt, rpm, yum ]
     StatisticsNamespace:
       name: namespace
       in: query
@@ -308,6 +317,56 @@ components:
             $ref: "#/components/schemas/ErrorBody"
 
   schemas:
+    NativeResource:
+      type: object
+      properties:
+        id: { type: string }
+        repository: { type: string }
+        format: { type: string, enum: [ conan, conda, apk, apt, rpm ] }
+        name: { type: string, maxLength: 255 }
+        description: { type: string, maxLength: 4096 }
+        signing_key: { type: string, description: Public publisher key; never private material. Empty in catalog summaries. }
+        permission_level: { type: integer, minimum: -1, maximum: 4 }
+        created_at: { type: integer, format: int64 }
+        published_at: { type: integer, format: int64 }
+    NativeResourceWrite:
+      type: object
+      required: [ name ]
+      properties:
+        name: { type: string, maxLength: 255 }
+        description: { type: string, maxLength: 4096 }
+        signing_key: { type: string, maxLength: 65536 }
+    NativeArtifact:
+      type: object
+      properties:
+        name: { type: string }
+        version: { type: string }
+        path: { type: string }
+        size: { type: integer, format: int64 }
+        created_at: { type: integer, format: int64 }
+        published: { type: boolean }
+    NativeMember:
+      type: object
+      properties:
+        user_id: { type: string }
+        username: { type: string }
+        level: { type: integer, minimum: 0, maximum: 4 }
+    LogoutResponse:
+      type: object
+      properties:
+        local_revoked: { type: boolean }
+        provider: { type: string }
+        provider_status: { type: string, enum: [ revoked, failed, unavailable, unsupported ] }
+    ProviderRevocationRequest:
+      type: object
+      required: [ event_id, issued_at ]
+      description: At least subject or session_id is required. Sign the exact protobuf bytes with the configured revocation_secret.
+      properties:
+        event_id: { type: string, minLength: 1, maxLength: 255 }
+        subject: { type: string, maxLength: 255 }
+        session_id: { type: string, maxLength: 255 }
+        issued_at: { type: integer, format: int64, description: Unix milliseconds; no more than ten minutes old or thirty seconds in the future. }
+        issuer: { type: string, description: Verified OIDC issuer; empty for OAuth-only clients. }
     OAuthClaims:
       type: object
       description: >-
@@ -331,6 +390,7 @@ components:
         and a 512-byte secret; its credentials remain in server.github_oauth.
         Stored credentials are returned as empty strings. Empty writes retain credentials only for the same
         ID, type, client ID, and token endpoint. GitHub also requires the same client ID when retaining a secret.
+      x-protobuf-message: renop.api.v1.OAuthProviderSettings
       properties:
         id: { type: string, pattern: '^[a-z][a-z0-9_-]{0,31}$', description: Unique local provider ID. The fixed github ID belongs to the built-in GitHub entry. }
         type: { type: string, enum: [ github, microsoft, google, gitlab, cloudflare, stackexchange, custom ] }
@@ -356,12 +416,17 @@ components:
         api_key_configured: { type: boolean, readOnly: true }
         clear_client_secret: { type: boolean, writeOnly: true }
         clear_api_key: { type: boolean, writeOnly: true }
+        revocation_url: { type: string, maxLength: 2048, description: Optional RFC 7009 endpoint; Google and GitLab presets supply it. }
+        revocation_secret: { type: string, format: password, maxLength: 4096, description: Write-only callback HMAC secret; at least 32 bytes when configured. }
+        revocation_secret_configured: { type: boolean, readOnly: true }
+        clear_revocation_secret: { type: boolean, writeOnly: true }
     OAuthSettings:
       type: object
       required: [ providers ]
       properties:
-        providers: { type: array, maxItems: 33, description: 'GitHub plus up to 32 other clients. Omission preserves GitHub; disable its entry explicitly.', items: { $ref: '#/components/schemas/OAuthProvider' } }
+        providers: { type: array, maxItems: 13, description: 'GitHub plus up to 12 other clients. Omission preserves GitHub; disable its entry explicitly.', items: { $ref: '#/components/schemas/OAuthProvider' } }
         presets: { type: array, readOnly: true, items: { $ref: '#/components/schemas/OAuthProvider' } }
+        replace_providers: { type: boolean, description: Must be true for PUT; required even when clearing the provider list. }
     OAuthProfileStatus:
       type: object
       properties:
@@ -374,6 +439,7 @@ components:
         can_verify_email: { type: boolean }
         can_import_avatar: { type: boolean }
         authorized_at: { type: integer, format: int64, description: Unix milliseconds. }
+        can_revoke: { type: boolean, description: The provider supports token revocation; the revoke API requires a session logged in through that provider. }
     MailInterval:
       type: object
       required: [ value, unit ]
@@ -473,7 +539,7 @@ components:
           description: Minutes, hours, or days. Nonpositive or empty disables remote lookups. Default five minutes.
         manual_rate:
           allOf: [ { $ref: "#/components/schemas/MailRate" } ]
-          description: Per-IP manual request limit; minute/hour/day intervals. Default one request per two minutes.
+          description: Shared manual limits per IP, IPv6 /64, account, and recipient across scenes; minute/hour/day intervals. Default one request per two minutes. Debits commit with queue insertion.
         account_rate:
           allOf: [ { $ref: "#/components/schemas/MailRate" } ]
           description: Per-account attempt limit including manual sends. Default 50 per minute.
@@ -505,7 +571,10 @@ components:
         id: { type: string }
         account_id: { type: string }
         scene: { type: string }
-        status: { type: string, enum: [ queued, paused, sending, checking, accepted, sent, delivered, failed, unknown, expired, cancelled, queued_provider ] }
+        status:
+          type: string
+          enum: [ queued, paused, sending, checking, accepted, sent, delivered, failed, unknown, expired, cancelled ]
+          description: Accepted is terminal for providers without a supported per-message status lookup; it does not establish delivery.
         code: { type: string, description: Stable safe status code, without raw provider diagnostics. }
         created_at: { type: integer, format: int64, description: Unix milliseconds. }
         updated_at: { type: integer, format: int64, description: Unix milliseconds. }
@@ -787,9 +856,12 @@ components:
 
     UserProfile:
       type: object
-      description: Public account identity. The username is intentionally exposed only on the profile resource.
+      description: Account identity visible to this viewer. Private profiles are restricted to their owner, administrators, and global repository moderators.
       required: [ user_id, username, nickname, created_at, own_profile, username_changes_remaining, maven_domain_count, cargo_package_count, docker_image_count, npm_package_count ]
       properties:
+        private:
+          type: boolean
+          description: Whether profile access and invitation suggestions are restricted.
         user_id:
           type: string
           format: uuid
@@ -886,13 +958,41 @@ components:
 
     UpdatePasswordRequest:
       type: object
-      description: Password change request (wire formats `application/x-protobuf` and `application/json`).
+      description: Binary protobuf password change. An enabled second factor requires a fresh TOTP, secondary Passkey, or current-primary-email proof.
       required: [ new_password ]
       properties:
         new_password:
           type: string
           minLength: 6
           maxLength: 72
+        factor: { type: string, enum: [ "", totp, passkey, email ] }
+        totp_code: { type: string, pattern: "^[0-9]{6}$" }
+        challenge_id: { type: string }
+        passkey_credential:
+          type: string
+          format: byte
+          description: Protobuf bytes containing the UTF-8 JSON WebAuthn assertion.
+        email_code: { type: string }
+
+    DemoInfo:
+      type: object
+      description: Public process mode; demonstration credentials are empty in normal mode.
+      properties:
+        enabled: { type: boolean }
+        temporary: { type: boolean }
+        username: { type: string }
+        password: { type: string }
+
+    AccountBan:
+      type: object
+      properties:
+        reason_code:
+          type: string
+          enum: [ "", harassment_abuse, spam_misleading, automation, alternate_accounts, security_rules, harmful_content, terms_violation, impersonation, copyright ]
+          description: Localized preset; empty uses literal custom reason text.
+        reason: { type: string, maxLength: 512 }
+        created_at: { type: integer, format: int64 }
+        expires_at: { type: integer, format: int64, nullable: true }
 
     GenerateTokenResponse:
       type: object
@@ -981,6 +1081,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SessionDto"
+        next_cursor: { type: string, description: Continue the active notification-session listing; empty at the end. }
 
     CreateAccessTokenRequest:
       type: object
@@ -1332,6 +1433,8 @@ components:
       type: object
       description: Web UI branding and localization settings (protobuf `FrontendConfig`).
       properties:
+        legal:
+          $ref: "#/components/schemas/LegalConfig"
         id:
           type: string
         title:
@@ -1664,11 +1767,16 @@ components:
       type: object
       description: Repository definition including visibility, upload policy, mirrors, and storage settings.
       properties:
+        capacity_limit_bytes:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Installed artifact byte limit, including checksums, review objects and mirror cache. Zero is unlimited; omission on PUT preserves the current value.
         name:
           type: string
         format:
           type: string
-          enum: [ maven, maven-classic, files, cargo, docker, npm ]
+          enum: [ maven, maven-classic, files, cargo, docker, npm, conan, conda, conda-native, apk, apt, rpm, yum ]
           description: "`maven-classic` uses the file-tree UI but retains verified Maven publication rules. `files` is unstructured storage."
         visibility:
           type: string
@@ -2293,7 +2401,7 @@ components:
           type: string
         format:
           type: string
-          enum: [ maven, files, cargo, docker, npm ]
+          enum: [ maven, files, cargo, docker, npm, conan, conda, conda-native, apk, apt, rpm, yum ]
         namespace:
           type: string
           description: Verified Maven publishing domain or npm scope when applicable.
@@ -2768,7 +2876,7 @@ components:
     SendNotificationRequest:
       type: object
       description: |
-        Admin broadcast notification request (`application/x-protobuf` or `application/json`).
+        Admin broadcast notification request (binary protobuf only).
         Provide either `all: true` or a non-empty `recipients` list.
       properties:
         recipients:
@@ -2788,12 +2896,16 @@ components:
         body:
           type: string
           maxLength: 8000
+        session_id:
+          type: string
+          maxLength: 255
+          description: Public ID of an active browser session belonging to the single recipient. Requires all=false. Empty means all credentials of the recipient.
 
     SendNotificationResponse:
       type: object
       description: Result of an admin broadcast (protobuf `SendNotificationResponse`).
       properties:
-        delivered:
+        sent:
           type: integer
           format: int64
 
@@ -2912,6 +3024,185 @@ components:
 # Paths
 # ---------------------------------------------------------------------------
 paths:
+  /api/demo:
+    get:
+      tags: [ settings ]
+      summary: Read public demonstration mode
+      operationId: getDemoMode
+      security: []
+      responses:
+        "200":
+          description: Process mode and public demo credentials with Cache-Control no-store.
+          content:
+            application/x-protobuf:
+              schema: { $ref: '#/components/schemas/DemoInfo' }
+  /api/messages/admin/sessions:
+    get:
+      tags: [ messages ]
+      summary: List active browser sessions for directed notifications
+      operationId: getNotificationRecipientSessions
+      description: Manager authority is required; API tokens also require admin:notifications. Returns at most 100 sessions per page and never session secrets.
+      security: [ { sessionCookie: [] }, { bearerAuth: [] } ]
+      parameters:
+        - { name: username, in: query, required: true, schema: { type: string, maxLength: 255 } }
+        - { name: cursor, in: query, schema: { type: string, maxLength: 160 } }
+      responses:
+        "200":
+          description: Active sessions and next_cursor. Response is not cached.
+          content:
+            application/x-protobuf:
+              schema: { $ref: '#/components/schemas/SessionList' }
+        "400": { $ref: '#/components/responses/PlainBadRequest' }
+        "403": { $ref: '#/components/responses/PlainForbidden' }
+        "404": { $ref: '#/components/responses/PlainNotFound' }
+  /api/auth/oauth/{provider}/revoke:
+    post:
+      tags: [ auth ]
+      summary: Log out the current provider session and revoke its tokens
+      operationId: revokeCurrentProviderSession
+      description: Uses only the current cookie-authenticated provider session. Local logout is completed even when the provider fails. Identity bindings remain connected.
+      security: [ { sessionCookie: [] } ]
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string, maxLength: 32 } }
+      responses:
+        "200":
+          description: Local logout completed, with the provider outcome.
+          content:
+            application/x-protobuf:
+              schema: { $ref: '#/components/schemas/LogoutResponse' }
+        "401": { $ref: '#/components/responses/PlainUnauthorized' }
+        "409": { description: The current session was not authenticated through that provider. }
+  /api/auth/oauth/{provider}/revoked:
+    post:
+      tags: [ auth ]
+      summary: Accept a signed provider revocation event
+      operationId: receiveProviderRevocation
+      description: HMAC-SHA256 over exact protobuf bytes, verified using revocation_secret. Events are replay-protected and restricted to their original authority and subject/session. Other webhook formats require a trusted adapter.
+      security: []
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string, maxLength: 32 } }
+        - { name: X-Renop-Signature-256, in: header, required: true, schema: { type: string }, description: 'sha256=<hex HMAC-SHA256>' }
+      requestBody:
+        required: true
+        content:
+          application/x-protobuf:
+            schema: { $ref: '#/components/schemas/ProviderRevocationRequest' }
+      responses:
+        "200": { description: Matching older sessions revoked, or event already processed. }
+        "400": { $ref: '#/components/responses/PlainBadRequest' }
+        "401": { $ref: '#/components/responses/PlainUnauthorized' }
+        "404": { description: Provider or callback secret is not configured. }
+        "413": { description: Request exceeds 16 KiB. }
+        "415": { description: Binary protobuf Content-Type required. }
+        "429": { description: Request admission limit reached. }
+        "503": { description: Callback or persistence temporarily unavailable. }
+  /api/auth/oauth/{provider}/backchannel-logout:
+    post:
+      tags: [ auth ]
+      summary: Accept an OIDC Back-Channel Logout token
+      operationId: receiveOIDCBackchannelLogout
+      description: Requires a configured OIDC issuer and JWKS. Verifies signature, issuer, audience, iat, exp, jti, sub/sid, the back-channel logout event, and absence of nonce. Rejects events older than ten minutes; repeated events succeed without touching later sessions.
+      security: []
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string, maxLength: 32 } }
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [ logout_token ]
+              properties:
+                logout_token: { type: string, maxLength: 16384 }
+      responses:
+        "200": { description: Matching older sessions revoked, or event already processed. }
+        "400": { $ref: '#/components/responses/PlainBadRequest' }
+        "404": { description: Provider does not have a configured OIDC issuer and JWKS. }
+        "413": { description: Form body exceeds 32 KiB. }
+        "415": { description: Form URL encoding required. }
+        "429": { description: Request admission limit reached. }
+        "503": { description: Callback or persistence temporarily unavailable. }
+  /api/auth/profile/links:
+    put:
+      tags: [ auth ]
+      summary: Update public links and bound-account visibility
+      operationId: updateProfileLinks
+      security: [ { sessionCookie: [ ] }, { bearerAuth: [ ] } ]
+      description: |
+        Replaces website, Discord, custom links, and visibility preferences. GitHub URLs and the providers array are
+        read-only and cannot be supplied. Links are derived from bound GitHub/GitLab identities; GitLab must match
+        the configured authority. Visibility defaults to false and is returned only to the account owner.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                website: { type: string, maxLength: 2048 }
+                discord: { type: string, maxLength: 2048 }
+                custom_name: { type: string, maxLength: 40 }
+                custom_url: { type: string, maxLength: 2048 }
+                visibility:
+                  type: object
+                  properties:
+                    github: { type: boolean, default: false }
+                    gitlab: { type: boolean, default: false }
+      responses:
+        "200":
+          description: Updated links, derived provider URLs, and owner-only visibility preferences.
+          content:
+            application/json:
+              schema: { type: object }
+        "400": { $ref: "#/components/responses/PlainBadRequest" }
+        "401": { $ref: "#/components/responses/PlainUnauthorized" }
+  /api/tickets/{id}/messages:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [ messages ]
+      summary: Read a bounded ticket conversation page
+      operationId: listTicketMessages
+      security: [ { sessionCookie: [ ] } ]
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+        - { name: before, in: query, schema: { type: string, maxLength: 64 }, description: Opaque cursor from the previous response. }
+      responses:
+        "200":
+          description: Latest page in chronological order. A before cursor selects older messages.
+          headers:
+            X-Renop-Next-Cursor:
+              description: Present when an older page exists; pass as before.
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { type: array, maxItems: 100, items: { type: object } }
+        "400": { $ref: "#/components/responses/PlainBadRequest" }
+        "429": { description: Request budget exceeded. }
+    post:
+      tags: [ messages ]
+      summary: Add a comment to an open ticket
+      operationId: addTicketMessage
+      security: [ { sessionCookie: [ ] } ]
+      description: Rechecks session and ticket authority atomically. Allows 20 comments per minute and 200 per hour per account, and 1000 comments per ticket. Body limit is 24 KiB.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ body ]
+              properties:
+                body: { type: string, minLength: 1, maxLength: 16384 }
+      responses:
+        "201":
+          description: Stored comment with server-derived author identity.
+          content:
+            application/json:
+              schema: { type: object }
+        "403": { $ref: "#/components/responses/PlainForbidden" }
+        "409": { description: Ticket is already closed or completed. }
+        "429": { description: Comment or request budget exceeded (review_limit). }
   /api/auth/oauth/providers:
     get:
       tags: [ auth ]
@@ -2922,7 +3213,7 @@ paths:
         "200":
           description: Public IDs and names only; response is not cached.
           content:
-            application/json:
+            application/x-protobuf:
               schema:
                 type: object
                 properties:
@@ -2934,6 +3225,8 @@ paths:
                       properties:
                         id: { type: string }
                         name: { type: string }
+                        type: { type: string }
+                        can_revoke: { type: boolean }
   /api/auth/oauth/{provider}/start:
     get:
       tags: [ auth ]
@@ -2984,7 +3277,7 @@ paths:
         "200":
           description: Configured providers and retained bindings; no stable subjects, client secrets, or access tokens are returned.
           content:
-            application/json:
+            application/x-protobuf:
               schema:
                 type: object
                 properties:
@@ -3016,7 +3309,7 @@ paths:
         "200":
           description: Administrator-only settings with credential flags and empty secret values.
           content:
-            application/json:
+            application/x-protobuf:
               schema: { $ref: '#/components/schemas/OAuthSettings' }
         "403": { $ref: '#/components/responses/PlainForbidden' }
     put:
@@ -3024,23 +3317,23 @@ paths:
       summary: Replace the configured OAuth client list
       operationId: updateOAuthSettings
       description: >-
-        Administrator only; requires a providers array. Missing or null providers are rejected; an explicit empty array clears other clients.
+        Administrator only; requires replace_providers=true. An empty providers list clears only the other clients.
         The built-in github entry shares the legacy GitHub configuration. Omitting it preserves it; disable it explicitly and use clear_client_secret.
-        JSON body is limited to 128 KiB. Secrets are write-only and are preserved only for an unchanged client and token endpoint.
+        Binary protobuf body is limited to 128 KiB. Secrets are write-only and are preserved only for an unchanged client and token endpoint.
         Applies to new authorizations immediately. Removing configuration does not delete existing account bindings.
       security: [ { sessionCookie: [ ] }, { bearerAuth: [ ] } ]
       requestBody:
         required: true
         content:
-          application/json:
+          application/x-protobuf:
             schema: { $ref: '#/components/schemas/OAuthSettings' }
       responses:
         "200":
           description: Saved configuration with secrets removed from the response.
           content:
-            application/json:
+            application/x-protobuf:
               schema: { $ref: '#/components/schemas/OAuthSettings' }
-        "400": { description: oauth_settings_invalid; invalid client configuration or a missing provider list. }
+        "400": { description: oauth_settings_invalid; invalid client configuration or missing replace_providers=true. }
         "403": { $ref: '#/components/responses/PlainForbidden' }
         "413": { description: Request exceeds 128 KiB. }
         "500": { description: oauth_settings_save_failed; configuration could not be persisted. }
@@ -3111,7 +3404,7 @@ paths:
       summary: Queue a test email using saved settings
       operationId: enqueueTestMail
       security: [ { sessionCookie: [ ] }, { bearerAuth: [ ] } ]
-      description: Requires administrator authority. Consumes the manual IP limit and later the account attempt limit. A 202 response confirms queue insertion.
+      description: Requires administrator authority. Consumes the shared manual request limits and later the sending-account attempt limit. A 202 response confirms queue insertion.
       requestBody:
         required: true
         content:
@@ -3130,7 +3423,7 @@ paths:
               schema: { $ref: "#/components/schemas/MailReceipt" }
         "400": { $ref: "#/components/responses/PlainBadRequest" }
         "403": { $ref: "#/components/responses/PlainForbidden" }
-        "429": { description: Manual per-IP email limit reached. }
+        "429": { description: Manual IP, network, account, or recipient email limit reached. }
         "503": { description: Email disabled, queue full, or storage unavailable. }
   /api/settings/mail/accounts/{id}:
     get:
@@ -3255,7 +3548,7 @@ paths:
         "404": { description: Mail delivery disabled (mail_disabled). }
         "413": { description: Request exceeds 4096 bytes. }
         "415": { description: Content-Type must be application/json. }
-        "429": { description: Address cooldown or manual IP rate exceeded (mail_manual_rate_limited). }
+        "429": { description: Address cooldown or manual request rate exceeded (mail_manual_rate_limited). }
         "503": { description: Queue full, no enabled sending account, or storage unavailable. }
   /api/auth/password-reset/confirm:
     post:
@@ -3315,9 +3608,6 @@ paths:
           application/x-protobuf:
             schema:
               $ref: "#/components/schemas/LoginRequest"
-          application/json:
-            schema:
-              $ref: "#/components/schemas/LoginRequest"
           application/protobuf:
             schema:
               $ref: "#/components/schemas/LoginRequest"
@@ -3331,12 +3621,6 @@ paths:
               description: "`renop_session=<id>; HttpOnly; SameSite=Lax; Max-Age=604800`"
           content:
             application/x-protobuf:
-              schema:
-                $ref: "#/components/schemas/SessionDetails"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SessionDetails"
-            application/protobuf:
               schema:
                 $ref: "#/components/schemas/SessionDetails"
         "400":
@@ -3361,12 +3645,6 @@ paths:
             application/x-protobuf:
               schema:
                 $ref: "#/components/schemas/SessionDetails"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SessionDetails"
-            application/protobuf:
-              schema:
-                $ref: "#/components/schemas/SessionDetails"
         "401":
           $ref: "#/components/responses/PlainUnauthorized"
 
@@ -3374,13 +3652,18 @@ paths:
     post:
       tags: [ auth ]
       summary: Logout
-      description: Invalidates the current session and clears the session cookie. Returns 204 even if no session existed.
+      description: Invalidates the current session and clears the session cookie. Returns 204 without a provider session; otherwise returns LogoutResponse after attempting provider token revocation. Local logout is completed before the provider request.
       operationId: postAuthLogout
       security:
         - sessionCookie: [ ]
       responses:
         "204":
           description: Session invalidated.
+        "200":
+          description: Local logout completed; provider_status reports the independent provider outcome.
+          content:
+            application/x-protobuf:
+              schema: { $ref: '#/components/schemas/LogoutResponse' }
 
   /api/users/{username}/profile:
     get:
@@ -3503,6 +3786,38 @@ paths:
                       $ref: "#/components/schemas/UserProfile"
         "400":
           $ref: "#/components/responses/PlainBadRequest"
+
+  /api/auth/profile/privacy:
+    put:
+      tags: [ auth ]
+      summary: Change the current account's profile privacy
+      operationId: updateProfilePrivacy
+      description: Requires the live browser session cookie and its immutable account ID. Explicit invitations remain available when the profile is private.
+      security:
+        - sessionCookie: [ ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ user_id, private ]
+              properties:
+                user_id: { type: string, format: uuid }
+                private: { type: boolean }
+      responses:
+        "200":
+          description: Updated own profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "400":
+          $ref: "#/components/responses/PlainBadRequest"
+        "401":
+          $ref: "#/components/responses/PlainUnauthorized"
+        "403":
+          description: Browser session or account identity does not match.
 
   /api/auth/profile:
     get:
@@ -3647,6 +3962,7 @@ paths:
     put:
       tags: [ auth ]
       summary: Change own password
+      description: Consumes the current configured second factor or primary-email proof atomically and revokes other sessions. The current browser session is retained.
       operationId: putAuthProfilePassword
       security:
         - sessionCookie: [ ]
@@ -3659,9 +3975,6 @@ paths:
           application/protobuf:
             schema:
               $ref: "#/components/schemas/UpdatePasswordRequest"
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdatePasswordRequest"
       responses:
         "200":
           description: Password updated.
@@ -3669,16 +3982,38 @@ paths:
             application/x-protobuf:
               schema:
                 $ref: "#/components/schemas/StatusOk"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/StatusOk"
-            application/protobuf:
-              schema:
-                $ref: "#/components/schemas/StatusOk"
         "400":
           $ref: "#/components/responses/PlainBadRequest"
         "401":
           $ref: "#/components/responses/PlainUnauthorized"
+        "409":
+          description: A required second-factor proof is missing; inspect X-Renop-Error-Code. Invalid proofs return 400.
+
+  /api/auth/profile/password/passkey/begin:
+    post:
+      tags: [ auth ]
+      summary: Begin a secondary Passkey proof for a password change
+      operationId: beginPasswordPasskey
+      security: [ { sessionCookie: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200":
+          description: Single-use challenge bound to the current browser session and credential state.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  challenge_id: { type: string }
+                  expires_at: { type: integer, format: int64 }
+                  options: { type: object }
+        "401": { $ref: '#/components/responses/PlainUnauthorized' }
+        "400": { description: Secondary Passkey is not configured or current proof is invalid. }
+        "403": { description: A current browser session is required. }
 
   /api/auth/profile/token:
     post:
@@ -3693,12 +4028,6 @@ paths:
           description: "New publishing API token. Returned once with Cache-Control: no-store."
           content:
             application/x-protobuf:
-              schema:
-                $ref: "#/components/schemas/GenerateTokenResponse"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/GenerateTokenResponse"
-            application/protobuf:
               schema:
                 $ref: "#/components/schemas/GenerateTokenResponse"
         "401":
@@ -3809,12 +4138,6 @@ paths:
             application/x-protobuf:
               schema:
                 $ref: "#/components/schemas/FidoDeviceList"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FidoDeviceList"
-            application/protobuf:
-              schema:
-                $ref: "#/components/schemas/FidoDeviceList"
         "401":
           $ref: "#/components/responses/PlainUnauthorized"
 
@@ -3836,12 +4159,6 @@ paths:
           description: Device removed.
           content:
             application/x-protobuf:
-              schema:
-                $ref: "#/components/schemas/StatusOk"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/StatusOk"
-            application/protobuf:
               schema:
                 $ref: "#/components/schemas/StatusOk"
         "401":
@@ -3901,12 +4218,6 @@ paths:
           description: Device registered.
           content:
             application/x-protobuf:
-              schema:
-                $ref: "#/components/schemas/FidoDeviceDto"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FidoDeviceDto"
-            application/protobuf:
               schema:
                 $ref: "#/components/schemas/FidoDeviceDto"
         "400":
@@ -3978,12 +4289,6 @@ paths:
             application/x-protobuf:
               schema:
                 $ref: "#/components/schemas/SessionDetails"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SessionDetails"
-            application/protobuf:
-              schema:
-                $ref: "#/components/schemas/SessionDetails"
         "400":
           $ref: "#/components/responses/PlainBadRequest"
         "401":
@@ -4006,12 +4311,6 @@ paths:
             application/x-protobuf:
               schema:
                 $ref: "#/components/schemas/SessionList"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SessionList"
-            application/protobuf:
-              schema:
-                $ref: "#/components/schemas/SessionList"
         "401":
           $ref: "#/components/responses/PlainUnauthorized"
 
@@ -4030,12 +4329,6 @@ paths:
           description: Other sessions revoked.
           content:
             application/x-protobuf:
-              schema:
-                $ref: "#/components/schemas/StatusOk"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/StatusOk"
-            application/protobuf:
               schema:
                 $ref: "#/components/schemas/StatusOk"
         "401":
@@ -4058,12 +4351,6 @@ paths:
             application/x-protobuf:
               schema:
                 $ref: "#/components/schemas/StatusOk"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/StatusOk"
-            application/protobuf:
-              schema:
-                $ref: "#/components/schemas/StatusOk"
         "401":
           $ref: "#/components/responses/PlainUnauthorized"
 
@@ -4084,12 +4371,6 @@ paths:
             application/x-protobuf:
               schema:
                 $ref: "#/components/schemas/AccessTokenList"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AccessTokenList"
-            application/protobuf:
-              schema:
-                $ref: "#/components/schemas/AccessTokenList"
         "403":
           $ref: "#/components/responses/PlainForbidden"
 
@@ -4108,12 +4389,6 @@ paths:
           description: Account descriptor.
           content:
             application/x-protobuf:
-              schema:
-                $ref: "#/components/schemas/AccessTokenDto"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AccessTokenDto"
-            application/protobuf:
               schema:
                 $ref: "#/components/schemas/AccessTokenDto"
         "403":
@@ -4141,20 +4416,11 @@ paths:
           application/protobuf:
             schema:
               $ref: "#/components/schemas/CreateAccessTokenRequest"
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateAccessTokenRequest"
       responses:
         "200":
           description: Account created or updated.
           content:
             application/x-protobuf:
-              schema:
-                $ref: "#/components/schemas/CreateAccessTokenResponse"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CreateAccessTokenResponse"
-            application/protobuf:
               schema:
                 $ref: "#/components/schemas/CreateAccessTokenResponse"
         "400":
@@ -4183,6 +4449,66 @@ paths:
         "404":
           $ref: "#/components/responses/PlainNotFound"
 
+  /api/tokens/{name}/ban:
+    parameters:
+      - { name: name, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [ tokens ]
+      summary: Read an account suspension and protected-role status
+      operationId: getAccountBan
+      security: [ { sessionCookie: [] }, { bearerAuth: [] } ]
+      responses:
+        "200":
+          description: Administrator-only live suspension information.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ban: { allOf: [ { $ref: '#/components/schemas/AccountBan' } ], nullable: true }
+                  protected_role: { type: boolean }
+                  ip_count: { type: integer }
+        "403": { $ref: '#/components/responses/PlainForbidden' }
+        "404": { $ref: '#/components/responses/PlainNotFound' }
+    put:
+      tags: [ tokens ]
+      summary: Suspend an account using a preset or custom reason
+      operationId: putAccountBan
+      description: Requires live administrator authority. Protected administrator/moderator roles must be removed first. Revokes active sessions atomically; optional IP suspension uses recorded login addresses.
+      security: [ { sessionCookie: [] }, { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason_code: { $ref: '#/components/schemas/AccountBan/properties/reason_code' }
+                reason: { type: string, maxLength: 512 }
+                expires_at: { type: integer, format: int64, nullable: true }
+                ban_ip: { type: boolean }
+      responses:
+        "200":
+          description: Suspension saved.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ban: { $ref: '#/components/schemas/AccountBan' }
+        "400": { $ref: '#/components/responses/PlainBadRequest' }
+        "403": { $ref: '#/components/responses/PlainForbidden' }
+        "409": { description: Protected role or unavailable recorded login IP addresses. }
+    delete:
+      tags: [ tokens ]
+      summary: Remove an account suspension and its IP restrictions
+      operationId: deleteAccountBan
+      security: [ { sessionCookie: [] }, { bearerAuth: [] } ]
+      responses:
+        "204": { description: Suspension removed. }
+        "403": { $ref: '#/components/responses/PlainForbidden' }
+        "404": { $ref: '#/components/responses/PlainNotFound' }
+
   /api/tokens/{name}/sessions:
     get:
       tags: [ tokens ]
@@ -4199,12 +4525,6 @@ paths:
           description: Session list.
           content:
             application/x-protobuf:
-              schema:
-                $ref: "#/components/schemas/SessionList"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SessionList"
-            application/protobuf:
               schema:
                 $ref: "#/components/schemas/SessionList"
         "403":
@@ -4232,12 +4552,6 @@ paths:
             application/x-protobuf:
               schema:
                 $ref: "#/components/schemas/StatusOk"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/StatusOk"
-            application/protobuf:
-              schema:
-                $ref: "#/components/schemas/StatusOk"
         "403":
           $ref: "#/components/responses/PlainForbidden"
 
@@ -4258,12 +4572,6 @@ paths:
           description: Session revoked.
           content:
             application/x-protobuf:
-              schema:
-                $ref: "#/components/schemas/StatusOk"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/StatusOk"
-            application/protobuf:
               schema:
                 $ref: "#/components/schemas/StatusOk"
         "403":
@@ -4288,12 +4596,6 @@ paths:
           description: Device list.
           content:
             application/x-protobuf:
-              schema:
-                $ref: "#/components/schemas/FidoDeviceList"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FidoDeviceList"
-            application/protobuf:
               schema:
                 $ref: "#/components/schemas/FidoDeviceList"
         "403":
@@ -4323,12 +4625,6 @@ paths:
           description: Device removed.
           content:
             application/x-protobuf:
-              schema:
-                $ref: "#/components/schemas/StatusOk"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/StatusOk"
-            application/protobuf:
               schema:
                 $ref: "#/components/schemas/StatusOk"
         "403":
@@ -4381,14 +4677,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/InstanceStatus"
 
-            application/json:
-              schema:
-                $ref: "#/components/schemas/InstanceStatus"
-
-            application/protobuf:
-              schema:
-                $ref: "#/components/schemas/InstanceStatus"
-
   /api/status/snapshots:
     get:
       tags: [ status ]
@@ -4401,14 +4689,6 @@ paths:
           description: Metric snapshot list.
           content:
             application/x-protobuf:
-              schema:
-                $ref: "#/components/schemas/StatusSnapshotList"
-
-            application/json:
-              schema:
-                $ref: "#/components/schemas/StatusSnapshotList"
-
-            application/protobuf:
               schema:
                 $ref: "#/components/schemas/StatusSnapshotList"
 
@@ -4497,12 +4777,6 @@ paths:
           description: Runtime memory breakdown.
           content:
             application/x-protobuf:
-              schema:
-                $ref: "#/components/schemas/RuntimeMemoryBreakdown"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/RuntimeMemoryBreakdown"
-            application/protobuf:
               schema:
                 $ref: "#/components/schemas/RuntimeMemoryBreakdown"
         "403":
@@ -5006,7 +5280,7 @@ paths:
         - sessionCookie: [ ]
       description: >
         Requires the active renop_session browser cookie. At most 16 pending and 24 new support requests per account
-        per 24 hours; all workflows share a global pending limit of 4096. JSON is limited to 48 KiB.
+        per 24 hours and six per ten minutes; all workflows share a global pending limit of 4096. JSON is limited to 48 KiB.
         Reports must concern another account or a visible non-owned resource, match repository format and read access,
         and cannot duplicate a pending report from the same requester. Target owners are recorded by immutable IDs.
       requestBody:
@@ -5039,7 +5313,7 @@ paths:
         "400": { description: Invalid request or body limit exceeded. }
         "403": { description: Cookie or target access denied. }
         "409": { description: Duplicate pending report. }
-        "429": { description: Pending or daily request limit exceeded. }
+        "429": { description: Pending, daily, short-window, or request admission limit exceeded. }
     get:
       tags: [ tickets ]
       summary: List tickets
@@ -5057,7 +5331,7 @@ paths:
           schema: { type: string, enum: [ reviewer, requested ], default: reviewer }
         - name: status
           in: query
-          schema: { type: string, enum: [ unprocessed, in_progress, processed, closed, completed, all ], default: unprocessed }
+          schema: { type: string, enum: [ unprocessed, in_progress, processed, closed, completed, all ], default: all }
         - name: types
           in: query
           description: Optional comma-separated resource-type filter.
@@ -5888,14 +6162,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/FileDetails"
 
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FileDetails"
-
-            application/protobuf:
-              schema:
-                $ref: "#/components/schemas/FileDetails"
-
   /api/maven/details/{repo_name}:
     get:
       tags: [ maven ]
@@ -5911,12 +6177,6 @@ paths:
           description: Repository root details.
           content:
             application/x-protobuf:
-              schema:
-                $ref: "#/components/schemas/FileDetails"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FileDetails"
-            application/protobuf:
               schema:
                 $ref: "#/components/schemas/FileDetails"
         "404":
@@ -5942,12 +6202,6 @@ paths:
             application/x-protobuf:
               schema:
                 $ref: "#/components/schemas/FileDetails"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FileDetails"
-            application/protobuf:
-              schema:
-                $ref: "#/components/schemas/FileDetails"
         "404":
           $ref: "#/components/responses/PlainNotFound"
 
@@ -5966,12 +6220,6 @@ paths:
           description: Repository details.
           content:
             application/x-protobuf:
-              schema:
-                $ref: "#/components/schemas/RepoDetailsResponse"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/RepoDetailsResponse"
-            application/protobuf:
               schema:
                 $ref: "#/components/schemas/RepoDetailsResponse"
         "403":
@@ -6000,12 +6248,6 @@ paths:
           description: Version list.
           content:
             application/x-protobuf:
-              schema:
-                $ref: "#/components/schemas/VersionsResponse"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/VersionsResponse"
-            application/protobuf:
               schema:
                 $ref: "#/components/schemas/VersionsResponse"
         "404":
@@ -6041,12 +6283,6 @@ paths:
             application/x-protobuf:
               schema:
                 $ref: "#/components/schemas/LatestVersionResponse"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LatestVersionResponse"
-            application/protobuf:
-              schema:
-                $ref: "#/components/schemas/LatestVersionResponse"
             text/plain:
               schema:
                 type: string
@@ -6080,12 +6316,6 @@ paths:
           description: File details for the latest artifact.
           content:
             application/x-protobuf:
-              schema:
-                $ref: "#/components/schemas/FileDetails"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FileDetails"
-            application/protobuf:
               schema:
                 $ref: "#/components/schemas/FileDetails"
         "404":
@@ -6180,9 +6410,6 @@ paths:
             schema:
               $ref: "#/components/schemas/PomDetails"
           application/protobuf:
-            schema:
-              $ref: "#/components/schemas/PomDetails"
-          application/json:
             schema:
               $ref: "#/components/schemas/PomDetails"
       responses:
@@ -6302,18 +6529,20 @@ paths:
       summary: Current policy revision and cookie notice
       operationId: getLegalMetadata
       security: []
-      description: Public and uncached, including for requests with expired credentials. Account entry requires explicit acceptance of this revision.
+      description: Public with ETag revalidation, including for requests with expired credentials. Account entry requires explicit acceptance of this revision.
       responses:
         "200":
           description: Current privacy-policy and terms revision.
           content:
-            application/json:
+            application/x-protobuf:
               schema:
                 type: object
                 required: [ revision, cookie_banner ]
                 properties:
                   revision: { type: string, pattern: '^[a-f0-9]{64}$' }
                   cookie_banner: { type: boolean }
+                  content_revision: { type: string, description: Revision of all three documents for browser cache invalidation. }
+        "304": { description: Metadata unchanged; public no-cache revalidation remains required. }
   /api/legal/{document}:
     get:
       tags: [ auth ]
@@ -6333,6 +6562,7 @@ paths:
               schema: { type: string }
         "404": { description: Unknown document. }
         "503": { description: Invalid document configuration. }
+        "304": { description: Document unchanged. }
   /api/privacy-policy:
     get:
       tags: [ auth ]
@@ -6342,7 +6572,7 @@ paths:
       security: []
       responses:
         "200":
-          description: Uncached UTF-8 Markdown as plain text.
+          description: UTF-8 Markdown as plain text, with ETag revalidation.
           content:
             text/plain:
               schema: { type: string }
@@ -6366,7 +6596,7 @@ paths:
         "200":
           description: Current legal settings.
           content:
-            application/json:
+            application/x-protobuf:
               schema: { $ref: '#/components/schemas/LegalConfig' }
         "403": { $ref: '#/components/responses/PlainForbidden' }
     put:
@@ -6380,21 +6610,22 @@ paths:
       requestBody:
         required: true
         content:
-          application/json:
+          application/x-protobuf:
             schema: { $ref: '#/components/schemas/LegalConfig' }
       responses:
         "200":
           description: Saved legal settings.
           content:
-            application/json:
+            application/x-protobuf:
               schema: { $ref: '#/components/schemas/LegalConfig' }
         "400": { description: Invalid UTF-8, NUL, or document exceeding 512 KiB. }
         "403": { $ref: '#/components/responses/PlainForbidden' }
-        "413": { description: Request exceeds 10 MiB. }
-        "415": { description: JSON content type required. }
+        "413": { description: Request exceeds 3 * 512 KiB + 1024 bytes. }
+        "415": { description: Binary protobuf Content-Type required. }
         "500": { description: Configuration could not be saved. }
 
   # ========== Settings ==========
+
   /api/settings/index/rebuild:
     post:
       tags: [ settings ]
@@ -6410,9 +6641,6 @@ paths:
         required: true
         content:
           application/x-protobuf:
-            schema:
-              $ref: "#/components/schemas/RebuildIndexRequest"
-          application/json:
             schema:
               $ref: "#/components/schemas/RebuildIndexRequest"
           application/protobuf:
@@ -6444,12 +6672,6 @@ paths:
           description: Domain name list.
           content:
             application/x-protobuf:
-              schema:
-                $ref: "#/components/schemas/SettingsDomainsResponse"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SettingsDomainsResponse"
-            application/protobuf:
               schema:
                 $ref: "#/components/schemas/SettingsDomainsResponse"
         "403":
@@ -6484,24 +6706,6 @@ paths:
                   - $ref: "#/components/schemas/StorageConfig"
                   - $ref: "#/components/schemas/UpdaterConfig"
                   - $ref: "#/components/schemas/IndexDomainSettings"
-            application/json:
-              schema:
-                oneOf:
-                  - $ref: "#/components/schemas/FrontendConfig"
-                  - $ref: "#/components/schemas/ServerConfig"
-                  - $ref: "#/components/schemas/ProxyConfig"
-                  - $ref: "#/components/schemas/StorageConfig"
-                  - $ref: "#/components/schemas/UpdaterConfig"
-                  - $ref: "#/components/schemas/IndexDomainSettings"
-            application/protobuf:
-              schema:
-                oneOf:
-                  - $ref: "#/components/schemas/FrontendConfig"
-                  - $ref: "#/components/schemas/ServerConfig"
-                  - $ref: "#/components/schemas/ProxyConfig"
-                  - $ref: "#/components/schemas/StorageConfig"
-                  - $ref: "#/components/schemas/UpdaterConfig"
-                  - $ref: "#/components/schemas/IndexDomainSettings"
         "403":
           $ref: "#/components/responses/PlainForbidden"
         "404":
@@ -6522,14 +6726,6 @@ paths:
         required: true
         content:
           application/x-protobuf:
-            schema:
-              oneOf:
-                - $ref: "#/components/schemas/FrontendConfig"
-                - $ref: "#/components/schemas/ServerConfig"
-                - $ref: "#/components/schemas/ProxyConfig"
-                - $ref: "#/components/schemas/StorageConfig"
-                - $ref: "#/components/schemas/UpdaterConfig"
-          application/json:
             schema:
               oneOf:
                 - $ref: "#/components/schemas/FrontendConfig"
@@ -6575,12 +6771,6 @@ paths:
             application/x-protobuf:
               schema:
                 $ref: "#/components/schemas/MavenRepositoriesResponse"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MavenRepositoriesResponse"
-            application/protobuf:
-              schema:
-                $ref: "#/components/schemas/MavenRepositoriesResponse"
         "403":
           $ref: "#/components/responses/PlainForbidden"
 
@@ -6606,9 +6796,6 @@ paths:
         required: true
         content:
           application/x-protobuf:
-            schema:
-              $ref: "#/components/schemas/Repository"
-          application/json:
             schema:
               $ref: "#/components/schemas/Repository"
           application/protobuf:
@@ -6872,14 +7059,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/UpdateState"
 
-            application/json:
-              schema:
-                $ref: "#/components/schemas/UpdateState"
-
-            application/protobuf:
-              schema:
-                $ref: "#/components/schemas/UpdateState"
-
   /api/updater/check:
     post:
       tags: [ updater ]
@@ -7007,9 +7186,6 @@ paths:
           application/x-protobuf:
             schema:
               $ref: "#/components/schemas/ChunkedUploadInitRequest"
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ChunkedUploadInitRequest"
           application/protobuf:
             schema:
               $ref: "#/components/schemas/ChunkedUploadInitRequest"
@@ -7018,12 +7194,6 @@ paths:
           description: Session created.
           content:
             application/x-protobuf:
-              schema:
-                $ref: "#/components/schemas/ChunkedUploadInitResponse"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ChunkedUploadInitResponse"
-            application/protobuf:
               schema:
                 $ref: "#/components/schemas/ChunkedUploadInitResponse"
         "400":
@@ -7096,22 +7266,10 @@ paths:
             application/x-protobuf:
               schema:
                 $ref: "#/components/schemas/ChunkedUploadCompleteResponse"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ChunkedUploadCompleteResponse"
-            application/protobuf:
-              schema:
-                $ref: "#/components/schemas/ChunkedUploadCompleteResponse"
         "201":
           description: Artifact stored (`purpose=storage`).
           content:
             application/x-protobuf:
-              schema:
-                $ref: "#/components/schemas/ChunkedUploadCompleteResponse"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ChunkedUploadCompleteResponse"
-            application/protobuf:
               schema:
                 $ref: "#/components/schemas/ChunkedUploadCompleteResponse"
         "400":
@@ -7173,12 +7331,6 @@ paths:
             application/x-protobuf:
               schema:
                 $ref: "#/components/schemas/MessageListResponse"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MessageListResponse"
-            application/protobuf:
-              schema:
-                $ref: "#/components/schemas/MessageListResponse"
         "400":
           $ref: "#/components/responses/PlainBadRequest"
         "401":
@@ -7196,12 +7348,6 @@ paths:
           description: Messages cleared.
           content:
             application/x-protobuf:
-              schema:
-                $ref: "#/components/schemas/ClearMessagesResponse"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ClearMessagesResponse"
-            application/protobuf:
               schema:
                 $ref: "#/components/schemas/ClearMessagesResponse"
         "401":
@@ -7222,12 +7368,6 @@ paths:
             application/x-protobuf:
               schema:
                 $ref: "#/components/schemas/UnreadCountResponse"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/UnreadCountResponse"
-            application/protobuf:
-              schema:
-                $ref: "#/components/schemas/UnreadCountResponse"
         "401":
           $ref: "#/components/responses/PlainUnauthorized"
 
@@ -7244,12 +7384,6 @@ paths:
           description: All messages marked read.
           content:
             application/x-protobuf:
-              schema:
-                $ref: "#/components/schemas/MarkAllReadResponse"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MarkAllReadResponse"
-            application/protobuf:
               schema:
                 $ref: "#/components/schemas/MarkAllReadResponse"
         "401":
@@ -7275,12 +7409,6 @@ paths:
           description: Message marked read.
           content:
             application/x-protobuf:
-              schema:
-                $ref: "#/components/schemas/StatusOk"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/StatusOk"
-            application/protobuf:
               schema:
                 $ref: "#/components/schemas/StatusOk"
         "400":
@@ -7315,12 +7443,6 @@ paths:
             application/x-protobuf:
               schema:
                 $ref: "#/components/schemas/StatusOk"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/StatusOk"
-            application/protobuf:
-              schema:
-                $ref: "#/components/schemas/StatusOk"
         "400":
           $ref: "#/components/responses/PlainBadRequest"
         "401":
@@ -7352,12 +7474,6 @@ paths:
             application/x-protobuf:
               schema:
                 $ref: "#/components/schemas/UserSearchResponse"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/UserSearchResponse"
-            application/protobuf:
-              schema:
-                $ref: "#/components/schemas/UserSearchResponse"
         "400":
           $ref: "#/components/responses/PlainBadRequest"
         "403":
@@ -7369,7 +7485,7 @@ paths:
       summary: Send broadcast notification (manager)
       description: >-
         Sends an `announcement` to one or more accounts, or all accounts when `all: true`.
-        Requires the `manager` permission.
+        Requires the `manager` permission. A non-empty session_id restricts delivery to one active session of exactly one recipient and excludes email delivery.
       operationId: postMessagesAdmin
       security:
         - sessionCookie: [ ]
@@ -7383,9 +7499,6 @@ paths:
           application/protobuf:
             schema:
               $ref: "#/components/schemas/SendNotificationRequest"
-          application/json:
-            schema:
-              $ref: "#/components/schemas/SendNotificationRequest"
       responses:
         "201":
           description: Notification delivered.
@@ -7393,16 +7506,12 @@ paths:
             application/x-protobuf:
               schema:
                 $ref: "#/components/schemas/SendNotificationResponse"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SendNotificationResponse"
-            application/protobuf:
-              schema:
-                $ref: "#/components/schemas/SendNotificationResponse"
         "400":
           $ref: "#/components/responses/PlainBadRequest"
         "403":
           $ref: "#/components/responses/PlainForbidden"
+        "409": { description: The target session expired or was revoked. }
+        "413": { description: Notification request exceeds 16 KiB. }
 
   /api/auth/logs:
     get:
@@ -7496,12 +7605,6 @@ paths:
             application/x-protobuf:
               schema:
                 $ref: "#/components/schemas/AuditLogListResponse"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AuditLogListResponse"
-            application/protobuf:
-              schema:
-                $ref: "#/components/schemas/AuditLogListResponse"
         "400":
           $ref: "#/components/responses/PlainBadRequest"
         "403":
@@ -7584,12 +7687,6 @@ paths:
           description: Paginated audit log.
           content:
             application/x-protobuf:
-              schema:
-                $ref: "#/components/schemas/AuditLogListResponse"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AuditLogListResponse"
-            application/protobuf:
               schema:
                 $ref: "#/components/schemas/AuditLogListResponse"
         "401":
@@ -7687,12 +7784,6 @@ paths:
             application/x-protobuf:
               schema:
                 $ref: "#/components/schemas/AuditLogListResponse"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AuditLogListResponse"
-            application/protobuf:
-              schema:
-                $ref: "#/components/schemas/AuditLogListResponse"
         "403":
           $ref: "#/components/responses/PlainForbidden"
     delete:
@@ -7714,12 +7805,6 @@ paths:
           description: Audit log cleared.
           content:
             application/x-protobuf:
-              schema:
-                $ref: "#/components/schemas/StatusOk"
-            application/json:
-              schema:
-                $ref: "#/components/schemas/StatusOk"
-            application/protobuf:
               schema:
                 $ref: "#/components/schemas/StatusOk"
         "403":
@@ -9714,3 +9799,140 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OciErrorList"
+
+  /api/native/repositories/{repo}/resources:
+    parameters:
+      - { name: repo, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [ native ]
+      operationId: getNativeResources
+      summary: List native resources or inspect one resource
+      description: Published resources follow repository visibility. Unpublished resources and artifacts are visible only to members and repository staff. Memberships are not exposed to other readers.
+      parameters:
+        - { name: name, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+        - { name: offset, in: query, schema: { type: integer, minimum: 0, maximum: 10000, default: 0 } }
+      responses:
+        '200':
+          description: Catalog or resource detail page.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  resources: { type: array, items: { $ref: '#/components/schemas/NativeResource' } }
+                  resource: { $ref: '#/components/schemas/NativeResource' }
+                  artifacts: { type: array, items: { $ref: '#/components/schemas/NativeArtifact' } }
+                  members: { type: array, nullable: true, items: { $ref: '#/components/schemas/NativeMember' } }
+                  can_create: { type: boolean }
+                  limit: { type: integer }
+                  offset: { type: integer }
+        '403': { description: Repository access denied. }
+        '404': { description: Resource not found or not visible. }
+    post:
+      tags: [ native ]
+      operationId: reserveNativeResource
+      summary: Reserve an unprefixed native publishing resource
+      security: [ { sessionCookie: [] } ]
+      description: Requires live repository publishing permission and applicable CAPTCHA. Native mirror repositories are pull-only. The creator receives L4 ownership; the first publication follows the repository review policy.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NativeResourceWrite' }
+      responses:
+        '201':
+          description: Resource reserved.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NativeResource' }
+        '403': { description: Browser session or publishing permission required. }
+        '409': { description: Identity is already reserved or unavailable. }
+    put:
+      tags: [ native ]
+      operationId: updateNativeResource
+      summary: Update native resource description and public signing key
+      security: [ { sessionCookie: [] } ]
+      description: Requires L3 or administrator authority. APK accepts an RSA PEM public key; RPM and Conan accept a trusted OpenPGP public keyring. Private keys and unsupported formats are rejected.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NativeResourceWrite' }
+      responses:
+        '200': { description: Resource settings saved. }
+        '400': { description: Invalid resource or public signing key. }
+        '403': { description: Resource management permission required. }
+    delete:
+      tags: [ native ]
+      operationId: releaseNativeResource
+      summary: Release an empty native resource
+      security: [ { sessionCookie: [] } ]
+      description: Requires L4 or administrator authority. Artifacts and pending reviews prevent release.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NativeResourceWrite' }
+      responses:
+        '200': { description: Empty resource and memberships removed. }
+        '403': { description: Ownership required. }
+        '409': { description: Resource is not empty or has pending reviews. }
+  /api/native/repositories/{repo}/resources/members:
+    parameters:
+      - { name: repo, in: path, required: true, schema: { type: string } }
+    put:
+      tags: [ native ]
+      operationId: setNativeResourceMember
+      summary: Grant, change, or remove native resource membership
+      security: [ { sessionCookie: [] } ]
+      description: Requires L3; granting or changing L4 requires L4. Level -1 removes membership. At least one L4 owner is retained, and a resource has at most 100 members.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ name, username, level ]
+              properties:
+                name: { type: string }
+                username: { type: string }
+                level: { type: integer, minimum: -1, maximum: 4 }
+      responses:
+        '200': { description: Membership changed. }
+        '403': { description: Insufficient authority or unavailable account. }
+        '409': { description: Last-owner invariant or member limit prevents the change. }
+  /api/native/repositories/{repo}/resources/key:
+    get:
+      tags: [ native ]
+      operationId: downloadNativePublisherKey
+      summary: Download the resource publisher public key
+      parameters:
+        - { name: repo, in: path, required: true, schema: { type: string } }
+        - { name: name, in: query, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Public key attachment with repository and unpublished-resource visibility enforced.
+          content:
+            text/plain:
+              schema: { type: string }
+        '404': { description: Key is absent or the resource is not visible. }
+  /api/native/repositories/{repo}/resources/users:
+    get:
+      tags: [ native ]
+      operationId: searchNativeResourceMembers
+      summary: Find users for the native resource permission editor
+      parameters:
+        - { name: repo, in: path, required: true, schema: { type: string } }
+        - { name: name, in: query, required: true, schema: { type: string } }
+        - { name: q, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: At most eight users after profile privacy filtering; requires L3 authority.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users: { type: array, maxItems: 8, items: { type: string } }
+        '403': { description: Resource management permission required. }

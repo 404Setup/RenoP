@@ -146,6 +146,7 @@ func (d *PostgresDialect) InitTables(db *sql.DB) error {
 		expires_at BIGINT NULL,
 		permissions_json TEXT NOT NULL,
 		ban_reason VARCHAR(2048) NOT NULL DEFAULT '',
+		ban_reason_code VARCHAR(64) NOT NULL DEFAULT '',
 		banned_at BIGINT NOT NULL DEFAULT 0,
 		banned_until BIGINT NULL,
 		deleted_at BIGINT NOT NULL DEFAULT 0,
@@ -161,6 +162,9 @@ func (d *PostgresDialect) InitTables(db *sql.DB) error {
 		locale VARCHAR(16) NOT NULL DEFAULT '',
 		website_url VARCHAR(2048) NOT NULL DEFAULT '',
 		github_url VARCHAR(2048) NOT NULL DEFAULT '',
+		show_github INT NOT NULL DEFAULT 0,
+		show_gitlab INT NOT NULL DEFAULT 0,
+		is_private INT NOT NULL DEFAULT 0,
 		discord_url VARCHAR(2048) NOT NULL DEFAULT '',
 		custom_link_name VARCHAR(160) NOT NULL DEFAULT '',
 		custom_link_url VARCHAR(2048) NOT NULL DEFAULT '',
@@ -384,6 +388,7 @@ func (d *PostgresDialect) InitTables(db *sql.DB) error {
 		repository VARCHAR(64) NOT NULL,
 		image_name VARCHAR(255) NOT NULL,
 		description TEXT NOT NULL DEFAULT '',
+		readme TEXT NOT NULL DEFAULT '',
 		publisher VARCHAR(255) NOT NULL DEFAULT '',
 		pull_count BIGINT NOT NULL DEFAULT 0,
 		super_team_prefix VARCHAR(64) NOT NULL DEFAULT '',
@@ -502,7 +507,7 @@ func (d *PostgresDialect) InitTables(db *sql.DB) error {
 	if err := initRepositorySettingsTable(db, false); err != nil {
 		return err
 	}
-	if err := initMavenTables(db, "TEXT NOT NULL"); err != nil {
+	if err := initMavenTables(db, "TEXT NOT NULL", ""); err != nil {
 		return err
 	}
 	if err := initNPMTables(db); err != nil {
@@ -523,7 +528,14 @@ func (d *PostgresDialect) InitTables(db *sql.DB) error {
 	if err := initPublicationQuotaTables(db); err != nil {
 		return err
 	}
+	if err := initNativeResourceTables(db); err != nil {
+		return err
+	}
 	if err := initReviewTables(db, false); err != nil {
+		return err
+	}
+
+	if err := initOAuthRevocationTable(db); err != nil {
 		return err
 	}
 
@@ -540,12 +552,12 @@ func (d *PostgresDialect) InitTables(db *sql.DB) error {
 }
 
 func (d *PostgresDialect) UpsertTokenQuery() string {
-	return `INSERT INTO tokens (name, type, type_value, encrypted_secret, password_hash, tokens_json, created_at, description, expires_at, permissions_json, ban_reason, banned_at, banned_until)
-	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	return `INSERT INTO tokens (name, type, type_value, encrypted_secret, password_hash, tokens_json, created_at, description, expires_at, permissions_json, ban_reason, ban_reason_code, banned_at, banned_until)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	ON CONFLICT(name) DO UPDATE SET
 	type=excluded.type, type_value=excluded.type_value, encrypted_secret=excluded.encrypted_secret, password_hash=excluded.password_hash,
 	tokens_json=excluded.tokens_json, created_at=excluded.created_at, description=excluded.description, expires_at=excluded.expires_at,
-	permissions_json=excluded.permissions_json, ban_reason=excluded.ban_reason, banned_at=excluded.banned_at, banned_until=excluded.banned_until`
+	permissions_json=excluded.permissions_json, ban_reason=excluded.ban_reason, ban_reason_code=excluded.ban_reason_code, banned_at=excluded.banned_at, banned_until=excluded.banned_until`
 }
 
 func (d *PostgresDialect) UpsertSessionQuery() string {

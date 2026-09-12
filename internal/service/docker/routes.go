@@ -56,7 +56,7 @@ func SetupDockerRoutes(app fiber.Router, state *core.AppState, store Store) {
 	}
 
 	baseHandler := func(c fiber.Ctx) error {
-		return h.HandleBase(c)
+		return h.HandleBase(c, state)
 	}
 
 	app.Get("/v2", baseHandler)
@@ -80,7 +80,7 @@ func SetupDockerRoutes(app fiber.Router, state *core.AppState, store Store) {
 		path := strings.TrimPrefix(c.Path(), "/v2/")
 		path = strings.Trim(path, "/")
 		if path == "" {
-			return h.HandleBase(c)
+			return h.HandleBase(c, state)
 		}
 		if path == "_catalog" {
 			return h.HandleCatalog(c, state)

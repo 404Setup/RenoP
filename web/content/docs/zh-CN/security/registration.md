@@ -14,10 +14,13 @@ description: 启用注册、邮箱确认和 GitHub 账号创建
 ```yaml
 registration:
   enabled: false
+  default_permissions: [base]
   ip_limit: 1
   ip_interval: {value: 3, unit: week}
   provider_cooldown: {value: 12, unit: hour}
 ```
+
+**默认权限组**设置决定创建账户时授予的系统和仓库权限，第三方注册同样适用。默认值为 `default_permissions: [base]`。修改此项不影响已有账户。旧设置客户端省略 `default_permissions` 时保留当前配置。
 
 仅成功注册扣减 IP 配额。默认每个 IP 三周可注册一个账号，周期从首次成功注册开始。等价的 IPv4 和 IPv6
 写法共用限额。注销账号不会恢复此额度；限额在重启后保留。账号数量必须为 1–10,000，周期必须为正数，单位为 `minute`、`hour`、

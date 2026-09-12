@@ -48,7 +48,7 @@ func setupNotificationState(t *testing.T) *core.AppState {
 
 func messagesFor(t *testing.T, state *core.AppState, username string) []*core.UserMessage {
 	t.Helper()
-	messages, err := state.GetDB().ListMessages(username, 20, 0, "", time.Now().Add(time.Hour).UnixMilli())
+	messages, err := state.GetDB().ListMessages(username, 20, 0, "", time.Now().Add(time.Hour).UnixMilli(), "")
 	require.NoError(t, err)
 	return messages
 }
@@ -112,9 +112,9 @@ func TestTeamReviewNotifiesT3AndSystemManager(t *testing.T) {
 		"platform", "manager", []string{"moderator"}, core.SuperTeamRoleManage, 10, 10, now+1))
 	require.NoError(t, db.ForceAddSuperTeamMembers(
 		"platform", "manager", []string{"requester"}, core.SuperTeamRoleRead, 10, 10, now+2))
-	_, err := db.DeleteUserMessages("moderator")
+	_, err := db.DeleteUserMessages("moderator", "")
 	require.NoError(t, err)
-	_, err = db.DeleteUserMessages("requester")
+	_, err = db.DeleteUserMessages("requester", "")
 	require.NoError(t, err)
 	_, err = db.CreateDockerImage("containers", "personal", "requester", false, now+3)
 	require.NoError(t, err)
@@ -141,7 +141,7 @@ func TestTeamPackageCreationNotificationMovesToRepositoryModerators(t *testing.T
 	require.NoError(t, db.ForceAddSuperTeamMembers(
 		"platform", "manager", []string{"unrelated"}, core.SuperTeamRoleManage, 10, 10, now+2))
 	for _, username := range []string{"requester", "unrelated", "moderator", "manager"} {
-		_, err := db.DeleteUserMessages(username)
+		_, err := db.DeleteUserMessages(username, "")
 		require.NoError(t, err)
 	}
 	result, err := db.CreateOrUpdatePublicationReview(core.PublicationReviewRequest{

@@ -14,7 +14,18 @@ import {morphElementHeight} from '@renop/ui/height-anim';
 import {apiRequest, fetchProto} from './api.js';
 import {FileDetails} from './proto/index.js';
 import {showAlert, showConfirm} from './alert.js';
-import {createFieldRow, createIcon, RenopDialog, runButtonAction} from './components.js';
+import {
+    createActionButton,
+    createFieldRow,
+    createIcon,
+    createUserIdentity,
+    RenopDialog,
+    runButtonAction,
+    runUIAction
+} from './components.js';
+import {setSafeMarkdown} from './markdown.js';
+import {openUserBanDialog} from './users/ban.js';
+import {createResourceLockButton} from './resource-locks.js';
 import {t} from './i18n.js';
 import {REVIEW_ERROR_KEYS} from './review-errors.js';
 import {caughtErrorMessage, localizedResponseError} from './response-errors.js';
@@ -25,13 +36,14 @@ import {exitProtectedRouteOnDenial} from './protected-route.js';
 const routeRoot = '/account/tickets';
 const pageSize = 15;
 const resourceTypes = Object.freeze([
-    'docker_image', 'npm_package', 'cargo_package', 'maven_artifact', 'maven_domain',
+    'docker_image', 'npm_package', 'cargo_package', 'maven_artifact', 'maven_domain', 'native_package',
     'user', 'superteam', 'support'
 ]);
 let loadGeneration = 0;
 let pageOffset = 0;
 let activeView = 'reviewer';
-let activeStatus = 'unprocessed';
+let activeStatus = 'all';
+let listOwner = '';
 const activeTypes = new Set();
 
 /**
@@ -53,6 +65,7 @@ export function ticketRouteFromPath(pathname = window.location.pathname) {
     return [routeRoot, '/account/reviews'].includes(String(pathname || '/').replace(/\/+$/, '') || '/');
 }
 
+
 /**
  * Open the routed review center in one supported view.
  * @param {'reviewer'|'requested'} [view='reviewer'] - Initial task perspective.
@@ -60,7 +73,11 @@ export function ticketRouteFromPath(pathname = window.location.pathname) {
  */
 export function openTicketCenter(view = 'reviewer') {
     activeView = view === 'requested' ? 'requested' : 'reviewer';
+    activeStatus = 'all';
+    activeTypes.clear();
     pageOffset = 0;
+    listOwner = localStorage.getItem('username') || '';
+    ++loadGeneration;
     if (window.location.pathname !== routeRoot || window.location.search || window.location.hash) {
         window.history.pushState(null, '', routeRoot);
     }
@@ -239,7 +256,6 @@ async function submitDecision(task, decision, reason = '', reasonCode = '') {
     showAlert(t(task.kind === 'maven_restore'
         ? decision === 'approved' ? 'maven.restoreApproved' : 'maven.restoreRejected'
         : resultKey), 'success');
-    document.getElementById('ticket-detail-dialog')?.close(true);
     await loadTasks();
 }
 
@@ -434,25 +450,577 @@ async function transitionTicket(id, action) {
         method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(action)
     });
     if (!response.ok) throw await localizedResponseError(response, 'review.operationFailed', {}, REVIEW_ERROR_KEYS);
-    await loadTasks();
 }
 
-/** @param {string} id - Ticket ID. @returns {Promise<void>} Detail loaded. */
-async function openTicket(id) {
-    const body = el('div', {class: 'ticket-detail'});
-    const refresh = async () => {
+/**
+ * Open the close-ticket dialog with reason choices and optional explanation.
+ * @param {object} task - Target ticket.
+ * @param {Function} [onChanged] - Refresh callback.
+ * @returns {void}
+ */
+export function openCloseTicketDialog(task, onChanged) {
+    let reason = 'resolved';
+    const reasonSelect = makeCustomSelect([
+        {value: 'resolved', label: t('ticket.closeReason.resolved')},
+        {value: 'invalid', label: t('ticket.closeReason.invalid')},
+        {value: 'planned', label: t('ticket.closeReason.planned')}
+    ], reason, value => {
+        reason = value;
+    });
+    const comment = el('textarea', {
+        class: 'profile-input',
+        rows: '4',
+        maxlength: '4096',
+        placeholder: t('ticket.closeCommentPlaceholder')
+    });
+    RenopDialog.show({
+        id: 'ticket-close-dialog', maxWidth: '520px', icon: 'close',
+        title: t('ticket.closeTicket'),
+        body: el('div', {class: 'review-reject-form'},
+            el('label', {class: 'review-reject-field'},
+                el('span', {}, t('ticket.closeReason.title')),
+                reasonSelect
+            ),
+            el('label', {class: 'review-reject-field'},
+                el('span', {}, t('ticket.closeComment')),
+                comment
+            )
+        ),
+        footer: [
+            {text: t('common.cancel'), className: 'action-btn', onClick: (event, dialog) => dialog.close(false)},
+            {
+                text: t('ticket.closeTicket'), className: 'action-btn danger-btn',
+                onClick: async (event, dialog) => runButtonAction(event.currentTarget, async () => {
+                    try {
+                        const response = await requestReview(`/api/tickets/${encodeURIComponent(task.id)}/close`, {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                reason,
+                                comment: comment.value.trim()
+                            })
+                        });
+                        if (!response.ok) {
+                            throw await localizedResponseError(response, 'review.operationFailed', {}, REVIEW_ERROR_KEYS);
+                        }
+                        dialog.close(true);
+                        showAlert(t('ticket.closedSuccess'), 'success');
+                        if (typeof onChanged === 'function') {
+                            await onChanged();
+                        } else {
+                            await loadTasks();
+                        }
+                    } catch (error) {
+                        showAlert(caughtErrorMessage(error, 'review.operationFailed'), 'error');
+                    }
+                })
+            }
+        ]
+    });
+}
+
+/**
+ * Build a moderation resource lock button for a ticket if applicable.
+ * @param {object} task - Review/Ticket task.
+ * @param {Function} onRefresh - Callback on lock change.
+ * @returns {HTMLElement|null} Lock button or null.
+ */
+function buildTaskResourceLockButton(task, onRefresh) {
+    const type = task.target?.format || task.resource_type || '';
+    const name = task.target?.name || task.resource_name || '';
+    const repo = task.target?.repository || task.repository || '';
+    const version = task.target?.version || task.resource_version || '';
+
+    if (!name) return null;
+
+    let lockReq = null;
+    let resourceTitle = name;
+
+    if (type === 'npm' || type === 'npm_package') {
+        if (!repo) return null;
+        resourceTitle = version ? `${name}@${version}` : name;
+        lockReq = (mode, reason, reasonText) => apiRequest(
+            `/api/npm/repositories/${encodeURIComponent(repo)}/locks?package=${encodeURIComponent(name)}`, {
+                method: mode ? 'PUT' : 'DELETE',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({version: version || '', mode, reason, reason_text: reasonText})
+            }
+        );
+    } else if (type === 'cargo' || type === 'cargo_package') {
+        if (!repo) return null;
+        resourceTitle = version ? `${name} ${version}` : name;
+        lockReq = (mode, reason, reasonText) => apiRequest(
+            `/api/cargo/repositories/${encodeURIComponent(repo)}/crates/${encodeURIComponent(name)}/locks`, {
+                method: mode ? 'PUT' : 'DELETE',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({version: version || '', mode, reason, reason_text: reasonText})
+            }
+        );
+    } else if (type === 'docker' || type === 'docker_image') {
+        if (!repo) return null;
+        resourceTitle = version ? `${name}:${version}` : name;
+        lockReq = (mode, reason, reasonText) => apiRequest(
+            `/api/docker/repositories/${encodeURIComponent(repo)}/locks?image=${encodeURIComponent(name)}`, {
+                method: mode ? 'PUT' : 'DELETE',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({version: version || '', mode, reason, reason_text: reasonText})
+            }
+        );
+    } else if (type === 'maven' || type === 'maven_artifact') {
+        if (!repo) return null;
+        let group = '', artifact = '';
+        if (name.includes(':')) {
+            [group, artifact] = name.split(':');
+        } else if (name.includes('/')) {
+            [group, artifact] = name.split('/');
+        } else {
+            artifact = name;
+        }
+        resourceTitle = version ? `${name} ${version}` : name;
+        const q = new URLSearchParams({group, artifact});
+        lockReq = (mode, reason, reasonText) => apiRequest(
+            `/api/maven/repositories/${encodeURIComponent(repo)}/package/locks?${q}`, {
+                method: mode ? 'PUT' : 'DELETE',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({version: version || '', mode, reason, reason_text: reasonText})
+            }
+        );
+    } else if (type === 'maven_domain' || type === 'maven-domain') {
+        resourceTitle = name;
+        lockReq = (mode, reason, reasonText) => apiRequest(
+            `/api/maven/domains/${encodeURIComponent(name)}/locks`, {
+                method: mode ? 'PUT' : 'DELETE',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({mode, reason, reason_text: reasonText})
+            }
+        );
+    } else if (type === 'superteam') {
+        const prefix = name || task.target_team_prefix || task.source_team_prefix;
+        if (!prefix) return null;
+        resourceTitle = prefix;
+        lockReq = (mode, reason, reasonText) => apiRequest(
+            `/api/super-teams/${encodeURIComponent(prefix)}/locks`, {
+                method: mode ? 'PUT' : 'DELETE',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({mode, reason, reason_text: reasonText})
+            }
+        );
+    }
+
+    if (!lockReq) return null;
+
+    return createResourceLockButton({
+        locks: [],
+        name: resourceTitle,
+        request: lockReq,
+        onSuccess: onRefresh
+    });
+}
+
+/**
+ * Render the GitHub Issues-style conversation and ticket management view.
+ * @param {object} task - Ticket details.
+ * @param {Function} refresh - Detail refresh callback.
+ * @param {Array<object>} [messages=[]] - Conversation timeline messages.
+ * @param {Function|null} [loadOlder=null] - Fetch the preceding conversation page.
+ * @returns {HTMLElement} Conversation view root.
+ */
+function renderTicketConversationView(task, refresh, messages = [], loadOlder = null) {
+    const allowed = new Set(task.actions || []);
+    const isStaff = allowed.has('claim') || allowed.has('force_claim') || allowed.has('release') ||
+        allowed.has('escalate') || allowed.has('process') || allowed.has('complete') ||
+        allowed.has('decision') || activeView === 'reviewer';
+
+    const back = el('button', {
+        type: 'button', class: 'pill-btn pill-btn--soft',
+        style: {marginBottom: '1rem'},
+        onclick: () => loadTasks({refreshToolbar: true})
+    }, createIcon('chevronLeft'), el('span', {}, t('ticket.backToList')));
+
+    const statusIcons = {
+        unprocessed: 'alertCircle',
+        pending: 'alertCircle',
+        in_progress: 'clock',
+        processed: 'check',
+        completed: 'check',
+        closed: 'close',
+        rejected: 'close'
+    };
+
+    const header = el('header', {class: 'ticket-header'},
+        el('div', {class: 'ticket-header-title'},
+            el('h2', {}, task.title || task.resource_name || t('ticket.open')),
+            el('span', {class: 'ticket-header-id'}, `#${task.id.slice(0, 8)}`)
+        ),
+        el('div', {class: 'ticket-header-meta'},
+            el('span', {class: `ticket-status-pill is-${task.ticket_status}`},
+                createIcon(statusIcons[task.ticket_status] || 'alertCircle'),
+                el('span', {}, statusLabel(task.ticket_status))
+            ),
+            el('span', {class: 'ticket-header-by'},
+                createUserIdentity(task.requested_by, {avatar: false}),
+                el('span', {}, ' ' + t('ticket.openedAt') + ' '),
+                el('time', {}, formatTimestamp(task.created_at, {fallback: t('common.unknown')}))
+            ),
+            task.repository ? el('span', {class: 'ticket-chip'}, task.repository) : null,
+            task.resource_type ? el('span', {class: 'ticket-chip'}, resourceLabel(task.resource_type)) : null
+        )
+    );
+
+    const initialBody = el('div', {class: 'ticket-comment-body'});
+    if (task.target) {
+        initialBody.appendChild(el('div', {class: 'ticket-target-banner'},
+            el('strong', {}, t('ticket.reportedTarget') + ': '),
+            el('span', {}, `${task.target.format ? resourceLabel(task.target.format) + ' ' : ''}${task.target.name || ''}${task.target.version ? ' @ ' + task.target.version : ''}`)
+        ));
+    }
+    const initialMarkdown = el('div', {class: 'ticket-markdown-body repository-markdown'});
+    setSafeMarkdown(initialMarkdown, task.body || t('ticket.noDescription'));
+    initialBody.appendChild(initialMarkdown);
+
+    if (task.response) {
+        initialBody.appendChild(el('div', {class: 'ticket-response', style: {marginTop: '0.8rem'}},
+            el('strong', {}, t(`ticket.outcome.${task.outcome}`)),
+            el('p', {class: 'ticket-body'}, task.response)
+        ));
+    }
+
+    const initialCard = el('div', {class: 'ticket-comment-card is-initial'},
+        el('div', {class: 'ticket-comment-header'},
+            createUserIdentity(task.requested_by, {avatar: true}),
+            el('span', {class: 'ticket-badge is-author'}, t('ticket.role.author')),
+            el('time', {}, formatTimestamp(task.created_at, {fallback: t('common.unknown')}))
+        ),
+        initialBody
+    );
+
+    const timelineItems = [initialCard];
+    if (loadOlder) timelineItems.push(createActionButton(t('ticket.olderMessages'), loadOlder,
+        {class: 'pill-btn pill-btn--soft', errorKey: 'review.loadFailed'}));
+    const eventIcons = {
+        claimed: 'refresh',
+        released: 'refresh',
+        escalated: 'warning',
+        closed: 'close',
+        approved: 'check',
+        rejected: 'close',
+        processed: 'alertCircle',
+        completed: 'check'
+    };
+
+    for (const msg of messages) {
+        if (msg.event_type) {
+            const eventItem = el('div', {class: `ticket-event-item is-${msg.event_type}`},
+                el('div', {class: 'ticket-event-icon'}, createIcon(eventIcons[msg.event_type] || 'refresh')),
+                el('div', {class: 'ticket-event-content'},
+                    msg.author_id ? createUserIdentity(msg.author_name, {avatar: false}) : el('span', {}, t('ticket.role.staff')),
+                    el('span', {}, ' ' + (t(`ticket.event.${msg.event_type}`) || msg.event_type) +
+                        (msg.body ? ` (${t(`ticket.closeReason.${msg.body}`) || msg.body})` : '')),
+                    el('time', {}, formatTimestamp(msg.created_at, {fallback: t('common.unknown')}))
+                )
+            );
+            timelineItems.push(eventItem);
+        } else {
+            const isMsgAuthor = msg.author_name === task.requested_by;
+            const roleClass = isMsgAuthor ? 'is-author'
+                : msg.author_role === 'admin' ? 'is-admin'
+                : msg.author_role === 'moderator' ? 'is-moderator'
+                : msg.author_role === 'team_admin' ? 'is-team-admin'
+                : 'is-staff';
+            const roleText = isMsgAuthor ? t('ticket.role.author')
+                : t(`ticket.role.${msg.author_role}`) || t('ticket.role.staff');
+
+            const commentBody = el('div', {class: 'ticket-comment-body'});
+            const md = el('div', {class: 'ticket-markdown-body repository-markdown'});
+            setSafeMarkdown(md, msg.body || '');
+            commentBody.appendChild(md);
+
+            const commentCard = el('div', {class: 'ticket-comment-card'},
+                el('div', {class: 'ticket-comment-header'},
+                    msg.author_id ? createUserIdentity(msg.author_name, {avatar: true}) : el('span', {}, t('ticket.role.staff')),
+                    el('span', {class: `ticket-badge ${roleClass}`}, roleText),
+                    el('time', {}, formatTimestamp(msg.created_at, {fallback: t('common.unknown')}))
+                ),
+                commentBody
+            );
+            timelineItems.push(commentCard);
+        }
+    }
+
+    // Composer
+    const writeTab = el('button', {type: 'button', class: 'ticket-tab-btn is-active'}, t('ticket.tabWrite'));
+    const previewTab = el('button', {type: 'button', class: 'ticket-tab-btn'}, t('ticket.tabPreview'));
+    const textarea = el('textarea', {
+        class: 'ticket-composer-textarea',
+        placeholder: t('ticket.replyPlaceholder'),
+        rows: 4, maxlength: 16384
+    });
+    const preview = el('div', {class: 'ticket-composer-preview repository-markdown', hidden: true});
+
+    writeTab.onclick = () => {
+        writeTab.classList.add('is-active');
+        previewTab.classList.remove('is-active');
+        textarea.hidden = false;
+        preview.hidden = true;
+    };
+    previewTab.onclick = () => {
+        previewTab.classList.add('is-active');
+        writeTab.classList.remove('is-active');
+        textarea.hidden = true;
+        preview.hidden = false;
+        setSafeMarkdown(preview, textarea.value.trim() || t('ticket.previewEmpty'));
+    };
+
+    const replyBtn = el('button', {
+        type: 'button', class: 'pill-btn pill-btn--primary pill-btn--sm'
+    }, t('ticket.reply'));
+
+    replyBtn.onclick = event => runButtonAction(event.currentTarget, async () => {
+        const val = textarea.value.trim();
+        if (!val) {
+            showAlert(t('ticket.replyEmpty'), 'error');
+            return;
+        }
+        try {
+            const res = await requestReview(`/api/tickets/${encodeURIComponent(task.id)}/messages`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({body: val})
+            });
+            if (!res.ok) {
+                throw await localizedResponseError(res, 'review.operationFailed', {}, REVIEW_ERROR_KEYS);
+            }
+            textarea.value = '';
+            writeTab.click();
+            await refresh();
+        } catch (err) {
+            showAlert(caughtErrorMessage(err, 'review.operationFailed'), 'error');
+        }
+    });
+
+    const composerFooter = el('div', {class: 'ticket-composer-footer'});
+    if (allowed.has('close') || allowed.has('cancel')) {
+        composerFooter.appendChild(el('button', {
+            type: 'button', class: 'pill-btn pill-btn--soft pill-btn--sm',
+            onclick: () => openCloseTicketDialog(task, refresh)
+        }, createIcon('close'), el('span', {}, t('ticket.closeTicket'))));
+    }
+    composerFooter.appendChild(replyBtn);
+
+    const composerCard = el('div', {class: 'ticket-composer-card'},
+        el('div', {class: 'ticket-composer-tabs'}, writeTab, previewTab),
+        textarea,
+        preview,
+        composerFooter
+    );
+    if (task.status === 'pending') timelineItems.push(composerCard);
+
+    const timelineColumn = el('div', {class: 'ticket-timeline-column'}, ...timelineItems);
+
+    // Sidebar
+    const sidebarSections = [];
+
+    const propRows = [
+        el('div', {class: 'ticket-sidebar-prop'},
+            el('span', {class: 'ticket-sidebar-prop-label'}, t('ticket.properties')),
+            el('span', {class: 'ticket-sidebar-prop-value'}, directionLabel(task))
+        ),
+        el('div', {class: 'ticket-sidebar-prop'},
+            el('span', {class: 'ticket-sidebar-prop-label'}, t('ticket.scope')),
+            el('span', {class: 'ticket-sidebar-prop-value'}, task.repository || t('ticket.globalScope'))
+        )
+    ];
+    if (task.resource_name) {
+        propRows.push(el('div', {class: 'ticket-sidebar-prop'},
+            el('span', {class: 'ticket-sidebar-prop-label'}, resourceLabel(task.resource_type)),
+            el('span', {class: 'ticket-sidebar-prop-value'},
+                task.resource_name + (task.resource_version ? ` @ ${task.resource_version}` : ''))
+        ));
+    }
+    propRows.push(el('div', {class: 'ticket-sidebar-prop'},
+        el('span', {class: 'ticket-sidebar-prop-label'}, t('ticket.assignee', {name: ''}).replace(/[:：].*/, '')),
+        el('span', {class: 'ticket-sidebar-prop-value'},
+            task.assignee ? createUserIdentity(task.assignee, {avatar: true}) : t('ticket.unassigned'))
+    ));
+    if (task.escalated_by) {
+        propRows.push(el('div', {class: 'ticket-sidebar-prop'},
+            el('span', {class: 'ticket-sidebar-prop-label'}, t('ticket.escalatedBy', {name: task.escalated_by}))
+        ));
+    }
+    if (task.escalations) {
+        propRows.push(el('div', {class: 'ticket-sidebar-prop'},
+            el('span', {class: 'ticket-sidebar-prop-label'}, t('ticket.escalations', {count: task.escalations}))
+        ));
+    }
+    if (task.decision_reason) {
+        propRows.push(el('div', {class: 'ticket-sidebar-prop'},
+            el('span', {class: 'ticket-sidebar-prop-label'}, t('review.rejectReason')),
+            el('span', {class: 'ticket-sidebar-prop-value'},
+                task.decision_reason.startsWith('preset:') ? t(`review.rejectPreset.${task.decision_reason.slice(7)}`)
+                : task.decision_reason.startsWith('custom:') ? task.decision_reason.slice(7) : task.decision_reason)
+        ));
+    }
+    sidebarSections.push(el('div', {class: 'ticket-sidebar-card'},
+        el('h3', {}, t('ticket.properties')),
+        ...propRows
+    ));
+
+    const workflowButtons = createTicketTransitionButtons(task, refresh, false);
+    if (workflowButtons.length > 0) {
+        sidebarSections.push(el('div', {class: 'ticket-sidebar-card'},
+            el('h3', {}, t('ticket.workflowActions')),
+            el('div', {class: 'ticket-sidebar-actions'}, ...workflowButtons)
+        ));
+    }
+
+    const modButtons = [];
+    if (allowed.has('decision')) {
+        modButtons.push(
+            el('button', {
+                type: 'button', class: 'pill-btn pill-btn--primary pill-btn--sm',
+                onclick: async event => {
+                    const confirmKey = task.kind === 'maven_restore' ? 'maven.restoreApproveConfirm' : task.kind === 'publication'
+                        ? task.resource_version === '@create'
+                            ? 'review.approveCreationConfirm' : 'review.approvePublicationConfirm'
+                        : 'review.approveConfirm';
+                    if (!await showConfirm(t(confirmKey, {
+                        resource: task.resource_name, version: task.resource_version
+                    }))) return;
+                    await runButtonAction(event.currentTarget, async () => {
+                        try {
+                            await submitDecision(task, 'approved');
+                            await refresh();
+                        } catch (error) {
+                            showAlert(caughtErrorMessage(error, 'review.operationFailed'), 'error');
+                        }
+                    });
+                }
+            }, createIcon('check'), el('span', {}, t('review.approve'))),
+            el('button', {
+                type: 'button', class: 'pill-btn pill-btn--danger pill-btn--sm',
+                onclick: () => openRejectDialog(task)
+            }, createIcon('close'), el('span', {}, t('review.reject')))
+        );
+    }
+    if (task.kind === 'publication' && task.status === 'pending') {
+        modButtons.push(el('button', {
+            type: 'button', class: 'pill-btn pill-btn--soft pill-btn--sm',
+            onclick: event => runButtonAction(event.currentTarget, async () => {
+                try {
+                    await downloadPublicationBundle(task);
+                } catch (error) {
+                    showAlert(caughtErrorMessage(error, 'review.downloadFailed'), 'error');
+                }
+            })
+        }, createIcon('download'), el('span', {}, t('review.downloadBundle'))));
+    }
+
+    if (isStaff) {
+        const lockBtn = buildTaskResourceLockButton(task, refresh);
+        if (lockBtn) {
+            modButtons.push(lockBtn);
+        }
+
+        const targetUser = (task.target?.format === 'user' ? task.target.name : task.resource_type === 'user' ? task.resource_name : '') ||
+            (task.kind === 'report' && task.resource_type === 'user' ? task.resource_name : '');
+        if (targetUser) {
+            modButtons.push(el('button', {
+                type: 'button', class: 'pill-btn pill-btn--danger pill-btn--sm',
+                onclick: () => openUserBanDialog({name: targetUser}, refresh)
+            }, createIcon('warning'), el('span', {}, t('ticket.banTargetUser', {name: targetUser}))));
+        }
+        if (task.requested_by && task.requested_by !== targetUser) {
+            modButtons.push(el('button', {
+                type: 'button', class: 'pill-btn pill-btn--soft pill-btn--sm',
+                onclick: () => openUserBanDialog({name: task.requested_by}, refresh)
+            }, createIcon('warning'), el('span', {}, t('ticket.banRequester', {name: task.requested_by}))));
+        }
+    }
+
+    if (allowed.has('close') || allowed.has('cancel')) {
+        modButtons.push(el('button', {
+            type: 'button', class: 'pill-btn pill-btn--soft pill-btn--sm',
+            onclick: () => openCloseTicketDialog(task, refresh)
+        }, createIcon('close'), el('span', {}, t('ticket.closeTicket'))));
+    }
+
+    if (modButtons.length > 0) {
+        sidebarSections.push(el('div', {class: 'ticket-sidebar-card'},
+            el('h3', {}, t('ticket.moderationActions')),
+            el('div', {class: 'ticket-sidebar-actions'}, ...modButtons)
+        ));
+    }
+
+    const sidebar = el('aside', {class: 'ticket-sidebar'}, ...sidebarSections);
+    const layout = el('div', {class: 'ticket-detail-layout'}, timelineColumn, sidebar);
+
+    return el('div', {class: 'ticket-conversation-view'}, back, header, layout);
+}
+
+/** @param {string} id - Ticket ID. @returns {void} Render the ticket detail page. */
+function openTicket(id) {
+    void loadTicketDetail(id);
+}
+
+/** Fetch one bounded message page and its opaque older-message cursor. */
+async function loadTicketMessagePage(id, before = '') {
+    const query = new URLSearchParams({limit: '50'});
+    if (before) query.set('before', before);
+    const response = await requestReview(`/api/tickets/${encodeURIComponent(id)}/messages?${query}`);
+    if (!response.ok) throw await localizedResponseError(response, 'review.loadFailed', {}, REVIEW_ERROR_KEYS);
+    return {messages: await response.json(), before: response.headers.get('X-Renop-Next-Cursor') || ''};
+}
+
+/** @param {string} id - Ticket ID. @returns {Promise<void>} Detail page loaded. */
+async function loadTicketDetail(id) {
+    const host = document.getElementById('review-page-content');
+    if (!host) return;
+    const generation = ++loadGeneration;
+    host.replaceChildren(loadingState());
+    try {
         const response = await requestReview(`/api/tickets/${encodeURIComponent(id)}`);
+        if (exitProtectedRouteOnDenial(response)) return;
         if (!response.ok) throw await localizedResponseError(response, 'review.loadFailed', {}, REVIEW_ERROR_KEYS);
         const task = await response.json();
-        body.replaceChildren(taskCard(task, refresh));
-    };
-    try {
-        await refresh();
-        void RenopDialog.show({id: 'ticket-detail-dialog', maxWidth: '820px', title: t('review.title'), body});
+        if (generation !== loadGeneration) return;
+
+        let currentTask = task;
+        let page = await loadTicketMessagePage(id);
+        if (generation !== loadGeneration) return;
+        const render = () => morphElementHeight(host, () => {
+            if (generation !== loadGeneration) return;
+            host.replaceChildren(renderTicketConversationView(currentTask, refresh, page.messages,
+                page.before ? loadOlder : null));
+        }, {duration: 280});
+        const loadOlder = async () => {
+            const older = await loadTicketMessagePage(id, page.before);
+            if (generation !== loadGeneration) return;
+            page = {messages: [...older.messages, ...page.messages], before: older.before};
+            await render();
+        };
+        const refresh = async () => {
+            if (generation !== loadGeneration) return;
+            const response = await requestReview(`/api/tickets/${encodeURIComponent(id)}`);
+            if (!response.ok) throw await localizedResponseError(response, 'review.loadFailed', {}, REVIEW_ERROR_KEYS);
+            const updated = await response.json();
+            const updatedPage = await loadTicketMessagePage(id);
+            if (generation !== loadGeneration) return;
+            currentTask = updated;
+            page = updatedPage;
+            await render();
+        };
+        await render();
     } catch (error) {
-        showAlert(caughtErrorMessage(error, 'review.loadFailed'), 'error');
+        if (generation !== loadGeneration) return;
+        if (error?.message === 'Unauthorized') return;
+        const host2 = document.getElementById('review-page-content');
+        if (host2) await morphElementHeight(host2, () => host2.replaceChildren(
+            el('div', {class: 'review-state is-error'}, createIcon('warning'),
+                el('span', {}, caughtErrorMessage(error, 'review.loadFailed')))), {duration: 280});
     }
 }
+
+
 
 /** @param {object} task - Claimed ticket. @param {string} action - Resolution step. @param {Function} onChanged - Refresh detail. @returns {void} */
 function openResolutionDialog(task, action, onChanged) {
@@ -567,6 +1135,25 @@ export async function openTicketComposer(target = null) {
     }
 }
 
+/** Build server-authorized workflow controls shared by ticket cards and conversation sidebars. */
+function createTicketTransitionButtons(task, refresh, includeClose = true) {
+    const allowed = new Set(task.actions || []);
+    return ['claim', 'force_claim', 'release', 'escalate', 'process', 'complete', 'close']
+        .filter(action => allowed.has(action) && (includeClose || action !== 'close'))
+        .map(action => el('button', {
+            type: 'button', class: 'pill-btn pill-btn--soft pill-btn--sm',
+            onclick: event => {
+                if (action === 'close') return openCloseTicketDialog(task, refresh);
+                if (['process', 'complete'].includes(action)) return openResolutionDialog(task, action, refresh);
+                return runUIAction(event.currentTarget, async () => {
+                    if (action !== 'claim' && !await showConfirm(t(`ticket.confirm.${action}`))) return false;
+                    await transitionTicket(task.id, {action: action === 'force_claim' ? 'claim' : action, force: action === 'force_claim'});
+                    await refresh();
+                }, {errorKey: 'review.operationFailed'});
+            }
+        }, t(`ticket.action.${action}`)));
+}
+
 /** @param {object} task - Ticket. @param {Function|null} onChanged - Detail refresh callback. @returns {HTMLElement} Ticket card. */
 function taskCard(task, onChanged = null) {
     const actions = el('div', {class: 'review-card-actions'});
@@ -575,29 +1162,7 @@ function taskCard(task, onChanged = null) {
         type: 'button', class: 'pill-btn pill-btn--primary pill-btn--sm',
         onclick: event => runButtonAction(event.currentTarget, () => openTicket(task.id))
     }, t('ticket.open')));
-    for (const action of ['claim', 'force_claim', 'release', 'escalate', 'process', 'complete', 'close']) {
-        if (!allowed.has(action)) continue;
-        actions.appendChild(el('button', {
-            type: 'button', class: 'pill-btn pill-btn--soft pill-btn--sm', onclick: event => {
-                if (['process', 'complete', 'close'].includes(action)) {
-                    openResolutionDialog(task, action, onChanged);
-                    return;
-                }
-                void runButtonAction(event.currentTarget, async () => {
-                    if (action !== 'claim' && !await showConfirm(t(`ticket.confirm.${action}`))) return;
-                    try {
-                        await transitionTicket(task.id, {
-                            action: action === 'force_claim' ? 'claim' : action,
-                            force: action === 'force_claim'
-                        });
-                        await onChanged();
-                    } catch (error) {
-                        showAlert(caughtErrorMessage(error, 'review.operationFailed'), 'error');
-                    }
-                });
-            }
-        }, t(`ticket.action.${action}`)));
-    }
+    if (onChanged) actions.append(...createTicketTransitionButtons(task, onChanged));
     if (onChanged && task.kind === 'publication' && task.status === 'pending') {
         actions.appendChild(el('button', {
             type: 'button', class: 'pill-btn pill-btn--soft pill-btn--sm', onclick: event => {
@@ -636,25 +1201,12 @@ function taskCard(task, onChanged = null) {
             }, createIcon('close'), el('span', {}, t('review.reject')))
         );
     }
-    if (allowed.has('cancel')) {
+    if (allowed.has('cancel') && !allowed.has('close')) {
         actions.appendChild(el('button', {
-            type: 'button', class: 'pill-btn pill-btn--soft pill-btn--sm', onclick: async event => {
-                if (!await showConfirm(t('review.cancelConfirm'))) return;
-                await runButtonAction(event.currentTarget, async () => {
-                    try {
-                        const response = await requestReview(`/api/tickets/${encodeURIComponent(task.id)}`, {method: 'DELETE'});
-                        if (!response.ok) {
-                            throw await localizedResponseError(response, 'review.operationFailed', {}, REVIEW_ERROR_KEYS);
-                        }
-                        showAlert(t('review.cancelled'), 'success');
-                        await loadTasks();
-                        await onChanged();
-                    } catch (error) {
-                        showAlert(caughtErrorMessage(error, 'review.operationFailed'), 'error');
-                    }
-                });
+            type: 'button', class: 'pill-btn pill-btn--soft pill-btn--sm', onclick: () => {
+                openCloseTicketDialog(task, onChanged);
             }
-        }, t('review.cancelRequest')));
+        }, t('ticket.action.close')));
     }
     return el('article', {class: 'review-card'},
         el('div', {class: 'review-card-icon'}, createIcon(task.kind === 'publication' ? 'filePackage' : 'refresh')),
@@ -801,6 +1353,14 @@ async function loadTasks({refreshToolbar = false} = {}) {
 /** Render the routed review center. */
 export async function loadTicketCenterPage() {
     if (!ticketRouteFromPath()) return;
+    const owner = localStorage.getItem('username') || '';
+    if (owner !== listOwner) {
+        listOwner = owner;
+        activeView = 'reviewer';
+        activeStatus = 'all';
+        activeTypes.clear();
+        pageOffset = 0;
+    }
     if (window.location.pathname !== routeRoot) window.history.replaceState(null, '', routeRoot);
     await loadTasks({refreshToolbar: true});
 }

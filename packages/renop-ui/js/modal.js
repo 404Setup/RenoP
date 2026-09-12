@@ -58,7 +58,9 @@ export function configureModalInert({
  * @returns {void}
  */
 export function updateModalInertState() {
-    const isAnyModalOpen = inertConfig.modalIds.some((id) => {
+    const dynamicModals = Array.from(document.querySelectorAll('.modal'));
+    const top = topOpenModal();
+    const isAnyModalOpen = !!top || inertConfig.modalIds.some((id) => {
         const el = $(`#${$.escapeSelector(id)}`).get(0);
         return isModalOpen(el);
     });
@@ -66,6 +68,14 @@ export function updateModalInertState() {
         const el = $(sel).get(0);
         if (el && el.inert !== isAnyModalOpen) el.inert = isAnyModalOpen;
     }
+    for (const modal of dynamicModals) {
+        modal.inert = isModalOpen(modal) && modal !== top;
+    }
+}
+
+/** Return the last open modal, including dynamically mounted dialogs. */
+export function topOpenModal() {
+    return Array.from(document.querySelectorAll('.modal')).findLast(isModalOpen) || null;
 }
 
 /**

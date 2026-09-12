@@ -72,7 +72,7 @@ func setupReviewApp(t *testing.T) (*fiber.App, *core.AppState, *config.User, *st
 		"containers": {Name: "containers", Format: config.RepositoryFormatDocker, Visibility: "PUBLIC"},
 	}
 	state.Inner.Config.Store(cfg)
-	state.Inner.FileIndex = index.NewFileIndexCustom(true)
+	state.Inner.FileIndex = index.NewFileIndex()
 	current := &config.User{Username: "charlie", Roles: []string{"base"}}
 	credentialKind := "session"
 	app := fiber.New(fiber.Config{JSONEncoder: json.Marshal, JSONDecoder: json.Unmarshal})
@@ -599,8 +599,8 @@ func TestRepositoryModeratorApprovalPublishesMavenCatalogBeforeFiles(t *testing.
 	require.NoError(t, err)
 	state.Inner.FileIndex.BlockFile(absolute)
 	*current = config.User{Username: "bob", Roles: []string{"base", "canmoderate:releases"}}
-	lock := &core.ResourceLock{ResourceLockTarget: core.ResourceLockTarget{Format: "maven", Repository: "releases",
-		Name: "org.example:demo", Version: "1.0.0"}, Source: core.ResourceLockSystem, Mode: core.ResourceLockRead,
+	lock := &core.ResourceLock{Format: "maven", Repository: "releases",
+		Name: "org.example:demo", Version: "1.0.0", Source: core.ResourceLockSystem, Mode: core.ResourceLockRead,
 		Reason: "trojan", LockedAt: now}
 	require.NoError(t, state.GetDB().SetResourceLock(lock, "", ""))
 	files, err := state.GetDB().ListReviewTaskFiles(result.TaskID)
@@ -872,4 +872,97 @@ func TestSystemAdministratorListsAndDecidesTeamReview(t *testing.T) {
 		decisionRequest{Decision: core.ReviewStatusRejected, Reason: "Not approved"})
 	require.Equal(t, http.StatusOK, response.StatusCode)
 	require.NoError(t, response.Body.Close())
+}
+
+func TestTicketCloseRouteAndMessagesAPI(t *testing.T) {
+	app, state, current, _ := setupReviewApp(t)
+	*current = config.User{Username: "alice", Roles: []string{"base"}}
+	response := reviewRequest(t, app, current, http.MethodPost, "/api/tickets", core.TicketRequest{
+		Kind: core.TicketKindFeedback, Title: "Need help", Body: "Initial question",
+	})
+	require.Equal(t, http.StatusCreated, response.StatusCode)
+	var task core.ReviewTask
+	require.NoError(t, json.NewDecoder(response.Body).Decode(&task))
+	require.NoError(t, response.Body.Close())
+
+	// Alice posts a comment
+	response = reviewRequest(t, app, current, http.MethodPost, "/api/tickets/"+task.ID+"/messages", createMessageRequest{
+		Body: "Here is additional context.",
+	})
+	require.Equal(t, http.StatusCreated, response.StatusCode)
+	var msg core.TicketMessage
+	require.NoError(t, json.NewDecoder(response.Body).Decode(&msg))
+	require.NoError(t, response.Body.Close())
+	assert.Equal(t, "alice", msg.AuthorName)
+	assert.Equal(t, "author", msg.AuthorRole)
+
+	// Dana (manager) posts a reply
+	require.NoError(t, state.GetDB().SaveToken(&core.AccessToken{
+		Name: "dana", Permissions: []string{"base", "manager"},
+	}))
+	*current = config.User{Username: "dana", Roles: []string{"manager"}}
+	response = reviewRequest(t, app, current, http.MethodPost, "/api/tickets/"+task.ID+"/messages", createMessageRequest{
+		Body: "We have updated the system.",
+	})
+	require.Equal(t, http.StatusCreated, response.StatusCode)
+	require.NoError(t, response.Body.Close())
+
+	// List messages
+	response = reviewRequest(t, app, current, http.MethodGet, "/api/tickets/"+task.ID+"/messages", nil)
+	require.Equal(t, http.StatusOK, response.StatusCode)
+	var list []*core.TicketMessage
+	require.NoError(t, json.NewDecoder(response.Body).Decode(&list))
+	require.NoError(t, response.Body.Close())
+	require.Len(t, list, 2)
+
+	// Alice closes the ticket with reason "resolved"
+	*current = config.User{Username: "alice", Roles: []string{"base"}}
+	response = reviewRequest(t, app, current, http.MethodPost, "/api/tickets/"+task.ID+"/close", ticketCloseRequest{
+		Reason:  "resolved",
+		Comment: "Issue resolved, thanks!",
+	})
+	require.Equal(t, http.StatusOK, response.StatusCode)
+	var closed core.ReviewTask
+	require.NoError(t, json.NewDecoder(response.Body).Decode(&closed))
+	require.NoError(t, response.Body.Close())
+	assert.Equal(t, core.TicketClosed, closed.TicketState.Status)
+	assert.Equal(t, "resolved", closed.Outcome)
+}
+
+func TestEveryAdministratorSeesAllTicketStatesByDefault(t *testing.T) {
+	app, state, current, _ := setupReviewApp(t)
+	db, now := state.GetDB(), time.Now().UnixMilli()
+	for _, name := range []string{"alice", "charlie"} {
+		task, err := db.CreateTicket(core.TicketRequest{Kind: core.TicketKindFeedback, Title: "Help", Body: "Details"}, name, name+"-session", now)
+		require.NoError(t, err)
+		if name == "alice" {
+			_, err = db.TransitionTicket(task.ID, name, name+"-session", core.TicketAction{Action: "close"}, now+1)
+			require.NoError(t, err)
+		}
+	}
+	for _, permission := range []string{"manager", "admin", "m", "access-token:manager"} {
+		require.NoError(t, db.UpdateToken("dana", func(token *core.AccessToken) { token.Permissions = []string{permission} }))
+		// The live database role must prevail even with an older browser role snapshot.
+		*current = config.User{Username: "dana", Roles: []string{"base"}}
+		response := reviewRequest(t, app, current, http.MethodGet, "/api/tickets", nil)
+		require.Equal(t, http.StatusOK, response.StatusCode, permission)
+		var page struct {
+			Tasks []*core.ReviewTask `json:"tasks"`
+			Total int                `json:"total"`
+		}
+		require.NoError(t, json.NewDecoder(response.Body).Decode(&page))
+		require.NoError(t, response.Body.Close())
+		require.Equal(t, 2, page.Total, permission)
+		require.Len(t, page.Tasks, 2, permission)
+	}
+	require.NoError(t, db.UpdateToken("dana", func(token *core.AccessToken) { token.Permissions = []string{"base"} }))
+	*current = config.User{Username: "dana", Roles: []string{"manager"}}
+	response := reviewRequest(t, app, current, http.MethodGet, "/api/tickets", nil)
+	require.Equal(t, http.StatusOK, response.StatusCode)
+	var page struct {
+		Total int `json:"total"`
+	}
+	require.NoError(t, json.NewDecoder(response.Body).Decode(&page))
+	require.NoError(t, response.Body.Close())
+	require.Zero(t, page.Total, "a stale session must not preserve administrator access")
 }

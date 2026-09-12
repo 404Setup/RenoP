@@ -11,11 +11,57 @@
 package config
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/goccy/go-json"
 	"go.yaml.in/yaml/v3"
 )
+
+func TestNativeRepositoryFormatsAreConfigurable(t *testing.T) {
+	for _, format := range []string{"conan", "conda", "conda-native", "apk", "apt", "rpm", "yum"} {
+		repo := &Repository{Name: "packages", Format: format, AllowRedeployment: true}
+		if !IsSupportedRepositoryFormat(format) || !repo.Engine().DirectUpload {
+			t.Fatalf("native format is not configurable: %s", format)
+		}
+		settings := MavenSettings{Repositories: map[string]*Repository{"packages": repo}}
+		if err := settings.Normalize(); err != nil {
+			t.Fatalf("format %s: %v", format, err)
+		}
+		data, err := json.Marshal(repo)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var restored Repository
+		if err := json.Unmarshal(data, &restored); err != nil {
+			t.Fatal(err)
+		}
+		if restored.ConfiguredFormat() != format || !restored.AllowRedeployment {
+			t.Fatalf("format %s lost during settings round trip: %s", format, data)
+		}
+	}
+}
+
+func TestRegistrationPermissionDefaultsAndIsolation(t *testing.T) {
+	cfg := DefaultConfig()
+	copy := cfg.DeepCopy()
+	copy.Registration.DefaultPermissions[0] = "admin"
+	if !slices.Equal(cfg.Registration.Permissions(), []string{"base"}) {
+		t.Fatal("registration permission defaults were mutated through a copy")
+	}
+	for _, permissions := range [][]string{{"base", "base"}, {"unknown"}, {"canview:"}, {"canupdate:../private"}} {
+		copy.Registration.DefaultPermissions = permissions
+		if copy.Registration.Validate() == nil {
+			t.Fatalf("invalid permissions accepted: %v", permissions)
+		}
+	}
+	for _, permissions := range [][]string{nil, {}, {"base", "canview:*", "canupdate:releases", "canmoderate:private", "admin"}} {
+		copy.Registration.DefaultPermissions = permissions
+		if err := copy.Registration.Validate(); err != nil {
+			t.Fatalf("valid permissions rejected: %v: %v", permissions, err)
+		}
+	}
+}
 
 func TestDefaultSuperTeamConfigAndDeepCopy(t *testing.T) {
 	t.Parallel()

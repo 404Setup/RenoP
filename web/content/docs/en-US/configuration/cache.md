@@ -70,3 +70,9 @@ Stable errors include `cache_settings_invalid`, `cache_settings_save_failed`, an
 
 The cache account needs PING, SET, GETRANGE, and DEL access to `renop:*`, plus the authentication/database-selection
 commands required by its server. Sentinel and cluster discovery are not configured by these endpoints.
+
+Database read-through caches coalesce concurrent remote lookups and misses. Remote I/O runs outside shard locks. Invalidation separates new requests from older in-flight loads and prevents stale values from repopulating the cache. Credential revocation continues to rely on bounded local invalidation metadata.
+
+Index negative lookups and parsed native index records use the selected backend too. File/directory membership, pending-publication blocks, and private content references remain authoritative locally. Cache failure becomes a miss; it cannot remove an installed file or expose a pending publication.
+
+Cache keys and entry metadata have a separate bounded budget, with a 4 KiB minimum. Empty values and long paths cannot bypass eviction.

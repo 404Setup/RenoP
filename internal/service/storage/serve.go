@@ -72,7 +72,7 @@ func serveLocalFile(c fiber.Ctx, state *core.AppState, localFilePath, pathStr, c
 		s3Key := utils.GetS3Key(localFilePath)
 		s3Cfg := GetS3ConfigForPath(localFilePath)
 		if s3Cfg != nil && s3Cfg.RedirectDownloads {
-			presignedURL, err := GetS3PresignedURL(s3Key, 15*time.Minute)
+			presignedURL, err := GetS3PresignedURL(s3Key, 15*time.Minute, contentDisposition)
 			if err == nil {
 				return c.Redirect().To(presignedURL)
 			}

@@ -74,7 +74,7 @@ type serverConfigWire struct {
 	CorsOrigins        []string              `json:"cors_origins" yaml:"cors_origins"`
 	CdnIPHeader        string                `json:"cdn_ip_header" yaml:"cdn_ip_header"`
 	TrustedProxies     []string              `json:"trusted_proxies" yaml:"trusted_proxies"`
-	FileCacheSizeMb    uint32                `json:"file_cache_size_mb" yaml:"file_cache_size_mb"`
+	FileCacheSizeMb    *uint32               `json:"file_cache_size_mb" yaml:"file_cache_size_mb"`
 	MaxActiveRequests  uint32                `json:"max_active_requests" yaml:"max_active_requests"`
 	AvatarMaxSizeBytes uint32                `json:"avatar_max_size_bytes" yaml:"avatar_max_size_bytes"`
 	Port               uint16                `json:"port" yaml:"port"`
@@ -96,7 +96,11 @@ func (s *ServerConfig) applyWire(w *serverConfigWire) {
 	}
 	s.CdnIPHeader = w.CdnIPHeader
 	s.TrustedProxies = w.TrustedProxies
-	s.FileCacheSizeMb = w.FileCacheSizeMb
+	if w.FileCacheSizeMb != nil {
+		s.FileCacheSizeMb = *w.FileCacheSizeMb
+	} else if s.FileCacheSizeMb == 0 {
+		s.FileCacheSizeMb = 16
+	}
 	s.MaxActiveRequests = w.MaxActiveRequests
 	s.AvatarMaxSizeBytes = w.AvatarMaxSizeBytes
 	s.Port = w.Port
@@ -135,9 +139,6 @@ func (s *ServerConfig) setDefaults() {
 		s.CorsOrigins = DefaultCorsOrigins()
 	} else {
 		s.CorsOrigins = normalizeOriginPatterns(s.CorsOrigins)
-	}
-	if s.FileCacheSizeMb == 0 {
-		s.FileCacheSizeMb = 16
 	}
 	if s.MaxActiveRequests == 0 {
 		s.MaxActiveRequests = 512

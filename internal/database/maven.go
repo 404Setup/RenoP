@@ -889,6 +889,63 @@ func (db *DB) CloseMavenDomain(domain, actor string, administrator bool, closedA
 	return nil
 }
 
+// ForceDeleteMavenDomain permanently removes a domain record without the 31-day reservation lock.
+// Only system administrators may call this. Mirror domains and domains with pending reviews are rejected.
+func (db *DB) ForceDeleteMavenDomain(domain, actor string) error {
+	if db == nil || db.SQLDB == nil {
+		return core.ErrDatabaseUnavailable
+	}
+	domain = sanitizeMavenDomain(domain)
+	actor = sanitizeMavenUsername(actor)
+	if domain == "" || actor == "" {
+		return core.ErrMavenPermissionDenied
+	}
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin Maven domain force delete: %w", err)
+	}
+	defer tx.Rollback()
+	var verificationType string
+	if err := tx.QueryRow(`SELECT verification_type FROM maven_domains WHERE repository = ? AND domain = ?`,
+		globalMavenRepository, domain).Scan(&verificationType); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return core.ErrMavenDomainNotFound
+		}
+		return fmt.Errorf("inspect Maven domain for force delete: %w", err)
+	}
+	if verificationType == core.MavenVerificationMirror {
+		return core.ErrMavenPermissionDenied
+	}
+	pending, err := hasPendingMavenDomainReviewTx(tx, domain)
+	if err != nil {
+		return fmt.Errorf("inspect pending reviews for force delete: %w", err)
+	}
+	if pending {
+		return core.ErrMavenDomainReviewPending
+	}
+	if err := cancelMavenInvitations(tx, `repository = ? AND domain = ?`,
+		[]any{globalMavenRepository, domain}, time.Now().UnixMilli()); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM maven_domain_members WHERE repository = ? AND domain = ?`,
+		globalMavenRepository, domain); err != nil {
+		return fmt.Errorf("delete Maven domain members: %w", err)
+	}
+	result, err := tx.Exec(`DELETE FROM maven_domains WHERE repository = ? AND domain = ?`,
+		globalMavenRepository, domain)
+	if err != nil {
+		return fmt.Errorf("force delete Maven domain: %w", err)
+	}
+	changed, err := result.RowsAffected()
+	if err != nil || changed != 1 {
+		return core.ErrMavenDomainNotFound
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit Maven domain force delete: %w", err)
+	}
+	return nil
+}
+
 // ReviewMavenDomainClaim activates or rejects a released-domain claim after ownership proof.
 func (db *DB) ReviewMavenDomainClaim(expected *core.MavenDomain, health *core.MavenDomainHealth, actor, decision string, reviewedAt int64) error {
 	if db == nil || db.SQLDB == nil {

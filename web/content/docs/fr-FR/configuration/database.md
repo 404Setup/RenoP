@@ -8,7 +8,7 @@ description: Connexions SQLite, MySQL, PostgreSQL et ClickHouse et paramètres d
 # Configuration de la base de données
 
 RenoP persiste comptes, RBAC, API Token, sessions, audit, équipes et messages dans une base de données. Configurez le
-bloc `database` de `config.yaml`. Les migrations sont appliquées automatiquement au démarrage.
+bloc `database` de paramètres système. Les migrations sont appliquées automatiquement au démarrage.
 
 ## SQLite (par défaut)
 

@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/goccy/go-json"
 	"github.com/google/uuid"
@@ -24,6 +25,8 @@ import (
 
 const messageColumns = `id, recipient, sender, kind, severity, title, body, payload_json,
 	action_kind, action_status, created_at, read_at, acted_at, expires_at, dedupe_key`
+
+const scopedMessageColumns = messageColumns + `, session_id`
 
 func insertAcceptedMembershipMessage(tx *Tx, recipient, sender, actionKind, title, body string, payload any, now int64) error {
 	if err := lockAccountByUsernameTx(tx, recipient); errors.Is(err, core.ErrAccountDeleted) {
@@ -74,7 +77,7 @@ func scanMessage(scanner messageScanner) (*core.UserMessage, error) {
 	if err := scanner.Scan(
 		&message.ID, &message.Recipient, &message.Sender, &message.Kind, &message.Severity,
 		&message.Title, &message.Body, &payload, &message.ActionKind, &message.ActionStatus,
-		&message.CreatedAt, &message.ReadAt, &message.ActedAt, &message.ExpiresAt, &dedupeKey,
+		&message.CreatedAt, &message.ReadAt, &message.ActedAt, &message.ExpiresAt, &dedupeKey, &message.SessionID,
 	); err != nil {
 		return nil, err
 	}
@@ -88,6 +91,11 @@ func scanMessage(scanner messageScanner) (*core.UserMessage, error) {
 func normalizeMessage(message *core.UserMessage) error {
 	if message == nil {
 		return errors.New("message is nil")
+	}
+	// Only passive notifications can be session-scoped; workflow actions remain account-owned.
+	if message.SessionID != "" && (len(message.SessionID) > maxPublicIDLen ||
+		message.ActionKind != "" || message.DedupeKey != "") {
+		return errors.New("invalid session notification")
 	}
 	message.ID = SanitizeInputString(strings.TrimSpace(message.ID), 64)
 	message.Recipient = strings.ToLower(SanitizeInputString(strings.TrimSpace(message.Recipient), maxTokenNameLen))
@@ -138,24 +146,30 @@ func (db *DB) SaveMessages(messages []*core.UserMessage) error {
 		return fmt.Errorf("begin message batch: %w", err)
 	}
 	defer tx.Rollback()
-	query := `INSERT INTO user_messages (` + messageColumns + `) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	query := `INSERT INTO user_messages (` + scopedMessageColumns + `) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	for _, message := range messages {
 		if err := normalizeMessage(message); err != nil {
 			return err
 		}
 		if err := lockAccountByUsernameTx(tx, message.Recipient); errors.Is(err, core.ErrAccountDeleted) {
+			if message.SessionID != "" {
+				return core.ErrMessageSessionUnavailable
+			}
 			continue
 		} else if err != nil {
 			return err
 		}
 		var dedupeKey any
+		if err := validateMessageSessionTx(tx, message); err != nil {
+			return err
+		}
 		if message.DedupeKey != "" {
 			dedupeKey = message.DedupeKey
 		}
 		if _, err := tx.Exec(query,
 			message.ID, message.Recipient, message.Sender, message.Kind, message.Severity,
 			message.Title, message.Body, string(message.Payload), message.ActionKind, message.ActionStatus,
-			message.CreatedAt, message.ReadAt, message.ActedAt, message.ExpiresAt, dedupeKey,
+			message.CreatedAt, message.ReadAt, message.ActedAt, message.ExpiresAt, dedupeKey, message.SessionID,
 		); err != nil {
 			return fmt.Errorf("insert message for %s: %w", message.Recipient, err)
 		}
@@ -180,26 +194,32 @@ func (db *DB) SaveMessageIfAbsent(message *core.UserMessage) (bool, error) {
 	}
 	defer tx.Rollback()
 	if err := lockAccountByUsernameTx(tx, message.Recipient); errors.Is(err, core.ErrAccountDeleted) {
+		if message.SessionID != "" {
+			return false, core.ErrMessageSessionUnavailable
+		}
 		return false, nil
 	} else if err != nil {
 		return false, err
 	}
 	var dedupeKey any
+	if err := validateMessageSessionTx(tx, message); err != nil {
+		return false, err
+	}
 	if message.DedupeKey != "" {
 		dedupeKey = message.DedupeKey
 	}
-	query := `INSERT INTO user_messages (` + messageColumns + `) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	query := `INSERT INTO user_messages (` + scopedMessageColumns + `) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	arguments := []any{
 		message.ID, message.Recipient, message.Sender, message.Kind, message.Severity,
 		message.Title, message.Body, string(message.Payload), message.ActionKind, message.ActionStatus,
-		message.CreatedAt, message.ReadAt, message.ActedAt, message.ExpiresAt, dedupeKey,
+		message.CreatedAt, message.ReadAt, message.ActedAt, message.ExpiresAt, dedupeKey, message.SessionID,
 	}
 	switch db.Dialect.Name() {
 	case "mysql":
 		query += ` ON DUPLICATE KEY UPDATE id = id`
 	case "clickhouse":
-		query = `/* renop:ignore-if-exists */ INSERT INTO user_messages (` + messageColumns + `)
-			SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+		query = `/* renop:ignore-if-exists */ INSERT INTO user_messages (` + scopedMessageColumns + `)
+			SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 			WHERE NOT EXISTS (SELECT 1 FROM user_messages WHERE recipient = ? AND dedupe_key = ?)`
 		arguments = append(arguments, message.Recipient, message.DedupeKey)
 	default:
@@ -219,9 +239,26 @@ func (db *DB) SaveMessageIfAbsent(message *core.UserMessage) (bool, error) {
 	return inserted == 1, nil
 }
 
-// ListMessages returns a stable newest-first cursor page. Expired messages are
+// validateMessageSessionTx checks the recipient and live session inside the delivery transaction.
+func validateMessageSessionTx(tx *Tx, message *core.UserMessage) error {
+	if message.SessionID == "" {
+		return nil
+	}
+	var count int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM sessions WHERE username = ? AND public_id = ? AND last_active > ?`,
+		message.Recipient, message.SessionID, time.Now().UnixMilli()-core.SessionIdleTimeoutMillis).Scan(&count); err != nil {
+		return err
+	}
+	if count != 1 {
+		return core.ErrMessageSessionUnavailable
+	}
+	return nil
+}
+
+// ListMessages returns account-wide messages plus those addressed to sessionID.
+// Empty sessionID grants access only to account-wide messages. Expired messages are
 // excluded without requiring a cleanup job on the request path.
-func (db *DB) ListMessages(username string, limit int, beforeCreatedAt int64, beforeID string, now int64) ([]*core.UserMessage, error) {
+func (db *DB) ListMessages(username string, limit int, beforeCreatedAt int64, beforeID string, now int64, sessionID string) ([]*core.UserMessage, error) {
 	if db == nil || db.SQLDB == nil || username == "" {
 		return []*core.UserMessage{}, nil
 	}
@@ -229,9 +266,9 @@ func (db *DB) ListMessages(username string, limit int, beforeCreatedAt int64, be
 	if limit < 1 || limit > 100 {
 		limit = 30
 	}
-	query := `SELECT ` + messageColumns + ` FROM user_messages
-		WHERE recipient = ? AND (expires_at = 0 OR expires_at > ?)`
-	args := []any{username, now}
+	query := `SELECT ` + scopedMessageColumns + ` FROM user_messages
+		WHERE recipient = ? AND (session_id = '' OR session_id = ?) AND (expires_at = 0 OR expires_at > ?)`
+	args := []any{username, sessionID, now}
 	if beforeCreatedAt > 0 && beforeID != "" {
 		query += ` AND (created_at < ? OR (created_at = ? AND id < ?))`
 		args = append(args, beforeCreatedAt, beforeCreatedAt, beforeID)
@@ -257,26 +294,26 @@ func (db *DB) ListMessages(username string, limit int, beforeCreatedAt int64, be
 	return messages, nil
 }
 
-func (db *DB) CountUnreadMessages(username string, now int64) (int, error) {
+func (db *DB) CountUnreadMessages(username string, now int64, sessionID string) (int, error) {
 	if db == nil || db.SQLDB == nil || username == "" {
 		return 0, nil
 	}
 	username = strings.ToLower(SanitizeInputString(strings.TrimSpace(username), maxTokenNameLen))
 	var count int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM user_messages
-		WHERE recipient = ? AND read_at = 0 AND (expires_at = 0 OR expires_at > ?)`, username, now).Scan(&count); err != nil {
+		WHERE recipient = ? AND (session_id = '' OR session_id = ?) AND read_at = 0 AND (expires_at = 0 OR expires_at > ?)`, username, sessionID, now).Scan(&count); err != nil {
 		return 0, fmt.Errorf("count unread messages: %w", err)
 	}
 	return count, nil
 }
 
-func (db *DB) GetUserMessage(id, username string, now int64) (*core.UserMessage, error) {
+func (db *DB) GetUserMessage(id, username string, now int64, sessionID string) (*core.UserMessage, error) {
 	if db == nil || db.SQLDB == nil || id == "" || username == "" {
 		return nil, nil
 	}
 	username = strings.ToLower(SanitizeInputString(strings.TrimSpace(username), maxTokenNameLen))
-	message, err := scanMessage(db.QueryRow(`SELECT `+messageColumns+` FROM user_messages
-		WHERE id = ? AND recipient = ? AND (expires_at = 0 OR expires_at > ?)`, id, username, now))
+	message, err := scanMessage(db.QueryRow(`SELECT `+scopedMessageColumns+` FROM user_messages
+		WHERE id = ? AND recipient = ? AND (session_id = '' OR session_id = ?) AND (expires_at = 0 OR expires_at > ?)`, id, username, sessionID, now))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -286,12 +323,12 @@ func (db *DB) GetUserMessage(id, username string, now int64) (*core.UserMessage,
 	return message, nil
 }
 
-func (db *DB) MarkMessageRead(id, username string, readAt int64) (bool, error) {
+func (db *DB) MarkMessageRead(id, username string, readAt int64, sessionID string) (bool, error) {
 	if db == nil || db.SQLDB == nil || id == "" || username == "" || readAt <= 0 {
 		return false, nil
 	}
 	username = strings.ToLower(SanitizeInputString(strings.TrimSpace(username), maxTokenNameLen))
-	result, err := db.Exec(`UPDATE user_messages SET read_at = ? WHERE id = ? AND recipient = ? AND read_at = 0`, readAt, id, username)
+	result, err := db.Exec(`UPDATE user_messages SET read_at = ? WHERE id = ? AND recipient = ? AND (session_id = '' OR session_id = ?) AND read_at = 0 AND (expires_at = 0 OR expires_at > ?)`, readAt, id, username, sessionID, readAt)
 	if err != nil {
 		return false, fmt.Errorf("mark message read: %w", err)
 	}
@@ -299,12 +336,12 @@ func (db *DB) MarkMessageRead(id, username string, readAt int64) (bool, error) {
 	return rows > 0, err
 }
 
-func (db *DB) MarkAllMessagesRead(username string, readAt int64) (int64, error) {
+func (db *DB) MarkAllMessagesRead(username string, readAt int64, sessionID string) (int64, error) {
 	if db == nil || db.SQLDB == nil || username == "" || readAt <= 0 {
 		return 0, nil
 	}
 	username = strings.ToLower(SanitizeInputString(strings.TrimSpace(username), maxTokenNameLen))
-	result, err := db.Exec(`UPDATE user_messages SET read_at = ? WHERE recipient = ? AND read_at = 0`, readAt, username)
+	result, err := db.Exec(`UPDATE user_messages SET read_at = ? WHERE recipient = ? AND (session_id = '' OR session_id = ?) AND read_at = 0 AND (expires_at = 0 OR expires_at > ?)`, readAt, username, sessionID, readAt)
 	if err != nil {
 		return 0, fmt.Errorf("mark all messages read: %w", err)
 	}
@@ -326,14 +363,14 @@ func (db *DB) TransitionMessageAction(id, username, expectedStatus, newStatus st
 	return rows > 0, err
 }
 
-func (db *DB) DeleteUserMessage(id, username string) (bool, error) {
+func (db *DB) DeleteUserMessage(id, username string, sessionID string) (bool, error) {
 	if db == nil || db.SQLDB == nil || id == "" || username == "" {
 		return false, nil
 	}
 	username = strings.ToLower(SanitizeInputString(strings.TrimSpace(username), maxTokenNameLen))
 	result, err := db.Exec(`DELETE FROM user_messages
-		WHERE id = ? AND recipient = ? AND (action_kind = '' OR action_status <> ?)`,
-		id, username, core.MessageActionPending)
+		WHERE id = ? AND recipient = ? AND (session_id = '' OR session_id = ?) AND (action_kind = '' OR action_status <> ?)`,
+		id, username, sessionID, core.MessageActionPending)
 	if err != nil {
 		return false, fmt.Errorf("delete user message: %w", err)
 	}
@@ -343,14 +380,14 @@ func (db *DB) DeleteUserMessage(id, username string) (bool, error) {
 
 // DeleteUserMessages removes every dismissible message owned by one user.
 // Pending action messages remain available until their workflow is resolved.
-func (db *DB) DeleteUserMessages(username string) (int64, error) {
+func (db *DB) DeleteUserMessages(username string, sessionID string) (int64, error) {
 	if db == nil || db.SQLDB == nil || username == "" {
 		return 0, nil
 	}
 	username = strings.ToLower(SanitizeInputString(strings.TrimSpace(username), maxTokenNameLen))
 	result, err := db.Exec(`DELETE FROM user_messages
-		WHERE recipient = ? AND (action_kind = '' OR action_status <> ?)`,
-		username, core.MessageActionPending)
+		WHERE recipient = ? AND (session_id = '' OR session_id = ?) AND (action_kind = '' OR action_status <> ?)`,
+		username, sessionID, core.MessageActionPending)
 	if err != nil {
 		return 0, fmt.Errorf("delete user messages: %w", err)
 	}

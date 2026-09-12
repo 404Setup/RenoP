@@ -85,6 +85,26 @@ func TestClassifyNPMDownloadCountsOnlyCanonicalVersionTarballs(t *testing.T) {
 	}
 }
 
+func TestNativeDownloadCountsExcludeIndexesAndCompanions(t *testing.T) {
+	for _, test := range []struct{ format, artifact, metadata string }{
+		{"conda", "noarch/example-1.0-0.tar.bz2", "noarch/repodata.json"},
+		{"conda-native", "noarch/example-1.0-0.conda", "noarch/repodata.json.zst"},
+		{"apk", "x86_64/example-1.0-r0.apk", "x86_64/APKINDEX.tar.gz"},
+		{"apt", "pool/main/example.deb", "dists/stable/InRelease"},
+		{"rpm", "packages/example.rpm", "repodata/repomd.xml"},
+		{"yum", "packages/example.rpm", "repodata/repomd.xml.asc"},
+		{"conan", "v2/conans/example/1.0/_/_/revisions/1/packages/2/revisions/3/files/conan_package.tgz", "v2/conans/example/1.0/_/_/revisions/1/files/conan_export.tgz"},
+	} {
+		repo := &config.Repository{Name: "native", Format: test.format}
+		_, _, _, ok := classifyRepositoryDownload(repo, test.artifact)
+		require.True(t, ok, test.format)
+		_, _, _, ok = classifyRepositoryDownload(repo, test.metadata)
+		require.False(t, ok, test.format)
+		_, _, _, ok = classifyRepositoryDownload(repo, test.artifact+".sha256")
+		require.False(t, ok, test.format)
+	}
+}
+
 func TestDownloadCounterResetDropsPendingRepository(t *testing.T) {
 	store := &downloadStoreStub{}
 	counter := newCounter(func() downloadStore { return store })

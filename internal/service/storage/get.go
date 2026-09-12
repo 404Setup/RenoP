@@ -42,7 +42,7 @@ func CheckIndexAndCacheConfig(repoName string, path string, repo *config.Reposit
 		isSnapshotRepo := strings.Contains(strings.ToLower(repoName), "snapshot")
 		isSnapshotPath := strings.Contains(strings.ToUpper(path), "SNAPSHOT")
 
-		if repo.AllowRedeployment || isSnapshotRepo || isSnapshotPath {
+		if repo.AllowRedeployment || repo.IsNativeMetadata(path) || isSnapshotRepo || isSnapshotPath {
 			anyPersist = false
 			if baseMaxTTL == 0 || baseMaxTTL > 60 {
 				baseMaxTTL = 60
@@ -75,8 +75,10 @@ func LoadMetadataAndCheckTTL(state *core.AppState, localFilePath string, pathLos
 			var deleteErr error
 			if IsS3Enabled(localFilePath) {
 				s3Key := utils.GetS3Key(localFilePath)
+				invalidateRepositoryCapacity(state, localFilePath)
 				deleteErr = DeleteFromS3(s3Key)
 			} else {
+				invalidateRepositoryCapacity(state, localFilePath)
 				deleteErr = os.Remove(localFilePath)
 			}
 			if deleteErr != nil && !errors.Is(deleteErr, os.ErrNotExist) {

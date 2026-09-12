@@ -49,6 +49,7 @@ func isManager(user *config.User) bool {
 
 func SetupAuditRoutes(router fiber.Router, state *core.AppState) {
 	router.Get("/logs", func(c fiber.Ctx) error { return GetGlobalLogs(c, state) })
+	router.Delete("/logs", func(c fiber.Ctx) error { return DeleteGlobalLogs(c, state) })
 	router.Get("/profile/audit-logs", func(c fiber.Ctx) error { return GetSelfAuditLogs(c, state) })
 	router.Delete("/profile/audit-logs", func(c fiber.Ctx) error { return DeleteSelfAuditLogs(c) })
 	router.Get("/users/:username/audit-logs", func(c fiber.Ctx) error { return GetUserAuditLogs(c, state) })
@@ -178,6 +179,32 @@ func DeleteUserAuditLogs(c fiber.Ctx, state *core.AppState) error {
 		Operator:   op,
 		Action:     action,
 		Details:    "User activity logs cleared by admin for " + targetUsername,
+		AuthMethod: authMethod,
+		SessionID:  sessionID,
+		IP:         ip,
+	})
+
+	return protohttp.Write(c, pb.StatusOkSuccess())
+}
+
+func DeleteGlobalLogs(c fiber.Ctx, state *core.AppState) error {
+	user := getUserFromCtx(c)
+	if !isManager(user) {
+		return c.Status(fiber.StatusForbidden).SendString("Forbidden")
+	}
+
+	if db := state.GetDB(); db != nil {
+		if err := db.ClearGlobalAuditLogs(); err != nil {
+			return c.Status(fiber.StatusInternalServerError).SendString("Internal Server Error")
+		}
+	}
+
+	_, op, authMethod, sessionID, ip := ExtractAuthDetails(c, state)
+	Log(state, &core.AuditLogEntry{
+		Username:   user.Username,
+		Operator:   op,
+		Action:     ActionLogClear,
+		Details:    "Global audit logs cleared by admin",
 		AuthMethod: authMethod,
 		SessionID:  sessionID,
 		IP:         ip,

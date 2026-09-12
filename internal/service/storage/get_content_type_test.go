@@ -37,7 +37,8 @@ func TestBinaryArtifactContentTypeOnFastPath(t *testing.T) {
 	state.Inner.Config.Store(cfg)
 	state.Inner.FileIndex = index.NewFileIndex()
 	state.Inner.FileCache = core.NewFileByteCache(16 << 20)
-	repo := cfg.Maven.Repositories["releases"]
+	repo := &config.Repository{Name: "releases", Visibility: "PUBLIC"}
+	cfg.Maven.Repositories["releases"] = repo
 	repo.AllowRedeployment = true
 
 	app := fiber.New(fiber.Config{StreamRequestBody: true, UnescapePath: false})

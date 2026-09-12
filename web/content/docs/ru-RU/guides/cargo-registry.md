@@ -87,7 +87,7 @@ cargo yank --registry renop --undo --version 0.1.0 my-crate
 
 ## Cargodoc
 
-RenoP проверяет и извлекает rustdoc в sandboxed viewer. Включите Cargodoc и size limits в `config.yaml`.
+RenoP проверяет и извлекает rustdoc в sandboxed viewer. Включите Cargodoc и size limits в системных настройках.
 
 URL: `http://localhost:3000/cargodoc/{repo}/{crate}/{version}/index.html`
 

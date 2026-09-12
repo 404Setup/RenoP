@@ -26,6 +26,7 @@ import (
 	"renop/internal/cache"
 	"renop/internal/config"
 	"renop/internal/mail"
+	"renop/internal/repositorycapacity"
 	"renop/internal/service/index"
 )
 
@@ -58,6 +59,7 @@ type StatusSnapshot struct {
 }
 
 type StateDB interface {
+	NativePackageDB
 	GetRepositorySettings() (*config.MavenSettings, error)
 	SaveRepositorySettings(settings config.MavenSettings) error
 	GetTokenByName(name string) (*AccessToken, error)
@@ -91,7 +93,8 @@ type StateDB interface {
 	GetAPITokenByHash(secretHash, username string) (*APITokenCredential, error)
 	CountAPITokens(username string) (int, error)
 	CountAPITokensByUsername() (map[string]int, error)
-	SearchTokenNames(prefix string, limit int, now int64) ([]string, error)
+	SearchTokenNames(prefix string, limit int, now int64, includePrivate bool) ([]string, error)
+	SetUserProfilePrivacy(username, session, userID string, private bool) error
 	CountTokens() (uint64, error)
 	SaveToken(token *AccessToken) error
 	CreateToken(token *AccessToken, nickname string, changedAt int64) error
@@ -105,14 +108,17 @@ type StateDB interface {
 	PutUserAvatar(username string, avatar *UserAvatar) error
 	DeleteUserAvatar(username string) error
 	ListUserPackageMemberships(userID, format, viewer string, moderatedRepositories []string) ([]*UserPackageMembership, error)
-	UpdateUserProfileLinks(username string, links PublicLinks, updatedAt int64) (*UserProfile, error)
+	UpdateUserProfileLinks(username string, links UserProfileLinks, updatedAt int64) (*UserProfile, error)
 	UpdateUserProfile(oldUsername, newUsername, nickname string, token *AccessToken, changedAt int64, changes AccountTokenChanges) (*UserProfile, error)
 	GetSession(sessionToken string) (*Session, error)
 	SaveSession(session *Session, sessionToken string) error
+	GetSessionOAuthGrant(sessionToken string) (*SessionOAuthGrant, error)
+	RevokeOAuthSessions(event OAuthRevocation, now int64) ([]string, error)
 	UpdateSessionLastActive(sessionToken string, lastActive int64) error
 	DeleteSession(sessionToken string) error
 	DeleteSessionsByUsername(username string) error
 	ListUserSessions(username, currentSessionToken string) ([]SessionDto, error)
+	ListActiveUserSessions(username string, beforeCreatedAt int64, beforeID string, limit int, now int64) ([]SessionDto, error)
 	DeleteExpiredSessions(minActiveTimestamp int64) error
 	DeleteUserSessionByPublicID(username, publicID, currentSessionToken string) (token string, revoked bool, wasCurrent bool, err error)
 	DeleteOtherUserSessions(username, keepSessionToken string) (tokens []string, err error)
@@ -139,6 +145,7 @@ type StateDB interface {
 	UpdateAccountEmailFromSession(username, session, email, snapshot string, now int64, providerEmails ...ProviderEmail) (*AccountSecurity, error)
 	SetPasswordLoginEnabled(username string, enabled bool, updatedAt int64) (*AccountSecurity, error)
 	SetAccountPassword(username, passwordHash string, updatedAt int64) error
+	ChangeAccountPassword(change PasswordChange) error
 	ReplaceRecoveryCodes(username string, codes []RecoveryCodeHash) error
 	GetRecoveryCodes(identifier string, selectorHashes []string) (string, []RecoveryCodeRecord, error)
 	QueueEmailPasswordReset(job *mail.Job, codeHash, key, ip string, rate mail.Rate) (bool, error)
@@ -201,17 +208,18 @@ type StateDB interface {
 	PreviousMailLoginIP(username string, before int64) (string, error)
 	CleanMailData(now int64, accountIDs []string) error
 	DeleteAuditLogsByUsername(username string) error
+	ClearGlobalAuditLogs() error
 	CleanExpiredAuditLogs(retentionDays int, maxRows int) error
 	SaveMessages(messages []*UserMessage) error
 	SaveMessageIfAbsent(message *UserMessage) (bool, error)
-	ListMessages(username string, limit int, beforeCreatedAt int64, beforeID string, now int64) ([]*UserMessage, error)
-	CountUnreadMessages(username string, now int64) (int, error)
-	GetUserMessage(id, username string, now int64) (*UserMessage, error)
-	MarkMessageRead(id, username string, readAt int64) (bool, error)
-	MarkAllMessagesRead(username string, readAt int64) (int64, error)
+	ListMessages(username string, limit int, beforeCreatedAt int64, beforeID string, now int64, sessionID string) ([]*UserMessage, error)
+	CountUnreadMessages(username string, now int64, sessionID string) (int, error)
+	GetUserMessage(id, username string, now int64, sessionID string) (*UserMessage, error)
+	MarkMessageRead(id, username string, readAt int64, sessionID string) (bool, error)
+	MarkAllMessagesRead(username string, readAt int64, sessionID string) (int64, error)
 	TransitionMessageAction(id, username, expectedStatus, newStatus string, actedAt int64) (bool, error)
-	DeleteUserMessage(id, username string) (bool, error)
-	DeleteUserMessages(username string) (int64, error)
+	DeleteUserMessage(id, username string, sessionID string) (bool, error)
+	DeleteUserMessages(username string, sessionID string) (int64, error)
 	DeleteMessagesByDedupeKey(dedupeKey string) (int64, error)
 	GetPublicationQuotaStatus(subject PublicationQuotaSubject, defaults PublicationQuotaLimits, now int64) (*PublicationQuotaStatus, error)
 	SetPublicationQuotaOverride(subject PublicationQuotaSubject, override PublicationQuotaOverride, updatedAt int64) error
@@ -245,6 +253,8 @@ type StateDB interface {
 	TransitionTicket(id, actor, session string, action TicketAction, at int64) (*ReviewTask, error)
 	CreateTicket(request TicketRequest, actor, session string, at int64) (*ReviewTask, error)
 	GetTicket(id, actor string) (*ReviewTask, error)
+	AddTicketMessage(msg *TicketMessage, actor, session string) error
+	ListTicketMessages(taskID, before string, limit int) ([]*TicketMessage, string, error)
 	GetReviewTask(id string) (*ReviewTask, error)
 	ListReviewTaskFiles(id string) ([]*ReviewFile, error)
 	GetReviewTaskPayload(id string) ([]byte, error)
@@ -268,6 +278,7 @@ type StateDB interface {
 	ReserveMavenRedemptionAttempt(domain, actor, session string, checkedAt, minimumPrevious int64) error
 	RedeemMavenDomain(expected *MavenDomain, health *MavenDomainHealth, actor, session string) error
 	CloseMavenDomain(domain, actor string, administrator bool, closedAt int64) error
+	ForceDeleteMavenDomain(domain, actor string) error
 	ReviewMavenDomainClaim(expected *MavenDomain, health *MavenDomainHealth, actor, decision string, reviewedAt int64) error
 	CreateMavenRestoreReview(repository, groupID, artifactID, actor, session string, createdAt int64) (*ReviewTask, error)
 	RecordMavenReleasedPublication(expected *MavenDomain, artifact *MavenArtifact, version *MavenVersion) error
@@ -353,6 +364,7 @@ type StateDB interface {
 	GetDockerImageAccess(repository, imageName, username string) (exists, private, pushEnabled, member bool, level int, err error)
 	DockerImageMemberLevels(repository, username string, imageNames []string) (map[string]int, error)
 	UpdateDockerImageDescription(repository, imageName, description string) error
+	UpdateDockerImageReadme(repository, imageName, readme string) error
 	ListDockerImages(repository, last string, limit int) ([]*DockerRepositoryImage, error)
 	SearchDockerImages(repository, query string, limit, offset int) ([]*DockerRepositoryImage, int, error)
 	GetDockerImageDetails(repository, imageName string, username ...string) (*DockerImageDetails, error)
@@ -420,11 +432,13 @@ type AppStateInner struct {
 	ExternalAuthStates          *TransientAuthStateStore
 	CaptchaApprovals            *TransientAuthStateStore
 
+	RepositoryCapacity     *repositorycapacity.Manager
 	FileIndex              *index.FileIndex
 	IndexWatcher           *fsnotify.Watcher
 	IndexWatcherMutex      sync.Mutex
 	StartTime              int64
 	FileCache              *FileByteCache
+	NativeIndexCache       *FileByteCache
 	MetadataCache          cache.IndexedMap[string, *config.Metadata]
 	RemoteCache            *cache.Remote
 	MetadataCacheEntries   atomic.Uint64
@@ -446,6 +460,8 @@ func NewAppState() *AppState {
 	return &AppState{
 		Inner: &AppStateInner{
 			Config:               &atomic2.Value[*config.Config]{},
+			RepositoryCapacity:   repositorycapacity.New(),
+			NativeIndexCache:     NewFileByteCache(32 << 20),
 			ProxyClientSemaphore: make(chan struct{}, 256),
 			StartTime:            time.Now().UnixMilli(),
 			InFlightDownloads:    NewInFlightManager(),

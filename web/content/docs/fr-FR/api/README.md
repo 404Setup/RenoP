@@ -27,15 +27,14 @@ La [référence API](/api) documente les points de terminaison d’administratio
 
 ## Formats et Protobuf
 
-Les API de gestion fondées sur les schémas acceptent JSON (`application/json`) et protobuf binaire
-(`application/x-protobuf` ou `application/protobuf`). `Content-Type` choisit le décodage du corps ; `Accept` choisit la
-réponse. Sans valeur reconnue pour `Accept`, la réponse reste en protobuf pour les anciens clients. Un corps sans type
-reste décodé en protobuf. Les messages sont définis dans `proto/api/v1/api.proto`.
+Les API de gestion avec schéma utilisent protobuf binaire. Envoyez `Content-Type: application/x-protobuf` ; les requêtes
+acceptent aussi `application/protobuf` et `application/octet-stream`. Sans Content-Type, protobuf reste le défaut.
+Un corps JSON est rejeté avec une erreur `400` ou `415` selon l’endpoint. Les réponses utilisent toujours `application/x-protobuf` ; `Accept`
+n’active pas JSON. Utilisez `proto/api/v1/api.proto` de la version déployée.
 
-Le JSON conserve les noms snake_case ; l’entrée accepte aussi les noms camelCase de protobuf. Les entiers 64 bits
-sont des chaînes décimales et les octets des chaînes Base64. Les champs JSON inconnus ou dupliqués sont rejetés. La
-limite reste de 1 MiB, avec conservation des limites plus basses propres aux endpoints. Les protocoles de dépôt, les
-parties binaires, le texte de santé et les erreurs conservent leur représentation.
+Les requêtes restent limitées à 1 MiB, avec les limites plus basses propres aux endpoints. Les exemples JSON associés
+aux messages protobuf montrent les champs décodés, pas un format de transport JSON. Les endpoints exclusivement JSON,
+protocoles natifs, parties binaires, texte de santé et erreurs conservent leurs formats déclarés.
 
 ## Transports d’authentification
 

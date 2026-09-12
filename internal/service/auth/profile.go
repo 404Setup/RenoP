@@ -26,14 +26,12 @@ import (
 )
 
 func UpdatePassword(c fiber.Ctx, state *core.AppState, opChan chan<- token.TokenOp) error {
-	userInt := c.Locals("user")
-	if userInt == nil {
-		return c.Status(fiber.StatusUnauthorized).SendString("Unauthorized")
+	user, session, mfa, err := passwordChangeAccount(c, state)
+	if err != nil {
+		return mfaError(c, err)
 	}
-	user := userInt.(*config.User)
-
 	var req pb.UpdatePasswordRequest
-	readErr := protohttp.Read(c, &req)
+	readErr := protohttp.ReadLimit(c, &req, 16<<10)
 	if readErr != nil {
 		if readErr == fiber.ErrRequestEntityTooLarge {
 			return readErr
@@ -44,18 +42,26 @@ func UpdatePassword(c fiber.Ctx, state *core.AppState, opChan chan<- token.Token
 		return c.Status(fiber.StatusBadRequest).SendString("Password must be between 6 and 72 bytes")
 	}
 
+	change, err := passwordChangeProof(c, state, user.Username, session, mfa, &req)
+	if err != nil {
+		return mfaError(c, err)
+	}
 	hashBytes, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString("Internal Server Error")
 	}
-	hashed := string(hashBytes)
+	change.PasswordHash = string(hashBytes)
+	change.Now = time.Now().UnixMilli()
 
 	state.Inner.TokenWriteLock.Lock()
-	err = state.GetDB().SetAccountPassword(user.Username, hashed, time.Now().UnixMilli())
+	err = state.GetDB().ChangeAccountPassword(change)
+	if err == nil {
+		purgeRecoveredSessions(state, user.Username, session)
+	}
 	state.Inner.TokenWriteLock.Unlock()
 
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).SendString("Failed to update token")
+		return mfaError(c, err)
 	}
 	state.InvalidateAccountAuthCache(true, user.Username)
 
@@ -70,6 +76,7 @@ func UpdatePassword(c fiber.Ctx, state *core.AppState, opChan chan<- token.Token
 		IP:         ip,
 	})
 
+	setPrivateResponseHeaders(c)
 	return protohttp.Write(c, pb.StatusOkSuccess())
 }
 

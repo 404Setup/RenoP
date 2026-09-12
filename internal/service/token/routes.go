@@ -46,9 +46,10 @@ func SetupTokenRoutes(app fiber.Router, state *core.AppState, opChan chan<- Toke
 }
 
 type accountBanRequest struct {
-	Reason    string `json:"reason"`
-	ExpiresAt *int64 `json:"expires_at"`
-	BanIP     *bool  `json:"ban_ip"`
+	ReasonCode string `json:"reason_code"`
+	Reason     string `json:"reason"`
+	ExpiresAt  *int64 `json:"expires_at"`
+	BanIP      *bool  `json:"ban_ip"`
 }
 
 // GetAccountBanStatus returns current suspension metadata to system administrators.
@@ -86,13 +87,13 @@ func BanAccount(c fiber.Ctx, state *core.AppState) error {
 		c.Set("X-Renop-Error-Code", "ACCOUNT_BAN_INVALID")
 		return c.Status(fiber.StatusBadRequest).SendString("Invalid account ban")
 	}
-	reason, valid := core.NormalizeAccountBanReason(request.Reason)
+	reason, valid := core.NormalizeConfiguredBanReason(request.Reason, request.ReasonCode)
 	now := time.Now().UnixMilli()
 	if !valid || request.ExpiresAt != nil && *request.ExpiresAt <= now {
 		c.Set("X-Renop-Error-Code", "ACCOUNT_BAN_INVALID")
 		return c.Status(fiber.StatusBadRequest).SendString("Invalid account ban")
 	}
-	ban := &core.AccountBan{Reason: reason, CreatedAt: now, ExpiresAt: request.ExpiresAt}
+	ban := &core.AccountBan{Reason: reason, ReasonCode: request.ReasonCode, CreatedAt: now, ExpiresAt: request.ExpiresAt}
 	var banIPs []bool
 	if request.BanIP != nil {
 		banIPs = []bool{*request.BanIP}

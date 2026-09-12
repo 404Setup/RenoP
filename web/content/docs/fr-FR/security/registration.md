@@ -16,10 +16,13 @@ accessible. Voici les valeurs par défaut de la configuration de premier niveau 
 ```yaml
 registration:
   enabled: false
+  default_permissions: [base]
   ip_limit: 1
   ip_interval: {value: 3, unit: week}
   provider_cooldown: {value: 12, unit: hour}
 ```
+
+Le **Groupe de permissions par défaut** définit les droits système et dépôt accordés à la création du compte, y compris via un fournisseur tiers. La valeur par défaut est `default_permissions: [base]`. Les comptes existants restent inchangés. Les anciens clients qui omettent `default_permissions` conservent les droits configurés.
 
 Seules les inscriptions réussies consomment le quota IP : un compte toutes les trois semaines par défaut, à compter de
 la première inscription réussie. Les écritures IPv4 et IPv6 équivalentes partagent la limite. La fermeture du compte ne

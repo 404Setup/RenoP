@@ -21,6 +21,7 @@ import (
 func TestRepositorySettingsPreserveCommittedSnapshotOnFailure(t *testing.T) {
 	db := newMavenDB(t)
 	original := config.DefaultMavenSettings()
+	original.Repositories["private"] = &config.Repository{Name: "private", Format: config.RepositoryFormatFiles, Visibility: "PRIVATE"}
 	require.NoError(t, db.SaveRepositorySettings(original))
 	_, err := db.Exec("CREATE TRIGGER reject_repository_settings BEFORE INSERT ON repository_settings BEGIN SELECT RAISE(ABORT, 'injected failure'); END")
 	require.NoError(t, err)

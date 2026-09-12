@@ -3,6 +3,8 @@
  *
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
  *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
+ *
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
@@ -20,7 +22,7 @@ import (
 )
 
 // Scenes are the stable account-routing and template identifiers.
-var Scenes = []string{"registration_verify", "registration_success", "password_reset", "password_changed", "email_verify", "email_changed", "quota_changed", "review_status", "review_requested", "permission_changed", "account_banned", "account_unbanned", "collaboration_invitation", "super_team_invitation", "pending_reviews", "unusual_login", "security_changed", "account_retired", "notification", "test"}
+var Scenes = []string{"registration_verify", "registration_success", "password_reset", "password_changed", "email_verify", "email_changed", "account_banned", "account_unbanned", "collaboration_invitation", "super_team_invitation", "unusual_login", "security_changed", "account_retired", "test"}
 
 // TemplateData contains text-only substitutions and a same-instance action URL.
 type TemplateData struct {
@@ -40,19 +42,13 @@ var englishTemplates = []templateCopy{
 	{"Password changed", "Your account password has been changed. If you did not make this change, recover your account immediately."},
 	{"Verify your new email", "Use the code below to confirm this security email address. The code expires in 10 minutes."},
 	{"Security email changed", "Your account's security email address has been changed."},
-	{"Publication quota updated", "Your publication quota has been updated. Open your account to view the current limits."},
-	{"Ticket status updated", "Your ticket status has changed. Open tickets to view the result."},
-	{"Ticket submitted", "Your ticket has been submitted. Open tickets to follow its progress."},
-	{"Permissions updated", "Your account permissions have changed. Open your account to view your current access."},
 	{"Account banned", "Your account has been banned. Sign-in and publication may be restricted."},
 	{"Account unbanned", "Your account ban has been lifted. You can sign in again."},
 	{"Collaboration invitation", "You have been invited to collaborate on a package. Open your messages to review the invitation."},
 	{"Global team invitation", "You have been invited to join a global team. Open your messages to review the invitation."},
-	{"Tickets need your attention", "A ticket is waiting. Open tickets to take it over and continue."},
 	{"Sign-in from a new network", "Your account was used to sign in from a network that differs from your previous sign-in. If this was not you, revoke the session and change your password."},
 	{"Account security updated", "Your account security settings have changed. Review your login methods if you did not make this change."},
 	{"Account retired", "Your account has been retired. Existing sessions and third-party sign-in bindings have been revoked."},
-	{"New notification", "You have a new notification. Open your messages to read it."},
 	{"RenoP test email", "Your mail account successfully submitted this test email through the RenoP sending queue."},
 }
 
@@ -63,19 +59,13 @@ var chineseTemplates = []templateCopy{
 	{"密码已更改", "您的账号密码已更改。如果这不是您本人操作，请立即恢复账号。"},
 	{"验证新邮箱", "请使用下方验证码确认此安全邮箱。验证码在 10 分钟内有效。"},
 	{"安全邮箱已更改", "您的账号安全邮箱已更改。"},
-	{"发布配额已更新", "您的发布配额已更新。请前往账号页面查看当前限额。"},
-	{"工单状态已更新", "您的工单状态已变更，请前往工单页面查看结果。"},
-	{"工单已提交", "您的工单已提交，请前往工单页面查看进度。"},
-	{"账号权限已更新", "您的账号权限已更改。请前往账号页面查看当前权限。"},
 	{"账号已封禁", "您的账号已被封禁，登录与发布操作可能受到限制。"},
 	{"账号已解封", "您的账号封禁已解除，现在可以重新登录。"},
 	{"协作邀请", "您收到了软件包协作邀请。请前往消息页面查看并处理邀请。"},
 	{"全局团队邀请", "您收到了加入全局团队的邀请。请前往消息页面查看并处理邀请。"},
-	{"有待处理的工单", "您有待处理的工单，请前往工单页面接管并处理。"},
 	{"来自新网络的登录", "您的账号从与上次不同的网络登录。如果这不是您本人操作，请撤销该会话并更改密码。"},
 	{"账号安全设置已更新", "您的账号安全设置已更改。如果这不是您本人操作，请检查登录方式。"},
 	{"账号已注销", "您的账号已注销，现有会话与第三方登录绑定均已撤销。"},
-	{"新通知", "您收到了一条新通知。请前往消息页面查看。"},
 	{"RenoP 测试邮件", "邮件账号已通过 RenoP 发件队列成功提交此测试邮件。"},
 }
 

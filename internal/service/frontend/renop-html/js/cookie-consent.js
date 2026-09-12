@@ -21,13 +21,14 @@ let metadata, choice, banner;
 /** Read preferences without treating blocked browser storage as consent. */
 function readChoice() {
     if (!metadata) return null;
-    const current = parseCookiePreferences(JSON.stringify(choice), metadata.revision);
-    if (current) return current;
-    try {
-        return parseCookiePreferences(localStorage.getItem(storageKey), metadata.revision);
-    } catch {
-        return null;
+    if (choice === undefined) {
+        try {
+            choice = parseCookiePreferences(localStorage.getItem(storageKey), metadata.revision);
+        } catch {
+            choice = null;
+        }
     }
+    return choice?.revision === metadata.revision && choice.expires > Date.now() ? choice : null;
 }
 
 /** Whether this browser explicitly permits the configured third-party verification service. */
@@ -209,6 +210,7 @@ export function initializeCookieConsent() {
     });
     window.addEventListener('legalConfigurationChanged', event => {
         metadata = event.detail;
+        if (choice?.revision !== metadata.revision) choice = undefined;
         renderNotice();
         window.dispatchEvent(new CustomEvent('cookiePreferencesChanged', {detail: {optional: readChoice()?.optional === true}}));
     });

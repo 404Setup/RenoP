@@ -84,6 +84,9 @@ func newCheckTransport() *http.Transport {
 }
 
 func CheckUpdate(ctx context.Context, channel Channel) (*CheckResult, error) {
+	if inContainer() {
+		return nil, ErrContainerManaged
+	}
 	client := checkHTTPClient()
 	defer utils.ScheduleNetworkWorkingSetTrim()
 
@@ -252,7 +255,7 @@ func findCommitIndex(commits []GithubCommitResponse, id string) int {
 	return -1
 }
 
-const githubRepoAPI = "https://api.github.com/repos/404Setup/SRC-RenoP"
+const githubRepoAPI = "https://api.github.com/repos/404Setup/RenoP"
 
 func commitDateAt(commits []GithubCommitResponse, i int) string {
 	if i < 0 || i >= len(commits) {
@@ -730,7 +733,7 @@ func checkRelease(ctx context.Context, client *http.Client) (*CheckResult, error
 		var rel GithubReleaseResponse
 		tagCandidates := []string{latestRel.Version, "v" + strings.TrimPrefix(latestRel.Version, "v")}
 		for _, tag := range tagCandidates {
-			url := "https://api.github.com/repos/404Setup/SRC-RenoP/releases/tags/" + tag
+			url := "https://api.github.com/repos/404Setup/RenoP/releases/tags/" + tag
 			if _, err := doGitHubJSON(checkCtx, client, url, &rel); err == nil {
 				relNotes = rel.Body
 				if relNotes == "" {
@@ -748,7 +751,7 @@ func checkRelease(ctx context.Context, client *http.Client) (*CheckResult, error
 			}
 		}
 		if relNotes == "" {
-			if _, err := doGitHubJSON(checkCtx, client, "https://api.github.com/repos/404Setup/SRC-RenoP/releases/latest", &rel); err == nil {
+			if _, err := doGitHubJSON(checkCtx, client, "https://api.github.com/repos/404Setup/RenoP/releases/latest", &rel); err == nil {
 				if normalizeVersionID(rel.TagName) == normalizeVersionID(latestRel.Version) {
 					relNotes = rel.Body
 					if relNotes == "" {

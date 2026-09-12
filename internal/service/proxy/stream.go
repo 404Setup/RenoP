@@ -21,6 +21,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"renop/internal/artifactstore"
 	"renop/internal/core"
 	"renop/internal/service/index"
 	"renop/internal/utils"
@@ -49,11 +50,12 @@ type proxyStreamReader struct {
 	tmpKeep    bool   // set true after a successful SafeRename
 	targetPath string // final destination path
 
-	inFlightMgr *core.InFlightManager
-	pathStr     string
-	dl          *core.InFlightDownload
-	fileIndex   *index.FileIndex
-	onSuccess   func(string) bool
+	inFlightMgr     *core.InFlightManager
+	pathStr         string
+	dl              *core.InFlightDownload
+	fileIndex       *index.FileIndex
+	onSuccess       func(string) bool
+	reserveCapacity func(int64) (func(bool), error)
 
 	permit     chan struct{}
 	permitOnce sync.Once
@@ -164,8 +166,17 @@ func (p *proxyStreamReader) Close() error {
 			p.tmpFile = nil
 		}
 
+		if success && p.tmpPath != "" && p.reserveCapacity != nil {
+			finish, err := p.reserveCapacity(p.bytesWritten)
+			if err != nil {
+				// The upstream response remains valid even when local caching is full.
+				success = false
+			} else {
+				defer func() { finish(success) }()
+			}
+		}
 		if success && p.tmpPath != "" {
-			if err := utils.SafeRename(p.tmpPath, p.targetPath); err == nil {
+			if err := artifactstore.CommitMutable(p.tmpPath, p.targetPath); err == nil {
 				p.tmpKeep = true
 				if p.fileIndex != nil {
 					p.fileIndex.EnsureParentDirs(p.targetPath)
@@ -216,6 +227,7 @@ func CreateProxyStream(
 	onSuccess func(string) bool,
 	maxSize int64,
 	canAllocate func(uint64) bool,
+	reserveCapacity ...func(int64) (func(bool), error),
 ) io.ReadCloser {
 	dir := filepath.Dir(localFilePath)
 	_ = os.MkdirAll(dir, 0755)
@@ -225,7 +237,7 @@ func CreateProxyStream(
 
 	file, err := os.Create(tmpPath)
 
-	return &proxyStreamReader{
+	reader := &proxyStreamReader{
 		bodyReader:   bodyReader,
 		tmpFile:      file,
 		writeErr:     err,
@@ -243,4 +255,8 @@ func CreateProxyStream(
 		canAllocate:  canAllocate,
 		success:      err == nil,
 	}
+	if len(reserveCapacity) > 0 {
+		reader.reserveCapacity = reserveCapacity[0]
+	}
+	return reader
 }

@@ -17,19 +17,19 @@ import {fileURLToPath} from 'node:url';
 const frontendRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const repositoryRoot = resolve(frontendRoot, '..', '..', '..', '..');
 
-test('API token target editors and errors animate natural dialog height', () => {
+test('API token target editing uses compact cards and a separate dialog', () => {
     const source = readFileSync(join(frontendRoot, 'js/api-tokens.js'), 'utf8');
     const styles = readFileSync(join(frontendRoot, 'css/manager/profile.css'), 'utf8');
     const createModalBlock = styles.match(/\.profile-api-token-create-modal\s*\{[^}]*\}/s)?.[0] || '';
 
-    assert.match(source, /collapseElement, expandElement, morphElementHeight/);
-    assert.match(source, /expandElement\(targetEditor, \{duration: 240/);
-    assert.match(source, /collapseElement\(targetEditor, \{duration: 210/);
+    assert.match(source, /openAPITokenTargets\(/);
+    assert.match(source, /targetSelections\.set\(scope, values\)/);
+    assert.doesNotMatch(source, /el\('textarea'/);
     assert.match(source, /morphElementHeight\(container, \(\) => setInlineError/);
     assert.match(source, /data-api-token-error-key/);
     assert.match(createModalBlock, /height: auto;[\s\S]*max-height:/);
     assert.doesNotMatch(createModalBlock, /(?:^|\n)\s*height:\s*min\(/);
-    assert.match(styles, /\.profile-api-token-target-editor\s*\{[^}]*overflow: hidden;/s);
+    assert.match(styles, /\.profile-api-token-target-cards\s*\{[^}]*max-height: 35dvh;/s);
 });
 
 test('API token cards expose reversible suspension without replacing the credential', () => {

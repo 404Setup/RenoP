@@ -19,7 +19,7 @@ const frontendRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const npmView = readFileSync(join(frontendRoot, 'js/browser/npm.js'), 'utf8');
 const npmCSS = readFileSync(join(frontendRoot, 'css/browser/npm.css'), 'utf8');
 const markdownCSS = readFileSync(join(frontendRoot, 'css/components/markdown.css'), 'utf8');
-const formats = readFileSync(join(frontendRoot, 'js/repository-formats.js'), 'utf8');
+const formats = readFileSync(join(frontendRoot, 'js/repository-engines/npm.js'), 'utf8');
 const repositorySettings = readFileSync(join(frontendRoot, 'js/repositories.js'), 'utf8');
 
 test('npm navigation and lock refreshes ignore stale package responses', async () => {

@@ -50,7 +50,7 @@ curl -s http://localhost:3000/api/status/health
 
 | Переменная                     | По умолчанию          | Назначение                                 |
 |:-------------------------------|:----------------------|:-------------------------------------------|
-| `RENOP_CONFIG`                 | `config.yaml`         | Путь основной конфигурации                 |
+| `RENOP_SETTINGS_DB`                 | `renop-settings.db`         | Путь основной конфигурации                 |
 | `RENOP_REPOSITORIES`           | `repositories.yaml`   | Путь старой конфигурации; игнорируется после инициализации БД |
 | `RENOP_INDEX`                  | `index.json`          | Путь snapshot файлового индекса            |
 | `RENOP_DEFAULT_ADMIN_PASSWORD` | Генерируется один раз | Начальный пароль, если `admin` отсутствует |

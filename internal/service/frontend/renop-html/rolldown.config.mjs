@@ -17,14 +17,15 @@ const outDir = join(root, 'dist');
 
 export default defineConfig({
     input: {
-        main: join(root, 'js', 'main.js'),
+        main: join(root, 'js', 'bootstrap.js'),
+        app: join(root, 'js', 'main.js'),
         'captcha-widget': join(root, 'js', 'captcha-widget.js'),
     },
     output: {
         dir: outDir,
         format: 'esm',
         codeSplitting: true,
-        entryFileNames: 'js/[name].js',
+        entryFileNames: chunk => chunk.name === 'app' ? 'js/app-[hash].js' : 'js/[name].js',
         chunkFileNames: 'js/chunks/[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash][extname]',
         minify: true,

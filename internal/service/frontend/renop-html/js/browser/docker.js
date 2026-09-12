@@ -12,7 +12,8 @@ import {createTicketReportButton} from '../ticket-report.js';
 import {el} from '@renop/ui/dom';
 import {makeCustomSelect} from '@renop/ui/custom-select';
 import {createPaginatedCollection} from '@renop/ui/pagination';
-import {apiRequest} from '../api.js';
+import {apiRequest, fetchProto} from '../api.js';
+import {UserSearchResponse} from '../proto/index.js';
 import {canUpdateRepo} from '../auth.js';
 import {showAlert, showConfirm} from '../alert.js';
 import {
@@ -75,10 +76,16 @@ let inviteLevel = 1;
  */
 async function searchDockerInvitationUsers(query) {
     if (!activeRepository) return [];
-    const response = await apiRequest(`/api/docker/repositories/${encodeURIComponent(activeRepository)}/users/search?q=${encodeURIComponent(query)}`);
-    if (!response.ok) return [];
-    const data = await response.json();
-    return Array.isArray(data?.users) ? data.users : [];
+    try {
+        const {response, data} = await fetchProto(
+            `/api/docker/repositories/${encodeURIComponent(activeRepository)}/users/search?q=${encodeURIComponent(query)}`,
+            UserSearchResponse
+        );
+        if (!response.ok) return [];
+        return Array.isArray(data?.users) ? data.users : [];
+    } catch {
+        return [];
+    }
 }
 
 const dockerUserSuggestions = new RepositoryUserSuggestions({
@@ -223,17 +230,17 @@ async function openManifestDetails(repoName, imageName, digest, tag) {
 }
 
 /**
- * Open the README / Description markdown editor dialog for a container image.
+ * Open the README markdown editor dialog for a container image.
  * @param {string} repoName - Repository name.
  * @param {string} imageName - Image name.
- * @param {string} currentDescription - Current markdown content.
+ * @param {string} currentReadme - Current markdown content.
  * @param {Function} onSaved - Callback on successful save.
  * @returns {void}
  */
-function openReadmeEditor(repoName, imageName, currentDescription, onSaved) {
+function openReadmeEditor(repoName, imageName, currentReadme, onSaved) {
     const textarea = el('textarea', {
         maxlength: '524288', rows: '16', placeholder: t('docker.readmePlaceholder')
-    }, currentDescription || '');
+    }, currentReadme || '');
 
     const editorWrap = el('div', {class: 'docker-readme-editor'}, textarea);
 
@@ -254,6 +261,63 @@ function openReadmeEditor(repoName, imageName, currentDescription, onSaved) {
                 className: 'action-btn primary-btn',
                 onClick: async (e, dlg) => {
                     await runButtonAction(e.currentTarget, async () => {
+                        const newReadme = textarea.value.trim();
+                        try {
+                            const resp = await apiRequest(`/api/docker/repositories/${encodeURIComponent(repoName)}/images?image=${encodeURIComponent(imageName)}`, {
+                                method: 'PUT',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({readme: newReadme})
+                            });
+                            if (resp.ok) {
+                                dlg.close();
+                                showAlert(t('docker.readmeSaved'), 'success');
+                                if (typeof onSaved === 'function') onSaved(newReadme);
+                            } else {
+                                showAlert(dockerResponseError(resp, 'docker.updateReadmeFailed'), 'error');
+                            }
+                        } catch (err) {
+                            console.error('Failed to update Docker image README', err);
+                            showAlert(t('docker.updateReadmeFailed'), 'error');
+                        }
+                    });
+                }
+            }
+        ]
+    });
+}
+
+/**
+ * Open the Description editor dialog for a container image.
+ * @param {string} repoName - Repository name.
+ * @param {string} imageName - Image name.
+ * @param {string} currentDescription - Current description content.
+ * @param {Function} onSaved - Callback on successful save.
+ * @returns {void}
+ */
+function openDescriptionEditor(repoName, imageName, currentDescription, onSaved) {
+    const textarea = el('textarea', {
+        maxlength: '4000', rows: '6', placeholder: t('docker.descriptionPlaceholder')
+    }, currentDescription || '');
+
+    const editorWrap = el('div', {class: 'docker-readme-editor'}, textarea);
+
+    RenopDialog.show({
+        title: t('docker.editDescription'),
+        subtitle: `${repoName}/${imageName}`,
+        icon: 'fileText',
+        maxWidth: '560px',
+        body: editorWrap,
+        footer: [
+            {
+                text: t('common.cancel'),
+                className: 'action-btn',
+                onClick: (e, dlg) => dlg.close()
+            },
+            {
+                text: t('docker.saveDescription'),
+                className: 'action-btn primary-btn',
+                onClick: async (e, dlg) => {
+                    await runButtonAction(e.currentTarget, async () => {
                         const newDescription = textarea.value.trim();
                         try {
                             const resp = await apiRequest(`/api/docker/repositories/${encodeURIComponent(repoName)}/images?image=${encodeURIComponent(imageName)}`, {
@@ -263,14 +327,14 @@ function openReadmeEditor(repoName, imageName, currentDescription, onSaved) {
                             });
                             if (resp.ok) {
                                 dlg.close();
-                                showAlert(t('docker.readmeSaved'), 'success');
+                                showAlert(t('docker.descriptionSaved'), 'success');
                                 if (typeof onSaved === 'function') onSaved(newDescription);
                             } else {
-                                showAlert(dockerResponseError(resp, 'docker.updateReadmeFailed'), 'error');
+                                showAlert(dockerResponseError(resp, 'docker.updateDescriptionFailed'), 'error');
                             }
                         } catch (err) {
-                            console.error('Failed to update Docker image README', err);
-                            showAlert(t('docker.updateReadmeFailed'), 'error');
+                            console.error('Failed to update Docker image description', err);
+                            showAlert(t('docker.updateDescriptionFailed'), 'error');
                         }
                     });
                 }
@@ -863,6 +927,39 @@ async function renderImageDetailsView(container, repoName, imageName, seq) {
                 t(resourceReadLocked(image) || visibleTags.some(tag => resourceReadLocked(tag))
                     ? 'resourceLock.blocked' : pendingTags.length > 0 ? 'docker.awaitingReview' : 'docker.awaitingFirstPush'));
 
+        const descTextEl = el('span', {class: 'docker-hero-desc-text'});
+        let editDescBtn = null;
+        if (canManageL2) {
+            editDescBtn = el('button', {
+                class: 'docker-hero-desc-edit',
+                type: 'button',
+                title: t('docker.editDescription'),
+                onclick: () => {
+                    openDescriptionEditor(repoName, imageName, image.description || '', (newDesc) => {
+                        image.description = newDesc;
+                        updateDescView(newDesc);
+                    });
+                }
+            }, createIcon('edit', {class: 'icon-svg'}));
+        }
+
+        const descWrap = el('div', {class: 'docker-hero-description-wrap'}, descTextEl, editDescBtn);
+        const updateDescView = (text) => {
+            const trimmed = String(text || '').trim();
+            if (trimmed) {
+                descTextEl.textContent = trimmed;
+                descTextEl.classList.remove('is-empty');
+                descWrap.style.display = 'flex';
+            } else if (canManageL2) {
+                descTextEl.textContent = t('docker.noDescription');
+                descTextEl.classList.add('is-empty');
+                descWrap.style.display = 'flex';
+            } else {
+                descWrap.style.display = 'none';
+            }
+        };
+        updateDescView(image.description);
+
         const hero = el('div', {class: 'docker-page-hero'},
             topNav,
             el('div', {class: 'docker-hero-header'},
@@ -872,6 +969,7 @@ async function renderImageDetailsView(container, repoName, imageName, seq) {
                 ),
                 headerActions.childElementCount > 0 ? headerActions : null
             ),
+            descWrap,
             metaRow,
             pullBox
         );
@@ -1027,10 +1125,10 @@ async function renderImageDetailsView(container, repoName, imageName, seq) {
 
         // README / Markdown Section
         const readmeContent = el('div');
-        const updateReadmeView = (descText) => {
-            if (descText && descText.trim().length > 0) {
+        const updateReadmeView = (readmeText) => {
+            if (readmeText && readmeText.trim().length > 0) {
                 readmeContent.className = 'docker-readme-body repository-markdown';
-                setSafeMarkdown(readmeContent, descText.trim());
+                setSafeMarkdown(readmeContent, readmeText.trim());
             } else {
                 readmeContent.className = 'docker-readme-empty';
                 readmeContent.replaceChildren(
@@ -1039,7 +1137,7 @@ async function renderImageDetailsView(container, repoName, imageName, seq) {
                 );
             }
         };
-        updateReadmeView(image.description);
+        updateReadmeView(image.readme);
 
         let editReadmeBtn = null;
         if (canManageL2) {
@@ -1048,15 +1146,15 @@ async function renderImageDetailsView(container, repoName, imageName, seq) {
                 type: 'button',
                 title: t('docker.editReadme'),
                 onclick: () => {
-                    openReadmeEditor(repoName, imageName, image.description || '', (newDesc) => {
-                        image.description = newDesc;
-                        updateReadmeView(newDesc);
+                    openReadmeEditor(repoName, imageName, image.readme || '', (newReadme) => {
+                        image.readme = newReadme;
+                        updateReadmeView(newReadme);
                     });
                 }
             }, createIcon('edit', {class: 'icon-svg'}), el('span', {}, t('docker.editReadme')));
         }
 
-        const readmeSection = String(image.description || '').trim() || canManageL2
+        const readmeSection = String(image.readme || '').trim() || String(image.description || '').trim() || canManageL2
             ? el('div', {class: 'docker-readme-card'},
                 el('div', {class: 'docker-readme-header'},
                     el('h3', {class: 'docker-readme-title'},
@@ -1110,8 +1208,9 @@ async function renderImageDetailsView(container, repoName, imageName, seq) {
                         title: isSelf ? t('team.leave') : t('docker.removeMember'),
                         onclick: () => removeDockerTeamMember({
                             container, repoName, imageName, sequence: seq, member, isSelf
-                        })
-                    }, isSelf ? el('span', {}, t('team.leave')) : createIcon('delete', {class: 'icon-svg'}));
+                        }),
+                        'aria-label': isSelf ? t('team.leave') : t('docker.removeMember'),
+                    }, createIcon(isSelf ? 'logout' : 'delete', {class: 'icon-svg'}));
                     memberControls.appendChild(removeBtn);
                 } else {
                     memberControls.appendChild(
@@ -1124,8 +1223,9 @@ async function renderImageDetailsView(container, repoName, imageName, seq) {
                             title: t('team.leave'),
                             onclick: () => removeDockerTeamMember({
                                 container, repoName, imageName, sequence: seq, member, isSelf: true
-                            })
-                        }, el('span', {}, t('team.leave'))));
+                            }),
+                            'aria-label': t('team.leave'),
+                        }, createIcon('logout', {class: 'icon-svg'})));
                     }
                 }
 

@@ -11,11 +11,13 @@ description: Configurer les politiques, leur acceptation et les préférences du
 
 Les administrateurs modifient la politique de confidentialité, les conditions de service et les mentions légales dans les paramètres des documents juridiques. Les trois utilisent le même éditeur Markdown et un aperçu sécurisé, avec une limite de 512 KiB UTF-8 par document. Un champ vide restaure le texte provisoire à remplacer.
 
-Les documents sont stockés dans `legal` de `config.yaml` et prennent effet après enregistrement. Le fichier de confidentialité historique n’est plus lu : copiez son contenu dans les paramètres avant la mise à niveau. L’ancienne URL externe des mentions légales est retirée. Les fichiers existants sont conservés.
+Les documents sont stockés dans `legal` de paramètres système et prennent effet après enregistrement. Le fichier de confidentialité historique n’est plus lu : copiez son contenu dans les paramètres avant la mise à niveau. L’ancienne URL externe des mentions légales est retirée. Les fichiers existants sont conservés.
 
 Les pages publiques sont `/privacy-policy`, `/terms-of-service` et `/legal-notice`, accessibles même avec des identifiants expirés. `GET /api/legal` renvoie la révision actuelle et `cookie_banner` ; `GET /api/legal/:document` renvoie du texte brut borné. `GET /api/privacy-policy` reste un alias.
 
-`GET /api/settings/legal` et `PUT /api/settings/legal` exigent le droit d’administrer les paramètres et utilisent les champs JSON `privacy_policy`, `terms_of_service`, `legal_notice` et `cookie_banner`.
+`GET /api/settings/legal` et `PUT /api/settings/legal` nécessitent les droits d’administration des paramètres et utilisent le protobuf binaire `LegalSettings` (`application/x-protobuf`). Les champs sont `privacy_policy`, `terms_of_service`, `legal_notice` et `cookie_banner` ; chaque document reste limité à 512 KiB.
+
+`GET /api/legal` sert le protobuf binaire `LegalMetadata`, avec `content_revision` pour invalider le cache des documents. Métadonnées et documents prennent en charge les ETags et `304` avec revalidation obligatoire. Les empreintes et données encodées sont réutilisées jusqu’à une modification de configuration. Le navigateur charge les documents à la demande ou au survol des liens, sans précharger toutes les politiques à chaque visite.
 
 ## Connexion et inscription
 

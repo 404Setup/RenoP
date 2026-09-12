@@ -79,3 +79,15 @@ ou domaine Maven, mais ne révèle volontairement pas le membre ayant effectué 
 Les tâches d’examen envoient des messages `review_pending` dédupliqués aux examinateurs autorisés. La première décision
 supprime toutes les autres copies et envoie au demandeur un seul `review_result` localisé, sans identité de
 l’examinateur.
+
+## Notifications destinées à une session
+
+Renseignez `session_id` avec l’identifiant public d’une session de navigateur, un seul destinataire et `all: false`. Un identifiant vide conserve l’accès pour toutes les identités de connexion du compte. Le serveur vérifie à nouveau l’activité et le propriétaire de la session ; une cible révoquée ou expirée renvoie `409`.
+
+`GET /api/messages/admin/sessions?username=alice&cursor=...` renvoie au plus 100 sessions actives par page. Utilisez `next_cursor` pour les suivantes. La réponse contient des identifiants publics, des informations sur l’appareil et des dates, jamais de secrets de session. Les droits de gestionnaire sont requis ; un jeton API nécessite aussi `admin:notifications`.
+
+Les listes, compteurs non lus et opérations individuelles ou groupées de lecture/suppression respectent la session authentifiée. Les autres sessions et jetons API ne peuvent ni lire ni modifier une notification ciblée, même avec son identifiant ou le cookie cible joint à une requête API. Ces notifications ne sont pas envoyées par courriel. Pour un destinataire unique, le formulaire affiche un sélecteur personnalisé animé, avec toutes les sessions par défaut.
+
+```json
+{"recipients":["alice"],"all":false,"session_id":"00000000-0000-4000-8000-000000000001","severity":"info","title":"Session notice","body":"Only this browser session can read this notification."}
+```

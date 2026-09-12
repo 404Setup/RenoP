@@ -16,12 +16,12 @@ import vm from 'node:vm';
 const flush = () => new Promise(resolve => setImmediate(resolve));
 
 /** Run the real synchronizer against controllable request and language events. */
-function languageRuntime(storage = new Map()) {
+function languageRuntime(storage = new Map(), demoMode = {enabled: false}) {
     const events = new Map(), requests = [], applied = [], errors = [];
     let current = 'en-US', revision = 0, username = '';
     const emit = (type, detail) => events.get(type)?.({detail});
     const context = vm.createContext({
-        AbortController, AbortSignal,
+        AbortController, AbortSignal, demoMode,
         localStorage: {
             getItem: key => storage.get(key) ?? null,
             setItem: (key, value) => storage.set(key, value),

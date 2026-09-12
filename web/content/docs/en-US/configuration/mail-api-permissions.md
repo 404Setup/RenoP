@@ -24,7 +24,7 @@ the credential holder.
 | Amazon SES v2       | `ses:SendEmail`                              | `ses:GetMessageInsights`                          | `ses:GetAccount`; no balance lookup                                              |
 | SendGrid            | `mail.send`                                  | `messages.read` and Email Activity history add-on | `user.credits.read`; no cash-balance lookup                                      |
 | Gmail               | `https://www.googleapis.com/auth/gmail.send` | `https://www.googleapis.com/auth/gmail.metadata`  | No sending-allowance or balance lookup                                           |
-| Alibaba Direct Mail | `dm:SingleSendMail`                          | `dm:SenderStatisticsDetailByParam`                | `dm:DescAccountSummary`; optional `bss:DescribeAcccount`                         |
+| Alibaba Direct Mail | `dm:SingleSendMail`                          | —                | `dm:DescAccountSummary`; optional `bss:DescribeAcccount`                         |
 | Tencent SES         | `ses:SendEmail`                              | `ses:GetSendEmailStatus`                          | Optional `finance:DescribeAccountBalance`; no supported sending-allowance lookup |
 | Feishu / Lark       | `mail:user_mailbox.message:send`             | `mail:user_mailbox.message:readonly`              | No supported lookup                                                              |
 
@@ -44,7 +44,7 @@ sending permission.
 RenoP calls `POST /accounts/{account_id}/email/sending/send` under `https://api.cloudflare.com/client/v4`.
 It submits structured addresses plus text/HTML and reads `message_id`, `delivered`, `permanent_bounces`, `queued`, and
 `suppressed_recipients`.
-Queued results remain `queued_provider`; RenoP does not consume Cloudflare's separate event subscriptions.
+After a successful submission, RenoP records `accepted` and stops status polling for connectors without a supported per-message lookup. This includes Cloudflare and Alibaba Direct Mail; acceptance does not prove delivery. Existing `queued_provider` records are displayed as `accepted` and are not retried.
 See [setup and token permissions](https://developers.cloudflare.com/email-service/get-started/send-emails/) and
 the [sending schema](https://developers.cloudflare.com/api/resources/email_sending/methods/send/).
 
@@ -146,7 +146,7 @@ and [OAuth setup](https://developers.google.com/identity/protocols/oauth2/web-se
 ## Alibaba Cloud Direct Mail
 
 Activate Direct Mail, verify the domain, and configure the sender address in the selected region.
-Use a RAM access key/secret with `dm:SingleSendMail`, `dm:DescAccountSummary`, and `dm:SenderStatisticsDetailByParam`;
+Use a RAM access key/secret with `dm:SingleSendMail`, `dm:DescAccountSummary`;
 these actions use resource `*`.
 For optional balance calibration, grant **`bss:DescribeAcccount`**: the three consecutive `c` characters are the
 official permission spelling.
@@ -154,8 +154,7 @@ The billing action name remains `QueryAccountBalance`, version `2017-12-14`; it 
 
 RenoP uses signed RPC POST requests with Direct Mail version `2015-11-23`.
 `SingleSendMail` returns `EnvId`; `DescAccountSummary` exposes free allowances and account status.
-The public delivery-statistics result lacks a reliable per-message ID, so RenoP reports `unknown` after querying instead
-of matching by recipient alone.
+After a successful submission, RenoP records `accepted` and stops status polling for connectors without a supported per-message lookup. This includes Cloudflare and Alibaba Direct Mail; acceptance does not prove delivery. Existing `queued_provider` records are displayed as `accepted` and are not retried.
 Use a sender alias of at most 15 characters. Choose the billing endpoint for the account's commercial region,
 independently of the sending region; match the pricing currency to the returned currency.
 

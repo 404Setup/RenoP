@@ -123,7 +123,7 @@ export async function renderHome({root}) {
             el('div', {class: 'home-screenshot-wrap'},
                 el('img', {
                     class: 'home-screenshot',
-                    src: '/assets/mainscreen.png',
+                    src: '/assets/mainscreen.webp',
                     alt: 'RenoP main screen',
                     loading: 'eager',
                 }),
@@ -144,14 +144,6 @@ export async function renderHome({root}) {
         );
     }
 
-    const cta = el('section', {class: 'card home-cta'},
-        el('div', {},
-            el('h2', {}, t('home.cta.title')),
-            el('p', {}, t('home.cta.desc')),
-        ),
-        el('a', {class: 'pill-btn pill-btn--primary', href: '/download', 'data-link': ''}, t('nav.download')),
-    );
-
-    root.append(hero, grid, cta);
+    root.append(hero, grid);
     document.title = `RenoP — ${t('home.title')}`;
 }

@@ -37,6 +37,11 @@
     animation: backdropFadeIn 0.25s ease-out forwards;
 }
 
+/* Keep a parent dialog's draft mounted without showing its controls through the child. */
+.modal[inert] {
+    visibility: hidden;
+}
+
 .modal-content {
     position: relative;
     z-index: 1001;

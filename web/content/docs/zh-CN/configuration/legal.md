@@ -11,11 +11,13 @@ description: 配置协议页面、登录注册同意和浏览器偏好
 
 管理员可在法律文档设置页编辑隐私政策、用户协议和法律声明。三者共用 Markdown 编辑器与安全预览，每篇最多 512 KiB UTF-8 文本。留空将恢复占位符，请替换为实例的正式文档。
 
-文档保存在 `config.yaml` 的 `legal` 中，保存后立即生效。旧隐私文件不再读取，请在升级前将内容复制到设置中。原外部法律声明 URL 也已停用，已有文件会保留。
+文档保存在 系统设置 的 `legal` 中，保存后立即生效。旧隐私文件不再读取，请在升级前将内容复制到设置中。原外部法律声明 URL 也已停用，已有文件会保留。
 
 公开页面为 `/privacy-policy`、`/terms-of-service` 和 `/legal-notice`，过期凭据不影响阅读。`GET /api/legal` 返回隐私政策与协议的当前版本及 `cookie_banner`；`GET /api/legal/:document` 返回有大小限制的纯文本。`GET /api/privacy-policy` 保留为别名。
 
-`GET /api/settings/legal` 和 `PUT /api/settings/legal` 需要设置管理权限，使用 JSON 字段 `privacy_policy`、`terms_of_service`、`legal_notice` 和 `cookie_banner`。
+`GET /api/settings/legal` 和 `PUT /api/settings/legal` 需要设置管理权限，使用二进制 protobuf `LegalSettings`（`application/x-protobuf`）。字段为 `privacy_policy`、`terms_of_service`、`legal_notice` 和 `cookie_banner`，每份文档仍限制为 512 KiB。
+
+`GET /api/legal` 返回二进制 protobuf `LegalMetadata`，其中 `content_revision` 用于使文档缓存失效。元数据和文档支持 ETag、`304` 及缓存重新验证；配置未变化时复用哈希与编码后的元数据。浏览器按需或在悬停链接时获取文档，不再每次访问都预取全部法律文档。
 
 ## 登录与注册
 

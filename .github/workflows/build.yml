@@ -92,7 +92,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v6
         with:
-          version: 12.3.4
+          version: 12.4.1
       - name: Install Node.js
         uses: actions/setup-node@v7
         with:
@@ -112,6 +112,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Module download failed.' }
           go build -o "$env:RUNNER_TEMP/renop-brotli" ./cmd/renop-brotli
           if ($LASTEXITCODE -ne 0) { throw 'Brotli tool build failed.' }
+          go build -o "$env:RUNNER_TEMP/renop-release-index" ./cmd/renop-release-index
+          if ($LASTEXITCODE -ne 0) { throw 'Release inventory tool build failed.' }
           tar -cf "$env:RUNNER_TEMP/prepared-inputs.tar" pkg/pb/api.pb.go pkg/pb/session.pb.go internal/mail/data internal/service/frontend/renop-html/dist
           if ($LASTEXITCODE -ne 0) { throw 'Shared input archive failed.' }
       - name: Upload prepared sources
@@ -127,6 +129,14 @@ jobs:
         with:
           name: packaging-tool
           path: ${{ runner.temp }}/renop-brotli
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 1
+      - name: Upload release inventory tool
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-index-tool
+          path: ${{ runner.temp }}/renop-release-index
           compression-level: 0
           if-no-files-found: error
           retention-days: 1
@@ -267,6 +277,13 @@ jobs:
         with:
           name: dist-artifacts
           path: dist
+      - name: Download release inventory tool
+        uses: actions/download-artifact@v8
+        with:
+          name: release-index-tool
+          path: tools
+      - name: Restore inventory tool permissions
+        run: chmod +x tools/renop-release-index
       - name: Validate update payload boundary
         shell: pwsh
         run: pwsh -NoProfile -File ./.github/scripts/test-release-payload.ps1 -DistDir ./dist
@@ -296,6 +313,7 @@ jobs:
           $channel = if ($env:IS_RELEASE -eq 'true') { 'stable' } else { 'nightly' }
           pwsh -NoProfile -File ./.github/scripts/publish-update.ps1 `
               -Channel $channel `
+              -IndexTool ./tools/renop-release-index `
               -DistDir ./dist `
               -Version $env:VERSION `
               -Commit $env:COMMIT `
@@ -344,3 +362,63 @@ jobs:
             LICENSE
             README.md
             THIRD_PARTY_NOTICES.md
+
+  container:
+    name: Publish release container to mvnc
+    needs: [metadata, assemble, publish]
+    if: needs.metadata.outputs.release == 'true' && needs.metadata.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Download amd64 executable
+        uses: actions/download-artifact@v8
+        with:
+          name: executable-linux-amd64
+          path: container-bin/amd64
+      - name: Download arm64 executable
+        uses: actions/download-artifact@v8
+        with:
+          name: executable-linux-arm64
+          path: container-bin/arm64
+      - name: Validate container tag
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
+        run: |
+          if ($env:RELEASE_VERSION -notmatch '^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,127}$') {
+              throw 'The release version is not a valid OCI tag'
+          }
+      - name: Prepare registry image and account
+        id: registry
+        shell: pwsh
+        env:
+          RENOP_PUBLISH_TOKEN: ${{ secrets.RENOP_PUBLISH_TOKEN }}
+        run: ./.github/scripts/prepare-container-publish.ps1
+      - name: Login to mvnc
+        uses: docker/login-action@v4
+        with:
+          registry: mvnc.pkg.one
+          username: ${{ secrets.RENOP_PUBLISH_UNAME }}
+          password: ${{ secrets.RENOP_PUBLISH_UPASS }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Publish both container architectures
+        id: image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          provenance: false
+          tags: |
+            mvnc.pkg.one/oci/renop:${{ needs.metadata.outputs.version }}
+            mvnc.pkg.one/oci/renop:latest
+          build-args: |
+            VERSION=${{ needs.metadata.outputs.version }}
+            REVISION=${{ needs.metadata.outputs.commit }}
+      - name: Verify published image index
+        env:
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+        run: docker buildx imagetools inspect "mvnc.pkg.one/oci/renop@$IMAGE_DIGEST"

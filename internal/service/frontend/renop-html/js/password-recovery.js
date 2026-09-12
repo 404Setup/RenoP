@@ -8,14 +8,14 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
-import {captchaFetch} from './captcha.js';
+import {createJSONClient} from './api.js';
 import {showAlert} from './alert.js';
 import {logout} from './auth.js';
 import {loginReturnTo, navigateToLogin} from './login-route.js';
 import {runButtonAction} from './components/button.js';
 import {t} from './i18n.js';
 import {attachPasswordStrength, confirmWeakPasswordIfNeeded, getPasswordLengthError} from './password-strength.js';
-import {LocalizedResponseError, responseErrorMessage} from './response-errors.js';
+import {LocalizedResponseError} from './response-errors.js';
 import {mailStatusLabel} from './mail-status.js';
 
 const form = document.getElementById('password-reset-form');
@@ -30,14 +30,7 @@ const delivery = document.getElementById('password-reset-delivery');
 const refresh = document.getElementById('password-reset-refresh');
 let active = false, epoch = 0, availabilityEpoch = 0, receipt, timer, strength;
 
-/** Read bounded auth responses without interpreting a rejected code as an expired session. */
-async function requestJSON(path, options = {}) {
-    const response = await captchaFetch('/api/auth/' + path, {
-        credentials: 'include', cache: 'no-store', signal: AbortSignal.timeout(15000), ...options,
-    });
-    if (!response.ok) throw new LocalizedResponseError(await responseErrorMessage(response, 'login.recoveryFailed'), response.status);
-    return response.json();
-}
+const requestJSON = createJSONClient('/api/auth/', 'login.recoveryFailed', {publicRequest: true, timeoutMS: 15000});
 
 /** Apply the live mail switch to the public entry links and reset form. */
 export async function refreshPasswordRecoveryAvailability() {
@@ -95,7 +88,7 @@ async function updateDelivery() {
         const job = await requestJSON('mail/' + encodeURIComponent(current.id), {headers: {'X-Renop-Mail-Ticket': current.ticket}});
         if (!active || receipt !== current) return;
         delivery.textContent = mailStatusLabel(job.status);
-        if (['queued', 'paused', 'sending', 'checking', 'queued_provider'].includes(job.status) && Date.now() < current.deadline) {
+        if (['queued', 'paused', 'sending', 'checking'].includes(job.status) && Date.now() < current.deadline) {
             timer = setTimeout(() => {
                 void updateDelivery();
             }, 3000);

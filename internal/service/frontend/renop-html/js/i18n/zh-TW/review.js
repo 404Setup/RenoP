@@ -11,6 +11,7 @@
 import base from '../zh-HK/review.js';
 
 export default Object.freeze({
+    "ticket.olderMessages": "較早的訊息",
     ...base,
     "audit.action.REVIEW_REQUEST": "提交審核",
     "audit.action.REVIEW_DECISION": "處理審核",
@@ -62,5 +63,11 @@ export default Object.freeze({
     "ticket.confirm.escalate": "釋出工單並升級給另一位系統管理員？升級三次後，最終接管人必須處理。",
     "ticket.responsePrivacy": "提交者將看到此回覆，請勿包含處理人身分或隱私資訊。檢舉成立時，請先執行對應處置再確認結果。",
     "ticket.reportPrivacy": "被檢舉方無法看到您的身分或檢舉內容，處理結果將透過訊息中心通知。",
-    "ticket.createHint": "選擇對應儲存庫聯絡版主，或選擇全站聯絡系統管理員。"
+    "ticket.createHint": "選擇對應儲存庫聯絡版主，或選擇全站聯絡系統管理員。",
+    "ticket.closeReason.planned": "計畫",
+    "ticket.unassigned": "未指派",
+    "ticket.banTargetUser": "封鎖/解除封鎖 @{name}",
+    "ticket.banRequester": "封鎖/解除封鎖提交者 @{name}",
+    "ticket.event.released": "釋出了此工單",
+    "ticket.reportedTarget": "檢舉目標"
 });

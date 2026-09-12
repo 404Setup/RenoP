@@ -94,3 +94,11 @@ otherwise valid session. A `401` requires signing in again.
   storage. Javadoc and Cargodoc run in sandboxed viewers.
 - Audit and durable messages record security-relevant outcomes without exposing operator identity where product policy
   requires neutral notifications.
+
+Repository GET/HEAD requests, including metadata, Range requests and mirror reads, share a limit of 20 requests per second with a burst of 240 per client network. Authentication does not exempt downloads. IPv4-mapped addresses are normalized and IPv6 privacy addresses share a /64 budget. Denials return `429`, `Retry-After` and `Cache-Control: no-store`; Docker uses `TOOMANYREQUESTS`.
+
+## Profile privacy
+
+Account owners can enable **Private profile** in their profile settings. Only the owner, system administrators, and moderators of any repository (`canmoderate:<repository>` or `canmoderate:*`) can then read the profile, avatar, and profile membership lists. Private accounts are omitted from other users’ invitation suggestions, but invitations addressed to their full username still work. Avatars recheck live visibility even when their content hash is unchanged.
+
+The owner-only `PUT /api/auth/profile/privacy` endpoint accepts `{"user_id":"<immutable account ID>","private":true}` and requires the current browser session cookie. The response is the updated own profile. Profile responses expose the `private` boolean only to viewers authorized to read that profile.

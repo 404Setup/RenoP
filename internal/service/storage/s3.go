@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"mime"
 	"net"
 	"net/url"
 	"os"
@@ -31,8 +32,10 @@ import (
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 
+	"renop/internal/artifactstore"
 	"renop/internal/config"
 	"renop/internal/core"
+	"renop/internal/repositorycapacity"
 	"renop/internal/service/cargodocs"
 	"renop/internal/service/gpg"
 	"renop/internal/service/index"
@@ -56,6 +59,15 @@ type cancelReadCloser struct {
 	cancel context.CancelFunc
 	once   sync.Once
 	err    error
+}
+
+// ReadAt preserves the object's ranged-reader capability for archive metadata.
+func (r *cancelReadCloser) ReadAt(p []byte, offset int64) (int, error) {
+	reader, ok := r.ReadCloser.(io.ReaderAt)
+	if !ok {
+		return 0, errors.New("object does not support ranged reads")
+	}
+	return reader.ReadAt(p, offset)
 }
 
 func (r *cancelReadCloser) Close() error {
@@ -258,7 +270,7 @@ func NormalizeS3KeyPrefix(raw string) (string, error) {
 	if strings.Contains(prefix, `\`) {
 		return "", errors.New("S3 key prefix cannot contain backslashes")
 	}
-	for _, segment := range strings.Split(prefix, "/") {
+	for segment := range strings.SplitSeq(prefix, "/") {
 		if segment == "" || segment == "." || segment == ".." || strings.TrimSpace(segment) != segment ||
 			strings.IndexFunc(segment, unicode.IsControl) >= 0 {
 			return "", errors.New("S3 key prefix contains an invalid path segment")
@@ -312,14 +324,13 @@ func UploadToS3Direct(s3Cfg *config.S3Config, localPath string, s3Key string) er
 	if err != nil {
 		return err
 	}
-	client, err := GetS3Client(s3Cfg)
+	store, err := s3ContentStore(s3Cfg)
 	if err != nil {
 		return err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), s3TransferTimeout)
 	defer cancel()
-	_, err = client.FPutObject(ctx, s3Cfg.Bucket, objectKey, localPath, minio.PutObjectOptions{})
-	return err
+	return store.PutFile(ctx, objectKey, localPath)
 }
 
 func DownloadFromS3(s3Key string) (io.ReadCloser, index.FileInfo, error) {
@@ -340,21 +351,23 @@ func DownloadFromS3Direct(s3Cfg *config.S3Config, s3Key string) (io.ReadCloser, 
 		return nil, index.FileInfo{}, err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), s3TransferTimeout)
-	obj, err := client.GetObject(ctx, s3Cfg.Bucket, objectKey, minio.GetObjectOptions{})
+	store, err := s3ContentStore(s3Cfg)
 	if err != nil {
 		cancel()
 		return nil, index.FileInfo{}, err
 	}
-	stat, err := obj.Stat()
+	physical, logical, err := store.Resolve(ctx, objectKey)
 	if err != nil {
-		obj.Close()
 		cancel()
 		return nil, index.FileInfo{}, err
 	}
-	return &cancelReadCloser{ReadCloser: obj, cancel: cancel}, index.FileInfo{
-		Size:    stat.Size,
-		ModTime: stat.LastModified.UnixNano(),
-	}, nil
+	obj, err := client.GetObject(ctx, s3Cfg.Bucket, physical, minio.GetObjectOptions{})
+	if err != nil {
+		cancel()
+		return nil, index.FileInfo{}, err
+	}
+	return &cancelReadCloser{ReadCloser: store.TrackRead(objectKey, obj, logical), cancel: cancel}, index.FileInfo{Size: logical.Size, ModTime: logical.LastModified.UnixNano()}, nil
+
 }
 
 func DownloadRangeFromS3(s3Key string, start, end int64) (io.ReadCloser, error) {
@@ -375,6 +388,16 @@ func DownloadRangeFromS3(s3Key string, start, end int64) (io.ReadCloser, error) 
 		return nil, err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), s3TransferTimeout)
+	store, err := s3ContentStore(s3Cfg)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	objectKey, _, err = store.Resolve(ctx, objectKey)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
 	obj, err := client.GetObject(ctx, s3Cfg.Bucket, objectKey, options)
 	if err != nil {
 		cancel()
@@ -383,7 +406,7 @@ func DownloadRangeFromS3(s3Key string, start, end int64) (io.ReadCloser, error) 
 	return &cancelReadCloser{ReadCloser: obj, cancel: cancel}, nil
 }
 
-func GetS3PresignedURL(s3Key string, expires time.Duration) (string, error) {
+func GetS3PresignedURL(s3Key string, expires time.Duration, disposition string) (string, error) {
 	s3Cfg := GetS3ConfigForPath(s3Key)
 	if s3Cfg == nil {
 		return "", errors.New("S3 not enabled for path")
@@ -399,6 +422,16 @@ func GetS3PresignedURL(s3Key string, expires time.Duration) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), s3RequestTimeout)
 	defer cancel()
 	reqParams := make(url.Values)
+	reqParams.Set("response-content-disposition", mime.FormatMediaType(disposition, map[string]string{"filename": filepath.Base(s3Key)}))
+	reqParams.Set("response-content-type", utils.ContentTypeByExt(filepath.Ext(s3Key)))
+	store, err := s3ContentStore(s3Cfg)
+	if err != nil {
+		return "", err
+	}
+	objectKey, _, err = store.Resolve(ctx, objectKey)
+	if err != nil {
+		return "", err
+	}
 	u, err := client.PresignedGetObject(ctx, s3Cfg.Bucket, objectKey, expires, reqParams)
 	if err != nil {
 		return "", err
@@ -415,16 +448,13 @@ func UploadStreamToS3(s3Key string, reader io.Reader, size int64, contentType st
 	if err != nil {
 		return err
 	}
-	client, err := GetS3Client(s3Cfg)
+	store, err := s3ContentStore(s3Cfg)
 	if err != nil {
 		return err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), s3TransferTimeout)
 	defer cancel()
-	_, err = client.PutObject(ctx, s3Cfg.Bucket, objectKey, reader, size, minio.PutObjectOptions{
-		ContentType: contentType,
-	})
-	return err
+	return store.PutStream(ctx, objectKey, reader, size, contentType)
 }
 
 func DeleteFromS3(s3Key string) error {
@@ -436,13 +466,13 @@ func DeleteFromS3(s3Key string) error {
 	if err != nil {
 		return err
 	}
-	client, err := GetS3Client(s3Cfg)
+	store, err := s3ContentStore(s3Cfg)
 	if err != nil {
 		return err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), s3RequestTimeout)
 	defer cancel()
-	return client.RemoveObject(ctx, s3Cfg.Bucket, objectKey, minio.RemoveObjectOptions{})
+	return store.Delete(ctx, objectKey)
 }
 
 func DeletePrefixFromS3(s3Prefix string) error {
@@ -466,19 +496,30 @@ func DeletePrefixFromS3Config(s3Cfg *config.S3Config, s3Prefix string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), s3TransferTimeout)
 	defer cancel()
 	objectsCh := make(chan minio.ObjectInfo)
+	contentStore, err := s3ContentStore(s3Cfg)
+	if err != nil {
+		return err
+	}
+	listingResult := make(chan error, 1)
 	go func() {
 		defer close(objectsCh)
+		var listingErr error
+		defer func() { listingResult <- listingErr }()
 		for object := range client.ListObjects(ctx, s3Cfg.Bucket, minio.ListObjectsOptions{
 			Prefix:    objectPrefix,
 			Recursive: true,
 		}) {
 			if object.Err != nil {
-				log.Printf("Error listing S3 object under prefix %s: %v", objectPrefix, object.Err)
-				continue
+				listingErr = object.Err
+				return
+			}
+			if contentStore.Index != nil {
+				contentStore.Index.Remove(object.Key)
 			}
 			select {
 			case objectsCh <- object:
 			case <-ctx.Done():
+				listingErr = ctx.Err()
 				return
 			}
 		}
@@ -489,7 +530,10 @@ func DeletePrefixFromS3Config(s3Cfg *config.S3Config, s3Prefix string) error {
 			return err.Err
 		}
 	}
-	return nil
+	if err := <-listingResult; err != nil {
+		return err
+	}
+	return collectRemovedS3Namespace(ctx, s3Cfg)
 }
 
 func StatS3(s3Key string) (index.FileInfo, error) {
@@ -501,20 +545,18 @@ func StatS3(s3Key string) (index.FileInfo, error) {
 	if err != nil {
 		return index.FileInfo{}, err
 	}
-	client, err := GetS3Client(s3Cfg)
-	if err != nil {
-		return index.FileInfo{}, err
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), s3RequestTimeout)
 	defer cancel()
-	objInfo, err := client.StatObject(ctx, s3Cfg.Bucket, objectKey, minio.StatObjectOptions{})
+	store, err := s3ContentStore(s3Cfg)
 	if err != nil {
 		return index.FileInfo{}, err
 	}
-	return index.FileInfo{
-		Size:    objInfo.Size,
-		ModTime: objInfo.LastModified.UnixNano(),
-	}, nil
+	_, info, err := store.Resolve(ctx, objectKey)
+	if err != nil {
+		return index.FileInfo{}, err
+	}
+	return index.FileInfo{Size: info.Size, ModTime: info.LastModified.UnixNano()}, nil
+
 }
 
 // WalkS3Files streams one logical prefix and stops on listing or visitor errors.
@@ -531,11 +573,22 @@ func WalkS3Files(ctx context.Context, cfg *config.S3Config, root string, visit f
 		return err
 	}
 	prefix = strings.TrimSuffix(prefix, "/") + "/"
+	store, err := s3ContentStore(cfg)
+	if err != nil {
+		return err
+	}
 	ctx, cancel := context.WithTimeout(ctx, s3TransferTimeout)
 	defer cancel()
-	for object := range client.ListObjects(ctx, cfg.Bucket, minio.ListObjectsOptions{Prefix: prefix, Recursive: true}) {
+	for object := range client.ListObjects(ctx, cfg.Bucket, minio.ListObjectsOptions{Prefix: prefix, Recursive: true, WithMetadata: true}) {
 		if object.Err != nil {
 			return object.Err
+		}
+		if strings.HasSuffix(object.Key, "/") {
+			continue
+		}
+		object, err = store.ResolveListed(ctx, object)
+		if err != nil {
+			return err
 		}
 		localKey, ok := localPathFromS3Object(root, prefix, object.Key)
 		if !ok {
@@ -556,12 +609,18 @@ func BuildS3IndexSync(storagePath string, idx *index.FileIndex) error {
 	}
 
 	idx.InsertDir(storagePath)
+	contentStores := map[string]artifactstore.S3{}
 
 	for repoName, repo := range cfg.Maven.Repositories {
 		repoDir := filepath.Join(storagePath, repoName)
 		idx.InsertDir(repoDir)
 
 		if repo.S3 != nil && repo.S3.Enabled {
+			if store, err := s3ContentStore(repo.S3); err == nil && store.Index != nil {
+				key := store.Client.EndpointURL().String() + "\x00" + store.Bucket + "\x00" + store.Prefix
+				contentStores[key] = store
+			}
+			started := time.Now().UnixNano()
 			if err := WalkS3Files(context.Background(), repo.S3, repoDir, func(path string, info index.FileInfo) error {
 				idx.EnsureParentDirs(path)
 				idx.InsertFile(path, info)
@@ -569,8 +628,14 @@ func BuildS3IndexSync(storagePath string, idx *index.FileIndex) error {
 			}); err != nil {
 				return fmt.Errorf("list S3 objects for repository %q: %w", repoName, err)
 			}
+			pruneS3Metadata(repo.S3, repoDir, idx, started)
 		} else {
 			index.ScanLocalDir(repoDir, idx, false)
+		}
+	}
+	for _, store := range contentStores {
+		if err := discoverS3Garbage(context.Background(), store); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -592,13 +657,33 @@ func localPathFromS3Object(repoDir, prefix, objectKey string) (string, bool) {
 }
 
 func SaveAndUploadChecksum(state *core.AppState, basePath string, ext string, hash string) error {
+	if state.IsDemo() {
+		return core.ErrDemoReadOnly
+	}
+	capacity, err := reserveRepositoryCapacity(state, repositorycapacity.Object{Path: basePath + ext, Size: int64(len(hash))})
+	if err != nil {
+		return err
+	}
+	defer capacity.Release()
+	if err := saveAndUploadChecksum(state, basePath, ext, hash); err != nil {
+		return err
+	}
+	capacity.Commit()
+	return nil
+}
+
+// saveAndUploadChecksum requires the caller's reservation when a repository is capped.
+func saveAndUploadChecksum(state *core.AppState, basePath string, ext string, hash string) error {
 	checksumPath := basePath + ext
 	if IsS3Enabled(basePath) {
 		if err := UploadChecksumS3(checksumPath, hash); err != nil {
 			return err
 		}
 	} else {
-		err := os.WriteFile(checksumPath, []byte(hash), 0644)
+		if err := os.MkdirAll(filepath.Dir(checksumPath), 0755); err != nil {
+			return err
+		}
+		err := artifactstore.DefaultDisk.WriteFile(checksumPath, []byte(hash), 0644)
 		if err != nil {
 			return err
 		}

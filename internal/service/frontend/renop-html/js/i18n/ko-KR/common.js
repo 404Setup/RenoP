@@ -9,6 +9,10 @@
  */
 
 export default Object.freeze({
+    "common.add": "추가",
+    "updater.containerDisabled": "컨테이너에서 관리",
+    "updater.containerManaged": "업데이트와 재시작은 컨테이너 런타임에서 관리합니다. 새 이미지를 받아 컨테이너를 다시 생성하세요.",
+    "nav.backPrevious": "이전 페이지로 돌아가기",
     "resourceLock.inheritedNotice": "상속된 잠금은 상위 리소스에서 해제할 때까지 유지됩니다.",
     "resourceLock.manage": "잠금 관리",
     "resourceLock.mode": "잠금 유형",
@@ -69,6 +73,8 @@ export default Object.freeze({
     "common.ok": "확인",
     "common.yes": "예",
     "common.no": "아니오",
+    "common.active": "활성",
+    "common.inactive": "비활성",
     "common.none": "없음",
     "common.remove": "제거",
     "common.loading": "불러오는 중…",

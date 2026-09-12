@@ -189,12 +189,22 @@ func postRecoveryCodes(c fiber.Ctx, state *core.AppState) error {
 	if err != nil {
 		return accountSessionError(c, err)
 	}
+	existing, err := state.GetDB().GetAccountSecurity(user.Username)
+	if err != nil {
+		return mfaError(c, err)
+	}
+	if existing.RecoveryCodeCount > 0 && existing.SecurityHoldUntil > time.Now().UnixMilli() {
+		return mfaError(c, core.ErrSecurityHold)
+	}
 	displayCodes, hashes, err := generateRecoveryCodeSet()
 	if err != nil {
 		log.Printf("Failed to generate recovery codes for %s: %v", user.Username, err)
 		return c.Status(fiber.StatusInternalServerError).SendString("Failed to generate recovery codes")
 	}
 	if err := state.GetDB().ReplaceRecoveryCodes(user.Username, hashes); err != nil {
+		if errors.Is(err, core.ErrSecurityHold) {
+			return mfaError(c, err)
+		}
 		log.Printf("Failed to store recovery codes for %s: %v", user.Username, err)
 		return c.Status(fiber.StatusInternalServerError).SendString("Failed to store recovery codes")
 	}
@@ -257,9 +267,10 @@ func recoveryVerification(state *core.AppState, identifier string,
 	return username, selectors, valid, nil
 }
 
-func purgeRecoveredSessions(state *core.AppState, username string) {
+func purgeRecoveredSessions(state *core.AppState, username string, keepSession ...string) {
 	state.Inner.Sessions.Range(func(sessionToken string, session *core.Session) bool {
-		if session != nil && strings.EqualFold(session.Username, username) {
+		if session != nil && strings.EqualFold(session.Username, username) &&
+			(len(keepSession) == 0 || sessionToken != keepSession[0]) {
 			state.DeleteAuthCache("Session " + sessionToken)
 			state.Inner.Sessions.Delete(sessionToken)
 		}
@@ -312,4 +323,16 @@ func postPasswordRecovery(c fiber.Ctx, state *core.AppState) error {
 	setSessionCookie(c, "", -1)
 	setPrivateResponseHeaders(c)
 	return c.JSON(fiber.Map{"status": "success", "username": username})
+}
+
+// requireSecurityMutable rejects expensive setup work early; database mutations repeat the check under lock.
+func requireSecurityMutable(state *core.AppState, username string) error {
+	security, err := state.GetDB().GetAccountSecurity(username)
+	if err != nil {
+		return err
+	}
+	if security.SecurityHoldUntil > time.Now().UnixMilli() {
+		return core.ErrSecurityHold
+	}
+	return nil
 }

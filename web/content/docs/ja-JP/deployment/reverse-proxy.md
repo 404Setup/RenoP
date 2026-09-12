@@ -66,7 +66,7 @@ Caddy は TLS を自動管理します。`flush_interval -1` は streaming respo
 ### 自動設定
 
 RenoP の配置ディレクトリから installer を実行します。標準的な場所の Caddyfile を検出し、Caddy binary で
-新しい site を検証してから、両方の設定を transaction として更新して Caddy を reload します。`config.yaml` には公開
+新しい site を検証してから、両方の設定を transaction として更新して Caddy を reload します。`renop-settings.db` には公開
 hostname、loopback listener、Caddy が管理する TLS 設定が同期されます。
 
 ```bash
@@ -75,7 +75,7 @@ hostname、loopback listener、Caddy が管理する TLS 設定が同期され�
 # Explicit paths or offline preparation
 ./renop --install-caddy --hostname renop.example.com \
   --caddyfile /etc/caddy/Caddyfile \
-  --config /opt/renop/config.yaml \
+  --settings-db /opt/renop/renop-settings.db \
   --skip-reload
 ```
 

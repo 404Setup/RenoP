@@ -14,8 +14,8 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"database/sql"
-	"encoding/hex"
 	"errors"
+	"renop/pkg/hex"
 	"time"
 
 	"renop/internal/core"
@@ -80,15 +80,15 @@ func (db *DB) QueueEmailPasswordReset(job *mail.Job, codeHash, key, ip string, r
 
 // passwordResetIdentityTx binds email verification to the live identity, password, and security revision.
 func passwordResetIdentityTx(tx *Tx, email string) (userID, username, credentialHash string, updatedAt int64, err error) {
-	err = tx.QueryRow(`SELECT user_id FROM user_email_addresses WHERE email = ?`, email).Scan(&userID)
+	err = tx.QueryRow(`SELECT user_id FROM user_account_security WHERE email = ?`, email).Scan(&userID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return "", "", "", 0, nil
+		return "", "", "", 0, core.ErrEmailCodeInvalid
 	}
 	if err != nil {
 		return "", "", "", 0, err
 	}
 	if err = lockAccountLoginMethodsTx(tx, userID); errors.Is(err, core.ErrAccountDeleted) {
-		return "", "", "", 0, nil
+		return "", "", "", 0, core.ErrEmailCodeInvalid
 	} else if err != nil {
 		return "", "", "", 0, err
 	}
@@ -97,10 +97,10 @@ func passwordResetIdentityTx(tx *Tx, email string) (userID, username, credential
         FROM user_email_addresses address JOIN user_account_security security ON security.user_id = address.user_id
         JOIN user_profiles profile ON profile.user_id = security.user_id
         JOIN tokens token ON token.name = profile.username
-        WHERE address.user_id = ? AND address.email = ? AND token.deleted_at = 0`, userID, email).
+        WHERE address.user_id = ? AND address.email = ? AND security.email = address.email AND token.deleted_at = 0`, userID, email).
 		Scan(&username, &passwordHash, &updatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
-		return "", "", "", 0, nil
+		return "", "", "", 0, core.ErrEmailCodeInvalid
 	}
 	if err != nil {
 		return "", "", "", 0, err
@@ -125,46 +125,66 @@ func (db *DB) ResetPasswordWithEmailCode(email, codeHash, passwordHash string, u
 	if err = lockMailTx(tx); err != nil {
 		return "", err
 	}
-	var userID, expected, credentialHash string
-	var securityUpdatedAt, expiresAt int64
-	var attempts int
-	err = tx.QueryRow(`SELECT user_id, code_hash, credential_hash, security_updated_at, attempts, expires_at
-        FROM user_password_resets WHERE email = ?`, email).
-		Scan(&userID, &expected, &credentialHash, &securityUpdatedAt, &attempts, &expiresAt)
-	if errors.Is(err, sql.ErrNoRows) {
-		return "", core.ErrEmailCodeInvalid
-	}
+	username, recordFailure, err := consumePasswordResetProofTx(tx, email, codeHash, "", updatedAt)
 	if err != nil {
-		return "", err
-	}
-	if expiresAt <= updatedAt || attempts >= 5 {
-		return "", core.ErrEmailCodeInvalid
-	}
-	if subtle.ConstantTimeCompare([]byte(codeHash), []byte(expected)) != 1 || userID == "" {
-		if _, err = tx.Exec(`UPDATE user_password_resets SET attempts = attempts + 1 WHERE email = ?`, email); err != nil {
-			return "", err
+		if recordFailure {
+			if commitErr := tx.Commit(); commitErr != nil {
+				return "", commitErr
+			}
 		}
-		if err = tx.Commit(); err != nil {
-			return "", err
-		}
-		return "", core.ErrEmailCodeInvalid
-	}
-	currentID, username, currentCredentialHash, currentSecurityUpdatedAt, err := passwordResetIdentityTx(tx, email)
-	if err != nil {
 		return "", err
 	}
-	if currentID != userID || currentCredentialHash != credentialHash || currentSecurityUpdatedAt != securityUpdatedAt {
-		return "", core.ErrEmailCodeInvalid
-	}
-	if err = resetAccountPasswordTx(tx, userID, username, passwordHash, updatedAt); err != nil {
+	var userID string
+	if err := tx.QueryRow(`SELECT user_id FROM user_profiles WHERE username = ?`, username).Scan(&userID); err != nil {
 		return "", err
 	}
-	if _, err = tx.Exec(`DELETE FROM user_password_resets WHERE email = ?`, email); err != nil {
+	if err := resetAccountPasswordTx(tx, userID, username, passwordHash, updatedAt); err != nil {
 		return "", err
 	}
-	if err = tx.Commit(); err != nil {
+	if err := tx.Commit(); err != nil {
 		return "", err
 	}
 	db.invalidateRecoveredAccount(username)
 	return username, nil
+}
+
+func consumePasswordResetProofTx(tx *Tx, email, codeHash, expectedUserID string, updatedAt int64) (string, bool, error) {
+	if !validSelectorHash(codeHash) {
+		return "", false, core.ErrEmailCodeInvalid
+	}
+	var userID, expected, credentialHash string
+	var securityUpdatedAt, expiresAt int64
+	var attempts int
+	err := tx.QueryRow(`SELECT user_id, code_hash, credential_hash, security_updated_at, attempts, expires_at
+        FROM user_password_resets WHERE email = ?`, email).
+		Scan(&userID, &expected, &credentialHash, &securityUpdatedAt, &attempts, &expiresAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, core.ErrEmailCodeInvalid
+	}
+	if err != nil {
+		return "", false, err
+	}
+	if expiresAt <= updatedAt || attempts >= 5 {
+		return "", false, core.ErrEmailCodeInvalid
+	}
+	if expectedUserID != "" && userID != expectedUserID {
+		return "", false, core.ErrEmailCodeInvalid
+	}
+	if subtle.ConstantTimeCompare([]byte(codeHash), []byte(expected)) != 1 || userID == "" {
+		if _, err = tx.Exec(`UPDATE user_password_resets SET attempts = attempts + 1 WHERE email = ?`, email); err != nil {
+			return "", false, err
+		}
+		return "", true, core.ErrEmailCodeInvalid
+	}
+	currentID, username, currentCredentialHash, currentSecurityUpdatedAt, err := passwordResetIdentityTx(tx, email)
+	if err != nil {
+		return "", false, err
+	}
+	if currentID != userID || currentCredentialHash != credentialHash || currentSecurityUpdatedAt != securityUpdatedAt {
+		return "", false, core.ErrEmailCodeInvalid
+	}
+	if _, err = tx.Exec(`DELETE FROM user_password_resets WHERE email = ?`, email); err != nil {
+		return "", false, err
+	}
+	return username, false, nil
 }

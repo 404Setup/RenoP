@@ -2,3 +2,5 @@ packages:
   - 'packages/*'
   - 'web'
   - 'internal/service/frontend/renop-html'
+minimumReleaseAgeExclude:
+  - marked@18.0.13

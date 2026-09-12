@@ -12,9 +12,9 @@ package config
 
 import (
 	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"math"
+	"renop/pkg/hex"
 	"strings"
 	"unicode"
 

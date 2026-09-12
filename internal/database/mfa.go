@@ -87,6 +87,9 @@ func (db *DB) UpdateMFA(username, snapshot, secret string, passkey bool, lastSte
 	if err != nil {
 		return err
 	}
+	if err := securityHoldTx(tx, current.UserID, time.Now().UnixMilli()); err != nil {
+		return err
+	}
 	if current.Snapshot != snapshot {
 		return core.ErrMFAInvalid
 	}
@@ -140,14 +143,28 @@ func (db *DB) ConsumeMFACode(username, revision string, step, now int64) error {
 	if err != nil {
 		return err
 	}
-	if state.Secret == "" || state.Revision != revision {
+	valid, err := consumeMFACodeTx(tx, state, revision, step, now)
+	if err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	if !valid {
 		return core.ErrMFAInvalid
+	}
+	return nil
+}
+
+func consumeMFACodeTx(tx *Tx, state *core.MFAState, revision string, step, now int64) (bool, error) {
+	if state.Secret == "" || state.Revision != revision {
+		return false, core.ErrMFAInvalid
 	}
 	if now-state.WindowStart >= int64(5*time.Minute/time.Millisecond) {
 		state.WindowStart, state.Failures = now, 0
 	}
 	if state.Failures >= 5 {
-		return core.ErrMFAInvalid
+		return false, core.ErrMFAInvalid
 	}
 	valid := step > state.LastStep && step >= 0
 	if valid {
@@ -155,16 +172,10 @@ func (db *DB) ConsumeMFACode(username, revision string, step, now int64) error {
 	} else {
 		state.Failures++
 	}
-	if _, err = tx.Exec(`UPDATE user_mfa SET last_step = ?, failures = ?, window_start = ? WHERE user_id = ?`, state.LastStep, state.Failures, state.WindowStart, state.UserID); err != nil {
-		return err
+	if _, err := tx.Exec(`UPDATE user_mfa SET last_step = ?, failures = ?, window_start = ? WHERE user_id = ?`, state.LastStep, state.Failures, state.WindowStart, state.UserID); err != nil {
+		return false, err
 	}
-	if err = tx.Commit(); err != nil {
-		return err
-	}
-	if !valid {
-		return core.ErrMFAInvalid
-	}
-	return nil
+	return valid, nil
 }
 
 func passkeySecondFactorTx(tx *Tx, userID string) (bool, error) {

@@ -26,6 +26,19 @@ import {
 import {exitProtectedRouteOnDenial} from './protected-route.js';
 import {logout} from './auth.js';
 import {restartApp} from './dashboard.js';
+import {
+    FrontendConfig,
+    IndexDomainSettings,
+    LegalSettings,
+    OAuthSettings,
+    ProxyConfig,
+    RebuildIndexRequest,
+    ServerConfig,
+    SettingsDomainsResponse,
+    StorageConfig,
+    UpdaterConfig,
+    UpdateState
+} from './proto/index.js';
 import {renderCaptchaSettings} from './settings/captcha.js';
 import {renderLegalSettings} from './settings/legal.js';
 import {renderCacheSettings} from './settings/cache.js';
@@ -33,6 +46,7 @@ import {renderRegistrationSettings} from './settings/registration.js';
 import {renderMavenDomainSettings} from './settings/maven-domains.js';
 import {renderOAuthSettings} from './settings/oauth.js';
 import {renderMailSettings} from './settings/mail.js';
+import {settingsGroups, settingsGroupFor} from './settings/navigation.js';
 import {
     formatClickHouseDsn,
     formatMysqlDsn,
@@ -42,16 +56,6 @@ import {
     parsePostgresDsn
 } from './settings/database-dsn.js';
 import {caughtErrorMessage, LocalizedResponseError, responseErrorMessage} from './response-errors.js';
-import {
-    FrontendConfig,
-    IndexDomainSettings,
-    ProxyConfig,
-    RebuildIndexRequest,
-    ServerConfig,
-    SettingsDomainsResponse,
-    StorageConfig,
-    UpdaterConfig,
-} from './proto/index.js';
 
 const DOMAIN_MESSAGE_TYPES = {
     frontend: FrontendConfig,
@@ -89,10 +93,14 @@ let discoveryId = 0;
 let accountGeneration = 0;
 let settingsOwner = '';
 let saving = false;
+let containerManaged = false;
 
 /** @param {string} domain - Domain key. @returns {string} Localized page name. */
 function domainLabel(domain) {
-    return t(SETTINGS_PAGES[domain].label);
+    const labels = [SETTINGS_PAGES[domain].label];
+    if (domain === 'frontend') labels.push('legal.title');
+    if (domain === 'storage') labels.push('settings.domainIndex');
+    return labels.map(label => t(label)).join(' · ');
 }
 
 /** @param {object|undefined} draft - Page draft. @returns {boolean} Whether it differs from saved state. */
@@ -112,10 +120,18 @@ function enableSave() {
     if (reset) reset.disabled = saving || !currentConfig || !dirty;
     const status = document.getElementById('settings-draft-status');
     if (status) status.textContent = t(saving ? 'settings.saving' : dirty ? 'settings.unsaved' : 'settings.upToDate');
-    for (const button of document.querySelectorAll('#settings-nav [data-settings-domain]')) {
+    for (const button of document.querySelectorAll('#settings-subnav [data-settings-domain]')) {
         const hasDraft = dirtyDraft(drafts.get(button.dataset.settingsDomain));
         button.classList.toggle('has-draft', hasDraft);
         button.setAttribute('aria-label', domainLabel(button.dataset.settingsDomain) + (hasDraft ? ` · ${t('settings.unsaved')}` : ''));
+        button.disabled = saving;
+    }
+    const groups = settingsGroups(domainsList);
+    for (const button of document.querySelectorAll('#settings-nav [data-settings-group]')) {
+        const group = groups.find(group => group.id === button.dataset.settingsGroup);
+        const hasDraft = group?.domains.some(domain => dirtyDraft(drafts.get(domain)));
+        button.classList.toggle('has-draft', Boolean(hasDraft));
+        button.setAttribute('aria-label', t(group.label) + (hasDraft ? ` · ${t('settings.unsaved')}` : ''));
         button.disabled = saving;
     }
     const form = document.getElementById('settings-form-container');
@@ -128,23 +144,35 @@ function enableSave() {
     }
 }
 
-/** @returns {void} Render independent settings pages and bounded previous/next navigation. */
+/** @returns {void} Render categories with independently editable subpages. */
 function renderDomainNavigation() {
     const nav = document.getElementById('settings-nav');
     if (!nav) return;
-    nav.replaceChildren(...domainsList.map(domain => el('button', {
-        type: 'button', class: 'settings-nav-item', 'data-settings-domain': domain,
-        'aria-current': domain === currentDomain ? 'page' : null,
-        onclick: () => {
-            if (domain !== currentDomain) void loadDomainSettings(domain, true);
-        }
-    }, el('span', {}, domainLabel(domain)), el('span', {class: 'settings-draft-dot', 'aria-hidden': 'true'}))));
+    const groups = settingsGroups(domainsList);
+    const active = settingsGroupFor(currentDomain, groups);
+    const openGroup = group => {
+        if (group && group.id !== active?.id) void loadDomainSettings(group.domains[0], true);
+    };
+    nav.replaceChildren(...groups.map(group => el('button', {
+        type: 'button', class: 'settings-nav-item', 'data-settings-group': group.id,
+        'aria-current': group.id === active?.id ? 'page' : null,
+        onclick: () => openGroup(group)
+    }, el('span', {}, t(group.label)), el('span', {class: 'settings-draft-dot', 'aria-hidden': 'true'}))));
+    const subnav = document.getElementById('settings-subnav');
+    if (subnav) {
+        subnav.hidden = !active || active.domains.length < 2;
+        subnav.replaceChildren(...(active?.domains || []).map(domain => el('button', {
+            type: 'button', class: 'settings-nav-item', 'data-settings-domain': domain,
+            'aria-current': domain === currentDomain ? 'page' : null,
+            onclick: () => {
+                if (domain !== currentDomain) void loadDomainSettings(domain, true);
+            }
+        }, el('span', {}, domainLabel(domain)), el('span', {class: 'settings-draft-dot', 'aria-hidden': 'true'}))));
+    }
     const picker = document.getElementById('settings-page-picker');
     if (picker) {
-        const select = makeCustomSelect(domainsList.map(domain => ({value: domain, label: domainLabel(domain)})),
-            currentDomain || '', domain => {
-                if (domain !== currentDomain) void loadDomainSettings(domain, true);
-            });
+        const select = makeCustomSelect(groups.map(group => ({value: group.id, label: t(group.label)})),
+            active?.id || '', id => openGroup(groups.find(group => group.id === id)));
         select.querySelector('button')?.setAttribute('aria-label', t('settings.sections'));
         picker.replaceChildren(select);
     }
@@ -182,14 +210,24 @@ export async function initSettings() {
     if (saving) return;
     const requestId = ++discoveryId;
     try {
-        const {response, data} = await fetchProto('/api/settings/domains', SettingsDomainsResponse);
+        const [{response, data}, updater] = await Promise.all([
+            fetchProto('/api/settings/domains', SettingsDomainsResponse),
+            fetchProto('/api/updater/status', UpdateState),
+        ]);
         if (requestId !== discoveryId) return;
+        containerManaged = updater.data?.status === 'disabled';
+        const restart = document.getElementById('settings-restart-btn');
+        if (restart) {
+            restart.disabled = containerManaged;
+            restart.title = containerManaged ? t('updater.containerManaged') : '';
+        }
         if (exitProtectedRouteOnDenial(response)) {
             if (response.status === 401) void logout('kicked');
             return;
         }
         if (!response.ok || !data) throw new LocalizedResponseError(await responseErrorMessage(response, 'settings.loadFailed'), response.status);
-        domainsList = [...new Set(data.domains || [])].filter(domain => Object.hasOwn(SETTINGS_PAGES, domain));
+        domainsList = settingsGroups((data.domains || []).filter(domain => Object.hasOwn(SETTINGS_PAGES, domain)))
+            .flatMap(group => group.domains);
         for (const domain of drafts.keys()) if (!domainsList.includes(domain)) drafts.delete(domain);
         currentDomain = domainsList.includes(currentDomain) ? currentDomain : domainsList[0] || null;
         renderDomainNavigation();
@@ -202,6 +240,14 @@ export async function initSettings() {
 
 /** @param {string} domain - Known page key. @returns {Promise<{response: Response, data: object|null}>} Configuration response. */
 async function fetchDomainSettings(domain) {
+    if (domain === 'oauth_providers') {
+        const result = await fetchProto('/api/settings/oauth-providers', OAuthSettings);
+        if (result?.data?.providers) {
+            result.data.providers = result.data.providers.filter(p => p.type !== 'github' || p.client_id || p.enabled || p.client_secret_configured);
+        }
+        return result;
+    }
+    if (domain === 'legal') return fetchProto('/api/settings/legal', LegalSettings);
     const MessageType = DOMAIN_MESSAGE_TYPES[domain];
     if (MessageType) return fetchProto(`/api/settings/domain/${domain}`, MessageType);
     const response = await apiRequest(`/api/settings/${domain.replaceAll('_', '-')}`, {}, {logoutOnForbidden: false});
@@ -574,6 +620,10 @@ function renderPublicationQuotaSettings(container, data) {
  * @returns {void}
  */
 function renderUpdaterSettings(container, data) {
+    if (containerManaged) {
+        container.appendChild(createCallout('info', t('updater.containerManaged')));
+        return;
+    }
     const currentConfig = data;
     const wrap = el('div', {class: 'cfg-layout'});
 
@@ -686,11 +736,24 @@ function renderFrontendSettings(container, data) {
     ];
     currentConfig.font_preset = data.font_preset || 'system';
     currentConfig.font_url = data.font_url || '';
+    currentConfig.font_css = data.font_css || '';
     const fontUrlInput = buildInput('url', currentConfig.font_url, 'https://example.com/font.woff2', e => {
         currentConfig.font_url = e.target.value;
         enableSave();
     });
     const fontUrlRow = createFieldRow(t('settings.fontUrl'), t('settings.fontUrlHint'), fontUrlInput);
+
+    const fontCssTextarea = el('textarea', {
+        class: 'cfg-input',
+        style: {minHeight: '70px', fontFamily: 'monospace', fontSize: '0.85rem', width: '100%', resize: 'vertical'},
+        placeholder: '@font-face { ... }',
+        value: currentConfig.font_css
+    });
+    fontCssTextarea.addEventListener('input', e => {
+        currentConfig.font_css = e.target.value;
+        enableSave();
+    });
+    const fontCssRow = createFieldRow(t('settings.fontCss'), t('settings.fontCssHint'), fontCssTextarea);
 
     /**
      * Shows the resource URL only for the custom webfont mode.
@@ -713,6 +776,7 @@ function renderFrontendSettings(container, data) {
         fontSelect
     ));
     typographyFields.appendChild(fontUrlRow);
+    typographyFields.appendChild(fontCssRow);
     typographySection.appendChild(createCallout('neutral', t('settings.fontApplyHint'), 'info'));
     updateFontUrlVisibility();
 
@@ -744,6 +808,7 @@ function renderFrontendSettings(container, data) {
     wrap.appendChild(typographySection);
     wrap.appendChild(complianceSection);
     container.appendChild(wrap);
+    if (data.legal) renderLegalSettings(container, data.legal, enableSave);
 }
 
 /**
@@ -832,13 +897,7 @@ function renderServerSettings(container, data) {
         t('settings.avatarMaxSize'), t('settings.avatarMaxSizeHint'), avatarLimitInput
     ));
 
-    const debugSection = createSection(
-        createIcon('performance'),
-        t('settings.debugTitle'),
-        t('settings.debugSubtitle')
-    );
-    const debugFields = debugSection.querySelector('.cfg-fields');
-    debugFields.appendChild(createToggleRow(
+    perfFields.appendChild(createToggleRow(
         t('settings.debugMode'),
         t('settings.debugModeDesc'),
         data.debug_mode === true,
@@ -847,12 +906,12 @@ function renderServerSettings(container, data) {
             enableSave();
         }
     ));
-    debugSection.appendChild(createCallout('warning', t('settings.debugModeRestart'), 'warning'));
 
     const netSection = createSection(
         createIcon('network'),
         t('settings.network'),
-        t('settings.networkDesc')
+        t('settings.networkDesc'),
+        {defaultCollapsed: false}
     );
     const netFields = netSection.querySelector('.cfg-fields');
 
@@ -860,6 +919,7 @@ function renderServerSettings(container, data) {
         currentConfig.host = e.target.value;
         enableSave();
     });
+    hostInput.required = true;
     netFields.appendChild(createFieldRow(t('settings.serverHost'), t('settings.serverHostHint'), hostInput));
 
     const portInput = buildInput('number', data.port || 3000, '3000', e => {
@@ -868,6 +928,10 @@ function renderServerSettings(container, data) {
         currentConfig.port = Math.trunc(n);
         enableSave();
     });
+    portInput.required = true;
+    portInput.min = '1';
+    portInput.max = '65535';
+    portInput.step = '1';
     netFields.appendChild(createFieldRow(t('settings.serverPort'), t('settings.serverPortHint'), portInput));
 
     const domainsValue = Array.isArray(data.domains) ? data.domains.join(', ') : '';
@@ -906,10 +970,11 @@ function renderServerSettings(container, data) {
     });
     netFields.appendChild(createFieldRow(t('settings.trustedProxies'), t('settings.trustedProxiesHint'), proxiesInput));
 
-    wrap.appendChild(sslSection);
-    wrap.appendChild(perfSection);
-    wrap.appendChild(debugSection);
+    netSection.appendChild(createCallout('info', t('settings.listenerRestart'), 'info'));
     wrap.appendChild(netSection);
+    wrap.appendChild(sslSection);
+    perfSection.appendChild(createCallout('info', t('settings.debugModeRestart'), 'info'));
+    wrap.appendChild(perfSection);
 
     const gpgConfig = data.gpg || currentConfig.gpg || {key_servers: []};
     currentConfig.gpg = gpgConfig;
@@ -1261,6 +1326,7 @@ function renderStorageSettings(container, data) {
 
     wrap.appendChild(storageSection);
     container.appendChild(wrap);
+    renderIndexSettings(container);
 }
 
 /**
@@ -1355,7 +1421,29 @@ export async function saveDomainSettings() {
     enableSave();
     try {
         let response, savedData;
-        if (DOMAIN_MESSAGE_TYPES[domain]) {
+        if (domain === 'oauth_providers') {
+            const hasGitHub = submitted.providers.some(p => p.type === 'github');
+            const providersToSend = hasGitHub ? submitted.providers : [
+                ...submitted.providers,
+                {
+                    id: 'github',
+                    type: 'github',
+                    name: 'GitHub',
+                    enabled: false,
+                    client_id: '',
+                    callback_url: '',
+                    clear_client_secret: true,
+                    clear_revocation_secret: true
+                }
+            ];
+            ({response, data: savedData} = await putProto('/api/settings/oauth-providers', OAuthSettings,
+                {providers: providersToSend, replace_providers: true}, OAuthSettings));
+            if (response?.ok && savedData?.providers && !hasGitHub) {
+                savedData.providers = savedData.providers.filter(p => p.type !== 'github');
+            }
+        } else if (domain === 'legal') {
+            ({response, data: savedData} = await putProto('/api/settings/legal', LegalSettings, submitted, LegalSettings));
+        } else if (DOMAIN_MESSAGE_TYPES[domain]) {
             ({response} = await putProto(`/api/settings/domain/${domain}`, DOMAIN_MESSAGE_TYPES[domain], submitted));
         } else {
             response = await apiRequest(`/api/settings/${domain.replaceAll('_', '-')}`, {
@@ -1373,7 +1461,7 @@ export async function saveDomainSettings() {
         renderSettingsForm(domain, currentConfig);
         draft.initial = structuredClone(draft.config);
         if (domain === 'oauth_providers') window.dispatchEvent(new Event('oauthProvidersChanged'));
-        if (domain === 'legal') window.dispatchEvent(new Event('legalSettingsChanged'));
+        if (domain === 'legal' || domain === 'frontend' && submitted.legal) window.dispatchEvent(new Event('legalSettingsChanged'));
         if (domain === 'captcha') window.dispatchEvent(new Event('captchaSettingsChanged'));
         showAlert(t('settings.savedSuccess'), 'success');
     } catch (error) {

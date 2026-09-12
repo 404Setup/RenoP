@@ -177,7 +177,7 @@
 }
 .legal-consent-links { display: flex; flex-wrap: wrap; gap: 0.9rem; margin: 0.65rem 0 0 1.8rem; font-size: 0.85rem; }
 .account-legal-slot .account-form-error { max-width: none; margin: 0.75rem 0 0; font-size: 0.85rem; }
-.footer-link { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-decoration: underline; }
+.footer-link { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-decoration: none; }
 .cookie-banner {
     box-sizing: border-box;
     padding: clamp(1rem, 3vw, 1.5rem);
@@ -203,7 +203,7 @@
 
 /* Standard Cookie Preferences Modal */
 .cookie-preferences-modal {
-    z-index: 2050;
+    z-index: 2200;
 }
 .cookie-preferences-content {
     max-width: 520px;

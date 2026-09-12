@@ -163,7 +163,7 @@ func TestSuperTeamRoutesLifecycleInvitationAndVisibility(t *testing.T) {
 	})
 	require.Equal(t, http.StatusCreated, response.StatusCode)
 	response.Body.Close()
-	messages, err := state.GetDB().ListMessages("bob", 10, 0, "", time.Now().UnixMilli())
+	messages, err := state.GetDB().ListMessages("bob", 10, 0, "", time.Now().UnixMilli(), "")
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
 	assert.Equal(t, "super_team_invite", messages[0].ActionKind)

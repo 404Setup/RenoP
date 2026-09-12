@@ -66,16 +66,6 @@ func wireStorageHooks() {
 		if err != nil {
 			return "", err
 		}
-		if coordinate, valid := ParseArtifactPath(path); valid {
-			prefix, _, _, accessErr := state.GetDB().GetMavenArtifactTeamAccess(
-				repo.Name, coordinate.GroupID, coordinate.ArtifactID, username)
-			if accessErr == nil && prefix != "" {
-				return prefix, nil
-			}
-			if accessErr != nil && !errors.Is(accessErr, core.ErrMavenArtifactNotFound) {
-				return "", accessErr
-			}
-		}
 		return domain.SuperTeamPrefix, nil
 	}
 	storage.MavenReadAuthorizer = CanReadRepository
@@ -114,6 +104,7 @@ func registerDomainRoutes(base fiber.Router, state *core.AppState) {
 	base.Get("/domains", func(c fiber.Ctx) error { return listDomains(c, state) })
 	base.Post("/domains", func(c fiber.Ctx) error { return createDomain(c, state) })
 	base.Get("/domains/:domain", func(c fiber.Ctx) error { return getDomain(c, state) })
+	base.Delete("/domains/:domain/force", func(c fiber.Ctx) error { return forceDeleteDomain(c, state) })
 	base.Post("/domains/:domain/verify", func(c fiber.Ctx) error { return verifyDomain(c, state) })
 	base.Post("/domains/:domain/verify/force", func(c fiber.Ctx) error { return forceVerifyDomain(c, state) })
 	base.Post("/domains/:domain/close", func(c fiber.Ctx) error { return closeDomain(c, state) })
@@ -720,6 +711,25 @@ func closeDomain(c fiber.Ctx, state *core.AppState) error {
 	details.Domain.ClaimStatus = ""
 	details.Domain.ClaimVerifiedAt = 0
 	return c.JSON(details.Domain)
+}
+
+func forceDeleteDomain(c fiber.Ctx, state *core.AppState) error {
+	user, err := authenticated(c)
+	if err != nil {
+		return apiError(c, err)
+	}
+	if !user.IsManager() {
+		return apiError(c, core.ErrMavenPermissionDenied)
+	}
+	domain, err := NormalizeDomain(c.Params("domain"))
+	if err != nil {
+		return apiError(c, fiber.ErrBadRequest)
+	}
+	if err := state.GetDB().ForceDeleteMavenDomain(domain, user.Username); err != nil {
+		return apiError(c, err)
+	}
+	logAudit(c, state, audit.ActionMavenDomainForceDelete, fmt.Sprintf("Domain: %s", domain))
+	return c.SendStatus(fiber.StatusNoContent)
 }
 
 func reviewDomainClaim(c fiber.Ctx, state *core.AppState) error {

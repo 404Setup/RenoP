@@ -31,7 +31,11 @@ import {npmResponseError} from '../npm-errors.js';
 import {openSuperTeamTransferDialog, openTicketCenter} from '../tickets.js';
 import {getRepositoryFormat} from '../repository-formats.js';
 import {createSuperTeamPublicLink} from '../profile-links.js';
-import {createDeprecatePackageButton, createPackageDeprecationBadge, createPackageDeprecationNotice} from '../package-deprecation.js';
+import {
+    createDeprecatePackageButton,
+    createPackageDeprecationBadge,
+    createPackageDeprecationNotice
+} from '../package-deprecation.js';
 import {copyWithFeedback} from './copy-feedback.js';
 import {createPackageDetailTabs} from './package-detail-tabs.js';
 import {
@@ -209,8 +213,11 @@ function copyableVersionMetadata(label, value) {
     });
     button.setAttribute('aria-label', t('npm.copyMetadata', {label}));
     button.addEventListener('click', () => copyCommand(button, value));
+    const box = el('div', {class: 'npm-version-digest-box'},
+        el('code', {title: value}, value), button
+    );
     return el('div', {class: 'npm-version-digest'},
-        el('span', {}, label), el('code', {title: value}, value), button
+        el('span', {}, label), box
     );
 }
 
@@ -307,7 +314,7 @@ function commandBlock(title, command) {
 function registryCommands(packageName = '') {
     const registry = `${window.location.origin}/${encodeURIComponent(activeRepository)}/`;
     const authPath = `${window.location.host}/${encodeURIComponent(activeRepository)}/`;
-    const section = el('section', {class: 'npm-page-section'}, el('h3', {}, t('npm.commands')));
+    const section = el('section', {class: 'npm-page-section npm-commands-section'}, el('h3', {}, t('npm.commands')));
     section.appendChild(commandBlock(t('npm.configureRegistry'),
         `npm config set registry ${registry}\nnpm config set //${authPath}:_authToken <API_TOKEN>`));
     if (packageName) {

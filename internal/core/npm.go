@@ -45,18 +45,18 @@ type NPMPackage struct {
 	Description     string          `json:"description"`
 	Publisher       string          `json:"publisher"`
 	LatestVersion   string          `json:"latest_version"`
-	VersionCount    int             `json:"version_count"`
-	Private         bool            `json:"private"`
-	Archived        bool            `json:"archived"`
-	Deprecated      bool            `json:"deprecated,omitempty"`
-	Locks           []*ResourceLock `json:"locks,omitempty"`
-	Mirrored        bool            `json:"mirrored"`
-	PublishEnabled  bool            `json:"publish_enabled"`
 	SuperTeamPrefix string          `json:"super_team_prefix,omitempty"`
+	Locks           []*ResourceLock `json:"locks,omitempty"`
+	VersionCount    int             `json:"version_count"`
 	PermissionLevel int             `json:"permission_level,omitempty"`
 	Revision        int64           `json:"-"`
 	CreatedAt       int64           `json:"created_at"`
 	UpdatedAt       int64           `json:"updated_at"`
+	Private         bool            `json:"private"`
+	Archived        bool            `json:"archived"`
+	Deprecated      bool            `json:"deprecated,omitempty"`
+	Mirrored        bool            `json:"mirrored"`
+	PublishEnabled  bool            `json:"publish_enabled"`
 }
 
 // NPMVersion stores one immutable npm version and its canonical tarball metadata.

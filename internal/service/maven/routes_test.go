@@ -88,13 +88,13 @@ func newMavenRouteState(t *testing.T) (*core.AppState, *config.User) {
 	return state, &config.User{Username: "alice", Roles: []string{"base"}}
 }
 
-func mavenRequest(t *testing.T, app *fiber.App, method, path, body string) *http.Response {
+func mavenRequest(t *testing.T, app *fiber.App, method, path, body string, options ...fiber.TestConfig) *http.Response {
 	t.Helper()
 	request := httptest.NewRequest(method, path, strings.NewReader(body))
 	if body != "" {
 		request.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
 	}
-	response, err := app.Test(request)
+	response, err := app.Test(request, options...)
 	require.NoError(t, err)
 	return response
 }
@@ -401,7 +401,7 @@ func TestMavenDomainForceVerificationAndCrossRepositoryReuse(t *testing.T) {
 		`{"users":["bob","admin"],"level":0}`)
 	require.Equal(t, http.StatusCreated, response.StatusCode)
 	require.NoError(t, response.Body.Close())
-	messages, err := state.GetDB().ListMessages("bob", 10, 0, "", time.Now().Add(time.Minute).UnixMilli())
+	messages, err := state.GetDB().ListMessages("bob", 10, 0, "", time.Now().Add(time.Minute).UnixMilli(), "")
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
 	assert.Equal(t, "maven_domain_invite", messages[0].ActionKind)
@@ -572,6 +572,19 @@ func TestMavenDomainForceVerificationAndCrossRepositoryReuse(t *testing.T) {
 	require.NoError(t, json.NewDecoder(response.Body).Decode(&independent))
 	require.NoError(t, response.Body.Close())
 	assert.False(t, independent.Verified)
+
+	response = mavenRequest(t, app, http.MethodDelete, "/api/maven/domains/org.third/force", "")
+	require.Equal(t, http.StatusForbidden, response.StatusCode)
+	require.NoError(t, response.Body.Close())
+
+	currentUser = &config.User{Username: "admin", Roles: []string{"manager"}}
+	response = mavenRequest(t, app, http.MethodDelete, "/api/maven/domains/org.third/force", "")
+	require.Equal(t, http.StatusNoContent, response.StatusCode)
+	require.NoError(t, response.Body.Close())
+
+	response = mavenRequest(t, app, http.MethodGet, "/api/maven/domains/org.third", "")
+	require.Equal(t, http.StatusNotFound, response.StatusCode)
+	require.NoError(t, response.Body.Close())
 }
 
 func TestManagedMavenDomainListFiltersAndPaginates(t *testing.T) {
@@ -815,7 +828,8 @@ func TestModernMavenAndFileRepositoriesResolveMirrors(t *testing.T) {
 	SetupRoutes(app.Group("/api"), state)
 	storage.SetupRoutes(app, state)
 
-	response := mavenRequest(t, app, http.MethodGet, "/releases/com/example/demo/1.0/demo-1.0.pom", "")
+	// Let the five-second upstream timeout decide the result before the test transport times out.
+	response := mavenRequest(t, app, http.MethodGet, "/releases/com/example/demo/1.0/demo-1.0.pom", "", fiber.TestConfig{Timeout: 6 * time.Second, FailOnTimeout: true})
 	require.Equal(t, http.StatusOK, response.StatusCode)
 	body, err := io.ReadAll(response.Body)
 	require.NoError(t, err)
@@ -834,7 +848,7 @@ func TestModernMavenAndFileRepositoriesResolveMirrors(t *testing.T) {
 	require.Len(t, mirroredDomains, 1)
 	assert.Equal(t, "com.example", mirroredDomains[0].Domain)
 	assert.False(t, mirroredDomains[0].Verified)
-	response = mavenRequest(t, app, http.MethodGet, "/files/downloads/app.zip", "")
+	response = mavenRequest(t, app, http.MethodGet, "/files/downloads/app.zip", "", fiber.TestConfig{Timeout: 6 * time.Second, FailOnTimeout: true})
 	require.Equal(t, http.StatusOK, response.StatusCode)
 	body, err = io.ReadAll(response.Body)
 	require.NoError(t, err)

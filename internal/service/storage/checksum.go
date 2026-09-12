@@ -15,11 +15,11 @@ import (
 	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/sha512"
-	"encoding/hex"
 	"errors"
 	"io"
 	"os"
 	"path/filepath"
+	"renop/pkg/hex"
 	"strings"
 	"sync"
 

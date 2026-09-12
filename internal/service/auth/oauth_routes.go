@@ -26,6 +26,8 @@ import (
 	"renop/internal/core"
 	"renop/internal/service/audit"
 	"renop/internal/service/legal"
+	"renop/internal/utils/protohttp"
+	"renop/pkg/pb"
 
 	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
@@ -36,28 +38,30 @@ type oauthProfileStatus struct {
 	Name            string `json:"name"`
 	Type            string `json:"type,omitempty"`
 	Login           string `json:"login,omitempty"`
+	AuthorizedAt    int64  `json:"authorized_at,omitempty"`
+	PrincipalCount  int    `json:"principal_count,omitempty"`
+	CanRevoke       bool   `json:"can_revoke"`
 	Configured      bool   `json:"configured"`
 	Linked          bool   `json:"linked"`
 	CanDisconnect   bool   `json:"can_disconnect"`
 	CanVerifyEmail  bool   `json:"can_verify_email"`
 	CanImportAvatar bool   `json:"can_import_avatar"`
-	AuthorizedAt    int64  `json:"authorized_at,omitempty"`
-	PrincipalCount  int    `json:"principal_count,omitempty"`
 }
 
 func setupOAuthRoutes(auth fiber.Router, state *core.AppState) {
+	setupOAuthRevocationRoutes(auth, state)
 	auth.Get("/oauth/providers", func(c fiber.Ctx) error {
 		setPrivateResponseHeaders(c)
-		providers := []fiber.Map{}
+		providers := []*pb.PublicOAuthProvider{}
 		if state.Inner.Config.Load().Server.GitHubOAuth.Configured() {
-			providers = append(providers, fiber.Map{"id": "github", "name": "GitHub", "type": "github"})
+			providers = append(providers, &pb.PublicOAuthProvider{Id: "github", Name: "GitHub", Type: "github", CanRevoke: true})
 		}
 		for _, p := range state.Inner.Config.Load().Server.OAuthProviders {
 			if p.Configured() {
-				providers = append(providers, fiber.Map{"id": p.ID, "name": p.Name, "type": p.Type})
+				providers = append(providers, &pb.PublicOAuthProvider{Id: p.ID, Name: p.Name, Type: p.Type, CanRevoke: p.Resolved().RevocationURL != "" || p.Type == "stackexchange"})
 			}
 		}
-		return c.JSON(fiber.Map{"providers": providers})
+		return protohttp.Write(c, &pb.PublicOAuthProviders{Providers: providers})
 	})
 	auth.Get("/oauth/:provider/start", func(c fiber.Ctx) error { return startOAuth(c, state) })
 	auth.Get("/oauth/:provider/callback", func(c fiber.Ctx) error { return finishOAuth(c, state) })
@@ -72,7 +76,14 @@ func setupOAuthRoutes(auth fiber.Router, state *core.AppState) {
 			log.Printf("Failed to load OAuth profile statuses for %s: %v", profile.Username, err)
 			return passwordResetError(c, 503, "oauth_unavailable")
 		}
-		return c.JSON(fiber.Map{"providers": statuses})
+		response := &pb.OAuthProfileProviders{}
+		for _, value := range statuses {
+			response.Providers = append(response.Providers, &pb.OAuthProfileStatus{Id: value.ID, Name: value.Name, Type: value.Type,
+				Login: value.Login, Configured: value.Configured, Linked: value.Linked, CanDisconnect: value.CanDisconnect,
+				CanVerifyEmail: value.CanVerifyEmail, CanImportAvatar: value.CanImportAvatar, AuthorizedAt: value.AuthorizedAt,
+				PrincipalCount: int32(value.PrincipalCount), CanRevoke: value.CanRevoke})
+		}
+		return protohttp.Write(c, response)
 	})
 	auth.Delete("/profile/oauth/:provider", func(c fiber.Ctx) error { return disconnectOAuth(c, state) })
 }
@@ -129,6 +140,22 @@ func startOAuth(c fiber.Ctx, state *core.AppState) error {
 		mfa, err := state.GetDB().GetMFAState(profile.Username)
 		if err != nil {
 			return passwordResetError(c, 503, "oauth_unavailable")
+		}
+		if intent == "email" || intent == "avatar" {
+			identities, err := state.GetDB().GetOAuthIdentities(profile.Username)
+			if err != nil {
+				return passwordResetError(c, 503, "oauth_unavailable")
+			}
+			linked := false
+			for _, id := range identities {
+				if id.ProviderID == p.ID {
+					linked = true
+					break
+				}
+			}
+			if !linked {
+				return passwordResetError(c, 400, "oauth_invalid")
+			}
 		}
 		record.UserID, record.Snapshot, record.SessionHash = profile.UserID, mfa.Snapshot, registrationHash(session)
 	}
@@ -192,6 +219,7 @@ func finishOAuth(c fiber.Ctx, state *core.AppState) error {
 	defer client.CloseIdleConnections()
 	ctx, cancel := context.WithTimeout(c.Context(), 25*time.Second)
 	defer cancel()
+	proofStartedAt := time.Now().UnixMilli()
 	tokens, err := exchangeOAuthCode(ctx, client, p, code, record.Verifier)
 	if err != nil {
 		log.Printf("OAuth %s code exchange failed: %v", provider, err)
@@ -201,6 +229,10 @@ func finishOAuth(c fiber.Ctx, state *core.AppState) error {
 	if err != nil {
 		log.Printf("OAuth %s fetch user info failed: %v", provider, err)
 		return result("identity_failed")
+	}
+	if info.Issuer == "" {
+		// OAuth-only tokens have no signed iat; include the exchange in the revocation barrier.
+		info.AuthorizedAt = proofStartedAt
 	}
 	if !oauthConfigurationCurrent(state, record) {
 		return result("configuration_changed")
@@ -254,6 +286,9 @@ func finishOAuth(c fiber.Ctx, state *core.AppState) error {
 	}
 	user := buildSynthUser(account)
 	user.AuthenticationSnapshot = mfa.Snapshot
+	c.Locals("oauth_session_proof", &oauthSessionProof{ProviderID: p.ID, UserID: linked.UserID,
+		Authority: info.Identity.Authority, Subject: info.Identity.Subject, SessionID: info.SessionID,
+		AuthorizedAt: info.AuthorizedAt, Issuer: info.Issuer, ConfigHash: oauthConfigurationHash(p), Tokens: tokens})
 	if err = issueBrowserSession(c, state, user, "oauth:"+provider); err != nil {
 		if errors.Is(err, legal.ErrConsentRequired) {
 			return providerOAuthRedirect(c, "/account/login", provider, legal.ConsentErrorCode)
@@ -283,6 +318,20 @@ func finishOAuthProfile(c fiber.Ctx, state *core.AppState, record core.Transient
 		return result("configuration_changed")
 	}
 	if record.Intent == "email" {
+		identities, err := state.GetDB().GetOAuthIdentities(profile.Username)
+		if err != nil {
+			return result("identity_failed")
+		}
+		linked := false
+		for _, id := range identities {
+			if id.ProviderID == p.ID {
+				linked = true
+				break
+			}
+		}
+		if !linked {
+			return result("identity_failed")
+		}
 		if !info.EmailVerified {
 			return result("email_missing")
 		}
@@ -321,30 +370,28 @@ func finishOAuthProfile(c fiber.Ctx, state *core.AppState, record core.Transient
 func oauthProfileStatuses(state *core.AppState, username string) ([]oauthProfileStatus, error) {
 	identities, err := state.GetDB().GetOAuthIdentities(username)
 	if err != nil {
-		log.Printf("Failed to get OAuth identities for %s: %v", username, err)
 		return nil, err
 	}
 	security, err := state.GetDB().GetAccountSecurity(username)
 	if err != nil {
-		log.Printf("Failed to get account security in oauthProfileStatuses for %s: %v", username, err)
 		return nil, err
 	}
-	statuses := []oauthProfileStatus{}
-	seen := map[string]bool{}
+	statuses := make([]oauthProfileStatus, 0, len(identities))
+	seen := make(map[string]bool)
 	var providers []config.OAuthProviderConfig
 	if cfg := state.Inner.Config.Load(); cfg != nil {
 		providers = cfg.Server.OAuthProviders
 	}
 	for _, p := range providers {
 		p = p.Resolved()
-		status := oauthProfileStatus{ID: p.ID, Name: p.Name, Type: p.Type, Configured: p.Configured()}
-		status.CanVerifyEmail = status.Configured && p.Claims.Email != "" && p.Claims.EmailVerified != ""
-		status.CanImportAvatar = status.Configured && p.Claims.Avatar != ""
+		status := oauthProfileStatus{ID: p.ID, Name: p.Name, Type: p.Type, Configured: p.Configured(), CanRevoke: p.RevocationURL != "" || p.Type == "stackexchange"}
 		for _, identity := range identities {
 			if identity.ProviderID == p.ID {
 				status.Linked, status.Login, status.AuthorizedAt = true, identity.Login, identity.AuthorizedAt
 			}
 		}
+		status.CanVerifyEmail = security.Email == "" && status.Linked && status.Configured && p.Claims.Email != "" && p.Claims.EmailVerified != ""
+		status.CanImportAvatar = status.Linked && status.Configured && p.Claims.Avatar != ""
 		if !status.Linked && !status.Configured {
 			continue
 		}
@@ -370,8 +417,8 @@ func oauthProfileStatuses(state *core.AppState, username string) ([]oauthProfile
 	if github.Configured || github.Linked {
 		statuses = append([]oauthProfileStatus{{ID: "github", Name: "GitHub", Type: "github", Login: github.GitHubLogin,
 			Configured: github.Configured, Linked: github.Linked, CanDisconnect: github.CanDisconnect,
-			CanVerifyEmail: github.Configured, AuthorizedAt: github.AuthorizedAt,
-			PrincipalCount: github.PrincipalCount}}, statuses...)
+			CanVerifyEmail: security.Email == "" && github.Configured && github.Linked, AuthorizedAt: github.AuthorizedAt,
+			PrincipalCount: github.PrincipalCount, CanRevoke: github.Configured}}, statuses...)
 	}
 	return statuses, nil
 }

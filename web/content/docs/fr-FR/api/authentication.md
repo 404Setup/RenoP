@@ -26,7 +26,7 @@ la récupération par email conserve ces réglages.
 
 - **Chemin** : `POST /api/auth/login`
 - **Authentification** : aucune.
-- **Corps** : JSON / protobuf `LoginRequest`; les noms JSON figurent ci-dessous. `name` accepte le nom du compte ou son e-mail
+- **Corps** : protobuf `LoginRequest`; les noms JSON figurent ci-dessous. `name` accepte le nom du compte ou son e-mail
   privé.
 
 ### Requête
@@ -72,6 +72,8 @@ facteur.
 - **Déconnexion** : `POST /api/auth/logout`
 - **Profil public** : `GET /api/users/:username/profile`
 - **Appartenances** : `GET /api/users/:username/memberships?format=cargo|docker|maven|npm`
+
+Lorsqu’un second facteur est activé, changer le mot de passe exige un nouveau code TOTP ou une assertion de Passkey secondaire ; un code envoyé à l’adresse principale actuelle est aussi possible si l’envoi est activé. `PUT /api/auth/profile/password` reçoit le binaire `UpdatePasswordRequest` avec `factor` (`totp`, `passkey`, `email`) et la preuve (`totp_code`, `challenge_id` avec `passkey_credential`, ou `email_code`). Commencez la preuve Passkey via `POST /api/auth/profile/password/passkey/begin`. La preuve dépend de la session et des identifiants actuels, n’est utilisable qu’une fois, et les autres sessions sont révoquées après succès.
 
 Les routes visibles utilisent le nom du compte ; l’identifiant immuable reste interne. Les dépôts `HIDDEN` sont omis,
 et les appartenances privées ne sont visibles que par un lecteur autorisé.
@@ -149,6 +151,8 @@ conservés dans l’historique du navigateur.
 }
 ```
 
+La récupération hors ligne exige l’adresse principale actuelle, ou une ancienne adresse principale dans les 14 jours suivant son remplacement, et quatre codes inutilisés. Une récupération par l’ancienne adresse la restaure, supprime celle remplacée et ferme la fenêtre de récupération. Les noms d’utilisateur et les alias ordinaires sont refusés. Un changement normal d’adresse principale bloque pendant 14 jours le renouvellement des codes, l’ajout/suppression de Passkeys et les modifications du second facteur (`ACCOUNT_SECURITY_HOLD`). Les facteurs existants restent utilisables ; le premier jeu de codes peut être créé. Les anciennes adresses principales ne peuvent pas être supprimées pendant ce délai. La réponse privée expose `security_hold_until` et `previous_primary_emails` (`email`, `expires_at`).
+
 ## Gestion des méthodes de connexion
 
 - **Lister les Passkeys** : `GET /api/auth/profile/fido`
@@ -205,3 +209,27 @@ La route administrateur `DELETE /api/tokens/:name` applique les mêmes condition
 [Documents juridiques et cookies](../configuration/legal.md)
 
 [Vérification de sécurité](../security/captcha.md)
+
+## Liens du profil public
+
+PUT /api/auth/profile/links accepte un objet JSON avec le site, Discord, les liens personnalisés et `visibility.github` / `visibility.gitlab`. Ces options sont désactivées par défaut. Les URL GitHub et `providers` sont en lecture seule : elles proviennent des identités associées actuelles, et GitLab doit correspondre à l’autorité configurée. Les préférences ne sont visibles que par leur propriétaire. Les URL GitHub des équipes restent modifiables.
+
+```json
+{"website":"https://example.com","visibility":{"github":true,"gitlab":false}}
+```
+
+## Déconnexion et révocation du fournisseur
+
+`POST /api/auth/logout` invalide la session locale avant de contacter le fournisseur utilisé à la connexion. Sans autorisation externe, la réponse est `204` ; sinon, le protobuf binaire `LogoutResponse` contient `local_revoked`, `provider` et `provider_status` (`revoked`, `failed`, `unavailable` ou `unsupported`). Un échec externe ne restaure pas la session locale. `POST /api/auth/oauth/:provider/revoke` effectue la même opération après vérification du fournisseur de la session authentifiée par cookie. Les jetons API ne peuvent pas l’appeler.
+
+`POST /api/auth/oauth/:provider/backchannel-logout` accepte le champ de formulaire standard `logout_token`. Le JWT OIDC signé doit contenir l’émetteur et l’audience configurés, `iat`, `exp`, `jti` et l’événement de déconnexion back-channel. Il identifie `sub`, `sid` ou les deux et ne contient pas `nonce`. Les événements de plus de dix minutes sont rejetés.
+
+`POST /api/auth/oauth/:provider/revoked` accepte le protobuf binaire `ProviderRevocationRequest`. Configurez le secret en écriture seule `revocation_secret`, d’au moins 32 octets, puis transmettez `X-Renop-Signature-256: sha256=<HMAC-SHA256 hexadécimal des octets exacts de la requête>`. Le message contient `event_id`, `subject`, `session_id`, `issued_at` en millisecondes Unix et l’`issuer` vérifié pour OIDC. Les clients OAuth seuls laissent l’émetteur vide. Les autres formats Webhook nécessitent un adaptateur de confiance ; leurs corps natifs ne sont pas acceptés directement.
+
+Les événements valides et répétés renvoient `200`, les déclarations invalides ou anciennes `400`, un HMAC incorrect `401`, et une indisponibilité d’admission ou de stockage `429`/`503`. Seules les sessions correspondantes antérieures à l’événement dans l’autorité configurée sont révoquées. Les liaisons d’identité et jetons API sont conservés. Un rejeu ou une preuve MFA retardée ne peut recréer une session révoquée.
+
+## Suspensions de comptes
+
+Les administrateurs peuvent suspendre ou rétablir un compte depuis sa page publique. `GET /api/tokens/:name/ban` lit l’état et la protection ; `PUT /api/tokens/:name/ban` accepte le JSON `reason_code`, `reason` personnalisé, `expires_at` facultatif en millisecondes Unix et `ban_ip` ; `DELETE /api/tokens/:name/ban` rétablit l’accès. Retirez d’abord les rôles protégés des administrateurs et modérateurs. Les codes ci-dessous correspondent à des raisons traduites. Un `reason_code` vide utilise du texte libre sans traduction.
+
+`harassment_abuse`, `spam_misleading`, `automation`, `alternate_accounts`, `security_rules`, `harmful_content`, `terms_violation`, `impersonation`, `copyright`.

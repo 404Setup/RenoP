@@ -8,11 +8,8 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
-import enUS from './i18n/en-US.js';
-import zhCN from './i18n/zh-CN.js';
-import jaJP from './i18n/ja-JP.js';
-import ruRU from './i18n/ru-RU.js';
-import frFR from './i18n/fr-FR.js';
+import {loadLocale} from './i18n/catalog.generated.js';
+import {loadInitialLocales} from '@renop/ui/i18n-startup';
 import {createLangCard} from '@renop/ui/lang-card';
 import {bindModalChrome, configureModalInert} from '@renop/ui/modal';
 import {
@@ -29,23 +26,15 @@ const DEFAULT_LANG = 'en-US';
 /** Primary languages shown in the language modal (exactly five). */
 const AVAILABLE_LANGS = ['zh-CN', 'en-US', 'ja-JP', 'ru-RU', 'fr-FR'];
 
-const languages = {
-    'en-US': enUS,
-    en: enUS,
-    'zh-CN': zhCN,
-    'zh-cn': zhCN,
-    'zh-Hans': zhCN,
-    zh: zhCN,
-    'zh-HK': zhCN,
-    'zh-TW': zhCN,
-    'zh-YUE': zhCN,
-    'ja-JP': jaJP,
-    ja: jaJP,
-    'ru-RU': ruRU,
-    ru: ruRU,
-    'fr-FR': frFR,
-    fr: frFR,
-};
+const languages = {};
+const languageAliases = Object.fromEntries(['en-US', 'en', 'zh-CN', 'zh-cn', 'zh-Hans', 'zh', 'zh-HK', 'zh-TW', 'zh-YUE', 'ja-JP', 'ja', 'ru-RU', 'ru', 'fr-FR', 'fr'].map(key => [key, true]));
+let languageRequest = 0;
+
+/** Load a language once while retaining the shared English fallback. */
+async function ensureLanguage(lang) {
+    if (!languages[lang]) languages[lang] = await loadLocale(lang);
+}
+
 
 const languageDetails = {
     'zh-CN': {name: '简体中文', sub: 'Simplified Chinese', code: 'ZH'},
@@ -170,7 +159,7 @@ export function updatePageTranslations() {
  * @returns {string|null} Primary code, or null if unrecognized.
  */
 function resolveLanguage(lang) {
-    const matched = matchLocaleKey(lang, languages);
+    const matched = matchLocaleKey(lang, languageAliases);
     if (!matched) return null;
     if (matched === 'en' || matched === 'en-US') return 'en-US';
     if (matched.startsWith('zh') || matched.startsWith('yue')) return 'zh-CN';
@@ -199,16 +188,31 @@ function detectLanguage() {
 /**
  * Switch UI language, persist it, re-translate the page, and dispatch `languageChanged`.
  * @param {string} lang - Desired language code (aliases are resolved).
- * @returns {string} Resolved primary language that was applied.
+ * @returns {Promise<string>} Resolved primary language that was applied.
  */
-export function setLanguage(lang) {
+export async function setLanguage(lang) {
     const resolved = resolveLanguage(lang) || DEFAULT_LANG;
     const primary = languageDetails[resolved] ? resolved : DEFAULT_LANG;
-    currentLang = primary;
-    localStorage.setItem(STORAGE_KEY, primary);
-    updatePageTranslations();
-    window.dispatchEvent(new CustomEvent('languageChanged', {detail: {lang: primary}}));
-    return primary;
+    const request = ++languageRequest;
+    const modal = document.getElementById('language-modal');
+    modal?.setAttribute('aria-busy', 'true');
+    try {
+        await ensureLanguage(primary);
+        if (request !== languageRequest) return currentLang;
+        currentLang = primary;
+        localStorage.setItem(STORAGE_KEY, primary);
+        updatePageTranslations();
+        window.dispatchEvent(new CustomEvent('languageChanged', {detail: {lang: primary}}));
+        return primary;
+    } catch {
+        if (request === languageRequest) {
+            const status = document.getElementById('language-load-status');
+            if (status) status.textContent = t('language.loadFailed');
+        }
+        return currentLang;
+    } finally {
+        if (request === languageRequest) modal?.removeAttribute('aria-busy');
+    }
 }
 
 /** Closes the language modal (wired in `initI18n`). */
@@ -231,9 +235,8 @@ function populateLanguageGrid() {
                 name: d.name,
                 sub: d.sub,
                 active: code === currentLang,
-                onClick: () => {
-                    setLanguage(code);
-                    closeLanguageModal();
+                onClick: async () => {
+                    if (await setLanguage(code) === code) closeLanguageModal();
                 },
             }),
         );
@@ -242,14 +245,24 @@ function populateLanguageGrid() {
 
 /**
  * Detect language, apply translations, wire modal controls, and expose `window.setLanguage` / `getLanguage`.
- * @returns {void}
+ * @returns {Promise<void>}
  */
-export function initI18n() {
+export async function initI18n() {
     currentLang = detectLanguage();
     if (!languageDetails[currentLang]) {
         currentLang = DEFAULT_LANG;
     }
 
+    const initial = await loadInitialLocales(loadLocale, currentLang);
+    Object.assign(languages, initial.dictionaries);
+    currentLang = initial.locale;
+    const grid = document.getElementById('language-grid');
+    if (grid && !document.getElementById('language-load-status')) {
+        const status = document.createElement('p');
+        status.id = 'language-load-status';
+        status.setAttribute('role', 'status');
+        grid.after(status);
+    }
     configureModalInert({
         modalIds: ['language-modal'],
         rootSelectors: ['#app', '.top-nav', 'main'],
@@ -266,7 +279,11 @@ export function initI18n() {
             document.getElementById('btn-close-language-modal'),
             document.getElementById('language-backdrop'),
         ],
-        onOpen: () => populateLanguageGrid(),
+        onOpen: () => {
+            populateLanguageGrid();
+            const status = document.getElementById('language-load-status');
+            if (status) status.textContent = '';
+        },
     });
     if (chrome) closeLanguageModal = chrome.close;
 

@@ -9,6 +9,10 @@
  */
 
 export default Object.freeze({
+    "common.add": "追加",
+    "updater.containerDisabled": "コンテナーで管理",
+    "updater.containerManaged": "更新と再起動はコンテナーランタイムで管理します。新しいイメージを取得してコンテナーを再作成してください。",
+    "nav.backPrevious": "前のページに戻る",
     "resourceLock.inheritedNotice": "継承されたロックは、親リソースで解除されるまで有効です。",
     "resourceLock.manage": "ロックを管理",
     "resourceLock.mode": "ロックの種類",
@@ -69,6 +73,8 @@ export default Object.freeze({
     "common.ok": "OK",
     "common.yes": "はい",
     "common.no": "いいえ",
+    "common.active": "有効",
+    "common.inactive": "無効",
     "common.none": "なし",
     "common.remove": "削除",
     "common.loading": "読み込み中…",

@@ -32,6 +32,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"renop/internal/config"
+	"renop/internal/configstore"
 	"renop/internal/core"
 	"renop/internal/database"
 	"renop/internal/mail"
@@ -83,7 +84,7 @@ func TestSuperTeamGlobalLimitsPersist(t *testing.T) {
 	assert.Equal(t, 7, state.Inner.Config.Load().SuperTeams.CreateLimit)
 	assert.Equal(t, 24, state.Inner.Config.Load().SuperTeams.JoinLimit)
 
-	configBytes, err := os.ReadFile(os.Getenv("RENOP_CONFIG"))
+	configBytes, err := configstore.Read(configstore.Path())
 	require.NoError(t, err)
 	assert.Contains(t, string(configBytes), "super_teams:")
 	assert.Contains(t, string(configBytes), "create_limit: 7")
@@ -98,29 +99,59 @@ func TestSuperTeamGlobalLimitsPersist(t *testing.T) {
 	response.Body.Close()
 }
 
+func TestRegistrationDefaultPermissionsPersistAndPreserveOlderClients(t *testing.T) {
+	app, state := setupSettingsTestApp(t, config.DefaultConfig())
+	update := func(body string, expected int) {
+		t.Helper()
+		request := httptest.NewRequest(http.MethodPut, "/registration", strings.NewReader(body))
+		request.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+		response, err := app.Test(request)
+		require.NoError(t, err)
+		defer response.Body.Close()
+		require.Equal(t, expected, response.StatusCode)
+	}
+	policy := `"enabled":true,"ip_limit":1,"ip_interval":{"value":3,"unit":"week"},"provider_cooldown":{"value":12,"unit":"hour"}`
+	update(`{`+policy+`,"default_permissions":["base","canupdate:packages"]}`, http.StatusOK)
+	require.Equal(t, []string{"base", "canupdate:packages"}, state.Inner.Config.Load().Registration.DefaultPermissions)
+	update(`{`+policy+`}`, http.StatusOK)
+	require.Equal(t, []string{"base", "canupdate:packages"}, state.Inner.Config.Load().Registration.DefaultPermissions)
+	stored, err := configstore.Read(configstore.Path())
+	require.NoError(t, err)
+	var cfg config.Config
+	require.NoError(t, yaml.Unmarshal(stored, &cfg))
+	require.Equal(t, []string{"base", "canupdate:packages"}, cfg.Registration.DefaultPermissions)
+	update(`{`+policy+`,"default_permissions":["invalid"]}`, http.StatusBadRequest)
+	require.Equal(t, []string{"base", "canupdate:packages"}, state.Inner.Config.Load().Registration.DefaultPermissions)
+	update(`{`+policy+`,"default_permissions":[]}`, http.StatusOK)
+	require.Empty(t, state.Inner.Config.Load().Registration.DefaultPermissions)
+}
+
 func TestLegalDocumentsPersistAndRejectInvalidContent(t *testing.T) {
 	app, state := setupSettingsTestApp(t, config.DefaultConfig())
-	send := func(body string) *http.Response {
-		request := httptest.NewRequest(http.MethodPut, "/legal", strings.NewReader(body))
-		request.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+	send := func(payload *pb.LegalSettings) *http.Response {
+		body, err := proto.Marshal(payload)
+		require.NoError(t, err)
+		request := httptest.NewRequest(http.MethodPut, "/legal", bytes.NewReader(body))
+		request.Header.Set(fiber.HeaderContentType, protohttp.ContentType)
 		response, err := app.Test(request)
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = response.Body.Close() })
 		return response
 	}
-	response := send(`{"privacy_policy":"# Privacy","terms_of_service":"# Terms","legal_notice":"# Notice","cookie_banner":false}`)
+	response := send(&pb.LegalSettings{PrivacyPolicy: "# Privacy", TermsOfService: "# Terms", LegalNotice: "# Notice"})
 	require.Equal(t, http.StatusOK, response.StatusCode)
+	require.Equal(t, protohttp.ContentType, response.Header.Get(fiber.HeaderContentType))
 	require.Equal(t, "# Privacy", state.Inner.Config.Load().Legal.PrivacyPolicy)
 	require.False(t, state.Inner.Config.Load().Legal.CookieBanner)
-	stored, err := os.ReadFile(os.Getenv("RENOP_CONFIG"))
+	stored, err := configstore.Read(configstore.Path())
 	require.NoError(t, err)
 	var restored config.Config
 	require.NoError(t, yaml.Unmarshal(stored, &restored))
 	require.Equal(t, "# Privacy", restored.Legal.PrivacyPolicy)
 	require.False(t, restored.Legal.CookieBanner)
 	revision := state.Inner.Config.Load().Legal.Revision()
-	for _, body := range []string{`{"privacy_policy":"bad\u0000text"}`, `{"privacy_policy":"` + strings.Repeat("x", config.MaxLegalDocumentBytes+1) + `"}`} {
-		response = send(body)
+	for _, body := range []string{"bad\x00text", strings.Repeat("x", config.MaxLegalDocumentBytes+1)} {
+		response = send(&pb.LegalSettings{PrivacyPolicy: body})
 		require.Equal(t, http.StatusBadRequest, response.StatusCode)
 		require.Equal(t, "legal_settings_invalid", response.Header.Get("X-Renop-Error-Code"))
 		require.Equal(t, revision, state.Inner.Config.Load().Legal.Revision())
@@ -146,7 +177,7 @@ func TestMavenDomainReservationPeriodPersistsAndRejectsInvalidPeriods(t *testing
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, response.StatusCode)
 	require.NoError(t, response.Body.Close())
-	saved, err := os.ReadFile(os.Getenv("RENOP_CONFIG"))
+	saved, err := configstore.Read(configstore.Path())
 	require.NoError(t, err)
 	require.Contains(t, string(saved), "release_value: 3")
 	require.Contains(t, string(saved), "release_unit: month")
@@ -170,7 +201,7 @@ func TestPublicationQuotaDefaultsPersist(t *testing.T) {
 	assert.EqualValues(t, 64<<20, quota.ByteLimit)
 	assert.EqualValues(t, 30, quota.PublicationLimit)
 	assert.Equal(t, "lifetime", quota.Period)
-	configBytes, err := os.ReadFile(os.Getenv("RENOP_CONFIG"))
+	configBytes, err := configstore.Read(configstore.Path())
 	require.NoError(t, err)
 	assert.Contains(t, string(configBytes), "publication_quota:")
 	assert.Contains(t, string(configBytes), "file_limit: 900")
@@ -303,7 +334,7 @@ func TestMailSettingsWriteOnlySecretsValidationAndQueuedTest(t *testing.T) {
 	require.Equal(t, "receiver@example.com", job.Message.To)
 	require.Equal(t, 200, put(mailSettingsRequest{Config: settings.Config, ClearSecrets: map[string][]string{"primary": {"api_key"}}}).StatusCode)
 	require.Empty(t, state.Inner.Config.Load().Mail.Accounts[0].APIKey)
-	persisted, err := os.ReadFile(os.Getenv("RENOP_CONFIG"))
+	persisted, err := configstore.Read(configstore.Path())
 	require.NoError(t, err)
 	require.Contains(t, string(persisted), "encryption_key:")
 	smtpConfig := settings.Config.Clone()
@@ -656,6 +687,7 @@ func TestFullRepoUpdate(t *testing.T) {
 
 func TestRepositoryUpdateNormalizesS3KeyPrefix(t *testing.T) {
 	cfg := config.DefaultConfig()
+	cfg.Maven.Repositories["releases"] = &config.Repository{Name: "releases", Visibility: "PUBLIC"}
 	cfg.StoragePath = testutil.TempDir(t)
 	app, appState := setupSettingsTestApp(t, cfg)
 
@@ -688,6 +720,7 @@ func TestRepositoryUpdateNormalizesS3KeyPrefix(t *testing.T) {
 
 func TestRepositoryUpdateRejectsInvalidS3KeyPrefix(t *testing.T) {
 	cfg := config.DefaultConfig()
+	cfg.Maven.Repositories["releases"] = &config.Repository{Name: "releases", Visibility: "PUBLIC"}
 	cfg.StoragePath = testutil.TempDir(t)
 	app, appState := setupSettingsTestApp(t, cfg)
 
@@ -902,6 +935,7 @@ func TestFullRepoMirrorUpdate(t *testing.T) {
 func TestZeroCopyMemorySafetyOnUpdate(t *testing.T) {
 	tempDir := testutil.TempDir(t)
 	cfg := config.DefaultConfig()
+	cfg.Maven.Repositories["releases"] = &config.Repository{Name: "releases", Visibility: "PUBLIC"}
 	cfg.StoragePath = tempDir
 	app, appState := setupSettingsTestApp(t, cfg)
 
@@ -1057,12 +1091,56 @@ func TestGetDomainsProtobuf(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected GET 200, got %d", resp.StatusCode)
 	}
-	if len(got.Domains) != 15 || !slices.Contains(got.Domains, "captcha") || !slices.Contains(got.Domains, "legal") || !slices.Contains(got.Domains, "proxy") || !slices.Contains(got.Domains, "oauth_providers") ||
+	if len(got.Domains) != 13 || !slices.Contains(got.Domains, "captcha") || slices.Contains(got.Domains, "legal") || slices.Contains(got.Domains, "index") || !slices.Contains(got.Domains, "proxy") || !slices.Contains(got.Domains, "oauth_providers") ||
 		slices.Contains(got.Domains, "github_oauth") || !slices.Contains(got.Domains, "super_teams") ||
 		!slices.Contains(got.Domains, "publication_quota") || !slices.Contains(got.Domains, "cache") ||
 		!slices.Contains(got.Domains, "mail") || !slices.Contains(got.Domains, "registration") || !slices.Contains(got.Domains, "maven_domains") || slices.Contains(got.Domains, "gpg") {
-		t.Fatalf("expected 15 domains including CAPTCHA, legal, OAuth, registration, cache, mail and Maven domain settings while excluding gpg, got %v", got.Domains)
+		t.Fatalf("expected 13 domains with legal merged into frontend and index merged into storage, got %v", got.Domains)
 	}
+}
+
+func TestFrontendAndLegalSettingsCommitTogether(t *testing.T) {
+	app, state := setupSettingsTestApp(t, config.DefaultConfig())
+	var got pb.FrontendConfig
+	require.Equal(t, http.StatusOK, protoGET(t, app, "/domain/frontend", &got).StatusCode)
+	require.NotNil(t, got.Legal)
+	got.Title = "Example instance"
+	got.Legal.PrivacyPolicy = "# Updated privacy"
+	require.Equal(t, http.StatusOK, protoPUT(t, app, "/domain/frontend", &got).StatusCode)
+	stored, err := configstore.Load(configstore.Path(), "")
+	require.NoError(t, err)
+	require.Equal(t, got.Title, stored.Frontend.Title)
+	require.Equal(t, got.Legal.PrivacyPolicy, stored.Legal.PrivacyPolicy)
+	got.Title = "Must not be published"
+	got.Legal.PrivacyPolicy = "invalid\x00policy"
+	require.Equal(t, http.StatusBadRequest, protoPUT(t, app, "/domain/frontend", &got).StatusCode)
+	require.Equal(t, "Example instance", state.Inner.Config.Load().Frontend.Title)
+	require.Equal(t, "# Updated privacy", state.Inner.Config.Load().Legal.PrivacyPolicy)
+	got.Legal = nil
+	got.Title = "Legacy client"
+	require.Equal(t, http.StatusOK, protoPUT(t, app, "/domain/frontend", &got).StatusCode)
+	require.Equal(t, "# Updated privacy", state.Inner.Config.Load().Legal.PrivacyPolicy)
+}
+
+func TestRepositoryCapacitySettingsPersistAndPreserveOlderClients(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Maven.Repositories["releases"] = &config.Repository{Name: "releases", Visibility: "PUBLIC"}
+	app, state := setupSettingsTestApp(t, cfg)
+	request := pb.FromRepository(state.Inner.Config.Load().Maven.Repositories["releases"])
+	request.CapacityLimitBytes = proto.Int64(64 << 20)
+	require.Equal(t, http.StatusOK, protoPUT(t, app, "/repositories/releases", request).StatusCode)
+	stored, err := state.GetDB().GetRepositorySettings()
+	require.NoError(t, err)
+	require.EqualValues(t, 64<<20, stored.Repositories["releases"].CapacityLimitBytes)
+	request.CapacityLimitBytes = nil
+	request.Visibility = "HIDDEN"
+	require.Equal(t, http.StatusOK, protoPUT(t, app, "/repositories/releases", request).StatusCode)
+	require.EqualValues(t, 64<<20, state.Inner.Config.Load().Maven.Repositories["releases"].CapacityLimitBytes)
+	request.CapacityLimitBytes = proto.Int64(-1)
+	require.Equal(t, http.StatusBadRequest, protoPUT(t, app, "/repositories/releases", request).StatusCode)
+	request.CapacityLimitBytes = proto.Int64(0)
+	require.Equal(t, http.StatusOK, protoPUT(t, app, "/repositories/releases", request).StatusCode)
+	require.Zero(t, state.Inner.Config.Load().Maven.Repositories["releases"].CapacityLimitBytes)
 }
 
 func TestGitHubOAuthSettingsKeepSecretWriteOnly(t *testing.T) {
@@ -1980,7 +2058,7 @@ func TestRegistrationSettingsPersistAndRejectDisabledLimits(t *testing.T) {
 	require.Equal(t, 200, response.StatusCode)
 	require.NoError(t, response.Body.Close())
 	require.True(t, state.Inner.Config.Load().Registration.Enabled)
-	persisted, err := os.ReadFile(os.Getenv("RENOP_CONFIG"))
+	persisted, err := configstore.Read(configstore.Path())
 	require.NoError(t, err)
 	require.Contains(t, string(persisted), "registration:")
 	for _, invalid := range []string{strings.Replace(body, `"ip_limit":2`, `"ip_limit":0`, 1), strings.Replace(body, `"value":3`, `"value":-1`, 1), strings.Replace(body, `"unit":"week"`, `"unit":"second"`, 1), strings.Replace(body, `"value":3`, `"value":100`, 1)} {

@@ -29,6 +29,7 @@ import (
 )
 
 type DB struct {
+	readOnly         bool
 	SQLDB            *sql.DB
 	clickHouse       *clickHouseBackend
 	Dialect          Dialect
@@ -413,7 +414,7 @@ func (db *DB) Close() error {
 	if db.SQLDB == nil {
 		return nil
 	}
-	if db.Dialect != nil && strings.HasPrefix(db.Dialect.Name(), "sqlite") {
+	if !db.readOnly && db.Dialect != nil && strings.HasPrefix(db.Dialect.Name(), "sqlite") {
 		_, _ = db.SQLDB.Exec("PRAGMA wal_checkpoint(TRUNCATE);")
 		_, _ = db.SQLDB.Exec("PRAGMA journal_mode=DELETE;")
 	}

@@ -15,11 +15,11 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"hash"
 	"io"
 	"log"
+	"renop/pkg/hex"
 	"sync/v2"
 	"time"
 
@@ -359,6 +359,10 @@ func (h Handler) publish(c fiber.Ctx, state *core.AppState, repo *config.Reposit
 		if reviewRequired {
 			state.Inner.FileIndex.UnblockFile(cratePath)
 			state.InvalidateFileCache(cratePath)
+		}
+		if errors.Is(err, core.ErrRepositoryCapacity) {
+			c.Set("X-Renop-Error-Code", "repository_capacity_exceeded")
+			return errorResponse(c, fiber.StatusInsufficientStorage, "Repository capacity exceeded")
 		}
 		return errorResponse(c, fiber.StatusInternalServerError, "Failed to store crate")
 	}

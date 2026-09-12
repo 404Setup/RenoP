@@ -12,7 +12,7 @@ RenoP 支持本地 Disk 与 S3 兼容对象服务。每个仓库独立选择后�
 
 ## 本地文件系统
 
-根目录由 `config.yaml` 的 `storage_path` 配置，默认值为 `storage`。
+根目录由 系统设置 的 `storage_path` 配置，默认值为 `storage`。
 
 ### 目录组织
 
@@ -72,3 +72,5 @@ repositories:
   不会暴露 S3 URL。
 - **直接跳转 (`redirect_downloads: true`)**：RenoP 完成授权后返回指向短时预签名 URL 的 `302 Found`，降低
   RenoP 带宽占用。
+
+S3 内容共享会将实际数据保存到私有 `.renop-content-v1` 命名空间。备份时应同时包含它和仓库对象，并保留私有索引以减少重启后的元数据读取。索引采用带版本的 JSON 记录流，仍可读取旧快照。去重和恢复行为详见[仓库配置](/docs/configuration/repositories)。

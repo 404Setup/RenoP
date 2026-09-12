@@ -11,7 +11,7 @@
 package core
 
 import (
-	"encoding/base32"
+	"renop/pkg/base32"
 	"testing"
 	"time"
 

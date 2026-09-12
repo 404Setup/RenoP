@@ -3,6 +3,8 @@
  *
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
  *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
+ *
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
@@ -18,11 +20,29 @@ import (
 	"time"
 )
 
+// SupportsStatus reports whether a provider can correlate a status lookup to this message.
+func SupportsStatus(provider string) bool {
+	switch provider {
+	case "ses", "sendgrid", "tencent", "graph", "gmail", "feishu":
+		return true
+	default:
+		// SMTP and Cloudflare have no lookup; Direct Mail omits message IDs in its lookup response.
+		return false
+	}
+}
+
 const graphTrackingProperty = "String {ad312278-f68a-419c-a047-bb5c91897271} Name RenoPMessageID"
 
 // Check queries one previously submitted message without sending it again.
 func (c *Client) Check(ctx context.Context, a Account, m Message, previous Result) (Result, error) {
 	result := previous
+	if !SupportsStatus(a.Provider) {
+		result.Check = false
+		if result.Status == "queued_provider" || result.Status == "checking" {
+			result.Status = "accepted"
+		}
+		return result, nil
+	}
 	result.Check = true
 	endpoint := strings.TrimRight(a.Endpoint, "/")
 	headers := http.Header{"Authorization": {"Bearer " + a.AccessToken}}
@@ -148,16 +168,6 @@ func (c *Client) Check(ctx context.Context, a Account, m Message, previous Resul
 					}
 				}
 			}
-		}
-	case "aliyun":
-		start := time.UnixMilli(m.CreatedAt).UTC()
-		end := start.Add(10 * time.Minute)
-		_, err = c.aliRequest(ctx, a, "2015-11-23", "SenderStatisticsDetailByParam", url.Values{"ToAddress": {m.To}, "StartTime": {start.Format("2006-01-02 15:04")}, "EndTime": {end.Format("2006-01-02 15:04")}, "Length": {"10"}})
-		if err == nil {
-			// Direct Mail's public response omits message IDs, so another send cannot be safely correlated.
-			result.Status = "unknown"
-			result.Code = "mail_status_uncorrelated"
-			result.Check = false
 		}
 	default:
 		return previous, errUnsupported

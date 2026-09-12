@@ -13,11 +13,11 @@ package database_test
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/url"
 	"os"
+	"renop/pkg/hex"
 	"testing"
 	"time"
 
@@ -230,8 +230,9 @@ func TestClickHouseNativeSecurityIdentityAndGPGMatrix(t *testing.T) {
 
 	profile, err := db.GetUserProfile("alice")
 	require.NoError(t, err)
-	profile, err = db.UpdateUserProfileLinks("alice", core.PublicLinks{
-		Website: "https://alice.example", GitHub: "https://github.com/alice",
+	profile, err = db.UpdateUserProfileLinks("alice", core.UserProfileLinks{
+		Website:    "https://alice.example",
+		Visibility: &core.ProfileLinkVisibility{GitHub: true, GitLab: true},
 	}, time.Now().UnixMilli())
 	require.NoError(t, err)
 	require.Equal(t, "https://alice.example", profile.Links.Website)

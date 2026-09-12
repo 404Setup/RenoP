@@ -58,6 +58,7 @@ type FrontendConfig struct {
 	PublicSecurityFiling string `json:"public_security_filing" yaml:"public_security_filing"`
 	FontPreset           string `json:"font_preset" yaml:"font_preset"`
 	FontURL              string `json:"font_url" yaml:"font_url"`
+	FontCSS              string `json:"font_css" yaml:"font_css"`
 	CachedIndexHTML      []byte `json:"-" yaml:"-"`
 	CachedIndexHTMLKey   string `json:"-" yaml:"-"`
 }
@@ -88,6 +89,7 @@ func (f *FrontendConfig) normalizeFont() {
 		f.FontPreset = FrontendFontSystem
 	}
 	f.FontURL = strings.TrimSpace(f.FontURL)
+	f.FontCSS = strings.TrimSpace(f.FontCSS)
 }
 
 func (f *FrontendConfig) UnmarshalJSON(data []byte) error {
@@ -124,6 +126,7 @@ func (f *FrontendConfig) DeepCopy() FrontendConfig {
 		PublicSecurityFiling: strings.Clone(f.PublicSecurityFiling),
 		FontPreset:           strings.Clone(f.FontPreset),
 		FontURL:              strings.Clone(f.FontURL),
+		FontCSS:              strings.Clone(f.FontCSS),
 		CachedIndexHTMLKey:   f.CachedIndexHTMLKey,
 	}
 	if f.CachedIndexHTML != nil {

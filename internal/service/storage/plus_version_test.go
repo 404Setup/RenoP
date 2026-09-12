@@ -36,7 +36,8 @@ func TestPlusVersionUploadAndDownload(t *testing.T) {
 	state := core.NewAppState()
 	state.Inner.Config.Store(cfg)
 	state.Inner.FileIndex = index.NewFileIndex()
-	repo := cfg.Maven.Repositories["releases"]
+	repo := &config.Repository{Name: "releases", Visibility: "PUBLIC"}
+	cfg.Maven.Repositories["releases"] = repo
 	repo.AllowRedeployment = true
 
 	app := fiber.New(fiber.Config{StreamRequestBody: true, UnescapePath: false})

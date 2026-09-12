@@ -13,12 +13,13 @@ package storage
 import (
 	"archive/tar"
 	"bytes"
-	"compress/gzip"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
+
+	"github.com/klauspost/compress/gzip"
 
 	"github.com/emmansun/base64"
 

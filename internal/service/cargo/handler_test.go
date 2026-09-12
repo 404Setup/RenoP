@@ -327,7 +327,7 @@ func TestCargoPublicationReviewDefersSparseIndexAndCatalog(t *testing.T) {
 	cfg.StoragePath = storagePath
 	cfg.Maven.Repositories = map[string]*config.Repository{"cargo": repo}
 	state.Inner.Config.Store(cfg)
-	state.Inner.FileIndex = index.NewFileIndexCustom(true)
+	state.Inner.FileIndex = index.NewFileIndex()
 	db, err := database.InitDB(config.DatabaseConfig{
 		Driver: "sqlite", Dsn: filepath.Join(testutil.TempDir(t), "cargo-review.db"), MaxOpenConns: 1, MaxIdleConns: 1,
 	})
@@ -679,7 +679,7 @@ func TestCargoInvitationGrantsOnlyRequestedPackageLevel(t *testing.T) {
 		t.Fatalf("invite status = %d", inviteResponse.StatusCode)
 	}
 
-	messages, err := db.ListMessages("bob", 10, 0, "", time.Now().UnixMilli())
+	messages, err := db.ListMessages("bob", 10, 0, "", time.Now().UnixMilli(), "")
 	if err != nil || len(messages) != 1 {
 		t.Fatalf("invitation messages = %d, err = %v", len(messages), err)
 	}
@@ -996,7 +996,7 @@ func TestCargoAdministratorWithL3CanManageTeam(t *testing.T) {
 		t.Fatalf("invite admin status = %d", inviteAdminRes.StatusCode)
 	}
 
-	messages, err := db.ListMessages("admin", 10, 0, "", time.Now().UnixMilli())
+	messages, err := db.ListMessages("admin", 10, 0, "", time.Now().UnixMilli(), "")
 	if err != nil || len(messages) != 1 {
 		t.Fatalf("admin messages count = %d, err = %v", len(messages), err)
 	}

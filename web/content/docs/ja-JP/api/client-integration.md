@@ -27,27 +27,19 @@ Native package URL に `/api` を付けないでください。Package protocol 
 
 ## 宣言された表現形式を使う
 
-スキーマに基づく管理 API は JSON（`application/json`）とバイナリ protobuf（`application/x-protobuf` または
-`application/protobuf`）に対応します。`Content-Type` は要求のデコード、`Accept` は応答形式を選択します。
-`Accept` が未指定または非対応の場合、既存クライアント向けの protobuf 応答を維持します。型指定のない要求も
-protobuf としてデコードします。メッセージ定義は `proto/api/v1/api.proto` を参照してください。
+スキーマに基づく管理 API はバイナリ protobuf を使用します。`Content-Type: application/x-protobuf` を指定してください。
+要求は `application/protobuf` と `application/octet-stream` も受け付け、Content-Type が未指定の場合は protobuf です。
+JSON 本文は拒否され、エンドポイントに応じて `400` または `415` となります。応答は常に `application/x-protobuf` で、`Accept` で JSON に
+切り替えることはできません。稼働バージョンの `proto/api/v1/api.proto` を使用してください。
+
+制御要求の上限は 1 MiB で、各エンドポイントのより小さい上限も維持します。protobuf メッセージの JSON 例は
+デコード後のフィールドを示し、JSON 転送形式ではありません。JSON 専用のエンドポイント、パッケージのネイティブ
+プロトコル、アップロード部分、ヘルステキスト、個別エラーは宣言された形式を維持します。
 
 ```http
 Content-Type: application/x-protobuf
 Accept: application/x-protobuf
 ```
-
-JSON の要求と応答には両方のヘッダーを指定します。
-
-```http
-Content-Type: application/json
-Accept: application/json
-```
-
-JSON は元の snake_case フィールド名を出力し、入力では protobuf の camelCase 名も受け付けます。64 ビット整数は
-10 進文字列、バイト列は Base64 文字列です。不明なフィールドと重複フィールドは拒否します。要求上限は 1 MiB で、
-各エンドポイントのより小さい上限も維持します。ネイティブレジストリ形式、アップロードのバイナリ部分、ヘルスチェックの
-テキスト、個別のエラー形式は従来どおりです。
 
 ## 呼び出し元に合う認証情報を選ぶ
 
@@ -125,9 +117,7 @@ response が完了を示したら停止します。UI filter が authorization/v
 ## 同じリリースの契約を使う
 
 `web/assets/openapi.yaml` / `proto/api/v1/api.proto`
-
-稼働中のバージョンに対応する OpenAPI と protobuf 定義を使用してください。ProtoJSON の整数とバイト列は上記の
-規則に従い、ネイティブパッケージクライアントは引き続き独自のプロトコルを使用します。
+稼働バージョンの OpenAPI と protobuf 定義を使用してください。バイナリ応答は対応するメッセージ型でデコードし、ネイティブクライアントは各プロトコルの形式を使用します。
 
 Production upgrade 前に non-production で login、token authorization、repository list、各 format の
 read/write、pagination、error decoding、

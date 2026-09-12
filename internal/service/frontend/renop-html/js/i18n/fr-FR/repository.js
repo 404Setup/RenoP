@@ -9,6 +9,26 @@
  */
 
 export default Object.freeze({
+    "repos.formatConan": "Conan",
+    "repos.formatConanDesc": "Recettes Conan, paquets binaires, révisions et envois avec le client natif.",
+    "repos.formatConda": "Conda",
+    "repos.formatCondaNative": "Conda native",
+    "repos.formatApk": "Alpine APK",
+    "repos.formatApt": "apt",
+    "repos.formatRpm": "rpm / yum",
+    "repos.formatCondaDesc": "Index de paquets automatiques, téléchargements natifs et import des index et signatures existants.",
+    "repos.formatCondaNativeDesc": "Index de paquets automatiques, téléchargements natifs et import des index et signatures existants.",
+    "repos.formatApkDesc": "Index de paquets automatiques, téléchargements natifs et import des index et signatures existants.",
+    "repos.formatAptDesc": "Index de paquets automatiques, téléchargements natifs et import des index et signatures existants.",
+    "repos.formatRpmDesc": "Index de paquets automatiques, téléchargements natifs et import des index et signatures existants.",
+    "details.nativeTitle": "Configuration du client",
+    "details.nativeSubtitle": "Réservez une ressource et publiez avec son client natif. Les index sont générés à partir des fichiers publiés.",
+    "details.nativeClientTab": "Client",
+
+    "repos.capacityLimit": "Limite de capacité (MiB)",
+    "repos.capacityHint": "0 signifie illimité. Les artefacts enregistrés, miroirs et sommes de contrôle sont comptés ; les copies temporaires sont exclues.",
+    "repos.capacityInvalid": "Saisissez une capacité positive ou nulle en MiB.",
+    "repos.capacityExceeded": "Ce dépôt a atteint sa limite de capacité. Supprimez des artefacts ou augmentez la limite.",
     "common.create": "Créer",
     "repos.title": "Dépôts",
     "repos.addRepoBtn": "Ajouter un dépôt",

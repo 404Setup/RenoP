@@ -9,8 +9,9 @@
  */
 
 import test from 'node:test';
+import {loopbackTestEnvironment} from './loopback-env.mjs';
 import assert from 'node:assert/strict';
-import {readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync} from 'node:fs';
+import {mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {createHash} from 'node:crypto';
 import {createServer} from 'node:http';
@@ -19,6 +20,7 @@ import {fileURLToPath} from 'node:url';
 import {brotliCompressSync} from 'node:zlib';
 import {spawn, spawnSync} from 'node:child_process';
 import {unzipSync} from 'fflate';
+import {FileDetails} from '../../internal/service/frontend/renop-html/js/proto/index.js';
 
 import {chooseUpdateDownloadWorkers, isBrotliUpdateTarget, legacyZipFilename,} from '../js/lib/update-package.js';
 import {brotliExecutableToZip} from '../js/lib/brotli-zip.js';
@@ -147,11 +149,13 @@ test('Actions matrices compile every target before packaging and assemble only a
     }
 });
 
-test('publishing cleans newest obsolete trees after publication and skips missing directories', async () => {
+test('publishing cleans actual SHA directories, recovers orphans, and verifies deletion', async () => {
     const repositoryRoot = resolve(fileURLToPath(new URL('../..', import.meta.url)));
     const directory = mkdtempSync(resolve(tmpdir(), 'renop-publish-test-'));
     const requests = [], commits = [];
     let mode = 'success', published, deleteCount = 0;
+    let directories = [];
+    const indexTool = resolve(directory, process.platform === 'win32' ? 'release-index.exe' : 'release-index');
     const git = (...args) => {
         const result = spawnSync('git', args, {cwd: directory, encoding: 'utf8'});
         assert.equal(result.status, 0, result.stderr);
@@ -161,7 +165,12 @@ test('publishing cleans newest obsolete trees after publication and skips missin
         let body = '';
         for await (const chunk of request) body += chunk;
         requests.push([request.method, request.url]);
-        if (request.method === 'GET') {
+        if (request.method === 'GET' && request.url.startsWith('/api/repositories/details/')) {
+            if (mode === 'inventory-failure') { response.writeHead(503).end(); return; }
+            response.writeHead(200, {'Content-Type': 'application/x-protobuf'});
+            response.end(FileDetails.encode({type: 'DIRECTORY', name: 'nightly', files:
+                directories.map(name => ({type: 'DIRECTORY', name}))}).finish());
+        } else if (request.method === 'GET') {
             response.writeHead(mode === 'read-failure' ? 503 : 200, {'Content-Type': 'application/json'});
             response.end(JSON.stringify({releases: [
                 {version: 'unknown', commit: 'a'.repeat(40)},
@@ -172,10 +181,17 @@ test('publishing cleans newest obsolete trees after publication and skips missin
             response.writeHead(mode === 'upload-failure' ? 500 : 201).end();
         } else {
             assert.equal(request.method, 'DELETE');
-            response.writeHead(mode === 'delete-failure' ? 403 : (++deleteCount <= 2 ? 404 : 204)).end();
+            const name = request.url.split('/').at(-1);
+            const code = mode === 'delete-failure' ? 403 : (++deleteCount <= 2 ? 404 : 204);
+            if (code !== 403 && mode !== 'false-success') directories = directories.filter(value => value !== name);
+            response.writeHead(code).end();
         }
     });
     try {
+        const build = spawnSync('go', ['build', '-p', '1', '-o', indexTool, './cmd/renop-release-index'], {
+            cwd: repositoryRoot, encoding: 'utf8', timeout: 120_000,
+        });
+        assert.equal(build.status, 0, build.error?.message || build.stdout + build.stderr);
         git('init', '--quiet');
         git('config', 'core.abbrev', '7');
         for (let i = 0; i < 20; i++) {
@@ -188,28 +204,37 @@ test('publishing cleans newest obsolete trees after publication and skips missin
         await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
         const run = () => new Promise((resolve, reject) => {
             const child = spawn('pwsh', ['-NoProfile', '-File', `${repositoryRoot}/.github/scripts/publish-update.ps1`,
-                '-Channel', 'nightly', '-DistDir', `${directory}/dist`, '-Version', commits.at(-1).slice(0, 7),
+                '-Channel', 'nightly', '-IndexTool', indexTool, '-DistDir', `${directory}/dist`, '-Version', commits.at(-1).slice(0, 7),
                 '-Commit', commits.at(-1), '-Changelog', 'fixture', '-BaseUrl', `http://127.0.0.1:${server.address().port}`],
-            {cwd: directory, env: {...process.env, RENOP_PUBLISH_TOKEN: 'isolated-test-token'}, timeout: 30_000});
+            {cwd: directory, env: loopbackTestEnvironment({RENOP_PUBLISH_TOKEN: 'isolated-test-token', HTTP_PROXY: 'http://127.0.0.1:1'}), timeout: 30_000});
             let output = '';
             child.stdout.on('data', chunk => { output += chunk; });
             child.stderr.on('data', chunk => { output += chunk; });
             child.on('error', reject);
             child.on('close', code => resolve({code, output}));
         });
+        // Metadata retains seven-character aliases, while actual upload directories use eight.
+        directories = commits.map(commit => commit.slice(0, 8)).concat('deadbeef');
         const success = await run();
         assert.equal(success.code, 0, success.output);
         assert.equal(published.releases[0].commit, commits.at(-1));
-        const obsolete = commits.toReversed().slice(9, 16).map(commit => `/update/renop/nightly/${commit.slice(0, 7)}`);
+        const obsolete = commits.toReversed().slice(9, 16).map(commit => `/update/renop/nightly/${commit.slice(0, 8)}`);
         assert.deepEqual(requests.filter(([method]) => method === 'DELETE').map(([, path]) => path), obsolete);
         const firstDelete = requests.findIndex(([method]) => method === 'DELETE');
         assert.ok(firstDelete > requests.findIndex(([method, path]) => method === 'PUT' && path.endsWith('/info.json')));
-        for (const failure of ['read-failure', 'upload-failure', 'delete-failure']) {
+        // A second publication must rediscover the orphan that was never in info.json.
+        requests.length = 0;
+        const resumed = await run();
+        assert.equal(resumed.code, 0, resumed.output);
+        assert.ok(requests.some(([method, path]) => method === 'DELETE' && path.endsWith('/deadbeef')));
+        assert.deepEqual(directories.sort(), commits.slice(-9).map(commit => commit.slice(0, 8)).sort());
+        for (const failure of ['read-failure', 'inventory-failure', 'upload-failure', 'delete-failure', 'false-success']) {
             mode = failure;
             requests.length = 0;
+            directories = commits.map(commit => commit.slice(0, 8));
             const result = await run();
             assert.notEqual(result.code, 0, `${failure} must fail the workflow`);
-            if (failure !== 'delete-failure') assert.ok(!requests.some(([method]) => method === 'DELETE'));
+            if (!['delete-failure', 'false-success'].includes(failure)) assert.ok(!requests.some(([method]) => method === 'DELETE'));
             if (failure === 'read-failure') assert.ok(!requests.some(([method]) => method === 'PUT'));
         }
     } finally {

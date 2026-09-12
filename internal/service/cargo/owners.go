@@ -276,7 +276,7 @@ func (h Handler) removeOwner(c fiber.Ctx, state *core.AppState, repo *config.Rep
 }
 
 func (h Handler) searchUsers(c fiber.Ctx, state *core.AppState, repo *config.Repository, crateName string) error {
-	_, _, err := authorizePackageMutation(c, state, repo.Name, crateName, core.CargoPermissionManage)
+	user, _, err := authorizePackageMutation(c, state, repo.Name, crateName, core.CargoPermissionManage)
 	if err != nil {
 		return cargoError(c, err)
 	}
@@ -287,7 +287,7 @@ func (h Handler) searchUsers(c fiber.Ctx, state *core.AppState, repo *config.Rep
 	if len(query) > 255 || strings.ContainsAny(query, "\x00\r\n") {
 		return errorResponse(c, fiber.StatusBadRequest, "Invalid Cargo user search")
 	}
-	users, err := state.GetDB().SearchTokenNames(query, 8, time.Now().UnixMilli())
+	users, err := state.GetDB().SearchTokenNames(query, 8, time.Now().UnixMilli(), user.CanViewPrivateProfiles())
 	if err != nil {
 		return cargoError(c, err)
 	}

@@ -11,10 +11,10 @@ description: Проверка здоровья, метрики, снимки и 
 администратора и `server.debug_mode`, включённый при запуске процесса.
 
 
-Ответы состояния со схемой поддерживают protobuf и ProtoJSON. Заголовок `Accept: application/json` выбирает JSON; по умолчанию используется protobuf. Примеры показывают декодированные логические значения; в ProtoJSON 64-битные целые передаются десятичными строками. Текст проверки здоровья и профили сохраняют собственные форматы.
+Endpoints состояния со схемой возвращают бинарный protobuf. `Accept: application/json` не меняет формат. Сохраните ответ в файл и декодируйте его как `InstanceStatus` из соответствующей схемы. Примеры показывают логические значения; текст проверки здоровья и профили сохраняют свои форматы.
 
 ```sh
-curl --fail -H "Accept: application/json" http://localhost:3000/api/status/instance
+curl --fail -H "Accept: application/x-protobuf" -o instance-status.pb http://localhost:3000/api/status/instance
 ```
 
 ## Здоровье и hash интерфейса

@@ -87,9 +87,10 @@ func (db *DB) getUserProfile(whereClause, value string) (*core.UserProfile, erro
 		generation = db.profileCache.Generation()
 	}
 	profile := &core.UserProfile{}
+	var showGitHub, showGitLab int
 	err := db.QueryRow(`SELECT p.user_id, p.username, t.created_at, p.nickname, p.locale,
-		p.website_url, p.github_url, p.discord_url, p.custom_link_name, p.custom_link_url,
-		p.rename_window_started_at, p.rename_count,
+		p.website_url, p.show_github, p.show_gitlab, p.discord_url, p.custom_link_name, p.custom_link_url,
+		p.rename_window_started_at, p.rename_count, p.is_private,
 		(SELECT COUNT(*) FROM maven_domain_members mm JOIN maven_domains md
 			ON md.repository = mm.repository AND md.domain = mm.domain
 			WHERE mm.user_id = p.user_id AND md.repository = '' AND md.verified = 1),
@@ -100,9 +101,9 @@ func (db *DB) getUserProfile(whereClause, value string) (*core.UserProfile, erro
 		FROM user_profiles p JOIN tokens t ON t.name = p.username
 		LEFT JOIN user_avatars a ON a.user_id = p.user_id WHERE `+whereClause, value).Scan(
 		&profile.UserID, &profile.Username, &profile.CreatedAt, &profile.Nickname, &profile.Locale,
-		&profile.Links.Website, &profile.Links.GitHub, &profile.Links.Discord,
+		&profile.Links.Website, &showGitHub, &showGitLab, &profile.Links.Discord,
 		&profile.Links.CustomName, &profile.Links.CustomURL,
-		&profile.UsernameChangeWindowAt, &profile.UsernameChangeCount,
+		&profile.UsernameChangeWindowAt, &profile.UsernameChangeCount, &profile.Private,
 		&profile.MavenDomainCount, &profile.CargoPackageCount, &profile.DockerImageCount, &profile.NPMPackageCount,
 		&profile.AvatarHash,
 	)
@@ -112,6 +113,7 @@ func (db *DB) getUserProfile(whereClause, value string) (*core.UserProfile, erro
 	if err != nil {
 		return nil, fmt.Errorf("load user profile %s: %w", value, err)
 	}
+	profile.Links.Visibility = &core.ProfileLinkVisibility{GitHub: showGitHub != 0, GitLab: showGitLab != 0}
 	db.cacheUserProfile(profile, generation)
 	return profile, nil
 }
@@ -121,7 +123,8 @@ func profileSummary(profile *core.UserProfile) core.UserProfile {
 		return core.UserProfile{}
 	}
 	return core.UserProfile{
-		UserID: profile.UserID, Username: profile.Username, CreatedAt: profile.CreatedAt,
+		Private: profile.Private,
+		UserID:  profile.UserID, Username: profile.Username, CreatedAt: profile.CreatedAt,
 		Nickname: profile.Nickname, UsernameChangeWindowAt: profile.UsernameChangeWindowAt,
 		UsernameChangeCount: profile.UsernameChangeCount, AvatarHash: profile.AvatarHash,
 	}
@@ -225,13 +228,13 @@ func (db *DB) ListUserPackageMemberships(userID, format, viewer string, moderate
 }
 
 // UpdateUserProfileLinks replaces the bounded public links for one account.
-func (db *DB) UpdateUserProfileLinks(username string, links core.PublicLinks, updatedAt int64) (*core.UserProfile, error) {
+func (db *DB) UpdateUserProfileLinks(username string, links core.UserProfileLinks, updatedAt int64) (*core.UserProfile, error) {
 	if db == nil || db.SQLDB == nil {
 		return nil, core.ErrDatabaseUnavailable
 	}
 	username = strings.ToLower(SanitizeInputString(strings.TrimSpace(username), maxTokenNameLen))
 	var valid bool
-	if links, valid = core.NormalizePublicLinks(links); username == "" || !valid || updatedAt <= 0 {
+	if links, valid = core.NormalizeUserProfileLinks(links); username == "" || !valid || updatedAt <= 0 {
 		return nil, errors.New("user profile links are invalid")
 	}
 	userID, err := db.userIDForExistingAccount(username)
@@ -246,9 +249,18 @@ func (db *DB) UpdateUserProfileLinks(username string, links core.PublicLinks, up
 	if err := lockAccountLoginMethodsTx(tx, userID); err != nil {
 		return nil, err
 	}
-	_, err = tx.Exec(`UPDATE user_profiles SET website_url = ?, github_url = ?, discord_url = ?,
+	showGitHub, showGitLab := 0, 0
+	if links.Visibility != nil {
+		if links.Visibility.GitHub {
+			showGitHub = 1
+		}
+		if links.Visibility.GitLab {
+			showGitLab = 1
+		}
+	}
+	_, err = tx.Exec(`UPDATE user_profiles SET website_url = ?, github_url = '', show_github = ?, show_gitlab = ?, discord_url = ?,
 		custom_link_name = ?, custom_link_url = ?, updated_at = ? WHERE username = ?`,
-		links.Website, links.GitHub, links.Discord, links.CustomName, links.CustomURL, updatedAt, username)
+		links.Website, showGitHub, showGitLab, links.Discord, links.CustomName, links.CustomURL, updatedAt, username)
 	if err != nil {
 		return nil, fmt.Errorf("update public links for %s: %w", username, err)
 	}
@@ -311,7 +323,7 @@ func (db *DB) GetUserProfiles(usernames []string) (map[string]*core.UserProfile,
 		placeholders[index] = "?"
 	}
 	rows, err := db.Query(`SELECT p.user_id, p.username, t.created_at, p.nickname,
-		p.rename_window_started_at, p.rename_count, COALESCE(a.sha256, '')
+		p.rename_window_started_at, p.rename_count, COALESCE(a.sha256, ''), p.is_private
 		FROM user_profiles p JOIN tokens t ON t.name = p.username
 		LEFT JOIN user_avatars a ON a.user_id = p.user_id
 		WHERE p.username IN (`+strings.Join(placeholders, ",")+`)`, arguments...)
@@ -323,7 +335,7 @@ func (db *DB) GetUserProfiles(usernames []string) (map[string]*core.UserProfile,
 	for rows.Next() {
 		profile := &core.UserProfile{}
 		if err := rows.Scan(&profile.UserID, &profile.Username, &profile.CreatedAt, &profile.Nickname,
-			&profile.UsernameChangeWindowAt, &profile.UsernameChangeCount, &profile.AvatarHash); err != nil {
+			&profile.UsernameChangeWindowAt, &profile.UsernameChangeCount, &profile.AvatarHash, &profile.Private); err != nil {
 			return nil, fmt.Errorf("scan user profile batch: %w", err)
 		}
 		profiles[profile.Username] = profile
@@ -631,11 +643,17 @@ func (db *DB) initializeUserIdentities() error {
 	if db.Dialect.Name() == "clickhouse" {
 		return nil
 	}
+	mavenDomainIndex := `CREATE INDEX idx_maven_artifacts_domain ON maven_artifacts(repository, domain, group_id, artifact_id)`
+	if db.Dialect.Name() == "mysql" {
+		// InnoDB already appends the full primary key to secondary indexes. Listing its
+		// group/artifact columns again exceeds the utf8mb4 index limit without adding coverage.
+		mavenDomainIndex = `CREATE INDEX idx_maven_artifacts_domain ON maven_artifacts(repository, domain)`
+	}
 	indexQueries := []string{
 		`CREATE UNIQUE INDEX uq_user_profiles_user_id ON user_profiles(user_id)`,
 		`CREATE UNIQUE INDEX uq_maven_members_user_id ON maven_domain_members(repository, domain, user_id)`,
 		`CREATE INDEX idx_maven_members_user ON maven_domain_members(user_id, repository)`,
-		`CREATE INDEX idx_maven_artifacts_domain ON maven_artifacts(repository, domain, group_id, artifact_id)`,
+		mavenDomainIndex,
 		`CREATE INDEX idx_maven_artifacts_global_domain ON maven_artifacts(domain, repository)`,
 		`CREATE INDEX idx_maven_versions_artifact ON maven_versions(repository, group_id, artifact_id, created_at)`,
 		`CREATE INDEX idx_maven_invitations_recipient ON maven_domain_invitations(recipient, created_at)`,

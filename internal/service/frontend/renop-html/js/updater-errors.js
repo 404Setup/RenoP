@@ -11,6 +11,7 @@
 import {t} from './i18n.js';
 
 const updaterErrorKeys = Object.freeze({
+    container_managed: 'updater.containerManaged',
     forbidden: 'error.forbidden',
     insufficient_space: 'updater.insufficientDiskSpace',
     missing_file: 'updater.selectZipFirst',

@@ -9,6 +9,26 @@
  */
 
 export default Object.freeze({
+    "repos.formatConan": "Conan",
+    "repos.formatConanDesc": "Conan recipes, binary packages, revisions, and native client uploads.",
+    "repos.formatConda": "Conda",
+    "repos.formatCondaNative": "Conda native",
+    "repos.formatApk": "Alpine APK",
+    "repos.formatApt": "apt",
+    "repos.formatRpm": "rpm / yum",
+    "repos.formatCondaDesc": "Automatic package indexes, native downloads, and uploaded indexes and signatures.",
+    "repos.formatCondaNativeDesc": "Automatic package indexes, native downloads, and uploaded indexes and signatures.",
+    "repos.formatApkDesc": "Automatic package indexes, native downloads, and uploaded indexes and signatures.",
+    "repos.formatAptDesc": "Automatic package indexes, native downloads, and uploaded indexes and signatures.",
+    "repos.formatRpmDesc": "Automatic package indexes, native downloads, and uploaded indexes and signatures.",
+    "details.nativeTitle": "Client configuration",
+    "details.nativeSubtitle": "Reserve a resource and publish with its native client. Indexes are generated from published artifacts.",
+    "details.nativeClientTab": "Client",
+
+    "repos.capacityLimit": "Capacity limit (MiB)",
+    "repos.capacityHint": "0 means unlimited. Counts committed artifacts, mirrors and checksum files; temporary staging copies are excluded.",
+    "repos.capacityInvalid": "Enter a non-negative capacity in MiB.",
+    "repos.capacityExceeded": "This repository has reached its capacity limit. Delete artifacts or increase its limit.",
     "common.create": "Create",
     "repos.title": "Repositories",
     "repos.addRepoBtn": "Add Repository",

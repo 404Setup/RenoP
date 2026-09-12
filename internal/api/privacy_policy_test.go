@@ -11,8 +11,6 @@
 package api
 
 import (
-	"github.com/gofiber/fiber/v3"
-	"github.com/stretchr/testify/require"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -20,6 +18,9 @@ import (
 	"renop/internal/core"
 	"renop/internal/service/auth"
 	"testing"
+
+	"github.com/gofiber/fiber/v3"
+	"github.com/stretchr/testify/require"
 )
 
 func TestConfiguredLegalDocumentsReplaceFilePolicyAndReload(t *testing.T) {
@@ -36,7 +37,7 @@ func TestConfiguredLegalDocumentsReplaceFilePolicyAndReload(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, response.StatusCode)
 		require.Equal(t, "text/plain; charset=utf-8", response.Header.Get(fiber.HeaderContentType))
-		require.Equal(t, "no-store", response.Header.Get(fiber.HeaderCacheControl))
+		require.Equal(t, "public, no-cache", response.Header.Get(fiber.HeaderCacheControl))
 		require.NoError(t, response.Body.Close())
 	}
 	next := cfg.DeepCopy()

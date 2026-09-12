@@ -9,13 +9,13 @@
  */
 
 import {ensureLegalConsent} from './legal-consent.js';
-import {fetchProto, getAuthHeaders, postProto} from './api.js';
+import {decodeProtoResponse, fetchProto, getAuthHeaders, postProto, PROTO_CONTENT_TYPE} from './api.js';
 import {showAlert} from './alert.js';
 import {t} from './i18n.js';
 import {updateTabIndicator} from '@renop/ui/tabs';
 import {leaveLoginPage, navigateToLogin} from './login-route.js';
 import {stopDashboardRefresh} from './dashboard.js';
-import {LoginRequest, SessionDetails} from './proto/index.js';
+import {LoginRequest, LogoutResponse, SessionDetails} from './proto/index.js';
 import {passkeyErrorMessage, requestPasskeyAssertion} from './fido-utils.js';
 import {showMFALogin} from './mfa-login.js';
 import {clearUserProfileCache, getUserProfile, profileDisplayName, renderProfileAvatar} from './user-profiles.js';
@@ -317,12 +317,14 @@ function setAuthControlledDisplay(element, visible) {
  * Only a 401 invalidates a remembered session; authorization denials preserve its credentials.
  * @returns {Promise<void>}
  */
-export async function initializeSession() {
+export async function initializeSession(beforePublish = Promise.resolve()) {
     localStorage.removeItem('session-token');
     const wasLoggedIn = !!localStorage.getItem('username');
 
     try {
-        const {response, data: sessionData} = await fetchProto('/api/auth/me', SessionDetails);
+        const [{response, data: sessionData}] = await Promise.all([
+            fetchProto('/api/auth/me', SessionDetails), beforePublish,
+        ]);
         if (response.ok) {
             const permissions = (sessionData && sessionData.permissions) || [];
             const routes = (sessionData && sessionData.routes) || [];
@@ -425,8 +427,9 @@ export function logout(reason) {
  */
 async function performLogout(reason) {
     const wasLoggedIn = !!localStorage.getItem('username');
+    let providerRevocationFailed = false;
     try {
-        await fetch('/api/auth/logout', {
+        const response = await fetch('/api/auth/logout', {
             method: 'POST',
             credentials: 'include',
             headers: {
@@ -434,6 +437,10 @@ async function performLogout(reason) {
                 'Cache-Control': 'no-store',
             },
         });
+        if (response.ok && response.status !== 204 && response.headers.get('Content-Type')?.startsWith(PROTO_CONTENT_TYPE)) {
+            const result = await decodeProtoResponse(response, LogoutResponse);
+            providerRevocationFailed = ['failed', 'unavailable'].includes(result.provider_status);
+        }
     } catch (error) {
         console.error('Failed to logout on server:', error);
     }
@@ -447,7 +454,9 @@ async function performLogout(reason) {
     clearUserProfileCache();
     updateAuthUI(false);
 
-    if (wasLoggedIn && (reason === 'expired' || reason === 'kicked')) {
+    if (wasLoggedIn && providerRevocationFailed) {
+        showAlert(t('oauth.logoutRevokeFailed'), 'error');
+    } else if (wasLoggedIn && (reason === 'expired' || reason === 'kicked')) {
         showAlert(t('login.sessionExpired'), 'error');
     } else if (wasLoggedIn && reason !== 'silent' && reason !== 'account_deleted') {
         showAlert(t('login.signedOut'), 'info');
@@ -521,7 +530,7 @@ export async function fidoLogin() {
             credentials: 'include',
             headers: {
                 'Content-Type': 'application/json',
-                'Accept': 'application/json'
+                'Accept': 'application/x-protobuf, application/json'
             },
             body: JSON.stringify({
                 session_id,
@@ -531,10 +540,16 @@ export async function fidoLogin() {
 
         controller.signal.throwIfAborted();
         if (finishRes.ok) {
-            const session = await finishRes.json();
+            let session;
+            const contentType = finishRes.headers?.get?.('Content-Type') || '';
+            if (contentType.includes('application/x-protobuf') && typeof decodeProtoResponse === 'function') {
+                session = await decodeProtoResponse(finishRes, SessionDetails);
+            } else {
+                session = await finishRes.json();
+            }
             controller.signal.throwIfAborted();
             completeLogin(session, name);
-        } else if (finishRes.headers.get('X-Renop-Error-Code') === 'MFA_REQUIRED') {
+        } else if (finishRes.headers?.get?.('X-Renop-Error-Code') === 'MFA_REQUIRED') {
             await showMFALogin();
         } else {
             loginError.textContent = await responseErrorMessage(finishRes, 'error.invalidFidoCred');

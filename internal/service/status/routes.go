@@ -81,6 +81,12 @@ func GetInstanceStatus(c fiber.Ctx, state *core.AppState) error {
 
 	uptime := time.Now().UnixMilli() - state.Inner.StartTime
 
+	if state.IsDemo() {
+		usedMemory, vssMemory, totalMemory = 96<<20, 384<<20, 8<<30
+		renopUsedDisk, diskUsed, diskTotal = state.Inner.FileIndex.TotalFileBytes(), 20<<30, 100<<30
+		logicalCores, physicalCores = 8, 4
+		usedThreads, availableThreads, totalThreads, failuresCount = 20, 492, 512, 3
+	}
 	res := &pb.InstanceStatus{
 		Version:          version.Version,
 		Development:      version.IsDevelopment(),

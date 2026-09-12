@@ -9,6 +9,26 @@
  */
 
 export default Object.freeze({
+    "repos.formatConan": "Conan",
+    "repos.formatConanDesc": "Conan レシピ、バイナリパッケージ、リビジョン、ネイティブクライアントからのアップロード。",
+    "repos.formatConda": "Conda",
+    "repos.formatCondaNative": "Conda native",
+    "repos.formatApk": "Alpine APK",
+    "repos.formatApt": "apt",
+    "repos.formatRpm": "rpm / yum",
+    "repos.formatCondaDesc": "パッケージ索引の自動生成、ネイティブダウンロード、既存の索引と署名のアップロードに対応。",
+    "repos.formatCondaNativeDesc": "パッケージ索引の自動生成、ネイティブダウンロード、既存の索引と署名のアップロードに対応。",
+    "repos.formatApkDesc": "パッケージ索引の自動生成、ネイティブダウンロード、既存の索引と署名のアップロードに対応。",
+    "repos.formatAptDesc": "パッケージ索引の自動生成、ネイティブダウンロード、既存の索引と署名のアップロードに対応。",
+    "repos.formatRpmDesc": "パッケージ索引の自動生成、ネイティブダウンロード、既存の索引と署名のアップロードに対応。",
+    "details.nativeTitle": "クライアント設定",
+    "details.nativeSubtitle": "リソースを登録し、ネイティブクライアントで公開します。インデックスは公開済みファイルから生成されます。",
+    "details.nativeClientTab": "クライアント",
+
+    "repos.capacityLimit": "容量上限（MiB）",
+    "repos.capacityHint": "0 は無制限です。保存済みの成果物、ミラー、チェックサムを計上し、一時的なステージングコピーは除きます。",
+    "repos.capacityInvalid": "0 以上の容量を MiB 単位で入力してください。",
+    "repos.capacityExceeded": "このリポジトリは容量上限に達しました。成果物を削除するか上限を増やしてください。",
     "common.create": "作成",
     "repos.title": "リポジトリ一覧",
     "repos.addRepoBtn": "リポジトリを追加",

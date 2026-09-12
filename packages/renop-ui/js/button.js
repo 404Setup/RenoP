@@ -49,7 +49,11 @@ export function createButton(text, props = {}) {
     }
 
     if (text) {
-        children.push(document.createTextNode((hasIcon ? ' ' : '') + text));
+        if (typeof text === 'object' && text instanceof Node) {
+            children.push(text);
+        } else {
+            children.push(document.createTextNode((hasIcon ? ' ' : '') + text));
+        }
     }
 
     const btn = el('button', btnProps, ...children);

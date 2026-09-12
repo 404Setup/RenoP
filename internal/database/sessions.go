@@ -81,6 +81,11 @@ func (db *DB) SaveSession(session *core.Session, sessionToken string) error {
 		return err
 	}
 	defer tx.Rollback()
+	if session.OAuthGrant != nil {
+		if err := lockOAuthRevocationsTx(tx); err != nil {
+			return err
+		}
+	}
 	if err := lockAccountByUsernameTx(tx, session.Username); err != nil {
 		return err
 	}
@@ -116,6 +121,11 @@ func (db *DB) SaveSession(session *core.Session, sessionToken string) error {
 	if err != nil {
 		return fmt.Errorf("failed to save session (%s): %w", sessionTokenPrefix(sessionToken), err)
 	}
+	if session.OAuthGrant != nil {
+		if err := saveSessionOAuthGrantTx(tx, sessionToken, session.OAuthGrant, time.Now().UnixMilli()); err != nil {
+			return err
+		}
+	}
 
 	if err := tx.Commit(); err != nil {
 		return err
@@ -134,12 +144,13 @@ func (db *DB) UpdateSessionLastActive(sessionToken string, lastActive int64) err
 	}
 
 	var cachedSession *core.Session
+	generation := db.sessionCache.Generation()
 	if sess, ok := db.sessionCache.Get(sessionToken); ok && sess != nil {
 		prevActive := sess.LastActive.Load()
 		if lastActive-prevActive < 30000 && prevActive > 0 {
 			sess.LastActive.Store(lastActive)
-			if db.sessionCache.remote != nil {
-				db.sessionCache.Set(sessionToken, sess, 15*time.Minute)
+			if db.sessionCache.IsRemote() {
+				db.sessionCache.SetIfGeneration(sessionToken, sess, 15*time.Minute, generation)
 			}
 			return nil
 		}
@@ -152,8 +163,8 @@ func (db *DB) UpdateSessionLastActive(sessionToken string, lastActive int64) err
 	}
 	if cachedSession != nil {
 		cachedSession.LastActive.Store(lastActive)
-		if db.sessionCache.remote != nil {
-			db.sessionCache.Set(sessionToken, cachedSession, 15*time.Minute)
+		if db.sessionCache.IsRemote() {
+			db.sessionCache.SetIfGeneration(sessionToken, cachedSession, 15*time.Minute, generation)
 		}
 	}
 	return nil
@@ -253,6 +264,37 @@ func (db *DB) ListUserSessions(username, currentSessionToken string) ([]core.Ses
 	return sessions, nil
 }
 
+// ListActiveUserSessions returns a bounded cursor page without reading session secrets.
+func (db *DB) ListActiveUserSessions(username string, beforeCreatedAt int64, beforeID string, limit int, now int64) ([]core.SessionDto, error) {
+	if limit < 1 || limit > 100 {
+		return nil, errors.New("invalid session limit")
+	}
+	query := `SELECT public_id, user_agent, created_at, last_active, login_method FROM sessions WHERE username = ? AND last_active > ?`
+	args := []any{strings.ToLower(username), now - core.SessionIdleTimeoutMillis}
+	if beforeCreatedAt > 0 && beforeID != "" {
+		query += ` AND (created_at < ? OR (created_at = ? AND public_id < ?))`
+		args = append(args, beforeCreatedAt, beforeCreatedAt, beforeID)
+	}
+	query += ` ORDER BY created_at DESC, public_id DESC LIMIT ?`
+	args = append(args, limit)
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	sessions := make([]core.SessionDto, 0, limit)
+	for rows.Next() {
+		var session core.SessionDto
+		if err := rows.Scan(&session.PublicID, &session.UserAgent, &session.CreatedAt, &session.LastActive, &session.LoginMethod); err != nil {
+			return nil, err
+		}
+		session.Username = username
+		session.ExpiresAt = session.LastActive + core.SessionIdleTimeoutMillis
+		sessions = append(sessions, session)
+	}
+	return sessions, rows.Err()
+}
+
 func (db *DB) DeleteExpiredSessions(minActiveTimestamp int64) error {
 	if db == nil || db.SQLDB == nil {
 		return nil
@@ -263,6 +305,10 @@ func (db *DB) DeleteExpiredSessions(minActiveTimestamp int64) error {
 		return fmt.Errorf("failed to delete expired sessions: %w", err)
 	}
 	db.sessionCache.EvictExpired()
+	err = db.pruneOAuthRevocations(time.Now().UnixMilli())
+	if err != nil {
+		return fmt.Errorf("delete expired provider events: %w", err)
+	}
 	return nil
 }
 

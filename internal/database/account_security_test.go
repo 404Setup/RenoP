@@ -142,7 +142,7 @@ func TestPrivateAccountSecurityAndRecoveryLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "alice", recoveredUsername)
 	require.ErrorIs(t, func() error {
-		_, reuseErr := db.ResetPasswordWithRecoveryCodes("alice", selectors, "reuse", now+5)
+		_, reuseErr := db.ResetPasswordWithRecoveryCodes("alice@xn--exmple-cua.com", selectors, "reuse", now+5)
 		return reuseErr
 	}(), core.ErrRecoveryCodesInvalid)
 	security, err = db.GetAccountSecurity("alice")
@@ -169,6 +169,8 @@ func TestRecoveryCodesCanOnlyWinOneConcurrentReset(t *testing.T) {
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 	}))
 	now := time.Now().UnixMilli()
+	_, err = db.UpdateAccountEmail("alice", "alice@example.com", now)
+	require.NoError(t, err)
 	hashes := testRecoveryHashes(now)
 	require.NoError(t, db.ReplaceRecoveryCodes("alice", hashes))
 	selectors := []string{
@@ -182,7 +184,7 @@ func TestRecoveryCodesCanOnlyWinOneConcurrentReset(t *testing.T) {
 		workers.Go(func() {
 			<-start
 			_, resetErr := db.ResetPasswordWithRecoveryCodes(
-				"alice", selectors, fmt.Sprintf("concurrent-password-%d", index), now+int64(index)+1)
+				"alice@example.com", selectors, fmt.Sprintf("concurrent-password-%d", index), now+int64(index)+1)
 			results <- resetErr
 		})
 	}

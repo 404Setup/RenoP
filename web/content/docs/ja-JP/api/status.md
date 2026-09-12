@@ -11,10 +11,10 @@ description: 公開ヘルス、実行時メトリクス、スナップショッ�
 プロセス開始時から有効な `server.debug_mode` が必要です。
 
 
-スキーマに基づく状態応答は protobuf と ProtoJSON に対応します。`Accept: application/json` で JSON を選択し、既定は protobuf です。以下の例はデコード後の論理値であり、ProtoJSON の 64 ビット整数は十進文字列です。ヘルステキストとプロファイルは固有形式を維持します。
+スキーマに基づく状態 API はバイナリ protobuf を返します。`Accept: application/json` は形式を変更しません。応答をファイルに保存し、対応するスキーマの `InstanceStatus` でデコードしてください。以下の例は論理値を示し、ヘルステキストとプロファイルは固有形式を維持します。
 
 ```sh
-curl --fail -H "Accept: application/json" http://localhost:3000/api/status/instance
+curl --fail -H "Accept: application/x-protobuf" -o instance-status.pb http://localhost:3000/api/status/instance
 ```
 
 ## ヘルスとフロントエンドハッシュ

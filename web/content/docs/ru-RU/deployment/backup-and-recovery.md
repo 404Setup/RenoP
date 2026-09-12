@@ -18,7 +18,7 @@ description: Согласованные копии, проверки восст�
 
 | Данные                   | Типичное место                               | Роль при восстановлении                                                  |
 |:-------------------------|:---------------------------------------------|:-------------------------------------------------------------------------|
-| Основная конфигурация    | `config.yaml` или `RENOP_CONFIG`             | Listener, база, proxy, security, previews, updater                       |
+| Основная конфигурация    | `renop-settings.db` или `RENOP_SETTINGS_DB`             | Listener, база, proxy, security, previews, updater                       |
 | Репозитории              | База данных | Format, visibility, mirrors, storage backend, policy                     |
 | База данных              | `renop.db` или внешний DSN                   | Accounts, permissions, sessions, tokens, teams, reviews, audit, messages |
 | Локальные артефакты      | `storage_path`                               | Публикации, загрузки, upstream cache                                     |
@@ -45,11 +45,11 @@ snapshot не гарантирует их согласованность.
 
 ```bash
 install -d /backup/renop
-cp config.yaml renop.db index.json /backup/renop/
+cp renop-settings.db renop.db index.json /backup/renop/
 rsync -a storage/ /backup/renop/storage/
 ```
 
-Используйте реальные пути из `RENOP_CONFIG`, `RENOP_INDEX`, DSN и `storage_path`. Сохраните
+Используйте реальные пути из `RENOP_SETTINGS_DB`, `RENOP_INDEX`, DSN и `storage_path`. Сохраните
 владельцев, права, необходимые атрибуты и свободное место для временных загрузок.
 
 ## Скопировать внешнюю базу
@@ -82,7 +82,7 @@ Mirror cache часто можно заполнить заново, локаль
 Сначала восстановите на изолированном хосте или в сети. Используйте версию RenoP, создавшую backup, проверьте её, а
 upgrade выполняйте отдельно.
 
-1. Восстановите `config.yaml`, certificates и secrets с жёсткими правами.
+1. Восстановите `renop-settings.db`, certificates и secrets с жёсткими правами.
 2. Восстановите базу и проверьте hostname, credentials и TLS.
 3. Восстановите локальный диск или подключите тот же S3 bucket/prefix.
 4. Восстановите `index.json` или позвольте RenoP перестроить индекс.
@@ -115,3 +115,5 @@ native read/write и сохраните source как read-only rollback copy д
 
 Копия, которую не восстанавливали, остаётся непроверенным предположением. Свяжите runbook с
 [проверкой перед промышленным запуском](./production-checklist.md) и храните офлайн-копию.
+
+Общие данные S3 хранятся в закрытом пространстве `.renop-content-v1`. Включайте его в резервную копию вместе с объектами репозиториев и сохраняйте закрытый индекс, чтобы уменьшить чтение метаданных после перезапуска. Индекс использует версионированный поток записей JSON; старые снимки остаются читаемыми. Поведение дедупликации и восстановления описано в [настройке репозиториев](/docs/configuration/repositories).

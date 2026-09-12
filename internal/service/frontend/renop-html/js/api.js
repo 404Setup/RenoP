@@ -11,6 +11,7 @@
 import {captchaFetch} from './captcha.js';
 import {logout} from './auth.js';
 import {protoObjectOptions} from './proto/index.js';
+import {localizedResponseError} from './response-errors.js';
 
 /** MIME type for protobuf request/response bodies (must match backend). */
 export const PROTO_CONTENT_TYPE = 'application/x-protobuf';
@@ -68,6 +69,32 @@ export async function apiRequest(url, options = {}, authPolicy = {}) {
     const response = await captchaFetch(url, withCredentials(options));
     handleAuthFailure(response, authPolicy);
     return response;
+}
+
+/**
+ * Create a JSON endpoint client with shared credentials, CAPTCHA, encoding, and safe errors.
+ * Public authentication flows retain their session when an entered credential is rejected.
+ * @param {string} base - Endpoint prefix.
+ * @param {string} errorKey - Localized fallback.
+ * @param {{publicRequest?: boolean, timeoutMS?: number, errorKeys?: object}} [policy={}] - Request policy.
+ * @returns {(path?: string, options?: RequestInit & {json?: unknown}) => Promise<unknown>} JSON client.
+ */
+export function createJSONClient(base, errorKey, {publicRequest = false, timeoutMS = 0, errorKeys = {}} = {}) {
+    return async (path = '', {json, ...options} = {}) => {
+        if (json !== undefined) options = {
+            ...options, method: options.method || 'POST', body: JSON.stringify(json),
+            headers: {'Content-Type': 'application/json', ...options.headers}
+        };
+        if (timeoutMS > 0) {
+            const timeout = AbortSignal.timeout(timeoutMS);
+            options.signal = options.signal ? AbortSignal.any([options.signal, timeout]) : timeout;
+        }
+        const response = publicRequest
+            ? await captchaFetch(base + path, withCredentials(options))
+            : await apiRequest(base + path, options);
+        if (!response.ok) throw await localizedResponseError(response, errorKey, {}, errorKeys);
+        return response.status === 204 ? null : response.json();
+    };
 }
 
 /**

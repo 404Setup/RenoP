@@ -33,12 +33,25 @@ try {
         $env:GOAMD64 = [string]$spec.goamd64
     }
 
+    $experiments = [string](& go env GOEXPERIMENT)
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Failed to read Go experiments.'
+    }
+    $experiments = $experiments.Trim()
+    $experimentOptions = $experiments -split ','
+    if ('simd' -notin $experimentOptions -and 'nosimd' -notin $experimentOptions -and
+        'none' -notin $experimentOptions) {
+        $simdOption = if ($env:GOARCH -in @('amd64', 'wasm')) { 'simd' } else { 'nosimd' }
+        $experiments = (@($experiments, $simdOption) | Where-Object { $_ }) -join ','
+    }
+    $env:GOEXPERIMENT = $experiments
+
     $binaryPath = [string]$spec.binary_path
     $binaryDirectory = Split-Path -Parent $binaryPath
     if (-not (Test-Path -LiteralPath $binaryDirectory -PathType Container)) {
         New-Item -ItemType Directory -Path $binaryDirectory -Force | Out-Null
     }
-    Write-Host "Compiling $($spec.goos)/$($spec.goarch)"
+    Write-Host "Compiling $($spec.goos)/$($spec.goarch) (GOEXPERIMENT=$experiments)"
     & go build -ldflags ([string]$spec.ldflags) -o $binaryPath .
     if ($LASTEXITCODE -ne 0) {
         throw "go build failed for $($spec.goos)/$($spec.goarch) with exit code $LASTEXITCODE."

@@ -30,8 +30,14 @@ func (state *AppState) UseRemoteCache(remote *cache.Remote) {
 		return entry
 	})
 	state.Inner.MetadataCache.Bind(remote, nil)
+	if state.Inner.FileIndex != nil {
+		state.Inner.FileIndex.UseRemoteCache(remote)
+	}
 	if state.Inner.FileCache != nil {
 		state.Inner.FileCache.UseRemote(remote)
+	}
+	if state.Inner.NativeIndexCache != nil {
+		state.Inner.NativeIndexCache.UseRemote(remote)
 	}
 }
 

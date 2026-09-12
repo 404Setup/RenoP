@@ -29,8 +29,8 @@ func (d *ClickHouseDialect) InitTables(_ *sql.DB) error {
 
 func (d *ClickHouseDialect) UpsertTokenQuery() string {
 	return `/* renop:upsert */ INSERT INTO tokens
-		(name, type, type_value, encrypted_secret, password_hash, tokens_json, created_at, description, expires_at, permissions_json, ban_reason, banned_at, banned_until)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		(name, type, type_value, encrypted_secret, password_hash, tokens_json, created_at, description, expires_at, permissions_json, ban_reason, ban_reason_code, banned_at, banned_until)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 }
 
 func (d *ClickHouseDialect) UpsertSessionQuery() string {

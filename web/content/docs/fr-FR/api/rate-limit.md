@@ -29,13 +29,13 @@ Les requêtes non authentifiées sont évaluées par adresse IP avec une fenêtr
 
 ## Concurrence (`max_active_requests`)
 
-Configurez `server.max_active_requests` dans `config.yaml` (512 par défaut).
+Configurez `server.max_active_requests` dans paramètres système (512 par défaut).
 
 - Lorsque le nombre de requêtes actives atteint cette limite, les nouvelles requêtes reçoivent
   `503 Service Unavailable`.
 
 ## Proxys de confiance
 
-Derrière un reverse proxy ou un CDN, configurez `server.trusted_proxies` et `server.cdn_ip_header` dans `config.yaml`.
+Derrière un reverse proxy ou un CDN, configurez `server.trusted_proxies` et `server.cdn_ip_header` dans paramètres système.
 RenoP utilise alors l’adresse réelle validée du client pour les limites, jamais un en-tête transmis par une source non
 approuvée.

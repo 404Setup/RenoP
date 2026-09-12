@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/ProtonMail/go-crypto/openpgp"
+	"github.com/ProtonMail/go-crypto/openpgp/armor"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,6 +36,22 @@ import (
 	"renop/internal/testutil"
 	"renop/internal/utils"
 )
+
+func TestPublicSigningKeyringRejectsTrailingPrivateMaterial(t *testing.T) {
+	entity, _, _ := testSigningEntity(t)
+	var public, private bytes.Buffer
+	writer, err := armor.Encode(&public, openpgp.PublicKeyType, nil)
+	require.NoError(t, err)
+	require.NoError(t, entity.Serialize(writer))
+	require.NoError(t, writer.Close())
+	writer, err = armor.Encode(&private, openpgp.PrivateKeyType, nil)
+	require.NoError(t, err)
+	require.NoError(t, entity.SerializePrivate(writer, nil))
+	require.NoError(t, writer.Close())
+	require.NoError(t, ValidatePublicSigningKeys(public.Bytes()))
+	require.Error(t, ValidatePublicSigningKeys(append(bytes.Clone(public.Bytes()), private.Bytes()...)))
+	require.Error(t, ValidatePublicSigningKeys(append(bytes.Clone(public.Bytes()), []byte("unexpected trailing data")...)))
+}
 
 func testGPGState(t *testing.T) (*core.AppState, *database.DB) {
 	t.Helper()

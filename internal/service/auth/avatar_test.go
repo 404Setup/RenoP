@@ -40,8 +40,8 @@ import (
 func avatarPNG(t *testing.T, width, height int) []byte {
 	t.Helper()
 	value := image.NewNRGBA(image.Rect(0, 0, width, height))
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
+	for y := range height {
+		for x := range width {
 			value.SetNRGBA(x, y, color.NRGBA{R: uint8(x), G: uint8(y), B: 180, A: 255})
 		}
 	}
@@ -153,7 +153,7 @@ func TestAvatarUploadQuotaServingAndManualGitHubSync(t *testing.T) {
 	require.Equal(t, http.StatusOK, getResponse.StatusCode)
 	assert.Equal(t, "image/png", getResponse.Header.Get("Content-Type"))
 	assert.Equal(t, "nosniff", getResponse.Header.Get("X-Content-Type-Options"))
-	assert.Contains(t, getResponse.Header.Get("Cache-Control"), "immutable")
+	assert.Equal(t, "no-store", getResponse.Header.Get("Cache-Control"), "profile privacy changes must take effect even when the avatar hash is unchanged")
 	require.NoError(t, getResponse.Body.Close())
 
 	unsafeRequest := httptest.NewRequest(http.MethodPut, "/auth/profile/avatar",

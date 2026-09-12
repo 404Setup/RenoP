@@ -38,7 +38,7 @@ func scanOAuthIdentity(row row) (*core.OAuthIdentity, error) {
 // GetOAuthIdentities returns the bounded private provider bindings for one account.
 func (db *DB) GetOAuthIdentities(username string) ([]core.OAuthIdentity, error) {
 	rows, err := db.Query(`SELECT `+oauthIdentityColumns+` FROM oauth_identities i
-		JOIN user_profiles p ON p.user_id = i.user_id WHERE p.username = ? ORDER BY i.provider_id LIMIT 32`, strings.ToLower(username))
+		JOIN user_profiles p ON p.user_id = i.user_id WHERE p.username = ? ORDER BY i.provider_id LIMIT 12`, strings.ToLower(username))
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +98,7 @@ func storeOAuthIdentityTx(tx *Tx, userID string, identity core.OAuthIdentity, no
 	if err = tx.QueryRow(`SELECT COUNT(*) FROM oauth_identities WHERE user_id = ?`, userID).Scan(&count); err != nil {
 		return err
 	}
-	if count >= 32 {
+	if count >= 12 {
 		return core.ErrOAuthIdentityLinked
 	}
 	namespaces, err := json.Marshal(identity.Namespaces)

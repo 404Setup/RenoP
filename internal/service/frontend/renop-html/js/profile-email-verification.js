@@ -16,7 +16,7 @@ import {t} from './i18n.js';
 import {el} from '@renop/ui/dom';
 
 /** Confirm a queued security-email change while keeping its code and status ticket inside the dialog. */
-export async function verifyProfileEmail(email, receipt) {
+export async function verifyProfileEmail(email, receipt, options = {}) {
     const controller = new AbortController(), route = window.location.pathname;
     const deadline = Date.now() + 10 * 60 * 1000;
     let timer;
@@ -27,7 +27,7 @@ export async function verifyProfileEmail(email, receipt) {
     const error = el('p', {class: 'account-form-error', role: 'alert', hidden: true});
     const status = el('p', {class: 'profile-security-hint', role: 'status'}, mailStatusLabel(receipt.status));
     const refresh = el('button', {class: 'action-btn', type: 'button', hidden: true}, t('mail.refreshStatus'));
-    const form = el('form', {class: 'account-verification'}, el('p', {}, t('profile.emailVerificationSent', {email})),
+    const form = el('form', {class: 'account-verification'}, el('p', {}, t(options.descriptionKey || 'profile.emailVerificationSent', {email})),
         el('div', {class: 'account-field'}, el('label', {for: 'profile-email-code'}, t('login.emailCode')), code),
         status, refresh, error);
     const close = () => document.getElementById('profile-email-verification-dialog')?.close(null);
@@ -47,7 +47,7 @@ export async function verifyProfileEmail(email, receipt) {
             const job = await response.json();
             if (!active()) return;
             status.textContent = mailStatusLabel(job.status);
-            if (['queued', 'paused', 'sending', 'checking', 'queued_provider'].includes(job.status) && Date.now() < deadline) {
+            if (['queued', 'paused', 'sending', 'checking'].includes(job.status) && Date.now() < deadline) {
                 timer = setTimeout(() => void poll(), 3000);
             }
         } catch {
@@ -63,32 +63,35 @@ export async function verifyProfileEmail(email, receipt) {
         void runButtonAction(document.getElementById('profile-email-verify'), async () => {
             error.hidden = true;
             try {
-                const response = await apiRequest('/api/auth/profile/email/confirm', {
+                const response = options.confirm
+                    ? await options.confirm(code.value, controller.signal)
+                    : await apiRequest('/api/auth/profile/email/confirm', {
                     method: 'POST', signal: controller.signal, headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({email, code: code.value}),
                 });
                 code.value = '';
                 if (!active()) return;
                 if (!response.ok) {
-                    error.textContent = await responseErrorMessage(response, 'profile.privateEmailSaveFailed');
+                    error.textContent = await responseErrorMessage(response, options.errorKey || 'profile.privateEmailSaveFailed');
                     error.hidden = false;
                     code.focus();
                     return;
                 }
-                const security = await response.json();
+                const security = options.confirm ? true : await response.json();
                 if (active()) document.getElementById('profile-email-verification-dialog')?.close(security);
             } catch {
                 if (!active()) return;
-                error.textContent = t('profile.privateEmailSaveFailed');
+                error.textContent = t(options.errorKey || 'profile.privateEmailSaveFailed');
                 error.hidden = false;
             }
         });
     });
     window.addEventListener('pagehide', close);
     window.addEventListener('popstate', close);
+    window.addEventListener('authChanged', close);
     timer = setTimeout(() => void poll(), 3000);
     return RenopDialog.show({
-        id: 'profile-email-verification-dialog', title: t('profile.verifyPrivateEmail'),
+        id: 'profile-email-verification-dialog', title: t(options.titleKey || 'profile.verifyPrivateEmail'),
         icon: 'send', maxWidth: '480px', body: form,
         footer: [
             {text: t('common.cancel'), className: 'action-btn', onClick: close},
@@ -106,6 +109,7 @@ export async function verifyProfileEmail(email, receipt) {
             receipt.ticket = '';
             window.removeEventListener('pagehide', close);
             window.removeEventListener('popstate', close);
+            window.removeEventListener('authChanged', close);
         },
     });
 }

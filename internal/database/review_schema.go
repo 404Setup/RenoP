@@ -61,5 +61,5 @@ func initReviewTables(db *sql.DB, mysql bool) error {
 	if err != nil {
 		return err
 	}
-	return initTicketTable(db)
+	return initTicketTable(db, mysql)
 }

@@ -69,6 +69,7 @@ test('Maven exposes copy-ready dependency declarations and compact facts layout'
     assert.match(maven, /copyText\(copy, current\.value\)/);
     assert.match(mavenStyles, /\.maven-import-code\s*\{[^}]*background:\s*var\(--snippet-bg/);
     assert.doesNotMatch(maven, /\{\s*label:\s*t\('maven\.scm'\)[^}]*wide:\s*true/);
+    assert.doesNotMatch(maven, /\{\s*label:\s*t\('maven\.(?:licenses|developers)'\)[^}]*wide:\s*true/);
     assert.doesNotMatch(settingsStyles, /\.settings-sidebar\s*\{[^}]*position:\s*sticky/);
 });
 

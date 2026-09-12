@@ -3,6 +3,8 @@
  *
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
  *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
+ *
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
@@ -255,7 +257,12 @@ func previewMailTemplate(c fiber.Ctx, state *core.AppState) error {
 	if style := c.Query("style"); style != "" {
 		cfg.TemplateStyle = style
 	}
-	message, err := cfg.Render(c.Params("scene"), mail.TemplateData{Locale: locale.FromHeader(c.Get(fiber.HeaderAcceptLanguage)), Username: "RenoP", Code: "123456"})
+	scene := c.Params("scene")
+	code := ""
+	if scene == "registration_verify" || scene == "password_reset" || scene == "email_verify" {
+		code = "123456"
+	}
+	message, err := cfg.Render(scene, mail.TemplateData{Locale: locale.FromHeader(c.Get(fiber.HeaderAcceptLanguage)), Username: "RenoP", Code: code})
 	if err != nil {
 		return mailSettingsError(c, 400, "mail_request_invalid")
 	}

@@ -11,11 +11,9 @@
 package api
 
 import (
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gofiber/fiber/v3"
 
@@ -23,8 +21,6 @@ import (
 	"renop/internal/core"
 	"renop/internal/service/auth"
 	"renop/internal/service/docker"
-	"renop/internal/service/index"
-	"renop/internal/service/maven"
 	"renop/internal/utils"
 	"renop/internal/utils/protohttp"
 	"renop/pkg/pb"
@@ -34,7 +30,6 @@ const (
 	defaultRepositorySearchLimit = 20
 	maxRepositorySearchLimit     = 50
 	maxRepositorySearchScan      = 100000
-	maxRepositorySearchMatches   = 500
 )
 
 // SearchRepository provides one bounded, format-aware search endpoint for the
@@ -78,6 +73,8 @@ func SearchRepository(c fiber.Ctx, state *core.AppState) error {
 		response, err = searchDockerRepository(state, repo, user, query, limit)
 	} else if repo.NormalizedFormat() == config.RepositoryFormatNPM {
 		response, err = searchNPMRepository(state, repo, user, query, limit)
+	} else if repo.Engine().ManagedNative {
+		response, err = searchNativeRepository(state, repo, user, query, limit)
 	} else if repo.UsesModernMavenLayout() {
 		response, err = searchModernMavenRepository(state, repo, user, query, limit)
 	} else {
@@ -88,6 +85,42 @@ func SearchRepository(c fiber.Ctx, state *core.AppState) error {
 	}
 	c.Set(fiber.HeaderCacheControl, "no-store")
 	return protohttp.Write(c, response)
+}
+
+func searchNativeRepository(state *core.AppState, repo *config.Repository, user *config.User,
+	query string, limit int) (*pb.RepositorySearchResponse, error) {
+	db := state.GetDB()
+	if db == nil {
+		return nil, core.ErrDatabaseUnavailable
+	}
+	staff := user != nil && (user.IsManager() || user.CheckModeratePermission(repo.Name) || user.CheckUpdatePermission(repo.Name))
+	username := ""
+	if user != nil {
+		username = user.Username
+	}
+	resources, total, err := db.SearchNativeResources(repo.Name, query, username, staff, limit)
+	if err != nil {
+		return nil, err
+	}
+	results := make([]*pb.RepositorySearchResult, 0, len(resources))
+	for _, res := range resources {
+		if res == nil {
+			continue
+		}
+		results = append(results, &pb.RepositorySearchResult{
+			Name:        res.Name,
+			Path:        "~/" + res.Name,
+			Type:        "PACKAGE",
+			Description: res.Description,
+			ModifiedAt:  res.PublishedAt,
+		})
+	}
+	return &pb.RepositorySearchResponse{
+		Format:  repo.ConfiguredFormat(),
+		Results: results,
+		Total:   int32(total),
+		HasMore: total > len(results),
+	}, nil
 }
 
 func searchNPMRepository(state *core.AppState, repo *config.Repository, user *config.User,
@@ -240,138 +273,4 @@ func searchModernMavenRepository(state *core.AppState, repo *config.Repository, 
 	return &pb.RepositorySearchResponse{
 		Format: repo.ConfiguredFormat(), Results: results, Total: int32(total), HasMore: total > len(results),
 	}, nil
-}
-
-func searchFileTreeRepository(state *core.AppState, storagePath string, repo *config.Repository, user *config.User, query string, limit int) (*pb.RepositorySearchResponse, error) {
-	var visible func(string) bool
-	if repo.NormalizedFormat() == config.RepositoryFormatMaven {
-		var err error
-		visible, err = maven.MetadataPathFilter(state, user, repo.Name)
-		if err != nil {
-			return nil, err
-		}
-	}
-	root := filepath.ToSlash(filepath.Clean(filepath.Join(storagePath, repo.Name)))
-	rootPrefix := root + "/"
-	needle := strings.ToLower(query)
-	results := make([]*pb.RepositorySearchResult, 0, min(limit*4, maxRepositorySearchMatches))
-	total := 0
-	visited := 0
-	scanLimitReached := false
-
-	state.Inner.FileIndex.Walk(root, func(indexedPath string, info index.FileInfo, isDir bool) bool {
-		visited++
-		if visited > maxRepositorySearchScan {
-			scanLimitReached = true
-			return false
-		}
-		if indexedPath == root || state.Inner.FileIndex.IsBlocked(indexedPath) {
-			return true
-		}
-		var relative string
-		if strings.HasPrefix(indexedPath, rootPrefix) {
-			relative = indexedPath[len(rootPrefix):]
-		} else {
-			rel, err := filepath.Rel(root, indexedPath)
-			if err != nil || rel == "." || strings.HasPrefix(rel, "..") {
-				return true
-			}
-			relative = filepath.ToSlash(rel)
-		}
-		if relative == "" || !containsFold(relative, needle) ||
-			!user.CheckReadPermission(repo.Name, relative, repo.Visibility, isDir) || visible != nil && !visible(relative) {
-			return true
-		}
-		total++
-		if len(results) >= maxRepositorySearchMatches {
-			return true
-		}
-		resultType := "FILE"
-		if isDir {
-			resultType = "DIRECTORY"
-		}
-		name := relative
-		if idx := strings.LastIndexByte(relative, '/'); idx != -1 {
-			name = relative[idx+1:]
-		}
-		result := &pb.RepositorySearchResult{Name: name, Path: relative, Type: resultType}
-		if !isDir {
-			result.Size = info.Size
-			result.ModifiedAt = time.Unix(0, info.ModTime).UnixMilli()
-		}
-		results = append(results, result)
-		return true
-	})
-
-	sort.SliceStable(results, func(i, j int) bool {
-		leftRank := repositorySearchRank(results[i].Name, needle)
-		rightRank := repositorySearchRank(results[j].Name, needle)
-		if leftRank != rightRank {
-			return leftRank < rightRank
-		}
-		if len(results[i].Path) != len(results[j].Path) {
-			return len(results[i].Path) < len(results[j].Path)
-		}
-		return strings.ToLower(results[i].Path) < strings.ToLower(results[j].Path)
-	})
-	if len(results) > limit {
-		results = results[:limit]
-	}
-	return &pb.RepositorySearchResponse{
-		Format: repo.ConfiguredFormat(), Results: results, Total: int32(total),
-		HasMore: scanLimitReached || total > len(results),
-	}, nil
-}
-
-func containsFold(s, substrLower string) bool {
-	if len(substrLower) == 0 {
-		return true
-	}
-	if len(s) < len(substrLower) {
-		return false
-	}
-	maxStart := len(s) - len(substrLower)
-	for i := 0; i <= maxStart; i++ {
-		match := true
-		for j := 0; j < len(substrLower); j++ {
-			c := s[i+j]
-			if c >= 'A' && c <= 'Z' {
-				c += 'a' - 'A'
-			}
-			if c != substrLower[j] {
-				match = false
-				break
-			}
-		}
-		if match {
-			return true
-		}
-	}
-	return false
-}
-
-func repositorySearchRank(name, queryLower string) int {
-	if strings.EqualFold(name, queryLower) {
-		return 0
-	}
-	if hasPrefixFold(name, queryLower) {
-		return 1
-	}
-	return 2
-}
-
-func hasPrefixFold(s, prefixLower string) bool {
-	if len(s) < len(prefixLower) {
-		return false
-	}
-	for i := 0; i < len(prefixLower); i++ {
-		c := s[i]
-		if c >= 'A' && c <= 'Z' {
-			c += 'a' - 'A'
-		}
-		if c != prefixLower[i] {
-			return false
-		}
-	}
-	return true
 }

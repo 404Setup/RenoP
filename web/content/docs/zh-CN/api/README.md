@@ -27,9 +27,14 @@ RenoP 提供用于管理自动化、客户端集成与健康监控的完整 HTTP
 
 ## 传输格式与 Protobuf
 
-管理 API 原生支持 JSON（`application/json`）与二进制 Protobuf（`application/x-protobuf` 或 `application/protobuf`）。通过 `Content-Type` 指定请求体编码，通过 `Accept` 协商响应格式。未显式声明或不支持的 `Accept` 默认使用 Protobuf 响应；请求未指定类型时同样采用 Protobuf 解析。完整消息定义参见 `proto/api/v1/api.proto`。
+基于 schema 的管理 API 使用二进制 protobuf。请求请发送 `Content-Type: application/x-protobuf`；也接受
+`application/protobuf` 和 `application/octet-stream`，未指定 Content-Type 时默认采用 protobuf。JSON 请求体
+会被拒绝，端点返回 `400` 或 `415` 错误。响应固定使用 `application/x-protobuf`，`Accept` 不会启用 JSON。
+请使用与部署版本对应的 `proto/api/v1/api.proto` 消息定义。
 
-JSON 输出使用标准 snake_case 字段名，解析输入时兼容 camelCase。64 位大整数表示为十进制字符串，字节数组采用 Base64 编码。系统会严格拒绝未知或重复的 JSON 字段。常规控制请求体上限为 1 MiB（端点另有较小限制的除外）。各包管理器的原生协议、分块上传二进制流、健康检查纯文本等继续遵循各自规范。
+控制请求上限仍为 1 MiB，并保留端点的更小限制。protobuf 消息旁的 JSON 示例仅展示解码后的字段，
+不表示支持 JSON 传输。仅支持 JSON 的端点、包管理器原生协议、上传二进制部分、健康检查文本与
+各端点的错误响应保留各自声明的格式。
 
 ## 认证方式
 

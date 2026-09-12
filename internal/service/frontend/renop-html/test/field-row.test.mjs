@@ -14,7 +14,7 @@ import test from 'node:test';
 import vm from 'node:vm';
 
 test('field rows label their own controls and preserve explicit or nested labels', () => {
-    const source = readFileSync(new URL('../js/components/field-row.js', import.meta.url), 'utf8')
+    const source = readFileSync(new URL('../../../../../packages/renop-ui/js/field-row.js', import.meta.url), 'utf8')
         .replace(/^import .*;\r?\n/gm, '').replaceAll('export ', '');
     const Row = vm.runInNewContext(source + '; RenopFieldRow', {
         HTMLElement: class {

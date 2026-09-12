@@ -1,0 +1,396 @@
+/*
+ * Copyright (c) 2026 404Setup. All rights reserved.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
+ *
+ * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
+ */
+
+.cfg-callout {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.9rem 1.5rem;
+    font-size: 0.82rem;
+    line-height: 1.55;
+    border-top: 1px solid var(--border-color);
+}
+
+.cfg-section > .cfg-callout {
+    border-top: 1px solid var(--border-color);
+    border-bottom: none;
+}
+
+.cfg-layout > .cfg-callout {
+    border: 1px solid var(--border-color);
+    border-radius: 0.875rem;
+    background-color: var(--card-bg);
+}
+
+.cfg-callout--info {
+    background-color: color-mix(in srgb, var(--link-hover-color) 8%, transparent);
+    color: var(--text-color);
+    border-color: color-mix(in srgb, var(--link-hover-color) 30%, transparent) !important;
+}
+
+.cfg-callout--neutral {
+    background-color: color-mix(in srgb, var(--text-color) 5%, transparent);
+    color: var(--text-color);
+}
+
+.cfg-callout--danger {
+    background-color: color-mix(in srgb, #ef4444 8%, transparent);
+    color: color-mix(in srgb, #ef4444 90%, var(--text-color));
+    border-color: color-mix(in srgb, #ef4444 30%, transparent) !important;
+    border-radius: 0.5rem;
+    border: 1px solid;
+    border-top: 1px solid !important;
+}
+
+html.dark .cfg-callout--danger {
+    color: #fca5a5;
+}
+
+.cfg-callout-icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    margin-top: 1px;
+    opacity: 0.8;
+}
+
+.cfg-callout strong {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.2rem;
+}
+
+.cfg-index-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.25rem;
+}
+
+.cfg-index-card {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 0.875rem;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                border-color 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cfg-index-card:hover {
+    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--link-hover-color) 35%, var(--border-color));
+    box-shadow: 0 8px 24px -4px color-mix(in srgb, var(--link-hover-color) 14%, transparent), 0 4px 8px rgba(0, 0, 0, 0.04);
+}
+
+.cfg-index-card-header {
+    display: flex;
+    align-items: center;
+}
+
+.cfg-index-card-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 0.6rem;
+}
+
+.cfg-index-card-icon svg {
+    width: 20px;
+    height: 20px;
+}
+
+.cfg-index-card-icon--success {
+    background-color: color-mix(in srgb, #10b981 12%, transparent);
+    color: #10b981;
+}
+
+html.dark .cfg-index-card-icon--success {
+    color: #34d399;
+    background-color: color-mix(in srgb, #34d399 12%, transparent);
+}
+
+.cfg-index-card-icon--danger {
+    background-color: color-mix(in srgb, #ef4444 12%, transparent);
+    color: #ef4444;
+}
+
+html.dark .cfg-index-card-icon--danger {
+    color: #f87171;
+    background-color: color-mix(in srgb, #f87171 12%, transparent);
+}
+
+.cfg-index-card-title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.cfg-index-card-desc {
+    margin: 0;
+    font-size: 0.86rem;
+    color: var(--text-color);
+    opacity: 0.72;
+    line-height: 1.55;
+    flex: 1;
+}
+
+.cfg-index-card-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.55rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid color-mix(in srgb, #f59e0b 32%, var(--border-color));
+    color: color-mix(in srgb, #b45309 82%, var(--text-color));
+    font-size: 0.8rem;
+    line-height: 1.45;
+}
+
+.cfg-index-card-note svg {
+    width: 15px;
+    height: 15px;
+    flex: 0 0 15px;
+    margin-top: 0.08rem;
+}
+
+html.dark .cfg-index-card-note {
+    color: #fbbf24;
+}
+
+.cfg-badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.2rem 0.65rem;
+    border-radius: 9999px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.cfg-badge--success {
+    background-color: color-mix(in srgb, #10b981 15%, transparent);
+    color: #10b981;
+}
+
+html.dark .cfg-badge--success {
+    color: #34d399;
+    background-color: color-mix(in srgb, #34d399 15%, transparent);
+}
+
+.cfg-badge--warning {
+    background-color: color-mix(in srgb, #f59e0b 15%, transparent);
+    color: #d97706;
+}
+
+html.dark .cfg-badge--warning {
+    color: #fbbf24;
+    background-color: color-mix(in srgb, #fbbf24 15%, transparent);
+}
+
+.cfg-index-action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.65rem 1rem;
+    border: none;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.cfg-index-action-btn svg {
+    width: 15px;
+    height: 15px;
+}
+
+.cfg-index-action-btn--primary {
+    background-color: var(--link-hover-color);
+    color: #fff;
+}
+
+.cfg-index-action-btn--primary:hover {
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--link-hover-color) 35%, transparent);
+}
+
+.cfg-index-action-btn--danger {
+    background-color: #ef4444;
+    color: #fff;
+}
+
+.cfg-index-action-btn--danger:hover {
+    background-color: #dc2626;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);
+}
+
+.cfg-index-action-btn:active {
+    transform: translateY(0) scale(0.98);
+}
+
+@media (prefers-color-scheme: dark) {
+    html:not(.light) .cfg-section-icon {
+        background-color: color-mix(in srgb, var(--link-hover-color) 15%, transparent);
+    }
+
+    html:not(.light) .cfg-index-card-icon--success {
+        color: #34d399;
+        background-color: color-mix(in srgb, #34d399 12%, transparent);
+    }
+
+    html:not(.light) .cfg-index-card-icon--danger {
+        color: #f87171;
+        background-color: color-mix(in srgb, #f87171 12%, transparent);
+    }
+
+    html:not(.light) .cfg-badge--success {
+        color: #34d399;
+        background-color: color-mix(in srgb, #34d399 15%, transparent);
+    }
+
+    html:not(.light) .cfg-badge--warning {
+        color: #fbbf24;
+        background-color: color-mix(in srgb, #fbbf24 15%, transparent);
+    }
+
+    html:not(.light) .cfg-callout--danger {
+        color: #fca5a5;
+    }
+}
+
+@media (max-width: 700px) {
+    .repos-header {
+        align-items: stretch;
+    }
+
+    .repos-header .settings-save-btn {
+        width: 100%;
+    }
+
+    .repository-list-toolbar,
+    .repository-list-pagination {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .repository-engine-filters {
+        width: 100%;
+    }
+
+    .repository-pagination-controls {
+        justify-content: space-between;
+    }
+
+
+
+
+
+
+
+    .cfg-input {
+        max-width: 100%;
+    }
+
+
+
+
+
+
+
+    .cfg-index-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .cfg-section-header {
+        flex-wrap: nowrap;
+        overflow: visible;
+        gap: 0.68rem;
+        padding: 0.9rem 1rem;
+    }
+
+    .cfg-section-header > .cfg-section-icon {
+        order: 1;
+        flex-shrink: 0;
+    }
+
+    .cfg-section-header > .cfg-section-meta {
+        order: 2;
+        flex: 1;
+        min-width: 0;
+        flex-basis: auto;
+    }
+
+    .cfg-section-header > button,
+    .cfg-section-header > .action-btn,
+    .cfg-section-header > .pill-btn {
+        order: 3;
+        flex-shrink: 0;
+        white-space: nowrap;
+        margin-left: 0;
+    }
+
+    .cfg-section-header > .cfg-section-chevron {
+        order: 4;
+        flex-shrink: 0;
+    }
+}
+
+html.dark .cfg-sub-header,
+html.dark .cfg-section [style*="background: color-mix(in srgb, var(--item-hover-bg) 30%"] {
+    border-color: color-mix(in srgb, var(--border-color) 70%, transparent);
+}
+
+@media (prefers-color-scheme: dark) {
+    html:not(.light) .cfg-sub-header,
+    html:not(.light) .cfg-section [style*="background: color-mix(in srgb, var(--item-hover-bg) 30%"] {
+        border-color: color-mix(in srgb, var(--border-color) 70%, transparent);
+    }
+
+    html:not(.light) .pill-btn--soft {
+        background: color-mix(in srgb, #3b82f6 16%, var(--card-bg));
+        color: #93c5fd;
+        border-color: color-mix(in srgb, #60a5fa 30%, transparent);
+    }
+
+    html:not(.light) .pill-btn--soft:hover:not(:disabled) {
+        background: color-mix(in srgb, #3b82f6 24%, var(--card-bg));
+        color: #bfdbfe;
+        border-color: color-mix(in srgb, #60a5fa 45%, transparent);
+    }
+
+    html:not(.light) .pill-btn--ghost-danger {
+        color: #f87171;
+        border-color: color-mix(in srgb, #f87171 30%, transparent);
+    }
+
+    html:not(.light) .pill-btn--ghost-danger:hover:not(:disabled) {
+        background: color-mix(in srgb, #ef4444 14%, transparent);
+        color: #fca5a5;
+        border-color: color-mix(in srgb, #f87171 50%, transparent);
+    }
+}
+
+.cfg-section .cfg-fields > div > .cfg-fields .cfg-field-row {
+    padding-left: 1.5rem;
+}
+

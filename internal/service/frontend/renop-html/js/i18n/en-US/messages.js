@@ -75,4 +75,9 @@ export default Object.freeze({
     "updaterNotice.spaceBody": "There is not enough disk space to prepare the system update.",
     "updaterNotice.restartFailedTitle": "Update restart failed",
     "updaterNotice.restartFailedBody": "RenoP could not restart to apply the prepared update. Review the server logs and try again.",
+    "messages.sessionTarget": "Delivery target",
+    "messages.allSessions": "All sessions",
+    "messages.sessionsLoading": "Loading active sessions…",
+    "messages.sessionsEmpty": "No active browser sessions.",
+    "messages.sessionsFailed": "Could not load sessions. Edit the recipient to retry.",
 });

@@ -44,7 +44,7 @@ func GetDomains(c fiber.Ctx) error {
 		return c.Status(fiber.StatusForbidden).SendString("Forbidden")
 	}
 	return protohttp.Write(c, &pb.SettingsDomainsResponse{
-		Domains: []string{"frontend", "legal", "captcha", "server", "proxy", "storage", "oauth_providers", "super_teams", "publication_quota", "maven_domains", "cache", "mail", "registration", "updater", "index"},
+		Domains: []string{"server", "frontend", "captcha", "proxy", "storage", "oauth_providers", "super_teams", "publication_quota", "maven_domains", "cache", "mail", "registration", "updater"},
 	})
 }
 
@@ -56,7 +56,9 @@ func GetDomainSettings(c fiber.Ctx, state *core.AppState) error {
 	cfg := state.Inner.Config.Load()
 	switch c.Params("name") {
 	case "frontend":
-		return protohttp.Write(c, pb.FromFrontendConfig(cfg.Frontend))
+		message := pb.FromFrontendConfig(cfg.Frontend)
+		message.Legal = legalSettingsMessage(cfg.Legal)
+		return protohttp.Write(c, message)
 	case "server":
 		return protohttp.Write(c, pb.FromServerConfig(cfg.Server, cfg.Database, cfg.AuditLog))
 	case "proxy":
@@ -79,12 +81,17 @@ func UpdateDomainSettings(c fiber.Ctx, state *core.AppState) error {
 
 	name := strings.Clone(c.Params("name"))
 	var frontendMsg *pb.FrontendConfig
+	var legalUpdate *config.LegalConfig
 	var serverMsg *pb.ServerConfig
 	var proxyMsg *pb.ProxyConfig
 	var storageMsg *pb.StorageConfig
 	var updaterMsg *pb.UpdaterConfig
 	readConfig := func(msg proto.Message) error {
-		if err := protohttp.Read(c, msg); err != nil {
+		limit := int64(protohttp.MaxRequestBodySize)
+		if name == "frontend" {
+			limit += 3 * config.MaxLegalDocumentBytes
+		}
+		if err := protohttp.ReadLimit(c, msg, limit); err != nil {
 			if err == fiber.ErrRequestEntityTooLarge {
 				return err
 			}
@@ -98,6 +105,13 @@ func UpdateDomainSettings(c fiber.Ctx, state *core.AppState) error {
 		msg := &pb.FrontendConfig{}
 		if err := readConfig(msg); err != nil {
 			return err
+		}
+		legal := msg.Legal
+		msg.Legal = nil
+		metadataSize := proto.Size(msg)
+		msg.Legal = legal
+		if metadataSize > protohttp.MaxRequestBodySize {
+			return fiber.ErrRequestEntityTooLarge
 		}
 		if msg.BackgroundUrl != "" {
 			if err := validateBackgroundURL(msg.BackgroundUrl); err != nil {
@@ -120,6 +134,13 @@ func UpdateDomainSettings(c fiber.Ctx, state *core.AppState) error {
 		}
 		if msg.FontPreset == config.FrontendFontCustom && msg.FontUrl == "" {
 			return c.Status(fiber.StatusBadRequest).SendString("Custom font URL is required")
+		}
+		if msg.Legal != nil {
+			value, err := parseLegalSettings(msg.Legal)
+			if err != nil {
+				return cacheSettingsError(c, 400, "legal_settings_invalid")
+			}
+			legalUpdate = &value
 		}
 		frontendMsg = msg
 
@@ -213,6 +234,9 @@ func UpdateDomainSettings(c fiber.Ctx, state *core.AppState) error {
 		switch name {
 		case "frontend":
 			pb.ApplyFrontendConfig(&newConfig.Frontend, frontendMsg)
+			if legalUpdate != nil {
+				newConfig.Legal = legalUpdate.DeepCopy()
+			}
 			newConfig.Frontend = newConfig.Frontend.DeepCopy()
 			frontendservice.RefreshIndexHTMLCache(&newConfig.Frontend)
 		case "server":
@@ -228,6 +252,10 @@ func UpdateDomainSettings(c fiber.Ctx, state *core.AppState) error {
 		case "storage":
 			oldPath := oldConfig.StoragePath
 			pb.ApplyStorageConfig(newConfig, storageMsg)
+			if oldConfig.Runtime.Demo {
+				newConfig.Runtime.DemoConfiguredStoragePath = newConfig.StoragePath
+				newConfig.StoragePath = oldConfig.StoragePath
+			}
 			newConfig.StoragePath = strings.Clone(newConfig.StoragePath)
 			newConfig.JavadocExtractPath = strings.Clone(newConfig.JavadocExtractPath)
 			if !sameStoragePath(oldPath, newConfig.StoragePath) {
@@ -252,9 +280,14 @@ func UpdateDomainSettings(c fiber.Ctx, state *core.AppState) error {
 		}
 
 		state.Inner.Config.Store(newConfig)
-		storage.InitS3(newConfig)
-		javadocs.InitJavadocs(newConfig)
-		cargodocs.InitCargodocs(newConfig)
+		if storagePathChanged {
+			state.Inner.RepositoryCapacity.Invalidate("")
+		}
+		if !state.IsDemo() {
+			storage.InitS3(newConfig)
+			javadocs.InitJavadocs(newConfig)
+			cargodocs.InitCargodocs(newConfig)
+		}
 		return nil
 	})
 	state.Inner.ConfigWriteLock.Unlock()

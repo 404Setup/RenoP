@@ -11,7 +11,7 @@
 /** Official package host. */
 export const OFFICIAL_UPDATE_BASE = 'https://mvnc.pkg.one/update/renop';
 
-export const GITHUB_REPO = '404Setup/SRC-RenoP';
+export const GITHUB_REPO = '404Setup/RenoP';
 
 const GH_HEADERS = {
     Accept: 'application/vnd.github+json',
