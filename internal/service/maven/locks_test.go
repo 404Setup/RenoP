@@ -1,7 +1,10 @@
 /*
  * Copyright (c) 2026 404Setup. All rights reserved.
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
- * If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
+ *
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
@@ -193,7 +196,7 @@ func TestMavenLocksSeparateMetadataFromBytesAndRejectFrozenWrites(t *testing.T) 
 			state.Inner.FileIndex.EnsureParentDirs(file)
 			state.Inner.FileIndex.InsertFile(file, index.FileInfo{Size: int64(len(data)), ModTime: time.Now().UnixNano()})
 		}
-		lock := &core.ResourceLock{ResourceLockTarget: core.ResourceLockTarget{Format: "superteam", Name: team.Prefix},
+		lock := &core.ResourceLock{Format: "superteam", Name: team.Prefix,
 			Mode: core.ResourceLockRead, Source: core.ResourceLockSystem, Reason: "hold", LockedAt: now}
 		require.NoError(t, db.SetResourceLock(lock, "", ""))
 		for _, viewer := range []string{"guest", "writer", "alice", "bob", "staff", "admin"} {

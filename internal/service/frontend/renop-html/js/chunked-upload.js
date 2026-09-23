@@ -515,9 +515,11 @@ export async function uploadFileSinglePut(targetPath, file, headers, onProgress)
         xhr.send(file);
     });
     let result = await send(headers);
-    const approval = await captchaHeaders({status: result.status, headers: new Headers({
-        'X-Renop-Error-Code': result.errorCode || '', 'X-Renop-Captcha-Scope': result.captchaScope || ''
-    })}, targetPath);
+    const approval = await captchaHeaders({
+        status: result.status, headers: new Headers({
+            'X-Renop-Error-Code': result.errorCode || '', 'X-Renop-Captcha-Scope': result.captchaScope || ''
+        })
+    }, targetPath);
     if (approval !== null) result = await send({...headers, ...approval});
     return result;
 }

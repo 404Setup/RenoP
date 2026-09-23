@@ -11,6 +11,7 @@
 package api
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -21,9 +22,9 @@ func BenchmarkExtractLastPartOriginal(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		parts := strings.Split(sanitizedGav, "/")
 		var lastPart string
-		for i := len(parts) - 1; i >= 0; i-- {
-			if parts[i] != "" {
-				lastPart = parts[i]
+		for _, part := range slices.Backward(parts) {
+			if part != "" {
+				lastPart = part
 				break
 			}
 		}

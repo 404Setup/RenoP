@@ -29,8 +29,8 @@ func NormalizeImageName(value string) (string, bool) {
 	if value == "" || len(value) > 255 || strings.ContainsAny(value, "\x00\r\n") {
 		return "", false
 	}
-	parts := strings.Split(value, "/")
-	for _, part := range parts {
+	parts := strings.SplitSeq(value, "/")
+	for part := range parts {
 		if !dockerImageComponentPattern.MatchString(part) {
 			return "", false
 		}

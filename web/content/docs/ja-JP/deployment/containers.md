@@ -9,7 +9,8 @@ description: Docker、Podman、Kubernetes で RenoP を実行する
 
 ## 実行
 
-リリースビルドは Linux amd64 と arm64 向けに `mvnc.pkg.one/oci/renop:<version>` と `:latest` を公開します。イメージはリリースの実行ファイルを再利用し、UID/GID 65532 で動作します。
+リリースビルドは Linux amd64 と arm64 向けに `mvnc.pkg.one/oci/renop:<version>` と `:latest`
+を公開します。イメージはリリースの実行ファイルを再利用し、UID/GID 65532 で動作します。
 
 ```bash
 docker run -d --name renop --restart unless-stopped --stop-timeout 90 \
@@ -17,19 +18,25 @@ docker run -d --name renop --restart unless-stopped --stop-timeout 90 \
 docker logs renop
 ```
 
-`http://localhost:3000` を開きます。初回起動で `RENOP_DEFAULT_ADMIN_PASSWORD` を指定しなければ、初期管理者パスワードがログに一度表示されます。Podman では `docker` を `podman` に置き換えてください。
+`http://localhost:3000` を開きます。初回起動で `RENOP_DEFAULT_ADMIN_PASSWORD` を指定しなければ、初期管理者パスワードがログに一度表示されます。Podman
+では `docker` を `podman` に置き換えてください。
 
-macOS では Docker Desktop、Podman machine、Colima、OrbStack、Rancher Desktop、Apple container で Linux イメージを実行します。通常のコンテナーマーカーが隠される場合も、イメージの `RENOP_CONTAINER=1` で判定できます。
+macOS では Docker Desktop、Podman machine、Colima、OrbStack、Rancher Desktop、Apple container で Linux
+イメージを実行します。通常のコンテナーマーカーが隠される場合も、イメージの `RENOP_CONTAINER=1` で判定できます。
 
 ## 永続データ
 
-書き込み可能なボリュームを `/data` にマウントしてください。`renop-settings.db`、SQLite データベース、インデックス、パッケージ、その他の相対パスを保存します。バインドマウントは UID/GID 65532 に書き込みを許可し、SELinux 環境の Podman では必要に応じて `:Z` を指定します。SQLite がジャーナルファイルを作成できるよう、ディレクトリ全体をマウントしてください。
+書き込み可能なボリュームを `/data` にマウントしてください。`renop-settings.db`、SQLite
+データベース、インデックス、パッケージ、その他の相対パスを保存します。バインドマウントは UID/GID 65532 に書き込みを許可し、SELinux
+環境の Podman では必要に応じて `:Z` を指定します。SQLite がジャーナルファイルを作成できるよう、ディレクトリ全体をマウントしてください。
 
-`RENOP_SETTINGS_DB` と `RENOP_INDEX` は既定で `/data` 内のファイルを参照します。読み取り専用ルートには `--read-only --tmpfs /tmp` などで書き込み可能な `/tmp` も必要です。コンテナー置換時は永続ボリュームを保持し、更新前にバックアップしてください。
+`RENOP_SETTINGS_DB` と `RENOP_INDEX` は既定で `/data` 内のファイルを参照します。読み取り専用ルートには
+`--read-only --tmpfs /tmp` などで書き込み可能な `/tmp` も必要です。コンテナー置換時は永続ボリュームを保持し、更新前にバックアップしてください。
 
 ## 更新と終了
 
-コンテナーでは自動確認、オンライン／オフラインの実行ファイル更新、サービス登録、プロセス内再起動が無効になります。更新はランタイムで行います。SIGTERM は HTTP リクエスト、バックグラウンド処理、データベース書き込みを終了させます。終了に90秒を確保してください。
+コンテナーでは自動確認、オンライン／オフラインの実行ファイル更新、サービス登録、プロセス内再起動が無効になります。更新はランタイムで行います。SIGTERM
+は HTTP リクエスト、バックグラウンド処理、データベース書き込みを終了させます。終了に90秒を確保してください。
 
 ```bash
 docker pull mvnc.pkg.one/oci/renop:latest
@@ -43,7 +50,9 @@ docker run -d --name renop --restart unless-stopped --stop-timeout 90 \
 
 ## Kubernetes
 
-SQLite やローカルストレージでは、単一レプリカ、永続ボリューム、`Recreate` を使用します。この Deployment 断片は既存の `renop-data` PVC を前提とします。通常のメタデータとセレクターを追加してください。ポート変更やアプリケーション TLS の有効化時はプローブも変更します。
+SQLite やローカルストレージでは、単一レプリカ、永続ボリューム、`Recreate` を使用します。この Deployment 断片は既存の
+`renop-data` PVC を前提とします。通常のメタデータとセレクターを追加してください。ポート変更やアプリケーション TLS
+の有効化時はプローブも変更します。
 
 ```yaml
 spec:
@@ -78,7 +87,8 @@ spec:
 
 ## ローカルビルド
 
-リポジトリ指定の Go、Node.js 24、pnpm、protoc を使用します。共有ソースを一度準備し、各アーキテクチャをコンパイルします。Dockerfile は `container-bin/<arch>/renop` を利用し、別の実行ファイルをダウンロードしたり異なる Go ツールチェーンで再ビルドしたりしません。
+リポジトリ指定の Go、Node.js 24、pnpm、protoc を使用します。共有ソースを一度準備し、各アーキテクチャをコンパイルします。Dockerfile
+は `container-bin/<arch>/renop` を利用し、別の実行ファイルをダウンロードしたり異なる Go ツールチェーンで再ビルドしたりしません。
 
 ```powershell
 ./build.ps1 -PrepareOnly

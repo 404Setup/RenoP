@@ -132,19 +132,29 @@ function setupUsersSortHeaders() {
         const th = headerRow.children[index];
         if (!th) return;
         const i18nKey = th.getAttribute('data-i18n') || i18n;
+        const initialText = th.textContent.trim() || t(i18nKey);
         th.removeAttribute('data-i18n');
         th.classList.add('sortable-th');
         th.dataset.sortKey = key;
         th.dataset.i18nKey = i18nKey;
         th.setAttribute('role', 'columnheader');
         th.setAttribute('tabindex', '0');
-        th.title = t(i18nKey);
+        const translatedTitle = t(i18nKey);
+        th.title = (translatedTitle !== i18nKey) ? translatedTitle : initialText;
+        th.setAttribute('data-i18n-title', i18nKey);
 
         th.innerHTML = '';
         const label = document.createElement('span');
         label.className = 'th-sort-label';
         label.dataset.i18nKey = i18nKey;
-        label.appendChild(document.createTextNode(t(i18nKey)));
+
+        const textSpan = document.createElement('span');
+        textSpan.className = 'th-sort-text';
+        textSpan.setAttribute('data-i18n', i18nKey);
+        const translated = t(i18nKey);
+        textSpan.textContent = (translated !== i18nKey) ? translated : initialText;
+        label.appendChild(textSpan);
+
         const indicator = document.createElement('span');
         indicator.className = 'th-sort-indicator';
         indicator.setAttribute('aria-hidden', 'true');
@@ -685,11 +695,16 @@ export function updateUsersTableLanguage() {
         const key = th.dataset.i18nKey;
         if (!key) return;
         th.title = t(key);
-        const label = th.querySelector('.th-sort-label');
-        if (!label) return;
-        const indicator = label.querySelector('.th-sort-indicator');
-        label.replaceChildren(document.createTextNode(t(key)));
-        if (indicator) label.appendChild(indicator);
+        const textSpan = th.querySelector('.th-sort-text');
+        if (textSpan) {
+            textSpan.textContent = t(key);
+        } else {
+            const label = th.querySelector('.th-sort-label');
+            if (!label) return;
+            const indicator = label.querySelector('.th-sort-indicator');
+            label.replaceChildren(document.createTextNode(t(key)));
+            if (indicator) label.appendChild(indicator);
+        }
     });
     updateSortHeaderUI();
     renderUsersPage();

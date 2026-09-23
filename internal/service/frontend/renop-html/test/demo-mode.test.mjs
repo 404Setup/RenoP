@@ -16,12 +16,18 @@ import vm from 'node:vm';
 test('demo credentials only fill empty fields and stale mode responses cannot restore them', async () => {
     const fields = new Map([
         ['username', {value: ''}], ['password', {value: ''}],
-        ['demo-banner', {hidden: true, textContent: ''}], ['login-form', {addEventListener() {}}],
+        ['demo-banner', {hidden: true, textContent: ''}], ['login-form', {
+            addEventListener() {
+            }
+        }],
     ]);
     const pending = [];
     const context = vm.createContext({
         document: {getElementById: id => fields.get(id)},
-        window: {addEventListener() {}}, queueMicrotask,
+        window: {
+            addEventListener() {
+            }
+        }, queueMicrotask,
         t: key => key, DemoInfo: {},
         fetchProto: () => new Promise(resolve => pending.push(resolve)),
     });

@@ -292,4 +292,5 @@ export default Object.freeze({
     "oauth.revocationSecretHint": "Al menos 32 caracteres. Verifica las firmas de las notificaciones de revocación del proveedor.",
     "oauth.clearRevocationSecret": "Borrar secreto de revocación",
     "oauth.logoutRevokeFailed": "Sesión local cerrada. No se pudo revocar la autorización; revócala en los ajustes del proveedor.",
+    "mfa.deviceRateLimited": "Debido a la configuración de seguridad, este dispositivo no puede iniciar sesión temporalmente. Espere hasta {time}+1 minuto e inténtelo de nuevo.",
 });

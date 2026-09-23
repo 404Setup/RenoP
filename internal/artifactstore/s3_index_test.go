@@ -20,8 +20,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/minio/minio-go/v7"
 	"renop/internal/testutil"
+
+	"github.com/minio/minio-go/v7"
 )
 
 type memoryS3Index struct {

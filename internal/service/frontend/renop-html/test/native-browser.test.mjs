@@ -31,15 +31,43 @@ function fixture(request) {
                 }
             };
         }
-        append(...children) { this.children.push(...children.filter(child => child != null)); }
-        prepend(...children) { this.children.unshift(...children.filter(child => child != null)); }
-        replaceChildren(...children) { this.children = children.filter(child => child != null); }
-        addEventListener() {}
-        get childElementCount() { return this.children.length; }
-        get firstElementChild() { return this.children[0]; }
-        get text() { return this.children.map(child => child instanceof Element ? child.text : String(child)).join(' '); }
-        find(predicate) { if (predicate(this)) return this; for (const child of this.children) { const found = child instanceof Element && child.find(predicate); if (found) return found; } }
+
+        get childElementCount() {
+            return this.children.length;
+        }
+
+        get firstElementChild() {
+            return this.children[0];
+        }
+
+        get text() {
+            return this.children.map(child => child instanceof Element ? child.text : String(child)).join(' ');
+        }
+
+        append(...children) {
+            this.children.push(...children.filter(child => child != null));
+        }
+
+        prepend(...children) {
+            this.children.unshift(...children.filter(child => child != null));
+        }
+
+        replaceChildren(...children) {
+            this.children = children.filter(child => child != null);
+        }
+
+        addEventListener() {
+        }
+
+        find(predicate) {
+            if (predicate(this)) return this;
+            for (const child of this.children) {
+                const found = child instanceof Element && child.find(predicate);
+                if (found) return found;
+            }
+        }
     }
+
     const root = new Element('section');
     const mount = new Element('main');
     const listeners = new Map();
@@ -53,13 +81,31 @@ function fixture(request) {
         createIcon: () => new Element('svg'), createSkeleton: () => new Element('div'),
         createMetaGrid: items => new Element('div', {}, items.map(item => `${item.label}: ${item.value}`)),
         getRepositoryFormat: format => ({id: format, protocol: format, icon: 'package', labelKey: format}),
-        createRepositoryBackButton: ({path, label, navigate, className}) => new Element('button', {class: className, action: () => navigate?.(path)}, [label]),
-        ensureRepositoryView: (_current, options) => { assert.equal(options.mountResolver(), mount); return root; },
-        hideRepositoryView: target => { if (target) { target.hidden = true; target.replaceChildren(); } },
-        setRepositoryViewBusy() {},
+        createRepositoryBackButton: ({path, label, navigate, className}) => new Element('button', {
+            class: className,
+            action: () => navigate?.(path)
+        }, [label]),
+        ensureRepositoryView: (_current, options) => {
+            assert.equal(options.mountResolver(), mount);
+            return root;
+        },
+        hideRepositoryView: target => {
+            if (target) {
+                target.hidden = true;
+                target.replaceChildren();
+            }
+        },
+        setRepositoryViewBusy() {
+        },
         replaceRepositoryView: async (target, content) => target.replaceChildren(...(Array.isArray(content) ? content : [content])),
         makeCustomSelect: (_options, value) => new Element('select', {getValue: () => value}),
-        RepositoryUserSuggestions: class { attach() {} detach() {} },
+        RepositoryUserSuggestions: class {
+            attach() {
+            }
+
+            detach() {
+            }
+        },
         formatRepositoryTimestamp: String, formatBytes: String,
         decodePathSegment: decodeURIComponent, encodeRelativePath: value => value,
         t: value => value, caughtErrorMessage: (err) => err?.message || 'safe-error',
@@ -67,7 +113,8 @@ function fixture(request) {
         showConfirm: async () => true,
         cachedIsLoggedIn: true,
         createUserIdentity: (username) => new Element('span', {class: 'user-identity'}, [username]),
-        copyWithFeedback: () => {},
+        copyWithFeedback: () => {
+        },
         createTicketReportButton: () => new Element('button', {}, ['ticket.report']),
         createDeprecatePackageButton: () => new Element('button', {}, ['package.deprecate']),
         createPackageDeprecationBadge: () => new Element('span', {}, ['package.deprecated']),
@@ -75,8 +122,10 @@ function fixture(request) {
         createResourceLockButton: () => new Element('button', {}, ['resourceLock']),
         createResourceLockBadge: () => new Element('span', {}, ['resourceLock']),
         createResourceLockNotices: () => new Element('div', {}, ['resourceLockNotices']),
-        openProfileGPGDialog: () => {},
-        bindAnimatedDetails: () => {},
+        openProfileGPGDialog: () => {
+        },
+        bindAnimatedDetails: () => {
+        },
         localStorage: {getItem: () => ''},
     });
     const source = readFileSync(new URL('../js/browser/native.js', import.meta.url), 'utf8')
@@ -87,10 +136,17 @@ function fixture(request) {
 
 test('native pages reject stale loads and discard account-specific views', async () => {
     let finish;
-    const pending = new Promise(resolve => { finish = resolve; });
-    const {context, root, listeners} = fixture(async url => url.includes('/first/') ? pending : {resources: [], can_create: false});
-    const earlier = context.renderNativeRepository('/first/', {format: 'conda'}, () => {});
-    await context.renderNativeRepository('/second/', {format: 'conda'}, () => {});
+    const pending = new Promise(resolve => {
+        finish = resolve;
+    });
+    const {context, root, listeners} = fixture(async url => url.includes('/first/') ? pending : {
+        resources: [],
+        can_create: false
+    });
+    const earlier = context.renderNativeRepository('/first/', {format: 'conda'}, () => {
+    });
+    await context.renderNativeRepository('/second/', {format: 'conda'}, () => {
+    });
     finish({resources: [{name: 'private-first'}], can_create: true});
     await earlier;
     assert.match(root.text, /second/);
@@ -108,7 +164,8 @@ test('native resource controls follow L2 and L3 authority', async () => {
         artifacts: [{path: 'noarch/example.tar.bz2', version: '1.0', size: 100, published: true}],
         members: [{username: 'owner', level: 4}]
     }));
-    const render = () => context.renderNativeRepository('/channel/~/example', {format: 'conda'}, () => {});
+    const render = () => context.renderNativeRepository('/channel/~/example', {format: 'conda'}, () => {
+    });
     await render();
     assert.doesNotMatch(root.text, /native.settings|native.members|native.release|common.delete/);
     level = 2;
@@ -131,7 +188,8 @@ test('a detached native action cannot write after an account change', async () =
         if (options) mutations++;
         return {resources: [], can_create: true};
     });
-    await context.renderNativeRepository('/channel/', {format: 'conda'}, () => {});
+    await context.renderNativeRepository('/channel/', {format: 'conda'}, () => {
+    });
     const reserve = root.find(node => node.tag === 'button' && node.text === 'native.reserve');
     assert.ok(reserve);
     listeners.get('authChanged')();
@@ -162,14 +220,25 @@ test('native resource parses versions and renders report, lock, deprecate, and a
                 {version: '1.0.0', published: true, files: ['linux-64/example-1.0.0-py38_0.tar.bz2']},
             ],
             artifacts: [
-                {path: 'linux-64/example-2.0.0-py39_0.tar.bz2', version: '2.0.0#py39_0#linux-64', size: 2048, published: true},
-                {path: 'linux-64/example-1.0.0-py38_0.tar.bz2', version: '1.0.0#py38_0#linux-64', size: 1024, published: true},
+                {
+                    path: 'linux-64/example-2.0.0-py39_0.tar.bz2',
+                    version: '2.0.0#py39_0#linux-64',
+                    size: 2048,
+                    published: true
+                },
+                {
+                    path: 'linux-64/example-1.0.0-py38_0.tar.bz2',
+                    version: '1.0.0#py38_0#linux-64',
+                    size: 1024,
+                    published: true
+                },
             ],
             members: [{username: 'owner', level: 4}]
         };
     });
 
-    await context.renderNativeRepository('/channel/~/example', {format: 'conda'}, () => {});
+    await context.renderNativeRepository('/channel/~/example', {format: 'conda'}, () => {
+    });
 
     // Badges & notices for locked, deprecated, archived
     assert.match(root.text, /resourceLock/);
@@ -200,9 +269,12 @@ test('rpm and conan formats provide GPG profile key dialog', async () => {
         artifacts: [],
         members: [{username: 'owner', level: 4}]
     }));
-    context.openProfileGPGDialog = () => { openedGPG = true; };
+    context.openProfileGPGDialog = () => {
+        openedGPG = true;
+    };
 
-    await context.renderNativeRepository('/repo/~/pkg', {format: 'rpm'}, () => {});
+    await context.renderNativeRepository('/repo/~/pkg', {format: 'rpm'}, () => {
+    });
     const gpgBtn = root.find(node => node.tag === 'button' && node.text === 'profile.gpgBtn');
     assert.ok(gpgBtn, 'RPM format should have GPG manage button');
     gpgBtn.action();
@@ -217,7 +289,9 @@ test('native detail renders Docker-style topNav with kicker, version body wrappe
         members: [{username: 'owner', level: 4}]
     }));
 
-    await context.renderNativeRepository('/conda-repo/~/demo-pkg', {format: 'conda'}, path => { navigatedPath = path; });
+    await context.renderNativeRepository('/conda-repo/~/demo-pkg', {format: 'conda'}, path => {
+        navigatedPath = path;
+    });
 
     // Docker-style topNav with back button & kicker
     const topNav = root.find(node => node.class === 'native-hero-nav');

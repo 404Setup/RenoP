@@ -25,5 +25,9 @@ function buildDockerSnippets(repositoryName) {
 }
 
 export function buildSnippets(_path, pathParts) {
-    return {snippets: buildDockerSnippets(pathParts[0]), titleKey: 'details.dockerTitle', subtitleKey: 'details.dockerSubtitle'};
+    return {
+        snippets: buildDockerSnippets(pathParts[0]),
+        titleKey: 'details.dockerTitle',
+        subtitleKey: 'details.dockerSubtitle'
+    };
 }

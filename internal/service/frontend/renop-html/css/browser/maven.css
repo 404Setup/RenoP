@@ -565,6 +565,7 @@ button.maven-artifact-card:focus-visible {
     font-size: 0.86rem;
     text-overflow: ellipsis;
     white-space: nowrap;
+    font-family: inherit;
 }
 
 .maven-domain-card-main span,
@@ -575,6 +576,7 @@ button.maven-artifact-card:focus-visible {
     font-size: 0.73rem;
     text-overflow: ellipsis;
     white-space: nowrap;
+    font-family: inherit;
 }
 
 .maven-domain-card-meta,
@@ -592,6 +594,7 @@ button.maven-artifact-card:focus-visible {
     background: color-mix(in srgb, #f97316 10%, transparent);
     color: #ea580c;
     font-size: 0.72rem;
+    font-family: inherit;
 }
 
 .maven-empty,

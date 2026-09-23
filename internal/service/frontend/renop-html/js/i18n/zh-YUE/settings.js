@@ -249,7 +249,7 @@ export default Object.freeze({
     "settings.githubOAuthClientIdHint": "GitHub OAuth 應用入面嘅 Client ID。",
     "settings.githubOAuthClientSecret": "用戶端密鑰",
     "settings.githubOAuthSecretPlaceholder": "輸入新嘅用戶端密鑰",
-    "settings.githubOAuthSecretKeepHint": "已經儲存密鑰；留空表示保留現有密鑰。",
+    "settings.githubOAuthSecretKeepHint": "已經儲存密鑰，留空表示保留現有密鑰。",
     "settings.githubOAuthSecretRequiredHint": "啟用 GitHub 登入之前，請輸入用戶端密鑰。",
     "settings.githubOAuthCallback": "授權回調 URL",
     "settings.githubOAuthCallbackHint": "同 GitHub OAuth 應用入面設定嘅回呼地址保持一致（以 /api/auth/github/callback 結尾）。",

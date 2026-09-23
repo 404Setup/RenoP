@@ -12,14 +12,14 @@ import {buildSnippets} from './cargo-snippets.js';
 
 export default Object.freeze({
     buildSnippets,
-        id: 'cargo',
-        protocol: 'cargo',
-        icon: 'repositoryCargo',
-        labelKey: 'repos.formatCargo',
-        descriptionKey: 'repos.formatCargoDesc',
-        supportsBrowserUpload: false,
-        supportsRedeployment: false,
-        supportsGpg: false,
-        supportsArtifactTemplate: true,
-        snippetTabs: Object.freeze(['cargo-registry', 'cargo-source', 'cargo-login', 'cargo-publish'])
+    id: 'cargo',
+    protocol: 'cargo',
+    icon: 'repositoryCargo',
+    labelKey: 'repos.formatCargo',
+    descriptionKey: 'repos.formatCargoDesc',
+    supportsBrowserUpload: false,
+    supportsRedeployment: false,
+    supportsGpg: false,
+    supportsArtifactTemplate: true,
+    snippetTabs: Object.freeze(['cargo-registry', 'cargo-source', 'cargo-login', 'cargo-publish'])
 });

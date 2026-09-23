@@ -14,25 +14,58 @@ import {el} from '@renop/ui/dom';
 export function renderFooter(config = {}) {
     return el("footer", {},
         el("div", {"id": "footer-links"},
-            el("a", {"data-i18n": "footer.organization", "href": config.organizationWebsite, "target": "_blank"}, "Organization"),
+            el("a", {
+                "data-i18n": "footer.organization",
+                "href": config.organizationWebsite,
+                "target": "_blank"
+            }, "Organization"),
             el("span", {"class": "separator", "id": "privacy-policy-separator"}, "·"),
-            el("a", {"data-i18n": "footer.privacyPolicy", "data-legal-link": true, "href": "/privacy-policy", "id": "privacy-policy-link"}, "Privacy Policy"),
+            el("a", {
+                "data-i18n": "footer.privacyPolicy",
+                "data-legal-link": true,
+                "href": "/privacy-policy",
+                "id": "privacy-policy-link"
+            }, "Privacy Policy"),
             el("span", {"class": "separator"}, "·"),
-            el("a", {"data-i18n": "legal.termsTitle", "data-legal-link": true, "href": "/terms-of-service"}, "Terms of Service"),
+            el("a", {
+                "data-i18n": "legal.termsTitle",
+                "data-legal-link": true,
+                "href": "/terms-of-service"
+            }, "Terms of Service"),
             el("span", {"class": "separator"}, "·"),
             el("span", {"id": "legal-notice-container"},
-                el("a", {"data-i18n": "footer.legalNotice", "data-legal-link": true, "href": "/legal-notice", "id": "legal-notice-link"}, "Legal Notice")
+                el("a", {
+                    "data-i18n": "footer.legalNotice",
+                    "data-legal-link": true,
+                    "href": "/legal-notice",
+                    "id": "legal-notice-link"
+                }, "Legal Notice")
             ),
             el("span", {"id": "icp-container", "style": "display: none;"},
                 el("span", {"class": "separator"}, "·"),
-                el("a", {"href": "https://beian.miit.gov.cn/", "id": "icp-text", "rel": "noopener noreferrer", "target": "_blank"}, config.icpLicense)
+                el("a", {
+                    "href": "https://beian.miit.gov.cn/",
+                    "id": "icp-text",
+                    "rel": "noopener noreferrer",
+                    "target": "_blank"
+                }, config.icpLicense)
             ),
             el("span", {"id": "public-security-filing-container", "style": "display: none;"},
                 el("span", {"class": "separator"}, "·"),
-                el("a", {"href": "https://beian.mps.gov.cn/", "id": "public-security-filing-text", "rel": "noopener noreferrer", "target": "_blank"}, config.publicSecurityFiling)
+                el("a", {
+                    "href": "https://beian.mps.gov.cn/",
+                    "id": "public-security-filing-text",
+                    "rel": "noopener noreferrer",
+                    "target": "_blank"
+                }, config.publicSecurityFiling)
             ),
             el("span", {"class": "separator"}, "·"),
-            el("button", {"class": "footer-link", "data-cookie-preferences": true, "data-i18n": "legal.cookiePreferences", "type": "button"}, "Cookie preferences")
+            el("button", {
+                "class": "footer-link",
+                "data-cookie-preferences": true,
+                "data-i18n": "legal.cookiePreferences",
+                "type": "button"
+            }, "Cookie preferences")
         ),
         el("div", {"id": "footer-copyright"})
     );

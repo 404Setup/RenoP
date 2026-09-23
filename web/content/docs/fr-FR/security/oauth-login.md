@@ -307,7 +307,7 @@ s’appliquent aux connexions externes.
 | GET     | `/api/auth/profile/oauth`            | États privés, identifiant affiché, date d’autorisation et actions permises             |
 | DELETE  | `/api/auth/profile/oauth/:provider`  | Dissociation : `204`, ou `409` avec `oauth_last_login_method`                          |
 | GET     | `/api/settings/oauth-providers`      | Vue administrateur : `providers` et `presets`, sans secrets                            |
-| PUT     | `/api/settings/oauth-providers`      | Protobuf binaire `OAuthSettings`: `providers`, `replace_providers: true`; 128 KiB |
+| PUT     | `/api/settings/oauth-providers`      | Protobuf binaire `OAuthSettings`: `providers`, `replace_providers: true`; 128 KiB      |
 
 Les opérations de profil exigent la session actuelle du navigateur. Le rappel renvoie un marqueur stable dans `oauth` et
 l’ID dans `provider` ; la SPA traduit puis supprime ces paramètres. Les erreurs n’affichent jamais les réponses brutes
@@ -330,7 +330,11 @@ inscriptions en attente. OIDC vérifie la signature, l’émetteur, l’audience
 du jeton lorsqu’il est fourni ; RS256 et ES256 sont pris en charge. Les réponses sont limitées à 1 MiB et les requêtes
 ont des délais bornés. Le proxy sortant configuré s’applique.
 
-RenoP lie le sujet stable au type de fournisseur, au client, aux endpoints et à l’émetteur vérifié. Changer cette autorité ne transfère aucune liaison. Les jetons d’accès et de renouvellement de connexion sont chiffrés pour la session concernée avec la clé privée `mfa_encryption_key`, puis supprimés avec elle. Ils ne figurent jamais dans les sessions publiques, réponses API ou journaux. Conservez cette clé lors des redémarrages. Les photos protégées d’inscription gardent leur jeton chiffré temporaire jusqu’à confirmation ou expiration.
+RenoP lie le sujet stable au type de fournisseur, au client, aux endpoints et à l’émetteur vérifié. Changer cette
+autorité ne transfère aucune liaison. Les jetons d’accès et de renouvellement de connexion sont chiffrés pour la session
+concernée avec la clé privée `mfa_encryption_key`, puis supprimés avec elle. Ils ne figurent jamais dans les sessions
+publiques, réponses API ou journaux. Conservez cette clé lors des redémarrages. Les photos protégées d’inscription
+gardent leur jeton chiffré temporaire jusqu’à confirmation ou expiration.
 
 La fermeture d’un compte libère atomiquement toutes les associations externes. Un autre compte actif peut les récupérer,
 mais le nom d’utilisateur reste réservé définitivement, l’e-mail pendant 14 jours et l’activité pendant 30 jours. Un
@@ -342,6 +346,12 @@ Consultez les [alias de connexion](./email-verification.md) pour les règles de 
 
 ## Déconnexion et révocation du fournisseur
 
-La révocation à la déconnexion est intégrée pour les jetons d’application GitHub, Google, GitLab avec l’instance configurée et Stack Exchange. Pour un client personnalisé, Cloudflare ou Microsoft, renseignez `revocation_url` uniquement si le service publie un endpoint RFC 7009. Aucun endpoint n’est deviné et aucune déconnexion administrative du compte entier n’est utilisée. Certains fournisseurs révoquent toute l’autorisation même pour un seul jeton. Les sessions antérieures à cette conservation des jetons nécessitent une nouvelle connexion.
+La révocation à la déconnexion est intégrée pour les jetons d’application GitHub, Google, GitLab avec l’instance
+configurée et Stack Exchange. Pour un client personnalisé, Cloudflare ou Microsoft, renseignez `revocation_url`
+uniquement si le service publie un endpoint RFC 7009. Aucun endpoint n’est deviné et aucune déconnexion administrative
+du compte entier n’est utilisée. Certains fournisseurs révoquent toute l’autorisation même pour un seul jeton. Les
+sessions antérieures à cette conservation des jetons nécessitent une nouvelle connexion.
 
-La découverte publique et l’état privé des connexions utilisent le protobuf binaire. L’API de configuration unifiée emploie `OAuthSettings` ; les écritures exigent `replace_providers: true`. Les formats de rappel signés sont décrits dans l’[API d’authentification](../api/authentication.md).
+La découverte publique et l’état privé des connexions utilisent le protobuf binaire. L’API de configuration unifiée
+emploie `OAuthSettings` ; les écritures exigent `replace_providers: true`. Les formats de rappel signés sont décrits
+dans l’[API d’authentification](../api/authentication.md).

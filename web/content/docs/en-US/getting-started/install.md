@@ -92,4 +92,9 @@ pwsh ./build.ps1 s       # Mainstream platforms (Linux/Windows amd64/amd64v4/arm
 pwsh ./build.ps1         # Full cross-compilation matrix
 ```
 
-Both HTML entries contain metadata and an application mount point. `js/shell.js` creates the navigation, pages, and dialogs from `js/views/` components using shared DOM helpers. The frontend `js/bootstrap.js` mounts the shell before loading behavior modules, which query existing controls during initialization. Branding values arrive through escaped HTML data attributes and become DOM text or properties. Edit the owning JS component, then run `pnpm run build:frontend` or `pnpm run build:web`; frontend i18n validation includes the view modules. Saved manager tabs apply only at `/`, preserving direct repository and public resource links.
+Both HTML entries contain metadata and an application mount point. `js/shell.js` creates the navigation, pages, and
+dialogs from `js/views/` components using shared DOM helpers. The frontend `js/bootstrap.js` mounts the shell before
+loading behavior modules, which query existing controls during initialization. Branding values arrive through escaped
+HTML data attributes and become DOM text or properties. Edit the owning JS component, then run `pnpm run build:frontend`
+or `pnpm run build:web`; frontend i18n validation includes the view modules. Saved manager tabs apply only at `/`,
+preserving direct repository and public resource links.

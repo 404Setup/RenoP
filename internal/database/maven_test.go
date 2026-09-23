@@ -86,7 +86,7 @@ func TestMavenDomainHealthRedemptionAndReleasedArtifactProtection(t *testing.T) 
 	changedIdentity := *healthy
 	changedIdentity.ProviderID = "99"
 	require.ErrorIs(t, db.RedeemMavenDomain(locked, &changedIdentity, "alice", "alice-session"), core.ErrMavenVerificationFailed)
-	otherLock := &core.ResourceLock{ResourceLockTarget: core.ResourceLockTarget{Format: "maven-domain", Name: domain.Domain},
+	otherLock := &core.ResourceLock{Format: "maven-domain", Name: domain.Domain,
 		Source: core.ResourceLockSystem, Mode: core.ResourceLockWrite, Reason: "quality", LockedAt: now}
 	require.NoError(t, db.SetResourceLock(otherLock, "", ""))
 	healthy.CheckedAt = now + 5

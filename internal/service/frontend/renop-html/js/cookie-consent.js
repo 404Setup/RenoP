@@ -40,7 +40,10 @@ export async function optionalServicesAllowed() {
 /** Apply the selected categories and notify integrations before closing the notice. */
 function saveChoice(optional) {
     choice = {revision: metadata.revision, optional, expires: Date.now() + 31536000000};
-    try { localStorage.setItem(storageKey, JSON.stringify(choice)); } catch {}
+    try {
+        localStorage.setItem(storageKey, JSON.stringify(choice));
+    } catch {
+    }
     renderNotice();
     window.dispatchEvent(new CustomEvent('cookiePreferencesChanged', {detail: {optional}}));
 }
@@ -53,11 +56,17 @@ function text(tag, key, attributes = {}) {
 /** Show an accessible category dialog and return focus to its opener on close. */
 export async function openCookiePreferences() {
     if (document.getElementById('cookie-preferences-dialog')) return;
-    try { metadata = await loadLegalMetadata(true); } catch {
+    try {
+        metadata = await loadLegalMetadata(true);
+    } catch {
         if (banner) {
             banner.hidden = false;
             banner.replaceChildren(text('p', 'legal.loadFailed', {role: 'alert'}),
-                text('button', 'offline.retryBtn', {type: 'button', class: 'pill-btn pill-btn--soft', onclick: () => void openCookiePreferences()}));
+                text('button', 'offline.retryBtn', {
+                    type: 'button',
+                    class: 'pill-btn pill-btn--soft',
+                    onclick: () => void openCookiePreferences()
+                }));
         }
         return;
     }
@@ -83,7 +92,12 @@ export async function openCookiePreferences() {
         });
     };
 
-    const closeBtn = el('button', {type: 'button', class: 'close-btn', ariaLabel: t('modal.close') || 'Close', onclick: close});
+    const closeBtn = el('button', {
+        type: 'button',
+        class: 'close-btn',
+        ariaLabel: t('modal.close') || 'Close',
+        onclick: close
+    });
     closeBtn.appendChild(createIcon('close'));
 
     const header = el('div', {class: 'modal-header'},
@@ -194,16 +208,39 @@ function renderNotice() {
     if (banner.hidden) return;
     banner.replaceChildren(text('h2', 'legal.cookieTitle'), text('p', 'legal.cookieDescription'),
         el('div', {class: 'cookie-actions'},
-            text('button', 'legal.necessaryOnly', {type: 'button', class: 'pill-btn pill-btn--soft', onclick: () => saveChoice(false)}),
-            text('button', 'legal.acceptAll', {type: 'button', class: 'pill-btn pill-btn--soft', onclick: () => saveChoice(true)}),
-            text('button', 'legal.cookiePreferences', {type: 'button', class: 'pill-btn pill-btn--soft', onclick: () => void openCookiePreferences()})),
-        el('a', {href: '/privacy-policy', 'data-legal-link': '', 'data-i18n': 'footer.privacyPolicy'}, t('footer.privacyPolicy')));
+            text('button', 'legal.necessaryOnly', {
+                type: 'button',
+                class: 'pill-btn pill-btn--soft',
+                onclick: () => saveChoice(false)
+            }),
+            text('button', 'legal.acceptAll', {
+                type: 'button',
+                class: 'pill-btn pill-btn--soft',
+                onclick: () => saveChoice(true)
+            }),
+            text('button', 'legal.cookiePreferences', {
+                type: 'button',
+                class: 'pill-btn pill-btn--soft',
+                onclick: () => void openCookiePreferences()
+            })),
+        el('a', {
+            href: '/privacy-policy',
+            'data-legal-link': '',
+            'data-i18n': 'footer.privacyPolicy'
+        }, t('footer.privacyPolicy')));
 }
 
 /** Initialize persistent categories and synchronize choices across browser tabs. */
 export function initializeCookieConsent() {
     if (banner) return;
-    banner = el('aside', {class: 'cookie-banner', id: 'cookie-banner', role: 'region', 'aria-label': t('legal.cookieTitle'), 'data-i18n-aria-label': 'legal.cookieTitle', hidden: true});
+    banner = el('aside', {
+        class: 'cookie-banner',
+        id: 'cookie-banner',
+        role: 'region',
+        'aria-label': t('legal.cookieTitle'),
+        'data-i18n-aria-label': 'legal.cookieTitle',
+        hidden: true
+    });
     document.body.appendChild(banner);
     document.addEventListener('click', event => {
         if (event.target.closest?.('[data-cookie-preferences]')) void openCookiePreferences();
@@ -220,5 +257,9 @@ export function initializeCookieConsent() {
         renderNotice();
         window.dispatchEvent(new CustomEvent('cookiePreferencesChanged', {detail: {optional: readChoice()?.optional === true}}));
     });
-    void loadLegalMetadata().then(value => { metadata = value; renderNotice(); }).catch(() => {});
+    void loadLegalMetadata().then(value => {
+        metadata = value;
+        renderNotice();
+    }).catch(() => {
+    });
 }

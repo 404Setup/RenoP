@@ -10,8 +10,9 @@ description: Santé publique, métriques, instantanés et diagnostics protégés
 Les réponses utilisent protobuf lorsque cela est indiqué. La santé et l’état courant sont publics ; les diagnostics
 mémoire exigent un administrateur et `server.debug_mode` actif au démarrage du processus.
 
-
-Les endpoints de statut avec schéma renvoient protobuf binaire. `Accept: application/json` ne change pas ce format. Enregistrez la réponse dans un fichier et décodez-la avec `InstanceStatus` du schéma correspondant. Les exemples montrent les valeurs logiques décodées ; le texte de santé et les profils gardent leurs formats.
+Les endpoints de statut avec schéma renvoient protobuf binaire. `Accept: application/json` ne change pas ce format.
+Enregistrez la réponse dans un fichier et décodez-la avec `InstanceStatus` du schéma correspondant. Les exemples
+montrent les valeurs logiques décodées ; le texte de santé et les profils gardent leurs formats.
 
 ```sh
 curl --fail -H "Accept: application/x-protobuf" -o instance-status.pb http://localhost:3000/api/status/instance

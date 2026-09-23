@@ -724,9 +724,9 @@ function renderTicketConversationView(task, refresh, messages = [], loadOlder = 
             const isMsgAuthor = msg.author_name === task.requested_by;
             const roleClass = isMsgAuthor ? 'is-author'
                 : msg.author_role === 'admin' ? 'is-admin'
-                : msg.author_role === 'moderator' ? 'is-moderator'
-                : msg.author_role === 'team_admin' ? 'is-team-admin'
-                : 'is-staff';
+                    : msg.author_role === 'moderator' ? 'is-moderator'
+                        : msg.author_role === 'team_admin' ? 'is-team-admin'
+                            : 'is-staff';
             const roleText = isMsgAuthor ? t('ticket.role.author')
                 : t(`ticket.role.${msg.author_role}`) || t('ticket.role.staff');
 
@@ -857,7 +857,7 @@ function renderTicketConversationView(task, refresh, messages = [], loadOlder = 
             el('span', {class: 'ticket-sidebar-prop-label'}, t('review.rejectReason')),
             el('span', {class: 'ticket-sidebar-prop-value'},
                 task.decision_reason.startsWith('preset:') ? t(`review.rejectPreset.${task.decision_reason.slice(7)}`)
-                : task.decision_reason.startsWith('custom:') ? task.decision_reason.slice(7) : task.decision_reason)
+                    : task.decision_reason.startsWith('custom:') ? task.decision_reason.slice(7) : task.decision_reason)
         ));
     }
     sidebarSections.push(el('div', {class: 'ticket-sidebar-card'},
@@ -1021,7 +1021,6 @@ async function loadTicketDetail(id) {
 }
 
 
-
 /** @param {object} task - Claimed ticket. @param {string} action - Resolution step. @param {Function} onChanged - Refresh detail. @returns {void} */
 function openResolutionDialog(task, action, onChanged) {
     const response = el('textarea', {
@@ -1147,7 +1146,10 @@ function createTicketTransitionButtons(task, refresh, includeClose = true) {
                 if (['process', 'complete'].includes(action)) return openResolutionDialog(task, action, refresh);
                 return runUIAction(event.currentTarget, async () => {
                     if (action !== 'claim' && !await showConfirm(t(`ticket.confirm.${action}`))) return false;
-                    await transitionTicket(task.id, {action: action === 'force_claim' ? 'claim' : action, force: action === 'force_claim'});
+                    await transitionTicket(task.id, {
+                        action: action === 'force_claim' ? 'claim' : action,
+                        force: action === 'force_claim'
+                    });
                     await refresh();
                 }, {errorKey: 'review.operationFailed'});
             }

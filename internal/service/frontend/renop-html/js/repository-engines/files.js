@@ -9,15 +9,15 @@
  */
 
 export default Object.freeze({
-        id: 'files',
-        protocol: 'files',
-        icon: 'repositoryFiles',
-        labelKey: 'repos.formatFiles',
-        descriptionKey: 'repos.formatFilesDesc',
-        supportsBrowserUpload: true,
-        supportsRedeployment: false,
-        supportsGpg: false,
-        supportsArtifactTemplate: false,
-        supportsUploadHelpers: false,
-        snippetTabs: Object.freeze([])
+    id: 'files',
+    protocol: 'files',
+    icon: 'repositoryFiles',
+    labelKey: 'repos.formatFiles',
+    descriptionKey: 'repos.formatFilesDesc',
+    supportsBrowserUpload: true,
+    supportsRedeployment: false,
+    supportsGpg: false,
+    supportsArtifactTemplate: false,
+    supportsUploadHelpers: false,
+    snippetTabs: Object.freeze([])
 });

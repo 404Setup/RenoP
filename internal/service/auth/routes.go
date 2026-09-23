@@ -98,6 +98,9 @@ func SetupAuthRoutes(app fiber.Router, state *core.AppState, opChan chan<- token
 	auth.Get("/profile/sessions", func(c fiber.Ctx) error { return ListSessions(c, state) })
 	auth.Post("/profile/sessions/revoke-others", func(c fiber.Ctx) error { return RevokeOtherSessions(c, state) })
 	auth.Delete("/profile/sessions/:session_id", func(c fiber.Ctx) error { return DeleteSession(c, state) })
+	auth.Get("/profile/ip-bans", func(c fiber.Ctx) error { return ListAccountIPBans(c, state) })
+	auth.Post("/profile/ip-bans", func(c fiber.Ctx) error { return BanAccountIP(c, state) })
+	auth.Delete("/profile/ip-bans/:ip", func(c fiber.Ctx) error { return UnbanAccountIP(c, state) })
 	setupAccountSecurityRoutes(auth, state)
 	setupMFARoutes(auth, state)
 	setupPasswordResetRoutes(auth, state)
@@ -253,7 +256,7 @@ func PostAuthLogin(c fiber.Ctx, state *core.AppState, opChan chan<- token.TokenO
 	}
 	var req pb.LoginRequest
 	if err := protohttp.Read(c, &req); err != nil {
-		if err == fiber.ErrRequestEntityTooLarge {
+		if errors.Is(err, fiber.ErrRequestEntityTooLarge) {
 			return err
 		}
 		return c.Status(fiber.StatusBadRequest).SendString("Bad Request")
@@ -283,7 +286,8 @@ func PostAuthLogin(c fiber.Ctx, state *core.AppState, opChan chan<- token.TokenO
 			if errors.Is(err, legal.ErrConsentRequired) {
 				return err
 			}
-			if errors.Is(err, errMFARequired) || errors.Is(err, core.ErrMFAInvalid) {
+			var rateLimited *ErrMFADeviceRateLimited
+			if errors.Is(err, errMFARequired) || errors.Is(err, core.ErrMFAInvalid) || errors.As(err, &rateLimited) {
 				return mfaError(c, err)
 			}
 			if code := accountAccessCode(err); code != "" {

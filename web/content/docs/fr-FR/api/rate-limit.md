@@ -36,6 +36,7 @@ Configurez `server.max_active_requests` dans paramètres système (512 par défa
 
 ## Proxys de confiance
 
-Derrière un reverse proxy ou un CDN, configurez `server.trusted_proxies` et `server.cdn_ip_header` dans paramètres système.
+Derrière un reverse proxy ou un CDN, configurez `server.trusted_proxies` et `server.cdn_ip_header` dans paramètres
+système.
 RenoP utilise alors l’adresse réelle validée du client pour les limites, jamais un en-tête transmis par une source non
 approuvée.

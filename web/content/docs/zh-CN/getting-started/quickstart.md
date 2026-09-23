@@ -21,7 +21,7 @@ $env:RENOP_DEFAULT_ADMIN_PASSWORD='your-admin-password'
 ```
 
 未设置时，RenoP 会生成随机密码并只在 stdout 输出一次。应立即保存，然后打开 `http://localhost:3000`。
-服务默认监听 `0.0.0.0:3000`；生产环境应使用 TLS 或可信反向代理。
+服务默认监听 `0.0.0.0:3000`。生产环境应使用 TLS 或可信反向代理。
 
 ## 默认与新建存储库
 
@@ -43,17 +43,17 @@ curl -s http://localhost:3000/api/status/health
 # Output: "UP"
 ```
 
-protobuf 运行时指标位于 `/api/status/instance`。健康检查只说明进程正在响应；接收生产流量前，应通过一次真实的
+protobuf 运行时指标位于 `/api/status/instance`。健康检查只说明进程正在响应。接收生产流量前，应通过一次真实的
 认证操作验证数据库与存储。
 
 ## 重要环境变量
 
-| 变量                           | 默认值              | 用途                       |
-|:-------------------------------|:--------------------|:---------------------------|
-| `RENOP_SETTINGS_DB`                 | `renop-settings.db`       | 主配置文件路径             |
-| `RENOP_REPOSITORIES`           | `repositories.yaml` | 旧配置导入路径；数据库初始化后忽略 |
-| `RENOP_INDEX`                  | `index.json`        | 持久化文件索引快照路径     |
-| `RENOP_DEFAULT_ADMIN_PASSWORD` | 首次生成            | `admin` 不存在时的初始密码 |
+| 变量                           | 默认值              | 用途                               |
+|:-------------------------------|:--------------------|:-----------------------------------|
+| `RENOP_SETTINGS_DB`            | `renop-settings.db` | 主配置文件路径                     |
+| `RENOP_REPOSITORIES`           | `repositories.yaml` | 旧配置导入路径，数据库初始化后忽略 |
+| `RENOP_INDEX`                  | `index.json`        | 持久化文件索引快照路径             |
+| `RENOP_DEFAULT_ADMIN_PASSWORD` | 首次生成            | `admin` 不存在时的初始密码         |
 
 账号、会话、团队、API Token、行为日志与消息属于数据库数据，没有对应 YAML 路径变量。
 

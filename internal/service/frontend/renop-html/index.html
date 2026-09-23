@@ -21,15 +21,20 @@
     <link as="style" href="/css/style.css?v={{RENOP.HASH}}" rel="preload">
     <link href="/css/style.css?v={{RENOP.HASH}}" rel="stylesheet">
     <link href="/js/main.js?v={{RENOP.HASH}}" rel="modulepreload">
-    <style id="renop-font-css">{{RENOP.FONT_CSS}}</style>
+    <style id="renop-font-css">{
+    {
+    RENOP.FONT_CSS
+
+    }
+    }</style>
 </head>
 <body>
-<div id="app"
-     data-title="{{RENOP.TITLE}}"
-     data-organization-website="{{RENOP.ORGANIZATION_WEBSITE}}"
+<div data-icp-license="{{RENOP.ICP_LICENSE}}"
      data-organization-logo="{{RENOP.ORGANIZATION_LOGO}}"
-     data-icp-license="{{RENOP.ICP_LICENSE}}"
-     data-public-security-filing="{{RENOP.PUBLIC_SECURITY_FILING}}"></div>
+     data-organization-website="{{RENOP.ORGANIZATION_WEBSITE}}"
+     data-public-security-filing="{{RENOP.PUBLIC_SECURITY_FILING}}"
+     data-title="{{RENOP.TITLE}}"
+     id="app"></div>
 <script src="/js/main.js?v={{RENOP.HASH}}" type="module"></script>
 </body>
 </html>

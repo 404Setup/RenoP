@@ -157,5 +157,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .custom-select-dropdown { animation: none; }
+    .custom-select-dropdown {
+        animation: none;
+    }
 }

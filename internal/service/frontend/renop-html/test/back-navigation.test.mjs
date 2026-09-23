@@ -18,10 +18,16 @@ function browser(referrer = '') {
     let index = 0;
     const target = {
         document: {referrer}, location: new URL('https://renop.test/account/tickets'),
-        PopStateEvent: class {}, dispatchEvent() {}, backCount: 0,
+        PopStateEvent: class {
+        }, dispatchEvent() {
+        }, backCount: 0,
         history: {
-            get state() { return entries[index].state; },
-            get length() { return entries.length + (referrer ? 1 : 0); },
+            get state() {
+                return entries[index].state;
+            },
+            get length() {
+                return entries.length + (referrer ? 1 : 0);
+            },
             pushState(state, title, url) {
                 entries.splice(++index, Infinity, {state, url});
                 target.location = new URL(url, target.location);

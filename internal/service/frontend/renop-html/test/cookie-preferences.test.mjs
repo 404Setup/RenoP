@@ -32,7 +32,12 @@ test('cookie choices avoid repeated storage reads without extending expiry or po
     let reads = 0, now = 100;
     const context = vm.createContext({
         parseCookiePreferences, Date: {now: () => now},
-        localStorage: {getItem() { reads++; return JSON.stringify({revision: 'current', optional: true, expires: 200}); }},
+        localStorage: {
+            getItem() {
+                reads++;
+                return JSON.stringify({revision: 'current', optional: true, expires: 200});
+            }
+        },
     });
     const source = readFileSync(new URL('../js/cookie-consent.js', import.meta.url), 'utf8');
     vm.runInContext(source.replace(/^import .*;$/gm, '').replace(/^export /gm, ''), context);
@@ -51,7 +56,11 @@ test('cookie choices avoid repeated storage reads without extending expiry or po
 
 test('account entry requires explicit current consent and cancels checks after navigation', async () => {
     let revision = 'a'.repeat(64), release;
-    const input = {checked: false, dataset: {}, focus() {}, reportValidity() {}};
+    const input = {
+        checked: false, dataset: {}, focus() {
+        }, reportValidity() {
+        }
+    };
     const error = {dataset: {}, hidden: true};
     const document = {
         cookie: '', querySelectorAll: () => [input],
@@ -59,10 +68,18 @@ test('account entry requires explicit current consent and cancels checks after n
     };
     const context = vm.createContext({
         document, AbortSignal, CustomEvent, readLegalTextResponse, readResponseBytes, LegalMetadata, protoObjectOptions,
-        window: {dispatchEvent() {}}, t: key => key,
+        window: {
+            dispatchEvent() {
+            }
+        }, t: key => key,
         fetch: async () => {
-            if (release) await new Promise(resolve => { release = resolve; });
-            return new Response(LegalMetadata.encode({revision, cookie_banner: true}).finish(), {headers: {'Content-Type': 'application/x-protobuf'}});
+            if (release) await new Promise(resolve => {
+                release = resolve;
+            });
+            return new Response(LegalMetadata.encode({
+                revision,
+                cookie_banner: true
+            }).finish(), {headers: {'Content-Type': 'application/x-protobuf'}});
         },
     });
     const source = readFileSync(new URL('../js/legal-consent.js', import.meta.url), 'utf8');

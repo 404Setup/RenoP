@@ -292,4 +292,5 @@ export default Object.freeze({
     "oauth.revocationSecretHint": "Au moins 32 caractères. Vérifie la signature des rappels de révocation du fournisseur.",
     "oauth.clearRevocationSecret": "Effacer le secret du rappel de révocation",
     "oauth.logoutRevokeFailed": "Déconnexion locale effectuée. Révoquez l’autorisation dans les paramètres du fournisseur, car sa révocation a échoué.",
+    "mfa.deviceRateLimited": "En raison des paramètres de sécurité, cet appareil ne peut pas se connecter pour le moment. Veuillez patienter jusqu'à {time}+1 minute et réessayer.",
 });

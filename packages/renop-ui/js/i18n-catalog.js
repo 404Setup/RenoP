@@ -20,8 +20,10 @@ export function createLocaleLoader({index, revision, locales}) {
     let keysPromise;
     const pending = new Map();
     const fetchBytes = async url => {
-        const response = await fetch(url, {credentials: 'omit', cache: 'force-cache',
-            headers: {Accept: 'application/x-protobuf'}, signal: AbortSignal.timeout(15000)});
+        const response = await fetch(url, {
+            credentials: 'omit', cache: 'force-cache',
+            headers: {Accept: 'application/x-protobuf'}, signal: AbortSignal.timeout(15000)
+        });
         // Keep generic static hosts usable; managed hosts serve .pb with the explicit protobuf media type.
         return readResponseBytes(response, ['application/x-protobuf', 'application/protobuf', 'application/octet-stream'], maxCatalogBytes);
     };
@@ -32,7 +34,10 @@ export function createLocaleLoader({index, revision, locales}) {
                 throw new Error('Invalid locale key index');
             }
             return data.keys;
-        }).catch(error => { keysPromise = undefined; throw error; });
+        }).catch(error => {
+            keysPromise = undefined;
+            throw error;
+        });
         return keysPromise;
     };
     return function loadLocale(locale) {
@@ -44,9 +49,14 @@ export function createLocaleLoader({index, revision, locales}) {
                     throw new Error('Locale catalog does not match its key index');
                 }
                 const entries = Object.create(null);
-                keys.forEach((key, index) => { entries[key] = data.values[index]; });
+                keys.forEach((key, index) => {
+                    entries[key] = data.values[index];
+                });
                 return Object.freeze(entries);
-            }).catch(error => { pending.delete(locale); throw error; });
+            }).catch(error => {
+                pending.delete(locale);
+                throw error;
+            });
             pending.set(locale, request);
         }
         return pending.get(locale);

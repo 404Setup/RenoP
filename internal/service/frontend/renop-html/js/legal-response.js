@@ -43,7 +43,8 @@ export async function readLegalTextResponse(response, expectedType = 'text/plain
         }
         output += decoder.decode();
     } catch (error) {
-        await reader.cancel().catch(() => {});
+        await reader.cancel().catch(() => {
+        });
         throw error;
     } finally {
         reader.releaseLock();

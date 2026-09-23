@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
-import {settingsGroups, settingsGroupFor} from '../js/settings/navigation.js';
+import {settingsGroupFor, settingsGroups} from '../js/settings/navigation.js';
 
 test('related settings share categories without adding undiscovered pages', () => {
     const permitted = ['frontend', 'registration', 'oauth_providers', 'captcha', 'storage', 'cache',
@@ -57,8 +57,10 @@ test('settings pages preserve drafts and isolate loads, saves, credentials, and 
         responseErrorMessage: async () => 'safe error',
         caughtErrorMessage: () => 'safe error',
         LocalizedResponseError: Error,
-        renderCaptchaSettings() {},
-        renderLegalSettings() {},
+        renderCaptchaSettings() {
+        },
+        renderLegalSettings() {
+        },
         renderCacheSettings() {
         },
         renderRegistrationSettings() {

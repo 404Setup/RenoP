@@ -85,10 +85,15 @@ account authorization と常に交差します。
 - upload、archive、mirror、update は bounded streaming、path validation、hash、temp storage を使います。
 - audit と durable message は security result を記録し、neutral notification では operator を公開しません。
 
-リポジトリの GET/HEAD は、メタデータ、Range、ミラー読み取りを含め、クライアントネットワークごとに毎秒 20 件、バースト 240 件の枠を共有します。認証済みのダウンロードも対象です。IPv4 マップアドレスは正規化され、IPv6 一時アドレスは /64 の枠を共有します。制限時は `429`、`Retry-After`、`Cache-Control: no-store` を返し、Docker は `TOOMANYREQUESTS` を使用します。
+リポジトリの GET/HEAD は、メタデータ、Range、ミラー読み取りを含め、クライアントネットワークごとに毎秒 20 件、バースト 240
+件の枠を共有します。認証済みのダウンロードも対象です。IPv4 マップアドレスは正規化され、IPv6 一時アドレスは /64
+の枠を共有します。制限時は `429`、`Retry-After`、`Cache-Control: no-store` を返し、Docker は `TOOMANYREQUESTS` を使用します。
 
 ## プロフィールの公開範囲
 
-プロフィール設定で非公開プロフィールを有効にできます。本人、システム管理者、いずれかのリポジトリのモデレーター（`canmoderate:<repository>` または `canmoderate:*`）のみがプロフィール、アバター、所属一覧を閲覧できます。一般ユーザーの招待候補から非公開アカウントを除外しますが、完全なユーザー名による招待は可能です。アバターのハッシュが変わらなくても公開範囲を確認します。
+プロフィール設定で非公開プロフィールを有効にできます。本人、システム管理者、いずれかのリポジトリのモデレーター（
+`canmoderate:<repository>` または `canmoderate:*`
+）のみがプロフィール、アバター、所属一覧を閲覧できます。一般ユーザーの招待候補から非公開アカウントを除外しますが、完全なユーザー名による招待は可能です。アバターのハッシュが変わらなくても公開範囲を確認します。
 
-本人専用の `PUT /api/auth/profile/privacy` は `{"user_id":"<immutable account ID>","private":true}` と現在のブラウザーセッション Cookie を要求し、更新後の本人プロフィールを返します。`private` フィールドは閲覧権限のあるユーザーにのみ返されます。
+本人専用の `PUT /api/auth/profile/privacy` は `{"user_id":"<immutable account ID>","private":true}` と現在のブラウザーセッション
+Cookie を要求し、更新後の本人プロフィールを返します。`private` フィールドは閲覧権限のあるユーザーにのみ返されます。

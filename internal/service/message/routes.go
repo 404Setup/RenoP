@@ -320,7 +320,7 @@ func sendNotification(c fiber.Ctx, state *core.AppState) error {
 	var protoReq pb.SendNotificationRequest
 	readErr := protohttp.Read(c, &protoReq)
 	if readErr != nil {
-		if readErr == fiber.ErrRequestEntityTooLarge {
+		if errors.Is(readErr, fiber.ErrRequestEntityTooLarge) {
 			return readErr
 		}
 		return c.Status(fiber.StatusBadRequest).SendString("Invalid notification")

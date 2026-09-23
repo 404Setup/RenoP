@@ -8,7 +8,8 @@ description: Fine-grained API-token lifecycle, authentication boundaries, and ad
 # API Tokens & Users
 
 API tokens are durable machine credentials owned by one account. RenoP stores only a SHA-256 lookup digest of each
-256-bit random secret. The plaintext value is returned once when the token is created and cannot be recovered later.
+256-bit random secret. The plaintext value is returned once when the token is created or rotated and cannot be recovered
+later.
 
 Every request must pass two independent checks:
 
@@ -56,16 +57,7 @@ The response is filtered by the current account. Administrator scopes are never 
 ```
 
 `expires_at` is an optional Unix-millisecond timestamp between five minutes and five years after creation. A null or
-omitted value creates a token without a credential-level expiration. Accounts may own at most 50 API tokens.
-
-`targets` is optional and restricts each listed scope independently. Omit a scope from `targets` to allow every target
-that the owning account can currently authorize. Repository targets are exact repository names. Package targets use
-`repository/package`; Maven packages append the group and artifact, such as `maven-releases/com.example/library`.
-Team targets use `package/repository/package` or `domain/example.com`. Domain targets are canonical domain names.
-The request may contain at most 128 target entries in total. Target restrictions never bypass repository permissions
-or the package/domain team's current L0-L4 authorization.
-
-A successful `201 Created` response is sent with `Cache-Control: no-store`:
+omitted value creates a token without an expiration. Accounts may own at most 50 API tokens.
 
 ```json
 {
@@ -87,11 +79,168 @@ A successful `201 Created` response is sent with `Cache-Control: no-store`:
 
 The response contains non-secret metadata and the account limit. It never contains a token secret.
 
+```json
+{
+  "tokens": [
+    {
+      "id": "07cdcf2e-0828-4a29-9817-cf771cc9fb0a",
+      "name": "CI publishing",
+      "scopes": ["repository:publish", "repository:read"],
+      "targets": {"repository:publish": ["releases"]},
+      "created_at": 1787731200000,
+      "expires_at": 1798761600000,
+      "disabled": false
+    }
+  ],
+  "limit": 50
+}
+```
+
+### Edit a token
+
+`PUT /api/auth/profile/api-tokens/{token_id}`
+
+Update an existing token's display name, scopes, or target restrictions without modifying its secret.
+
+```json
+{
+  "name": "CI publishing updated",
+  "scopes": ["repository:read", "repository:publish", "package:metadata"],
+  "targets": {
+    "repository:publish": ["releases"]
+  }
+}
+```
+
+The endpoint returns the updated token metadata:
+
+```json
+{
+  "token": {
+    "id": "07cdcf2e-0828-4a29-9817-cf771cc9fb0a",
+    "name": "CI publishing updated",
+    "scopes": ["package:metadata", "repository:publish", "repository:read"],
+    "targets": {"repository:publish": ["releases"]},
+    "created_at": 1787731200000,
+    "expires_at": 1798761600000
+  }
+}
+```
+
+### Rotate a token
+
+`POST /api/auth/profile/api-tokens/{token_id}/rotate`
+
+Regenerate the secret for a token while preserving its name, scopes, and target restrictions. The previous secret stops
+working immediately.
+
+```json
+{
+  "token": {
+    "id": "07cdcf2e-0828-4a29-9817-cf771cc9fb0a",
+    "name": "CI publishing updated",
+    "scopes": ["package:metadata", "repository:publish", "repository:read"],
+    "targets": {"repository:publish": ["releases"]},
+    "created_at": 1787731200000,
+    "expires_at": 1798761600000
+  },
+  "secret": "rnp_pat_NEW_REGENERATED_SECRET_VALUE_COPY_ONCE"
+}
+```
+
+### Update token state
+
+`PUT /api/auth/profile/api-tokens/{token_id}/state`
+
+Temporarily disable or re-enable an API token without revoking it.
+
+```json
+{
+  "disabled": true
+}
+```
+
+The endpoint returns the updated state confirmation:
+
+```json
+{
+  "disabled": true
+}
+```
+
 ### Revoke a token
 
 `DELETE /api/auth/profile/api-tokens/{token_id}`
 
-Successful revocation returns `204 No Content` and invalidates cached authentication immediately.
+Successful revocation returns HTTP 204 No Content and invalidates cached authentication immediately.
+
+## Manage active sessions and IP bans
+
+Review active browser sessions, Basic Auth requests, and API Token accesses. Track recent IP addresses and block
+untrusted clients directly.
+
+### List active sessions
+
+`GET /api/auth/profile/sessions`
+
+Returns active sessions coalesced by device. Each session includes up to ten recent IP addresses.
+
+```json
+{
+  "sessions": [
+    {
+      "public_id": "a1b2c3d4",
+      "username": "alice",
+      "ip": "192.168.1.100",
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0 Win64 x64)",
+      "created_at": 1787731200000,
+      "last_active": 1787734800000,
+      "expires_at": 1788940800000,
+      "current": true,
+      "login_method": "password+totp",
+      "recent_ips": ["192.168.1.100", "192.168.1.101"]
+    }
+  ]
+}
+```
+
+### Revoke active sessions
+
+`DELETE /api/auth/profile/sessions/{session_id}`
+
+Revoke an individual session by its identifier. To revoke all other sessions while keeping the current device active:
+
+`POST /api/auth/profile/sessions/revoke-others`
+
+Both endpoints return HTTP 200 with StatusOk on success.
+
+### Manage blocked IP addresses
+
+Account-level IP blocks prevent specific IP addresses from logging into the account.
+
+List currently blocked IP addresses:
+
+`GET /api/auth/profile/ip-bans`
+
+```json
+{
+  "ips": ["203.0.113.195"]
+}
+```
+
+Block a new IP address:
+
+`POST /api/auth/profile/ip-bans`
+
+```json
+{
+  "ip": "203.0.113.195"
+}
+```
+
+Unblock an IP address:
+
+`DELETE /api/auth/profile/ip-bans/{ip}`
 
 ## Scope reference
 
@@ -121,8 +270,7 @@ Successful revocation returns `204 No Content` and invalidates cached authentica
 | `admin:statistics`    | Query system-wide download statistics                                          |
 
 The `admin:*` scopes can be created only by an administrator and stop authorizing administrator operations as soon as
-the owning account loses that role. Existing `package:manage` and `domain:manage` credentials remain compatible, but
-these broad scopes are not assignable to new tokens.
+the owning account loses that role.
 
 ## Use a token
 
@@ -132,16 +280,17 @@ Use a bare token as a Bearer credential for scoped API automation:
 Authorization: Bearer rnp_pat_REDACTED
 ```
 
-Standard package clients may use the same token as the Basic password with the owning username. Basic credentials are
-restricted to package protocols and cannot call management APIs.
+Package clients must use Basic Auth with an API Token as the password. User login passwords are not accepted for Basic
+Auth. Permissions strictly follow the scopes configured on the token.
 
-An npm client sends the token through `_authToken` or Basic authentication. Cargo sends it as an opaque
-`Authorization` value; RenoP applies the same scope checks. Docker first
-exchanges Basic credentials at `/v2/token`, and the issued short-lived registry token contains only the pull or push
-actions allowed by both API-token scopes and package permissions.
+```http
+Authorization: Basic YWxpY2U6cm5wX3BhdF9SRURBQ1RFRF9UT0tFTg==
+```
 
-## Compatibility endpoint
+An npm client sends the token through `_authToken` or Basic authentication. Cargo sends it as an Authorization header.
+Docker exchanges credentials at `GET /v2/token` for short-lived access.
 
-Administrator user CRUD remains under `/api/tokens`, but administrators cannot create credentials on another user's
-behalf. The older `POST /api/auth/profile/token` endpoint still creates an additional non-expiring publishing token for
-the signed-in account. New integrations should use the fine-grained profile endpoints.
+## Compatible endpoints
+
+Administrator user operations are available at `GET /api/tokens`. The legacy endpoint `POST /api/auth/profile/token`
+remains available for backward compatibility. New integrations should use the fine-grained profile endpoints.

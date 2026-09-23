@@ -27,7 +27,8 @@ RenoP публикует management endpoints и пакетные протоко
 
 API управления со схемой используют бинарный protobuf. Указывайте `Content-Type: application/x-protobuf`; запросы
 также принимают `application/protobuf` и `application/octet-stream`. Без Content-Type используется protobuf. JSON-тело
-отклоняется с ошибкой `400` или `415` в зависимости от endpoint. Ответ всегда имеет тип `application/x-protobuf`; `Accept` не включает JSON.
+отклоняется с ошибкой `400` или `415` в зависимости от endpoint. Ответ всегда имеет тип `application/x-protobuf`;
+`Accept` не включает JSON.
 Используйте определения `proto/api/v1/api.proto` из установленной версии.
 
 Лимит управляющих запросов остаётся 1 MiB, с меньшими лимитами отдельных endpoints. JSON-примеры сообщений protobuf
@@ -108,7 +109,8 @@ upload продолжайте по состоянию самого проток�
 ## Использовать контракты одной версии
 
 `web/assets/openapi.yaml` / `proto/api/v1/api.proto`
-Используйте определения OpenAPI и protobuf установленной версии. Декодируйте бинарные ответы соответствующим типом сообщения; родные клиенты пакетов сохраняют форматы своих протоколов.
+Используйте определения OpenAPI и protobuf установленной версии. Декодируйте бинарные ответы соответствующим типом
+сообщения; родные клиенты пакетов сохраняют форматы своих протоколов.
 
 До production upgrade проверьте non-production: login, token authorization, repository list, read/write каждого формата,
 pagination, error decoding и reverse proxy.

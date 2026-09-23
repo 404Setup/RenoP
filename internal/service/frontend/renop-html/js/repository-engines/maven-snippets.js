@@ -97,5 +97,9 @@ async function buildMavenSnippets(path, pathParts) {
 
 export async function buildSnippets(path, pathParts) {
     const state = await buildMavenSnippets(path, pathParts);
-    return {...state, titleKey: state.artifact ? 'details.artifactTitle' : 'details.title', subtitleKey: 'details.subtitle'};
+    return {
+        ...state,
+        titleKey: state.artifact ? 'details.artifactTitle' : 'details.title',
+        subtitleKey: 'details.subtitle'
+    };
 }

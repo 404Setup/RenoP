@@ -292,4 +292,5 @@ export default Object.freeze({
     "oauth.revocationSecretHint": "Mindestens 32 Zeichen. Prüft signierte Widerrufsrückrufe des Anbieters.",
     "oauth.clearRevocationSecret": "Geheimnis für Widerrufsrückrufe löschen",
     "oauth.logoutRevokeFailed": "Lokal abgemeldet. Die Anbieterautorisierung konnte nicht widerrufen werden. Widerrufen Sie sie in den Anbietereinstellungen.",
+    "mfa.deviceRateLimited": "Aufgrund von Sicherheitseinstellungen kann sich dieses Gerät vorübergehend nicht anmelden. Bitte warten Sie bis {time}+1 Minute und versuchen Sie es erneut.",
 });

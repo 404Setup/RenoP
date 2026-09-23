@@ -13,6 +13,7 @@ package base32
 import (
 	"bytes"
 	stdbase32 "encoding/base32"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand/v2"
@@ -33,23 +34,23 @@ func checkDecode(t testing.TB, enc *Encoding, ref *stdbase32.Encoding, src []byt
 	n, err := enc.Decode(got[16:16+size:16+size], src)
 	wn, we := ref.Decode(want[16:16+size:16+size], src)
 	wantErr := we
-	if n != wn || err != we || !bytes.Equal(got, want) {
+	if n != wn || !errors.Is(we, err) || !bytes.Equal(got, want) {
 		t.Fatalf("Decode(%x): (%d, %v, %x), want (%d, %v, %x)", src, n, err, got, wn, we, want)
 	}
 	gd, ge := enc.DecodeString(string(src))
 	wd, we := ref.DecodeString(string(src))
-	if ge != we || !bytes.Equal(gd, wd) {
+	if !errors.Is(ge, we) || !bytes.Equal(gd, wd) {
 		t.Fatalf("DecodeString(%x): (%x, %v), want (%x, %v)", src, gd, ge, wd, we)
 	}
 	gd, ge = enc.AppendDecode([]byte("prefix"), src)
 	wd, we = ref.AppendDecode([]byte("prefix"), src)
-	if ge != we || !bytes.Equal(gd, wd) {
+	if !errors.Is(ge, we) || !bytes.Equal(gd, wd) {
 		t.Fatalf("AppendDecode(%x): (%x, %v), want (%x, %v)", src, gd, ge, wd, we)
 	}
 	// The standard DecodeString also relies on decoding in place.
 	inplace := bytes.Clone(src)
 	n, err = enc.Decode(inplace, inplace)
-	if n != wn || err != wantErr || !bytes.Equal(inplace[:n], want[16:16+wn]) {
+	if n != wn || !errors.Is(wantErr, err) || !bytes.Equal(inplace[:n], want[16:16+wn]) {
 		t.Fatalf("in-place Decode(%x): (%x, %v)", src, inplace[:n], err)
 	}
 }
@@ -129,7 +130,7 @@ func TestLargeStreamingCompatibility(t *testing.T) {
 					encoded := append(bytes.Clone(got.Bytes()), suffix...)
 					gd, ge := io.ReadAll(NewDecoder(enc, &chunkReader{data: encoded, chunk: chunk}))
 					wd, we := io.ReadAll(stdbase32.NewDecoder(ref, &chunkReader{data: encoded, chunk: chunk}))
-					if ge != we || !bytes.Equal(gd, wd) {
+					if !errors.Is(we, ge) || !bytes.Equal(gd, wd) {
 						t.Fatalf("stream decoding differs, chunk %d, padding %d: %v, want %v", chunk, padding, ge, we)
 					}
 				}

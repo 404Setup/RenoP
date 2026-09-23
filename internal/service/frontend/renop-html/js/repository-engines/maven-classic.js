@@ -12,16 +12,16 @@ import {buildSnippets} from './maven-snippets.js';
 
 export default Object.freeze({
     buildSnippets,
-        id: 'maven-classic',
-        protocol: 'maven',
-        layout: 'classic',
-        icon: 'repositoryMaven',
-        offered: false,
-        labelKey: 'repos.formatMaven',
-        descriptionKey: 'repos.formatMavenDesc',
-        supportsBrowserUpload: false,
-        supportsRedeployment: true,
-        supportsGpg: true,
-        supportsArtifactTemplate: false,
-        snippetTabs: Object.freeze(['maven', 'gradle-kotlin', 'gradle-groovy', 'sbt'])
+    id: 'maven-classic',
+    protocol: 'maven',
+    layout: 'classic',
+    icon: 'repositoryMaven',
+    offered: false,
+    labelKey: 'repos.formatMaven',
+    descriptionKey: 'repos.formatMavenDesc',
+    supportsBrowserUpload: false,
+    supportsRedeployment: true,
+    supportsGpg: true,
+    supportsArtifactTemplate: false,
+    snippetTabs: Object.freeze(['maven', 'gradle-kotlin', 'gradle-groovy', 'sbt'])
 });

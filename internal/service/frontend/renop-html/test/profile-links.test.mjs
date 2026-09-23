@@ -86,10 +86,12 @@ test('account links use provider visibility while team links retain the manual G
     const team = context.createPublicProfileLinksEditor({github: 'https://github.com/team'});
     assert.equal(team.value().github, 'https://github.com/team');
     assert.equal(Object.hasOwn(team.value(), 'visibility'), false);
-    const links = context.createPublicProfileLinks({providers: [
-        {name: 'Work GitLab', url: 'https://git.example/alice'},
-        {name: 'Bad', url: 'javascript:alert(1)'}
-    ]});
+    const links = context.createPublicProfileLinks({
+        providers: [
+            {name: 'Work GitLab', url: 'https://git.example/alice'},
+            {name: 'Bad', url: 'javascript:alert(1)'}
+        ]
+    });
     assert.equal(links.children.length, 1);
     assert.equal(links.children[0].href, 'https://git.example/alice');
 });

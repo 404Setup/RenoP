@@ -89,4 +89,9 @@ encrypted with AES-GCM and bound to immutable account IDs; the key is excluded f
 configuration together with the database and preserve this key when moving the instance. Losing the key prevents
 authenticator verification; use offline recovery codes to restore access.
 
-When a second factor is enabled, changing a password requires a fresh configured TOTP code or secondary Passkey assertion; a code sent to the current primary email is also available when mail is enabled. `PUT /api/auth/profile/password` takes binary `UpdatePasswordRequest` with `factor` (`totp`, `passkey`, `email`) and its proof (`totp_code`, `challenge_id` plus `passkey_credential`, or `email_code`). Start a Passkey proof with `POST /api/auth/profile/password/passkey/begin`. The proof is bound to the current browser session and credential state, consumed once, and other sessions are revoked after success.
+When a second factor is enabled, changing a password requires a fresh configured TOTP code or secondary Passkey
+assertion; a code sent to the current primary email is also available when mail is enabled.
+`PUT /api/auth/profile/password` takes binary `UpdatePasswordRequest` with `factor` (`totp`, `passkey`, `email`) and its
+proof (`totp_code`, `challenge_id` plus `passkey_credential`, or `email_code`). Start a Passkey proof with
+`POST /api/auth/profile/password/passkey/begin`. The proof is bound to the current browser session and credential state,
+consumed once, and other sessions are revoked after success.

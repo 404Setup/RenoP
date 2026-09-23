@@ -12,6 +12,7 @@ package settings
 
 import (
 	"errors"
+	"time"
 
 	"github.com/gofiber/fiber/v3"
 
@@ -35,7 +36,7 @@ func putLegalSettings(c fiber.Ctx, state *core.AppState) error {
 		return fiber.ErrForbidden
 	}
 	var payload pb.LegalSettings
-	if err := protohttp.ReadLimit(c, &payload, 3*config.MaxLegalDocumentBytes+1024); err != nil {
+	if err := protohttp.ReadLimit(c, &payload, 16*config.MaxLegalDocumentBytes+1024); err != nil {
 		if errors.Is(err, fiber.ErrRequestEntityTooLarge) || errors.Is(err, fiber.ErrUnsupportedMediaType) {
 			return err
 		}
@@ -47,6 +48,29 @@ func putLegalSettings(c fiber.Ctx, state *core.AppState) error {
 	}
 	state.Inner.ConfigWriteLock.Lock()
 	defer state.Inner.ConfigWriteLock.Unlock()
+	current := state.Inner.Config.Load().Legal
+	now := time.Now().UTC()
+	if request.PrivacyPolicy != current.PrivacyPolicy {
+		request.PrivacyPolicy = config.UpdateLastUpdated(request.PrivacyPolicy, now, "en")
+	}
+	if request.TermsOfService != current.TermsOfService {
+		request.TermsOfService = config.UpdateLastUpdated(request.TermsOfService, now, "en")
+	}
+	if request.Translations != nil {
+		for lang, tr := range request.Translations {
+			currTr := current.Translations[lang]
+			if tr.PrivacyPolicy != currTr.PrivacyPolicy {
+				tr.PrivacyPolicy = config.UpdateLastUpdated(tr.PrivacyPolicy, now, lang)
+			}
+			if tr.TermsOfService != currTr.TermsOfService {
+				tr.TermsOfService = config.UpdateLastUpdated(tr.TermsOfService, now, lang)
+			}
+			request.Translations[lang] = tr
+		}
+	}
+	if err := request.Normalize(); err != nil {
+		return cacheSettingsError(c, 400, "legal_settings_invalid")
+	}
 	next := state.Inner.Config.Load().DeepCopy()
 	next.Legal = request.DeepCopy()
 	if err := persistConfigSnapshot(next); err != nil {
@@ -61,13 +85,44 @@ func putLegalSettings(c fiber.Ctx, state *core.AppState) error {
 }
 
 func legalSettingsMessage(value config.LegalConfig) *pb.LegalSettings {
-	return &pb.LegalSettings{PrivacyPolicy: value.PrivacyPolicy, TermsOfService: value.TermsOfService,
-		LegalNotice: value.LegalNotice, CookieBanner: value.CookieBanner}
+	msg := &pb.LegalSettings{
+		PrivacyPolicy:  value.PrivacyPolicy,
+		TermsOfService: value.TermsOfService,
+		LegalNotice:    value.LegalNotice,
+		CookieBanner:   value.CookieBanner,
+	}
+	if len(value.Translations) > 0 {
+		msg.Translations = make(map[string]*pb.LegalDocumentSet, len(value.Translations))
+		for k, v := range value.Translations {
+			msg.Translations[k] = &pb.LegalDocumentSet{
+				PrivacyPolicy:  v.PrivacyPolicy,
+				TermsOfService: v.TermsOfService,
+				LegalNotice:    v.LegalNotice,
+			}
+		}
+	}
+	return msg
 }
 
 func parseLegalSettings(payload *pb.LegalSettings) (config.LegalConfig, error) {
-	value := config.LegalConfig{PrivacyPolicy: payload.PrivacyPolicy, TermsOfService: payload.TermsOfService,
-		LegalNotice: payload.LegalNotice, CookieBanner: payload.CookieBanner}
+	value := config.LegalConfig{
+		PrivacyPolicy:  payload.PrivacyPolicy,
+		TermsOfService: payload.TermsOfService,
+		LegalNotice:    payload.LegalNotice,
+		CookieBanner:   payload.CookieBanner,
+	}
+	if len(payload.Translations) > 0 {
+		value.Translations = make(map[string]config.LegalDocumentSet, len(payload.Translations))
+		for k, v := range payload.Translations {
+			if v != nil {
+				value.Translations[k] = config.LegalDocumentSet{
+					PrivacyPolicy:  v.PrivacyPolicy,
+					TermsOfService: v.TermsOfService,
+					LegalNotice:    v.LegalNotice,
+				}
+			}
+		}
+	}
 	err := value.Normalize()
 	return value, err
 }

@@ -27,9 +27,18 @@ externe ou l’une de ses adresses de contact appartient à un autre compte, y c
 fermeture. Liaison, réservation des adresses et changements de sécurité sont validés ensemble ; un échec ne modifie pas
 le compte existant. Les adresses ne fusionnent jamais des comptes.
 
-**Autres adresses de connexion** affiche les adresses secondaires privées utilisables pour la connexion par mot de passe ou Passkey, avec la politique de second facteur existante. Elles ne permettent ni réinitialisation ni récupération. Les notifications et la récupération par e-mail utilisent uniquement l’adresse principale actuelle. Un compte conserve au maximum 128 adresses, principale comprise.
+**Autres adresses de connexion** affiche les adresses secondaires privées utilisables pour la connexion par mot de passe
+ou Passkey, avec la politique de second facteur existante. Elles ne permettent ni réinitialisation ni récupération. Les
+notifications et la récupération par e-mail utilisent uniquement l’adresse principale actuelle. Un compte conserve au
+maximum 128 adresses, principale comprise.
 
-La récupération hors ligne exige l’adresse principale actuelle, ou une ancienne adresse principale dans les 14 jours suivant son remplacement, et quatre codes inutilisés. Une récupération par l’ancienne adresse la restaure, supprime celle remplacée et ferme la fenêtre de récupération. Les noms d’utilisateur et les alias ordinaires sont refusés. Un changement normal d’adresse principale bloque pendant 14 jours le renouvellement des codes, l’ajout/suppression de Passkeys et les modifications du second facteur (`ACCOUNT_SECURITY_HOLD`). Les facteurs existants restent utilisables ; le premier jeu de codes peut être créé. Les anciennes adresses principales ne peuvent pas être supprimées pendant ce délai. La réponse privée expose `security_hold_until` et `previous_primary_emails` (`email`, `expires_at`).
+La récupération hors ligne exige l’adresse principale actuelle, ou une ancienne adresse principale dans les 14 jours
+suivant son remplacement, et quatre codes inutilisés. Une récupération par l’ancienne adresse la restaure, supprime
+celle remplacée et ferme la fenêtre de récupération. Les noms d’utilisateur et les alias ordinaires sont refusés. Un
+changement normal d’adresse principale bloque pendant 14 jours le renouvellement des codes, l’ajout/suppression de
+Passkeys et les modifications du second facteur (`ACCOUNT_SECURITY_HOLD`). Les facteurs existants restent utilisables ;
+le premier jeu de codes peut être créé. Les anciennes adresses principales ne peuvent pas être supprimées pendant ce
+délai. La réponse privée expose `security_hold_until` et `previous_primary_emails` (`email`, `expires_at`).
 
 Une adresse fournie doit être vérifiée par le fournisseur ou déjà appartenir au compte connecté. Sinon, vérifiez-la
 auprès du fournisseur ou utilisez **Ajouter et vérifier une adresse** avant la liaison. L’ajout nécessite l’envoi

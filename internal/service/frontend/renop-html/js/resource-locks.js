@@ -60,7 +60,12 @@ export function createResourceLockButton({locks = [], inheritedLocks = [], name,
         onclick: () => {
             let mode = manual?.mode || '';
             let reason = manual?.reason || 'quality';
-            const custom = el('input', {type: 'text', class: 'cfg-input', maxLength: 256, value: manual?.reason_text || ''});
+            const custom = el('input', {
+                type: 'text',
+                class: 'cfg-input',
+                maxLength: 256,
+                value: manual?.reason_text || ''
+            });
             const customField = createFieldRow(t('resourceLock.reason.custom'), t('resourceLock.customHint'), custom);
             const updateCustom = () => {
                 const visible = reason === 'custom' && mode !== '';

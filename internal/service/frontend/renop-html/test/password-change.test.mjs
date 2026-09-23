@@ -46,37 +46,64 @@ function passwordUI(security) {
         },
         runButtonAction: (_button, run) => action = run(),
         el: (tag, attributes = {}, ...children) => {
-            const node = {tag, ...attributes, children, handlers: {}, value: '',
-                addEventListener(type, fn) { this.handlers[type] = fn; },
-                requestSubmit() { this.handlers.submit({preventDefault() {}}); }};
+            const node = {
+                tag, ...attributes, children, handlers: {}, value: '',
+                addEventListener(type, fn) {
+                    this.handlers[type] = fn;
+                },
+                requestSubmit() {
+                    this.handlers.submit({
+                        preventDefault() {
+                        }
+                    });
+                }
+            };
             if (node.id) elements.set(node.id, node);
             return node;
         },
         makeCustomSelect: (_choices, _current, select) => {
             selectFactor = select;
-            return {querySelector: () => ({setAttribute() {}})};
+            return {
+                querySelector: () => ({
+                    setAttribute() {
+                    }
+                })
+            };
         },
-        RenopDialog: {show: options => new Promise(resolve => {
-            dialog = options;
-            elements.set(options.id, {close: result => { options.onClose(); resolve(result); }});
-            elements.set('password-change-verify', {});
-        })},
+        RenopDialog: {
+            show: options => new Promise(resolve => {
+                dialog = options;
+                elements.set(options.id, {
+                    close: result => {
+                        options.onClose();
+                        resolve(result);
+                    }
+                });
+                elements.set('password-change-verify', {});
+            })
+        },
         StatusOk: {}, UpdatePasswordRequest: {}, t: key => key,
         localizedResponseError: async () => new Error('rejected'),
         caughtErrorMessage: () => 'localized-error', passkeyErrorMessage: () => 'passkey-error',
     });
     vm.runInContext(source, context);
-    return {context, requests, elements, listeners,
-        get dialog() { return dialog; }, select: value => selectFactor(value), submit: async () => {
+    return {
+        context, requests, elements, listeners,
+        get dialog() {
+            return dialog;
+        }, select: value => selectFactor(value), submit: async () => {
             dialog.body.requestSubmit();
             await action;
-        }};
+        }
+    };
 }
 
 test('password changes submit the selected live second-factor proof', async t => {
     for (const factor of ['totp', 'passkey', 'email']) await t.test(factor, async () => {
-        const ui = passwordUI({totp_enabled: true, passkey_second_factor: true,
-            email: 'primary@example.com', email_verification_required: true});
+        const ui = passwordUI({
+            totp_enabled: true, passkey_second_factor: true,
+            email: 'primary@example.com', email_verification_required: true
+        });
         const result = ui.context.changeProfilePassword('new-password');
         await settle();
         assert.equal(ui.requests.filter(item => item.body).length, 0, 'opening verification must not change the password');

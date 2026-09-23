@@ -35,7 +35,8 @@ function permissionMeta(permission) {
 }
 
 /** Create an independent permission draft that survives delayed repository discovery. */
-export function createPermissionEditor(permissions = [], changed = () => {}) {
+export function createPermissionEditor(permissions = [], changed = () => {
+}) {
     const selected = new Set(permissions);
     const element = el('div', {class: 'permission-editor'});
     const id = ++editorSequence;
@@ -70,12 +71,17 @@ export function createPermissionEditor(permissions = [], changed = () => {}) {
             const {response, data} = await fetchProto('/api/settings/maven/repositories', MavenRepositoriesResponse);
             if (!response.ok || !data) failed = true;
             else for (const name of Object.keys(data.repositories || {})) names.add(name);
-        } catch { failed = true; }
+        } catch {
+            failed = true;
+        }
         if (disposed) return;
         list.replaceChildren();
         if (failed) list.appendChild(createEmptyState({message: t('users.couldNotLoadRepos')}));
         else if (!names.size) list.appendChild(createEmptyState({message: t('users.noReposYet')}));
-        for (const name of [...names].sort((a, b) => a.localeCompare(b, undefined, {numeric: true, sensitivity: 'base'}))) {
+        for (const name of [...names].sort((a, b) => a.localeCompare(b, undefined, {
+            numeric: true,
+            sensitivity: 'base'
+        }))) {
             const actions = el('div', {class: 'roles-repo-actions'});
             for (const [kind, label, tone] of [['canview', 'users.roleView', 'view'], ['canmoderate', 'users.roleModerate', 'moderator'], ['canupdate', 'users.roleDeploy', 'update']]) {
                 actions.appendChild(chip(kind + ':' + name, {title: t(label), tone, compact: true}));
@@ -85,5 +91,9 @@ export function createPermissionEditor(permissions = [], changed = () => {}) {
                     el('span', {class: 'roles-repo-hint'}, t('users.perRepoAccess'))), actions));
         }
     })();
-    return {element, ready, values: () => [...selected], dispose() { disposed = true; }};
+    return {
+        element, ready, values: () => [...selected], dispose() {
+            disposed = true;
+        }
+    };
 }

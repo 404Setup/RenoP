@@ -94,7 +94,9 @@ test('session restoration preserves credentials on forbidden responses and expir
     assert.equal(storage.get('username'), 'alice');
     assert.deepEqual(updates.at(-1), [true, 'alice', false]);
     let release;
-    const beforePublish = new Promise(resolve => { release = resolve; });
+    const beforePublish = new Promise(resolve => {
+        release = resolve;
+    });
     const previousUpdates = updates.length;
     const pending = context.initializeSession(beforePublish);
     await Promise.resolve();

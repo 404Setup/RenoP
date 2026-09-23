@@ -28,7 +28,8 @@ protocol's method or error shape.
 
 Schema-backed management APIs use binary protobuf. Send `Content-Type: application/x-protobuf`; requests also accept
 `application/protobuf` and `application/octet-stream`, and a missing Content-Type defaults to protobuf. JSON request
-bodies are rejected with endpoint-specific `400` or `415` errors. Responses always use `application/x-protobuf`; `Accept` does not enable JSON.
+bodies are rejected with endpoint-specific `400` or `415` errors. Responses always use `application/x-protobuf`;
+`Accept` does not enable JSON.
 Use message definitions from `proto/api/v1/api.proto` for the deployed release.
 
 Control requests remain bounded to 1 MiB, with smaller endpoint limits retained. JSON examples accompanying protobuf
@@ -113,7 +114,8 @@ server where supported, but do not assume that a UI filter changes authorization
 
 `web/assets/openapi.yaml` / `proto/api/v1/api.proto`
 
-Keep the OpenAPI and protobuf definitions from the deployed release. Decode binary responses with the matching message type; native package clients continue to use their protocol-specific representations.
+Keep the OpenAPI and protobuf definitions from the deployed release. Decode binary responses with the matching message
+type; native package clients continue to use their protocol-specific representations.
 
 Before upgrading production, run contract tests against a non-production instance for login, token authorization,
 repository listing, one representative read and write per enabled format, pagination, error decoding, and reverse-proxy

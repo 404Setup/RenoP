@@ -78,8 +78,14 @@ Le compte de cache doit pouvoir exécuter PING, SET, GETRANGE et DEL sur `renop:
 d’authentification et de sélection de base nécessaires. Ces endpoints ne configurent pas Sentinel ni la découverte de
 cluster.
 
-Les caches de lecture de la base regroupent les recherches distantes et les défauts de cache simultanés. Les E/S distantes se font hors des verrous de partition. Après invalidation, les nouvelles requêtes ne rejoignent pas un ancien chargement et ses résultats ne peuvent pas remplir le cache. La révocation conserve ses métadonnées locales bornées.
+Les caches de lecture de la base regroupent les recherches distantes et les défauts de cache simultanés. Les E/S
+distantes se font hors des verrous de partition. Après invalidation, les nouvelles requêtes ne rejoignent pas un ancien
+chargement et ses résultats ne peuvent pas remplir le cache. La révocation conserve ses métadonnées locales bornées.
 
-Le cache négatif de l’index et les résultats d’analyse des index natifs utilisent aussi le backend sélectionné. L’appartenance des fichiers et répertoires, les blocages de publication et les références privées restent gérés localement. Une panne du cache produit un défaut de cache ; elle ne peut ni masquer un fichier installé ni exposer une publication en attente.
+Le cache négatif de l’index et les résultats d’analyse des index natifs utilisent aussi le backend sélectionné.
+L’appartenance des fichiers et répertoires, les blocages de publication et les références privées restent gérés
+localement. Une panne du cache produit un défaut de cache ; elle ne peut ni masquer un fichier installé ni exposer une
+publication en attente.
 
-Les clés et métadonnées du cache disposent d’un budget distinct et borné, avec un minimum de 4 KiB. Les valeurs vides et longs chemins ne peuvent pas contourner l’éviction.
+Les clés et métadonnées du cache disposent d’un budget distinct et borné, avec un minimum de 4 KiB. Les valeurs vides et
+longs chemins ne peuvent pas contourner l’éviction.

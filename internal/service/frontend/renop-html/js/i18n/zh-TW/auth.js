@@ -46,7 +46,7 @@ export default Object.freeze({
     "oauth.keyHint": "填入已註冊的 Stack Apps 應用程式金鑰。",
     "oauth.clearKey": "清除已儲存的 API 金鑰",
     "oauth.scopes": "授權範圍",
-    "oauth.scopesHint": "以空格分隔。內建服務提供預設值；OIDC 必須包含 openid。",
+    "oauth.scopesHint": "以空格分隔。內建服務提供預設值，OIDC 必須包含 openid。",
     "oauth.authorize_url": "授權 URL",
     "oauth.token_url": "權杖 URL",
     "oauth.userinfo_url": "使用者資訊 URL",
@@ -292,4 +292,5 @@ export default Object.freeze({
     "oauth.revocationSecretHint": "至少 32 個字元，用於驗證第三方撤銷回呼的簽章。",
     "oauth.clearRevocationSecret": "清除撤銷回呼金鑰",
     "oauth.logoutRevokeFailed": "已在本機登出，但無法撤銷第三方授權，請前往該平台的設定中撤銷。",
+    "mfa.deviceRateLimited": "由於安全配置，此裝置暫時無法繼續登入該帳號，請等待到 {time}+1分鐘 再試。",
 });

@@ -9,7 +9,7 @@
  */
 
 import {el} from '@renop/ui/dom';
-import {expandElement, collapseElement} from '@renop/ui/height-anim';
+import {collapseElement, expandElement} from '@renop/ui/height-anim';
 import {t} from './i18n.js';
 import {createIcon, createToggle} from './components.js';
 

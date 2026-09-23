@@ -139,7 +139,7 @@ func TestDecode(t *testing.T) {
 		testEqual(t, "Decode(%q) = error %v, want %v", p.encoded, err, error(nil))
 		testEqual(t, "Decode(%q) = length %v, want %v", p.encoded, count, len(p.decoded))
 		if len(p.encoded) > 0 {
-			testEqual(t, "Decode(%q) = end %v, want %v", p.encoded, end, (p.encoded[len(p.encoded)-1] == '='))
+			testEqual(t, "Decode(%q) = end %v, want %v", p.encoded, end, p.encoded[len(p.encoded)-1] == '=')
 		}
 		testEqual(t, "Decode(%q) = %q, want %q", p.encoded, string(dbuf[0:count]), p.decoded)
 
@@ -306,7 +306,7 @@ func TestDecoderError(t *testing.T) {
 		decoder := NewDecoder(StdEncoding, &br)
 		n, err := decoder.Read(dbuf)
 		testEqual(t, "Read after EOF, n = %d, expected %d", n, 0)
-		if _, ok := err.(CorruptInputError); !ok {
+		if _, ok := errors.AsType[CorruptInputError](err); !ok {
 			t.Errorf("Corrupt input error expected.  Found %T", err)
 		}
 	}
@@ -387,9 +387,10 @@ func TestDecodeCorrupt(t *testing.T) {
 			}
 			continue
 		}
-		switch err := err.(type) {
-		case CorruptInputError:
-			testEqual(t, "Corruption in %q at offset %v, want %v", tc.input, int(err), tc.offset)
+		var err2 CorruptInputError
+		switch {
+		case errors.As(err, &err2):
+			testEqual(t, "Corruption in %q at offset %v, want %v", tc.input, int(err2), tc.offset)
 		default:
 			t.Error("Decoder failed to detect corruption in", tc)
 		}
@@ -673,7 +674,7 @@ func TestBufferedDecodingSameError(t *testing.T) {
 			decoder := NewDecoder(StdEncoding, pr)
 			_, err := io.ReadAll(decoder)
 
-			if err != testcase.expected {
+			if !errors.Is(err, testcase.expected) {
 				t.Errorf("Expected %v, got %v; case %s %+v", testcase.expected, err, testcase.prefix, chunks)
 			}
 		}

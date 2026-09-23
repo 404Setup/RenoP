@@ -161,9 +161,9 @@ func ResolveLatestPath(state *core.AppState, user *config.User, repoName string,
 
 	var lastPart string
 	trimmedGav := strings.TrimRight(sanitizedGav, "/")
-	idx := strings.LastIndexByte(trimmedGav, '/')
-	if idx != -1 {
-		lastPart = trimmedGav[idx+1:]
+	_, after, ok := strings.CutLast(trimmedGav, "/")
+	if ok {
+		lastPart = after
 	} else {
 		lastPart = trimmedGav
 	}

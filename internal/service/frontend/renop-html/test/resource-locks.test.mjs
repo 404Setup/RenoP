@@ -53,7 +53,11 @@ test('lock controls submit only a manual restriction and retain the dialog on fa
     let dialog, closed = false, refreshed = 0, accepted = true;
     const selections = [], requests = [], alerts = [];
     const context = vm.createContext({
-        el: (tag, attributes, ...children) => ({tag, ...attributes, children, reportValidity() { return !this.required || Boolean(this.value.trim()); }}),
+        el: (tag, attributes, ...children) => ({
+            tag, ...attributes, children, reportValidity() {
+                return !this.required || Boolean(this.value.trim());
+            }
+        }),
         createFieldRow: (_label, _hint, control) => ({control}),
         makeCustomSelect: (_options, current, change) => {
             const id = 'select-' + selections.length;
@@ -110,7 +114,10 @@ test('lock controls submit only a manual restriction and retain the dialog on fa
     assert.equal(alerts.at(-1), 'safe');
     const manual = context.createResourceLockButton({
         locks: [{mode: 'write', source: 'manual', reason: 'custom', reason_text: 'Review source'}], name: 'demo',
-        request: async (...args) => { requests.push(args); return {ok: true}; },
+        request: async (...args) => {
+            requests.push(args);
+            return {ok: true};
+        },
     });
     assert.equal(manual.children[0], 'resourceLock.unlock');
     manual.onclick();
@@ -118,12 +125,21 @@ test('lock controls submit only a manual restriction and retain the dialog on fa
     assert.equal(input.value, 'Review source');
     input.value = '';
     const count = requests.length;
-    await dialog.footer.at(-1).onClick({currentTarget: {}}, {close() {}});
+    await dialog.footer.at(-1).onClick({currentTarget: {}}, {
+        close() {
+        }
+    });
     assert.equal(requests.length, count, 'empty custom reasons must not be submitted');
     input.value = '  请核对 <script>plain text</script>  ';
-    await dialog.footer.at(-1).onClick({currentTarget: {}}, {close() {}});
+    await dialog.footer.at(-1).onClick({currentTarget: {}}, {
+        close() {
+        }
+    });
     assert.deepEqual(requests.at(-1), ['write', 'custom', '请核对 <script>plain text</script>']);
-    await dialog.footer.find(button => button.text === 'resourceLock.unlock').onClick({currentTarget: {}}, {close() {}});
+    await dialog.footer.find(button => button.text === 'resourceLock.unlock').onClick({currentTarget: {}}, {
+        close() {
+        }
+    });
     assert.equal(requests.at(-1)[0], '');
 });
 

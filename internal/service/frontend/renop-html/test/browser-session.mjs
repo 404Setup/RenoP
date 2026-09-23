@@ -16,7 +16,10 @@ export async function connectBrowserPage(endpoint) {
     const page = pages.find(value => value.type === 'page' && value.url.startsWith(process.env.RENOP_TEST_BROWSER_URL || 'http://127.0.0.1:18080'));
     assert.ok(page, 'Open the configured test page.');
     const socket = new WebSocket(page.webSocketDebuggerUrl);
-    await new Promise((resolve, reject) => { socket.onopen = resolve; socket.onerror = reject; });
+    await new Promise((resolve, reject) => {
+        socket.onopen = resolve;
+        socket.onerror = reject;
+    });
     let next = 0;
     const pending = new Map();
     socket.onmessage = event => {
@@ -30,7 +33,11 @@ export async function connectBrowserPage(endpoint) {
     };
     const call = (method, params = {}) => new Promise((resolve, reject) => {
         const id = ++next;
-        pending.set(id, {resolve, reject, timer: setTimeout(() => reject(new Error('Browser command timed out')), 10000)});
+        pending.set(id, {
+            resolve,
+            reject,
+            timer: setTimeout(() => reject(new Error('Browser command timed out')), 10000)
+        });
         socket.send(JSON.stringify({id, method, params}));
     });
     const evaluate = async expression => {
@@ -42,9 +49,11 @@ export async function connectBrowserPage(endpoint) {
         await call('Input.dispatchKeyEvent', {type: 'keyDown', key: value});
         await call('Input.dispatchKeyEvent', {type: 'keyUp', key: value});
     };
-    return {call, evaluate, key, close: () => {
-        for (const entry of pending.values()) clearTimeout(entry.timer);
-        pending.clear();
-        socket.close();
-    }};
+    return {
+        call, evaluate, key, close: () => {
+            for (const entry of pending.values()) clearTimeout(entry.timer);
+            pending.clear();
+            socket.close();
+        }
+    };
 }

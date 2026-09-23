@@ -9,24 +9,42 @@ description: Configurer les politiques, leur acceptation et les préférences du
 
 ## Pages des politiques
 
-Les administrateurs modifient la politique de confidentialité, les conditions de service et les mentions légales dans les paramètres des documents juridiques. Les trois utilisent le même éditeur Markdown et un aperçu sécurisé, avec une limite de 512 KiB UTF-8 par document. Un champ vide restaure le texte provisoire à remplacer.
+Les administrateurs modifient la politique de confidentialité, les conditions de service et les mentions légales dans
+les paramètres des documents juridiques. Les trois utilisent le même éditeur Markdown et un aperçu sécurisé, avec une
+limite de 512 KiB UTF-8 par document. Un champ vide restaure le texte provisoire à remplacer.
 
-Les documents sont stockés dans `legal` de paramètres système et prennent effet après enregistrement. Le fichier de confidentialité historique n’est plus lu : copiez son contenu dans les paramètres avant la mise à niveau. L’ancienne URL externe des mentions légales est retirée. Les fichiers existants sont conservés.
+Les documents sont stockés dans `legal` de paramètres système et prennent effet après enregistrement. Le fichier de
+confidentialité historique n’est plus lu : copiez son contenu dans les paramètres avant la mise à niveau. L’ancienne URL
+externe des mentions légales est retirée. Les fichiers existants sont conservés.
 
-Les pages publiques sont `/privacy-policy`, `/terms-of-service` et `/legal-notice`, accessibles même avec des identifiants expirés. `GET /api/legal` renvoie la révision actuelle et `cookie_banner` ; `GET /api/legal/:document` renvoie du texte brut borné. `GET /api/privacy-policy` reste un alias.
+Les pages publiques sont `/privacy-policy`, `/terms-of-service` et `/legal-notice`, accessibles même avec des
+identifiants expirés. `GET /api/legal` renvoie la révision actuelle et `cookie_banner` ; `GET /api/legal/:document`
+renvoie du texte brut borné. `GET /api/privacy-policy` reste un alias.
 
-`GET /api/settings/legal` et `PUT /api/settings/legal` nécessitent les droits d’administration des paramètres et utilisent le protobuf binaire `LegalSettings` (`application/x-protobuf`). Les champs sont `privacy_policy`, `terms_of_service`, `legal_notice` et `cookie_banner` ; chaque document reste limité à 512 KiB.
+`GET /api/settings/legal` et `PUT /api/settings/legal` nécessitent les droits d’administration des paramètres et
+utilisent le protobuf binaire `LegalSettings` (`application/x-protobuf`). Les champs sont `privacy_policy`,
+`terms_of_service`, `legal_notice` et `cookie_banner` ; chaque document reste limité à 512 KiB.
 
-`GET /api/legal` sert le protobuf binaire `LegalMetadata`, avec `content_revision` pour invalider le cache des documents. Métadonnées et documents prennent en charge les ETags et `304` avec revalidation obligatoire. Les empreintes et données encodées sont réutilisées jusqu’à une modification de configuration. Le navigateur charge les documents à la demande ou au survol des liens, sans précharger toutes les politiques à chaque visite.
+`GET /api/legal` sert le protobuf binaire `LegalMetadata`, avec `content_revision` pour invalider le cache des
+documents. Métadonnées et documents prennent en charge les ETags et `304` avec revalidation obligatoire. Les empreintes
+et données encodées sont réutilisées jusqu’à une modification de configuration. Le navigateur charge les documents à la
+demande ou au survol des liens, sans précharger toutes les politiques à chaque visite.
 
 ## Connexion et inscription
 
-La connexion et l’inscription exigent une acceptation explicite des politiques actuelles, y compris les mots de passe, Passkeys, fournisseurs et seconds facteurs. L’authentification des clients de paquets conserve les règles de protocole existantes.
+La connexion et l’inscription exigent une acceptation explicite des politiques actuelles, y compris les mots de passe,
+Passkeys, fournisseurs et seconds facteurs. L’authentification des clients de paquets conserve les règles de protocole
+existantes.
 
-Les clients obtiennent la révision avec `GET /api/legal` et l’acceptent via `X-Renop-Legal-Revision` ou le cookie de consentement. Une acceptation absente ou périmée renvoie HTTP 428 avec `X-Renop-Error-Code: legal_consent_required`. L’événement d’audit existant consigne la révision acceptée lors du succès.
+Les clients obtiennent la révision avec `GET /api/legal` et l’acceptent via `X-Renop-Legal-Revision` ou le cookie de
+consentement. Une acceptation absente ou périmée renvoie HTTP 428 avec `X-Renop-Error-Code: legal_consent_required`.
+L’événement d’audit existant consigne la révision acceptée lors du succès.
 
 ## Choix des cookies
 
-Le bandeau propose les cookies nécessaires uniquement, tout accepter et les préférences par catégorie. Les cookies nécessaires assurent les sessions et la sécurité ; les vérifications tierces optionnelles exigent un choix explicite. Les préférences restent accessibles dans le pied de page, même si le bandeau est désactivé.
+Le bandeau propose les cookies nécessaires uniquement, tout accepter et les préférences par catégorie. Les cookies
+nécessaires assurent les sessions et la sécurité ; les vérifications tierces optionnelles exigent un choix explicite.
+Les préférences restent accessibles dans le pied de page, même si le bandeau est désactivé.
 
-Les choix restent dans le navigateur un an et expirent lors d’une modification des politiques. Refuser les services optionnels est un choix valide ; les intégrations ne doivent pas les charger avant l’accord.
+Les choix restent dans le navigateur un an et expirent lors d’une modification des politiques. Refuser les services
+optionnels est un choix valide ; les intégrations ne doivent pas les charger avant l’accord.

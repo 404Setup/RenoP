@@ -288,8 +288,8 @@ func TestHandleCargodocPageAndServeRaw(t *testing.T) {
 	if respMissing.StatusCode != http.StatusNotFound {
 		t.Fatalf("expected status 404 for missing crate, got %d", respMissing.StatusCode)
 	}
-	if err := db.SetResourceLock(&core.ResourceLock{ResourceLockTarget: core.ResourceLockTarget{
-		Format: "cargo", Repository: "cargo-repo", Name: "demo-crate", Version: "0.1.0"},
+	if err := db.SetResourceLock(&core.ResourceLock{
+		Format: "cargo", Repository: "cargo-repo", Name: "demo-crate", Version: "0.1.0",
 		Source: core.ResourceLockSystem, Mode: core.ResourceLockRead, Reason: "trojan", LockedAt: 1}, "", ""); err != nil {
 		t.Fatal(err)
 	}

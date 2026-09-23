@@ -13,7 +13,7 @@ import {t} from './i18n.js';
 import {responseErrorMessage} from './response-errors.js';
 import {passkeyErrorMessage, requestPasskeyAssertion} from './fido-utils.js';
 import {runButtonAction} from './components/button.js';
-import {decodeProtoResponse, PROTO_CONTENT_TYPE} from './api.js';
+import {decodeProtoResponse} from './api.js';
 import {SessionDetails} from './proto/index.js';
 
 const form = document.getElementById('mfa-login-form');
@@ -60,6 +60,11 @@ export async function showMFALogin({silent = false} = {}) {
         passwordForm.reset();
         passwordForm.hidden = true;
         form.hidden = false;
+        if (form.classList) {
+            form.classList.remove('mfa-login-enter');
+            void form.offsetWidth;
+            form.classList.add('mfa-login-enter');
+        }
         errorBox.hidden = true;
         form.reset();
         document.getElementById('mfa-login-totp').hidden = !status.totp;
@@ -93,6 +98,11 @@ export function resetMFALogin() {
     code.disabled = false;
     passkey.disabled = false;
     passwordForm.hidden = false;
+    if (passwordForm.classList) {
+        passwordForm.classList.remove('mfa-login-enter');
+        void passwordForm.offsetWidth;
+        passwordForm.classList.add('mfa-login-enter');
+    }
     if (hadChallenge) void mfaRequest('', undefined, 'DELETE').catch(() => {
     });
 }

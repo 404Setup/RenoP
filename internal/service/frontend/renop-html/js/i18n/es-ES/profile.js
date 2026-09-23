@@ -328,4 +328,13 @@ export default Object.freeze({
     "profile.retirePlanFailed": "No se pudieron comprobar los requisitos para cerrar la cuenta.",
     "profile.accountRetired": "Esta cuenta se ha cerrado permanentemente. Su nombre de usuario sigue reservado.",
     "profile.accountRetiredAt": "Cerrada el {date}",
+    "profile.apiTokenRotate": "Rotar",
+    "profile.apiTokenRotateConfirm": "¿Rotar el token de API '{name}'? El secreto actual dejará de funcionar de inmediato.",
+    "profile.apiTokenRotated": "Token de API rotado",
+    "profile.apiTokenRotateFailed": "Error al rotar el token de API",
+    "profile.apiTokenEdit": "Editar",
+    "profile.apiTokenEditTitle": "Editar token de API",
+    "profile.apiTokenEditDesc": "Actualice el nombre y los permisos del token de API sin cambiar el secreto.",
+    "profile.apiTokenEdited": "Token de API actualizado",
+    "profile.apiTokenEditFailed": "Error al actualizar el token de API",
 });

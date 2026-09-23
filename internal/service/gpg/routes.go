@@ -107,7 +107,7 @@ func AddProfileKey(c fiber.Ctx, state *core.AppState) error {
 	}
 	var request pb.GpgKeyReferenceRequest
 	if err := protohttp.Read(c, &request); err != nil {
-		if err == fiber.ErrRequestEntityTooLarge {
+		if errors.Is(err, fiber.ErrRequestEntityTooLarge) {
 			return err
 		}
 		return c.Status(fiber.StatusBadRequest).SendString("Invalid GPG key ID or fingerprint")

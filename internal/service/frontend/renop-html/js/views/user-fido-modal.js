@@ -15,9 +15,18 @@ export function renderUserFidoModal() {
     return el("div", {"class": "modal", "id": "user-fido-modal", "style": "display: none;"},
         el("div", {"class": "modal-backdrop", "id": "user-fido-backdrop"}),
         el("div", {"class": "modal-content", "style": "max-width: 520px;"},
-            el("button", {"aria-label": "Close modal", "class": "close-btn", "data-i18n-aria-label": "modal.close", "id": "close-user-fido-modal"}, "× "),
+            el("button", {
+                "aria-label": "Close modal",
+                "class": "close-btn",
+                "data-i18n-aria-label": "modal.close",
+                "id": "close-user-fido-modal"
+            }, "× "),
             el("div", {"class": "modal-header"},
-                el("h2", {"class": "modal-title", "data-i18n": "users.fidoModalTitle", "id": "user-fido-modal-title"}, "Passkeys")
+                el("h2", {
+                    "class": "modal-title",
+                    "data-i18n": "users.fidoModalTitle",
+                    "id": "user-fido-modal-title"
+                }, "Passkeys")
             ),
             el("div", {"class": "modal-body"},
                 el("div", {"class": "fido-device-list", "id": "user-fido-list"})

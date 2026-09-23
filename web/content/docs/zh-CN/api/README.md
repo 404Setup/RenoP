@@ -10,8 +10,8 @@ description: RenoP HTTP、REST 与 RPC API 概览
 RenoP 提供用于管理自动化、客户端集成与健康监控的完整 HTTP API。服务默认监听
 `http://localhost:3000`。
 
-
-[API 文档](/api) 提供系统管理、客户端集成与监控等接口说明。你也可以直接查阅或下载完整的原始 [OpenAPI 文件](/assets/openapi.yaml)。
+[API 文档](/api)
+提供系统管理、客户端集成与监控等接口说明。你也可以直接查阅或下载完整的原始 [OpenAPI 文件](/assets/openapi.yaml)。
 
 ## 路由结构
 
@@ -27,7 +27,7 @@ RenoP 提供用于管理自动化、客户端集成与健康监控的完整 HTTP
 
 ## 传输格式与 Protobuf
 
-基于 schema 的管理 API 使用二进制 protobuf。请求请发送 `Content-Type: application/x-protobuf`；也接受
+基于 schema 的管理 API 使用二进制 protobuf。请求请发送 `Content-Type: application/x-protobuf`。也接受
 `application/protobuf` 和 `application/octet-stream`，未指定 Content-Type 时默认采用 protobuf。JSON 请求体
 会被拒绝，端点返回 `400` 或 `415` 错误。响应固定使用 `application/x-protobuf`，`Accept` 不会启用 JSON。
 请使用与部署版本对应的 `proto/api/v1/api.proto` 消息定义。

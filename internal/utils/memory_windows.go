@@ -74,10 +74,7 @@ func windowsSoftMemoryLimit() (int64, bool) {
 		return 0, false
 	}
 	if memStatus.ullAvailPhys > 256<<20 {
-		limit := int64(memStatus.ullAvailPhys / 2)
-		if limit > 2<<30 {
-			limit = 2 << 30
-		}
+		limit := min(int64(memStatus.ullAvailPhys/2), 2<<30)
 		if limit < 64<<20 {
 			return 0, false
 		}

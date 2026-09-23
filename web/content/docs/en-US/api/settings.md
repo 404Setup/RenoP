@@ -28,7 +28,10 @@ after confirmation. Pending changes are marked in the navigation. Browser reload
 but drafts are held only in memory and are cleared at logout or account change. Stored write-only credentials stay
 hidden, and entered secrets are cleared from a draft after a successful save.
 
-GPG remains part of the service configuration. Global-team limits, publication quotas, registration, cache, email, OAuth providers, and publishing-domain security have separate pages. Legal and unified OAuth settings use binary protobuf; other pages retain their documented formats. Labels and hints remain associated with controls, and navigation moves focus to the page heading.
+GPG remains part of the service configuration. Global-team limits, publication quotas, registration, cache, email, OAuth
+providers, and publishing-domain security have separate pages. Legal and unified OAuth settings use binary protobuf;
+other pages retain their documented formats. Labels and hints remain associated with controls, and navigation moves
+focus to the page heading.
 
 Selected sections, unsaved markers, and muted text use the shared theme colors in both light and dark modes.
 
@@ -39,7 +42,13 @@ Selected sections, unsaved markers, and muted text use the shared theme colors i
 - **Behavior**: The request and response schema depends on `:name`. Unknown fields and invalid values are rejected.
   Host, port, TLS, database, and selected runtime changes may require a service restart.
 
-**Third-party login**: `GET /api/settings/oauth-providers` returns binary protobuf `OAuthSettings` with the built-in GitHub entry, redacted clients, and presets. `PUT /api/settings/oauth-providers` requires `replace_providers: true` and a `providers` list, saving both groups atomically within 128 KiB. Up to 12 other clients plus GitHub are supported. Omitting GitHub preserves it; disable its entry and use `clear_client_secret` to remove credentials. An empty list removes only other clients. `revocation_secret` is write-only; blank retains it for the same client, and `clear_revocation_secret` erases it. Compatibility endpoints `GET /api/settings/github-oauth` and `PUT /api/settings/github-oauth` retain JSON and manage the same GitHub configuration.
+**Third-party login**: `GET /api/settings/oauth-providers` returns binary protobuf `OAuthSettings` with the built-in
+GitHub entry, redacted clients, and presets. `PUT /api/settings/oauth-providers` requires `replace_providers: true` and
+a `providers` list, saving both groups atomically within 128 KiB. Up to 12 other clients plus GitHub are supported.
+Omitting GitHub preserves it; disable its entry and use `clear_client_secret` to remove credentials. An empty list
+removes only other clients. `revocation_secret` is write-only; blank retains it for the same client, and
+`clear_revocation_secret` erases it. Compatibility endpoints `GET /api/settings/github-oauth` and
+`PUT /api/settings/github-oauth` retain JSON and manage the same GitHub configuration.
 
 [OAuth](../security/oauth-login.md)
 
@@ -83,12 +92,23 @@ See [Maven domain health](maven.md).
 
 [Legal documents and cookie choices](../configuration/legal.md)
 
-Settings navigation, provider editors, and dependent fields use cancellable transitions and respect reduced motion. Empty provider/account lists use the shared notice style. Closed dropdowns do not keep their option menus or document listeners alive; opening a dropdown creates them on demand.
+Settings navigation, provider editors, and dependent fields use cancellable transitions and respect reduced motion.
+Empty provider/account lists use the shared notice style. Closed dropdowns do not keep their option menus or document
+listeners alive; opening a dropdown creates them on demand.
 
-Embedded assets stream from the executable. RenoP caches their content type, length, and ETag without retaining another copy of every bundle and compression variant in the Go heap. Precompressed negotiation and conditional requests remain supported.
+Embedded assets stream from the executable. RenoP caches their content type, length, and ETag without retaining another
+copy of every bundle and compression variant in the Go heap. Precompressed negotiation and conditional requests remain
+supported.
 
 [Security verification](../security/captcha.md)
 
-`capacity_limit_bytes` is the per-repository installed-byte limit; `0` means unlimited. The UI edits it in MiB. Disk and S3 commits count artifacts, generated checksums, pending-review objects, and cached mirror content, excluding temporary staging copies. Capacity is reserved before commits so concurrent uploads share the same limit. Excess writes return `507` with `repository_capacity_exceeded`; a valid mirror response can still stream without being cached. Existing files remain readable when the limit is lowered below usage. After out-of-band storage changes, rebuild the index or restart to remeasure usage. Omitting the optional field preserves the existing limit for older clients.
+`capacity_limit_bytes` is the per-repository installed-byte limit; `0` means unlimited. The UI edits it in MiB. Disk and
+S3 commits count artifacts, generated checksums, pending-review objects, and cached mirror content, excluding temporary
+staging copies. Capacity is reserved before commits so concurrent uploads share the same limit. Excess writes return
+`507` with `repository_capacity_exceeded`; a valid mirror response can still stream without being cached. Existing files
+remain readable when the limit is lowered below usage. After out-of-band storage changes, rebuild the index or restart
+to remeasure usage. Omitting the optional field preserves the existing limit for older clients.
 
-Legal documents are edited under Frontend and saved atomically with branding; omitted `legal` preserves the prior documents. Index controls are under Storage. The compatibility legal and index endpoints remain available. Server settings expose listener IP/port, TLS, database and performance controls; listener and database changes require restart.
+Legal documents are edited under Frontend and saved atomically with branding; omitted `legal` preserves the prior
+documents. Index controls are under Storage. The compatibility legal and index endpoints remain available. Server
+settings expose listener IP/port, TLS, database and performance controls; listener and database changes require restart.

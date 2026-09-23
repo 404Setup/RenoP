@@ -11,6 +11,8 @@
 package settings
 
 import (
+	"errors"
+
 	"github.com/gofiber/fiber/v3"
 
 	"renop/internal/core"
@@ -27,7 +29,7 @@ func RebuildIndex(c fiber.Ctx, state *core.AppState) error {
 
 	var payload pb.RebuildIndexRequest
 	if err := protohttp.Read(c, &payload); err != nil {
-		if err == fiber.ErrRequestEntityTooLarge {
+		if errors.Is(err, fiber.ErrRequestEntityTooLarge) {
 			return err
 		}
 		return c.Status(fiber.StatusBadRequest).SendString("Bad Request")

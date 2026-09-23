@@ -14,6 +14,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -22,6 +23,7 @@ import (
 
 	"renop/internal/configstore"
 	"renop/internal/core"
+	"renop/internal/utils"
 	"renop/internal/utils/secretcipher"
 
 	"github.com/go-webauthn/webauthn/webauthn"
@@ -29,10 +31,59 @@ import (
 )
 
 const mfaCookieName = "renop_mfa"
-const mfaTTL = 5 * time.Minute
+const mfaTTL = 2 * time.Minute
 
 var errMFARequired = core.ErrMFARequired
 var errMFAPrimaryRequired = errors.New("a primary login method is required")
+
+type ErrMFADeviceRateLimited struct {
+	ResetTime time.Time
+}
+
+func (e *ErrMFADeviceRateLimited) Error() string {
+	return fmt.Sprintf("device login rate limit reached, please retry after %s", e.ResetTime.Format("15:04"))
+}
+
+type mfaDeviceRateLimiter struct {
+	sync.Mutex
+	attempts map[string][]time.Time
+}
+
+var mfaLimiter = &mfaDeviceRateLimiter{
+	attempts: make(map[string][]time.Time),
+}
+
+func resetMFALimiterForTest() {
+	mfaLimiter.Lock()
+	defer mfaLimiter.Unlock()
+	mfaLimiter.attempts = make(map[string][]time.Time)
+}
+
+const (
+	mfaRateWindow  = 10 * time.Minute
+	mfaMaxAttempts = 3
+)
+
+func (l *mfaDeviceRateLimiter) checkAndRecord(ip, ua, username string, now time.Time) error {
+	key := ip + "|" + ua + "|" + strings.ToLower(username)
+	l.Lock()
+	defer l.Unlock()
+	cutoff := now.Add(-mfaRateWindow)
+	existing := l.attempts[key]
+	valid := existing[:0]
+	for _, t := range existing {
+		if t.After(cutoff) {
+			valid = append(valid, t)
+		}
+	}
+	if len(valid) >= mfaMaxAttempts {
+		resetTime := valid[0].Add(mfaRateWindow)
+		l.attempts[key] = valid
+		return &ErrMFADeviceRateLimited{ResetTime: resetTime}
+	}
+	l.attempts[key] = append(valid, now)
+	return nil
+}
 
 type mfaChallenge struct {
 	oauth                                                 *oauthSessionProof
@@ -160,8 +211,8 @@ func loadMFAChallenge(c fiber.Ctx, state *core.AppState, consume bool) (*mfaChal
 	if consume {
 		delete(mfaChallenges.entries, id)
 	}
-	copy := *entry
-	return &copy, nil
+	copyEntry := *entry
+	return &copyEntry, nil
 }
 
 func prepareBrowserLogin(c fiber.Ctx, state *core.AppState, username, method, expectedSnapshot string) (string, error) {
@@ -178,11 +229,17 @@ func prepareBrowserLogin(c fiber.Ctx, state *core.AppState, username, method, ex
 		}
 		return mfa.Snapshot, nil
 	}
-	if method == "fido" && mfa.Passkey {
-		return "", errMFAPrimaryRequired
+	if method == "fido" {
+		return mfa.Snapshot, nil
 	}
 	if !mfa.Enabled() {
 		return mfa.Snapshot, nil
+	}
+	cfg := state.Inner.Config.Load()
+	ip := utils.ExtractIP(c, &cfg.Server)
+	ua := c.Get(fiber.HeaderUserAgent, "Unknown")
+	if err := mfaLimiter.checkAndRecord(ip, ua, username, time.Now()); err != nil {
+		return "", err
 	}
 	credentialID, _ := c.Locals("verified_fido_credential").([]byte)
 	oauthProof, _ := c.Locals("oauth_session_proof").(*oauthSessionProof)
@@ -197,6 +254,16 @@ func prepareBrowserLogin(c fiber.Ctx, state *core.AppState, username, method, ex
 
 func mfaError(c fiber.Ctx, err error) error {
 	setPrivateResponseHeaders(c)
+	if rateLimited, ok := errors.AsType[*ErrMFADeviceRateLimited](err); ok {
+		timeStr := rateLimited.ResetTime.Format("15:04")
+		c.Set("X-Renop-Error-Code", "MFA_DEVICE_RATE_LIMITED")
+		c.Set("X-Renop-Rate-Limit-Time", timeStr)
+		return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+			"error":   "MFA_DEVICE_RATE_LIMITED",
+			"time":    timeStr,
+			"message": rateLimited.Error(),
+		})
+	}
 	status, code := 500, "MFA_UNAVAILABLE"
 	switch {
 	case errors.Is(err, core.ErrSecurityHold):

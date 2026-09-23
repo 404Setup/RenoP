@@ -328,4 +328,13 @@ export default Object.freeze({
     "profile.retirePlanFailed": "Impossible de vérifier les conditions de fermeture du compte.",
     "profile.accountRetired": "Ce compte a été définitivement fermé. Son nom d’utilisateur reste réservé.",
     "profile.accountRetiredAt": "Fermé le {date}",
+    "profile.apiTokenRotate": "Faire tourner",
+    "profile.apiTokenRotateConfirm": "Faire tourner le jeton d'API '{name}' ? Le secret actuel cessera de fonctionner immédiatement.",
+    "profile.apiTokenRotated": "Jeton d'API tourné",
+    "profile.apiTokenRotateFailed": "Échec de la rotation du jeton d'API",
+    "profile.apiTokenEdit": "Modifier",
+    "profile.apiTokenEditTitle": "Modifier le jeton d'API",
+    "profile.apiTokenEditDesc": "Mettre à jour le nom et les autorisations du jeton d'API sans changer le secret.",
+    "profile.apiTokenEdited": "Jeton d'API mis à jour",
+    "profile.apiTokenEditFailed": "Échec de la mise à jour du jeton d'API",
 });

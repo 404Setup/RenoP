@@ -28,6 +28,22 @@
     --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+html[data-font-preset="inter"] {
+    --font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+html[data-font-preset="noto_sans"] {
+    --font-sans: "Noto Sans", "Noto Sans SC", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+html[data-font-preset="open_sans"] {
+    --font-sans: "Open Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+html[data-font-preset="source_sans"] {
+    --font-sans: "Source Sans 3", "Source Sans Pro", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
 html.dark {
     --bg-color: #000000;
     --text-color: #f9fafb;

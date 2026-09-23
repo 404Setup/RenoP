@@ -78,6 +78,7 @@ message SessionDto {
   bool current = 8;
   // Login method used to create this session (e.g. "password", "fido")
   string login_method = 9;
+  repeated string recent_ips = 10;
 }
 
 message SessionList {
@@ -580,11 +581,18 @@ message LegalMetadata {
   string content_revision = 3;
 }
 
+message LegalDocumentSet {
+  string privacy_policy = 1;
+  string terms_of_service = 2;
+  string legal_notice = 3;
+}
+
 message LegalSettings {
   string privacy_policy = 1;
   string terms_of_service = 2;
   string legal_notice = 3;
   bool cookie_banner = 4;
+  map<string, LegalDocumentSet> translations = 5;
 }
 
 message LogoutResponse {

@@ -41,6 +41,7 @@ const commonErrorCodeKeys = Object.freeze({
     registration_settings_save_failed: 'registration.unavailable',
     MFA_REQUIRED: 'mfa.loginHint',
     MFA_PRIMARY_REQUIRED: 'mfa.primaryRequired',
+    MFA_DEVICE_RATE_LIMITED: 'mfa.deviceRateLimited',
     MFA_INVALID: 'mfa.invalid',
     MFA_UNAVAILABLE: 'mfa.unavailable',
     MFA_REAUTH_REQUIRED: 'mfa.reauth',
@@ -161,6 +162,10 @@ async function readBoundedErrorText(response) {
  */
 export async function responseErrorMessage(response, fallbackKey, params = {}, errorCodeKeys = {}) {
     const code = response?.headers?.get?.(RESPONSE_ERROR_CODE_HEADER) || '';
+    if (code === 'MFA_DEVICE_RATE_LIMITED') {
+        const time = response?.headers?.get?.('X-Renop-Rate-Limit-Time') || params.time || ''
+        return t('mfa.deviceRateLimited', {time})
+    }
     const codeKey = errorCodeKeys[code] || commonErrorCodeKeys[code];
     if (codeKey) return t(codeKey, params);
 

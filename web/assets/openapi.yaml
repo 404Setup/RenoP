@@ -3029,7 +3029,7 @@ paths:
       tags: [ settings ]
       summary: Read public demonstration mode
       operationId: getDemoMode
-      security: []
+      security: [ ]
       responses:
         "200":
           description: Process mode and public demo credentials with Cache-Control no-store.
@@ -3042,7 +3042,7 @@ paths:
       summary: List active browser sessions for directed notifications
       operationId: getNotificationRecipientSessions
       description: Manager authority is required; API tokens also require admin:notifications. Returns at most 100 sessions per page and never session secrets.
-      security: [ { sessionCookie: [] }, { bearerAuth: [] } ]
+      security: [ { sessionCookie: [ ] }, { bearerAuth: [ ] } ]
       parameters:
         - { name: username, in: query, required: true, schema: { type: string, maxLength: 255 } }
         - { name: cursor, in: query, schema: { type: string, maxLength: 160 } }
@@ -3061,7 +3061,7 @@ paths:
       summary: Log out the current provider session and revoke its tokens
       operationId: revokeCurrentProviderSession
       description: Uses only the current cookie-authenticated provider session. Local logout is completed even when the provider fails. Identity bindings remain connected.
-      security: [ { sessionCookie: [] } ]
+      security: [ { sessionCookie: [ ] } ]
       parameters:
         - { name: provider, in: path, required: true, schema: { type: string, maxLength: 32 } }
       responses:
@@ -3078,7 +3078,7 @@ paths:
       summary: Accept a signed provider revocation event
       operationId: receiveProviderRevocation
       description: HMAC-SHA256 over exact protobuf bytes, verified using revocation_secret. Events are replay-protected and restricted to their original authority and subject/session. Other webhook formats require a trusted adapter.
-      security: []
+      security: [ ]
       parameters:
         - { name: provider, in: path, required: true, schema: { type: string, maxLength: 32 } }
         - { name: X-Renop-Signature-256, in: header, required: true, schema: { type: string }, description: 'sha256=<hex HMAC-SHA256>' }
@@ -3102,7 +3102,7 @@ paths:
       summary: Accept an OIDC Back-Channel Logout token
       operationId: receiveOIDCBackchannelLogout
       description: Requires a configured OIDC issuer and JWKS. Verifies signature, issuer, audience, iat, exp, jti, sub/sid, the back-channel logout event, and absence of nonce. Rejects events older than ten minutes; repeated events succeed without touching later sessions.
-      security: []
+      security: [ ]
       parameters:
         - { name: provider, in: path, required: true, schema: { type: string, maxLength: 32 } }
       requestBody:
@@ -3994,7 +3994,7 @@ paths:
       tags: [ auth ]
       summary: Begin a secondary Passkey proof for a password change
       operationId: beginPasswordPasskey
-      security: [ { sessionCookie: [] } ]
+      security: [ { sessionCookie: [ ] } ]
       requestBody:
         required: true
         content:
@@ -4456,7 +4456,7 @@ paths:
       tags: [ tokens ]
       summary: Read an account suspension and protected-role status
       operationId: getAccountBan
-      security: [ { sessionCookie: [] }, { bearerAuth: [] } ]
+      security: [ { sessionCookie: [ ] }, { bearerAuth: [ ] } ]
       responses:
         "200":
           description: Administrator-only live suspension information.
@@ -4475,7 +4475,7 @@ paths:
       summary: Suspend an account using a preset or custom reason
       operationId: putAccountBan
       description: Requires live administrator authority. Protected administrator/moderator roles must be removed first. Revokes active sessions atomically; optional IP suspension uses recorded login addresses.
-      security: [ { sessionCookie: [] }, { bearerAuth: [] } ]
+      security: [ { sessionCookie: [ ] }, { bearerAuth: [ ] } ]
       requestBody:
         required: true
         content:
@@ -4503,7 +4503,7 @@ paths:
       tags: [ tokens ]
       summary: Remove an account suspension and its IP restrictions
       operationId: deleteAccountBan
-      security: [ { sessionCookie: [] }, { bearerAuth: [] } ]
+      security: [ { sessionCookie: [ ] }, { bearerAuth: [ ] } ]
       responses:
         "204": { description: Suspension removed. }
         "403": { $ref: '#/components/responses/PlainForbidden' }
@@ -6431,7 +6431,7 @@ paths:
       tags: [ auth ]
       summary: Read public CAPTCHA settings and establish the browser nonce
       operationId: getCaptchaConfiguration
-      security: []
+      security: [ ]
       responses:
         "200":
           description: Public provider, site_key, scopes and friendly_region. Never includes a secret.
@@ -6443,7 +6443,7 @@ paths:
       tags: [ auth ]
       summary: Verify a provider response and issue a one-time browser proof
       operationId: verifyCaptcha
-      security: []
+      security: [ ]
       description: Requires the HttpOnly nonce cookie established by GET /api/captcha. The proof binds the browser cookies, selected scope, and current provider configuration for 120 seconds. Provider failures never bypass verification.
       requestBody:
         required: true
@@ -6476,7 +6476,7 @@ paths:
       tags: [ auth ]
       summary: Load the same-origin disposable browser widget frame
       operationId: getCaptchaWidget
-      security: []
+      security: [ ]
       responses:
         "200":
           description: Isolated HTML document; provider scripts start only after the parent authorizes them.
@@ -6489,8 +6489,8 @@ paths:
       summary: Read CAPTCHA settings without the secret
       operationId: getCaptchaSettings
       security:
-        - sessionCookie: []
-        - bearerAuth: []
+        - sessionCookie: [ ]
+        - bearerAuth: [ ]
       responses:
         "200":
           description: Requires settings administrator authority.
@@ -6504,8 +6504,8 @@ paths:
       operationId: putCaptchaSettings
       description: Requires settings administrator authority. Blank secrets are preserved only for an unchanged provider and site key. Verified API tokens and protocol-password clients are exempt from interactive challenges.
       security:
-        - sessionCookie: []
-        - bearerAuth: []
+        - sessionCookie: [ ]
+        - bearerAuth: [ ]
       requestBody:
         required: true
         content:
@@ -6528,7 +6528,7 @@ paths:
       tags: [ auth ]
       summary: Current policy revision and cookie notice
       operationId: getLegalMetadata
-      security: []
+      security: [ ]
       description: Public with ETag revalidation, including for requests with expired credentials. Account entry requires explicit acceptance of this revision.
       responses:
         "200":
@@ -6548,7 +6548,7 @@ paths:
       tags: [ auth ]
       summary: Read a configured legal document
       operationId: getLegalDocument
-      security: []
+      security: [ ]
       parameters:
         - name: document
           in: path
@@ -6569,7 +6569,7 @@ paths:
       summary: Read the configured privacy policy
       description: Compatibility alias for /api/legal/privacy-policy. No local policy file is read.
       operationId: getPrivacyPolicy
-      security: []
+      security: [ ]
       responses:
         "200":
           description: UTF-8 Markdown as plain text, with ETag revalidation.
@@ -6580,7 +6580,7 @@ paths:
       tags: [ auth ]
       summary: Read privacy-policy response headers
       operationId: headPrivacyPolicy
-      security: []
+      security: [ ]
       responses:
         "200": { description: Configured document available. }
   /api/settings/legal:
@@ -6590,8 +6590,8 @@ paths:
       operationId: getLegalSettings
       description: Requires settings administrator authority.
       security:
-        - sessionCookie: []
-        - bearerAuth: []
+        - sessionCookie: [ ]
+        - bearerAuth: [ ]
       responses:
         "200":
           description: Current legal settings.
@@ -6605,8 +6605,8 @@ paths:
       operationId: putLegalSettings
       description: Requires settings administrator authority. Applies atomically after durable configuration persistence. A changed privacy policy or terms invalidates earlier account-entry acceptance.
       security:
-        - sessionCookie: []
-        - bearerAuth: []
+        - sessionCookie: [ ]
+        - bearerAuth: [ ]
       requestBody:
         required: true
         content:
@@ -9833,7 +9833,7 @@ paths:
       tags: [ native ]
       operationId: reserveNativeResource
       summary: Reserve an unprefixed native publishing resource
-      security: [ { sessionCookie: [] } ]
+      security: [ { sessionCookie: [ ] } ]
       description: Requires live repository publishing permission and applicable CAPTCHA. Native mirror repositories are pull-only. The creator receives L4 ownership; the first publication follows the repository review policy.
       requestBody:
         required: true
@@ -9852,7 +9852,7 @@ paths:
       tags: [ native ]
       operationId: updateNativeResource
       summary: Update native resource description and public signing key
-      security: [ { sessionCookie: [] } ]
+      security: [ { sessionCookie: [ ] } ]
       description: Requires L3 or administrator authority. APK accepts an RSA PEM public key; RPM and Conan accept a trusted OpenPGP public keyring. Private keys and unsupported formats are rejected.
       requestBody:
         required: true
@@ -9867,7 +9867,7 @@ paths:
       tags: [ native ]
       operationId: releaseNativeResource
       summary: Release an empty native resource
-      security: [ { sessionCookie: [] } ]
+      security: [ { sessionCookie: [ ] } ]
       description: Requires L4 or administrator authority. Artifacts and pending reviews prevent release.
       requestBody:
         required: true
@@ -9885,7 +9885,7 @@ paths:
       tags: [ native ]
       operationId: setNativeResourceMember
       summary: Grant, change, or remove native resource membership
-      security: [ { sessionCookie: [] } ]
+      security: [ { sessionCookie: [ ] } ]
       description: Requires L3; granting or changing L4 requires L4. Level -1 removes membership. At least one L4 owner is retained, and a resource has at most 100 members.
       requestBody:
         required: true

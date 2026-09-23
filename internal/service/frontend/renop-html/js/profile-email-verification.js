@@ -66,9 +66,9 @@ export async function verifyProfileEmail(email, receipt, options = {}) {
                 const response = options.confirm
                     ? await options.confirm(code.value, controller.signal)
                     : await apiRequest('/api/auth/profile/email/confirm', {
-                    method: 'POST', signal: controller.signal, headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({email, code: code.value}),
-                });
+                        method: 'POST', signal: controller.signal, headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({email, code: code.value}),
+                    });
                 code.value = '';
                 if (!active()) return;
                 if (!response.ok) {

@@ -15,13 +15,27 @@ export function renderProfileFidoModal() {
     return el("div", {"class": "modal", "id": "profile-fido-modal", "style": "display: none;"},
         el("div", {"class": "modal-backdrop", "id": "profile-fido-backdrop"}),
         el("div", {"class": "modal-content", "style": "max-width: 520px;"},
-            el("button", {"aria-label": "Close modal", "class": "close-btn", "data-i18n-aria-label": "modal.close", "id": "close-profile-fido-modal"}, "× "),
+            el("button", {
+                "aria-label": "Close modal",
+                "class": "close-btn",
+                "data-i18n-aria-label": "modal.close",
+                "id": "close-profile-fido-modal"
+            }, "× "),
             el("div", {"class": "modal-header"},
-                el("h2", {"class": "modal-title", "data-i18n": "profile.fidoTitle", "id": "profile-fido-modal-title"}, "Passkeys")
+                el("h2", {
+                    "class": "modal-title",
+                    "data-i18n": "profile.fidoTitle",
+                    "id": "profile-fido-modal-title"
+                }, "Passkeys")
             ),
             el("div", {"class": "modal-body"},
                 el("div", {"class": "fido-device-list", "id": "profile-fido-list", "style": "margin-bottom: 1rem;"}),
-                el("button", {"class": "pill-btn pill-btn--primary profile-action-btn", "data-i18n": "profile.addFidoBtn", "id": "btn-add-fido-device", "type": "button"}, "Add Passkey ")
+                el("button", {
+                    "class": "pill-btn pill-btn--primary profile-action-btn",
+                    "data-i18n": "profile.addFidoBtn",
+                    "id": "btn-add-fido-device",
+                    "type": "button"
+                }, "Add Passkey ")
             )
         )
     );

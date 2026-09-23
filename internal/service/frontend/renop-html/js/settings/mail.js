@@ -283,7 +283,10 @@ export function renderMailSettings(container, data, changed) {
 
                 if (iconDiv) {
                     iconDiv.className = `cfg-section-icon is-${currentProviderKey}`;
-                    iconDiv.replaceChildren(createIcon(MAIL_PROVIDER_ICONS[currentProviderKey] || 'send', {width: 20, height: 20}));
+                    iconDiv.replaceChildren(createIcon(MAIL_PROVIDER_ICONS[currentProviderKey] || 'send', {
+                        width: 20,
+                        height: 20
+                    }));
                 }
 
                 if (accTitle) {
@@ -534,6 +537,7 @@ export function renderMailSettings(container, data, changed) {
             select(accFields, account.pricing, 'rounding', ['proportional', 'batch'], 'rounding', t('mail.pricingHint'));
 
             const tiers = el('div', {class: 'mail-tiers'});
+
             function renderTiers() {
                 tiers.replaceChildren();
                 account.pricing.tiers ||= [];
@@ -557,6 +561,7 @@ export function renderMailSettings(container, data, changed) {
                 addTier.disabled = account.pricing.tiers.length >= 20;
                 tiers.appendChild(addTier);
             }
+
             renderTiers();
 
             // Section 5: Operations & Status
@@ -610,6 +615,7 @@ export function renderMailSettings(container, data, changed) {
         });
         testAccountRow.replaceChildren(picker);
     }
+
     operationFields.appendChild(createFieldRow(t('mail.accounts'), '', testAccountRow));
 
     const testTo = buildInput('email', '', 'name@example.com', () => {

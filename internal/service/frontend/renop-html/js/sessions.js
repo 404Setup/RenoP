@@ -40,6 +40,8 @@ import {caughtErrorMessage, localizedResponseError} from './response-errors.js';
  * @returns {string}
  */
 function formatLoginMethod(method) {
+    if (method === 'basic_auth') return t('sessions.methodBasicAuth')
+    if (method === 'api_token') return t('sessions.methodAPIToken')
     const [primary, factor] = String(method || '').split('+');
     let label = primary.startsWith('oauth:') ? t('oauth.sessionMethod', {provider: primary.slice(6)})
         : t(primary === 'fido' ? 'sessions.methodFido' : primary === 'github' ? 'sessions.methodGithub' : 'sessions.methodPassword');
@@ -85,6 +87,13 @@ function shortDevice(userAgent) {
     if (!ua) return t('sessions.unknownDevice');
     if (ua.length <= 72) return ua;
     return ua.slice(0, 69) + '…';
+}
+
+function getSessionIPs(session) {
+    const list = Array.isArray(session.recent_ips) && session.recent_ips.length > 0
+        ? session.recent_ips
+        : (Array.isArray(session.recentIps) && session.recentIps.length > 0 ? session.recentIps : (session.ip ? [session.ip] : []))
+    return list.slice(0, 10)
 }
 
 /**
@@ -429,6 +438,138 @@ export function openSessionsDialog(options = {mode: 'self'}) {
     });
 
     toolbar.append(refreshBtn, bulkBtn);
+    if (opts.mode === 'self') {
+        const bannedIpsBtn = createButton(t('sessions.bannedIPsBtn'), {
+            class: 'pill-btn pill-btn--soft pill-btn--sm sessions-toolbar-btn',
+            icon: 'ssl',
+            iconProps: {width: '14', height: '14'},
+            onClick: () => {
+                openBannedIPsDialog()
+            }
+        })
+        toolbar.append(bannedIpsBtn)
+    }
+
+    function openBannedIPsDialog() {
+        const bodyRoot = el('div', {class: 'banned-ips-dialog-body'})
+        const loadingEl = el('div', {class: 'sessions-loading'},
+            el('div', {class: 'sessions-loading-spinner', 'aria-hidden': 'true'}),
+            el('span', {}, t('sessions.loading'))
+        )
+        bodyRoot.appendChild(loadingEl)
+
+        async function loadBannedIPs() {
+            try {
+                const res = await fetch('/api/auth/profile/ip-bans', withCredentials({method: 'GET'}))
+                if (!res.ok) throw new Error('Failed to load banned IPs')
+                const data = await res.json()
+                const ips = Array.isArray(data?.ips) ? data.ips : []
+                bodyRoot.replaceChildren()
+                if (ips.length === 0) {
+                    bodyRoot.appendChild(createEmptyState({
+                        message: t('sessions.bannedIPsEmpty'),
+                        icon: 'ssl'
+                    }))
+                    return
+                }
+                const list = el('ul', {class: 'banned-ips-items'})
+                ips.forEach(ip => {
+                    const ipSpan = el('span', {class: 'sessions-mono'}, ip)
+                    const unbanBtn = createButton(t('sessions.unban'), {
+                        class: 'pill-btn pill-btn--danger pill-btn--sm',
+                        icon: 'delete',
+                        iconProps: {width: '14', height: '14'},
+                        onClick: async () => {
+                            if (!(await window.showConfirm(t('sessions.confirmUnban', {ip})))) return
+                            try {
+                                unbanBtn.disabled = true
+                                const delRes = await fetch(`/api/auth/profile/ip-bans/${encodeURIComponent(ip)}`, withCredentials({
+                                    method: 'DELETE'
+                                }))
+                                if (!delRes.ok) throw new Error('Failed to unban IP')
+                                showAlert(t('sessions.ipUnbanned'), 'success')
+                                await loadBannedIPs()
+                            } catch (err) {
+                                console.error('Failed to unban IP', err)
+                                showAlert(t('sessions.unbanFailed'), 'error')
+                            } finally {
+                                unbanBtn.disabled = false
+                            }
+                        }
+                    })
+                    const item = el('li', {class: 'banned-ip-item'}, ipSpan, unbanBtn)
+                    list.appendChild(item)
+                })
+                bodyRoot.appendChild(list)
+            } catch (err) {
+                console.error('Failed to load banned IPs', err)
+                bodyRoot.replaceChildren()
+                showAlert(caughtErrorMessage(err, 'sessions.loadFailed'), 'error')
+            }
+        }
+
+        loadBannedIPs()
+
+        void RenopDialog.show({
+            id: 'renop-banned-ips-dialog',
+            className: 'sessions-dialog',
+            maxWidth: '560px',
+            title: t('sessions.bannedIPsTitle'),
+            subtitle: t('sessions.bannedIPsSubtitle'),
+            icon: 'ssl',
+            body: bodyRoot,
+            footer: [
+                {
+                    text: t('sessions.close'),
+                    className: 'pill-btn pill-btn--soft pill-btn--sm',
+                    onClick: (e, d) => d.close(false)
+                }
+            ]
+        })
+    }
+
+    function buildIPCell(session) {
+        const ips = getSessionIPs(session)
+        if (!ips.length) {
+            return el('td', {class: 'sessions-mono sessions-col-ip'}, '—')
+        }
+        const container = el('div', {class: 'sessions-ip-container'})
+        ips.forEach(ip => {
+            const item = el('div', {class: 'sessions-ip-item'})
+            const text = el('span', {class: 'sessions-ip-text'}, ip)
+            item.appendChild(text)
+            if (opts.mode === 'self') {
+                const banBtn = createButton('', {
+                    class: 'sessions-ip-ban-btn',
+                    icon: 'delete',
+                    iconProps: {width: '12', height: '12'},
+                    title: t('sessions.banIp'),
+                    onClick: async (e) => {
+                        e.stopPropagation()
+                        if (!(await window.showConfirm(t('sessions.confirmBanIp', {ip})))) return
+                        try {
+                            banBtn.disabled = true
+                            const res = await fetch('/api/auth/profile/ip-bans', withCredentials({
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({ip})
+                            }))
+                            if (!res.ok) throw new Error('Failed to ban IP')
+                            showAlert(t('sessions.ipBanned'), 'success')
+                        } catch (err) {
+                            console.error('Failed to ban IP', err)
+                            showAlert(t('sessions.banIpFailed'), 'error')
+                        } finally {
+                            banBtn.disabled = false
+                        }
+                    }
+                })
+                item.appendChild(banBtn)
+            }
+            container.appendChild(item)
+        })
+        return el('td', {class: 'sessions-col-ip'}, container)
+    }
 
     /**
      * Enable or disable the bulk-revoke button based on remaining sessions.
@@ -557,7 +698,7 @@ export function openSessionsDialog(options = {mode: 'self'}) {
             idCell,
             deviceCell,
             methodCell,
-            el('td', {class: 'sessions-mono sessions-col-ip'}, session.ip || '—'),
+            buildIPCell(session),
             el('td', {class: 'sessions-col-last-active'}, formatDateTime(session.last_active)),
             el('td', {class: 'sessions-col-expires'}, formatDateTime(session.expires_at)),
             el('td', {class: 'sessions-col-actions'}, revokeBtn),
@@ -592,8 +733,10 @@ export function openSessionsDialog(options = {mode: 'self'}) {
         }
         const methodCell = row.querySelector('.sessions-col-method');
         if (methodCell) methodCell.textContent = formatLoginMethod(session.login_method);
-        const ipCell = row.querySelector('.sessions-col-ip');
-        if (ipCell) ipCell.textContent = session.ip || '—';
+        const ipCell = row.querySelector('.sessions-col-ip')
+        if (ipCell) {
+            ipCell.replaceWith(buildIPCell(session))
+        }
         const lastCell = row.querySelector('.sessions-col-last-active');
         if (lastCell) lastCell.textContent = formatDateTime(session.last_active);
         const expCell = row.querySelector('.sessions-col-expires');

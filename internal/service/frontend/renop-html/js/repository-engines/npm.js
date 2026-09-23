@@ -12,14 +12,14 @@ import {buildSnippets} from './npm-snippets.js';
 
 export default Object.freeze({
     buildSnippets,
-        id: 'npm',
-        protocol: 'npm',
-        icon: 'repositoryNpm',
-        labelKey: 'repos.formatNpm',
-        descriptionKey: 'repos.formatNpmDesc',
-        supportsBrowserUpload: false,
-        supportsRedeployment: false,
-        supportsGpg: false,
-        supportsArtifactTemplate: false,
-        snippetTabs: Object.freeze(['npm-config', 'npm-install', 'npm-publish'])
+    id: 'npm',
+    protocol: 'npm',
+    icon: 'repositoryNpm',
+    labelKey: 'repos.formatNpm',
+    descriptionKey: 'repos.formatNpmDesc',
+    supportsBrowserUpload: false,
+    supportsRedeployment: false,
+    supportsGpg: false,
+    supportsArtifactTemplate: false,
+    snippetTabs: Object.freeze(['npm-config', 'npm-install', 'npm-publish'])
 });

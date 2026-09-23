@@ -64,7 +64,12 @@ test('UI actions suppress double clicks and cancellation success while restoring
     vm.runInContext(source.replace(/^import .*;$/gm, '').replace(/^export /gm, ''), context);
     const button = {disabled: false}, feedback = {errorKey: 'failed', successKey: 'saved'};
     let calls = 0, release;
-    const action = () => { calls++; return new Promise(resolve => { release = resolve; }); };
+    const action = () => {
+        calls++;
+        return new Promise(resolve => {
+            release = resolve;
+        });
+    };
     const pending = context.runUIAction(button, action, feedback);
     await context.runUIAction(button, action, feedback);
     assert.equal(calls, 1);
@@ -73,7 +78,9 @@ test('UI actions suppress double clicks and cancellation success while restoring
     await pending;
     assert.equal(button.disabled, false);
     assert.deepEqual(alerts, []);
-    await context.runUIAction(button, () => { throw new Error('private runtime details'); }, feedback);
+    await context.runUIAction(button, () => {
+        throw new Error('private runtime details');
+    }, feedback);
     assert.deepEqual(alerts, [['failed', 'error']]);
     assert.equal(button.disabled, false);
     await context.runUIAction(button, () => undefined, feedback);

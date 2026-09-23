@@ -27,7 +27,7 @@ window.addEventListener('message', async event => {
     document.body.style.cssText = 'margin:0;padding:6px;box-sizing:border-box;min-width:0;background:transparent;display:flex;justify-content:center;align-items:center;min-height:100%;overflow:visible;';
     const widget = document.getElementById('widget');
     if (widget && widget.style) widget.style.cssText = 'display:flex;justify-content:center;align-items:center;width:100%;min-width:0;overflow:visible;';
-    const size = window.innerWidth < 340 ? 'compact' : 'normal';
+    const size = options.provider === 'recaptcha_invisible' ? 'invisible' : 'compact';
     const language = options.language?.startsWith('zh-') ? options.language.replace('zh-YUE', 'zh-HK')
         : options.language === 'pt-PT' ? 'pt-PT' : String(options.language || 'en').split('-')[0];
     let lastHeight = 0;
@@ -47,18 +47,32 @@ window.addEventListener('message', async event => {
         }
         if (height === 0) height = isHiddenByDefault ? 0 : 75;
         height = Math.min(900, Math.ceil(height));
-        if (height !== lastHeight && height > 0) { lastHeight = height; send('renop-captcha-size', {height}); }
+        if (height !== lastHeight && height > 0) {
+            lastHeight = height;
+            send('renop-captcha-size', {height});
+        }
     });
-    observer.observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'height', 'class']});
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['style', 'height', 'class']
+    });
 
     /** Load a pinned provider entry point and wait for its supported readiness callback. */
     const load = (src, {module = false, callback = false} = {}) => new Promise((resolve, reject) => {
         const script = document.createElement('script');
         const timer = setTimeout(() => reject(new Error('Provider load timed out')), 20000);
-        const done = () => { clearTimeout(timer); resolve(); };
+        const done = () => {
+            clearTimeout(timer);
+            resolve();
+        };
         if (callback) window.renopCaptchaReady = done;
         else script.onload = done;
-        script.onerror = () => { clearTimeout(timer); reject(new Error('Provider load failed')); };
+        script.onerror = () => {
+            clearTimeout(timer);
+            reject(new Error('Provider load failed'));
+        };
         if (module) script.type = 'module';
         script.src = src;
         document.head.appendChild(script);
@@ -66,32 +80,49 @@ window.addEventListener('message', async event => {
     try {
         if (options.provider === 'friendlycaptcha') {
             widget.className = 'frc-captcha';
-            Object.assign(widget.dataset, {sitekey: options.site_key, start: 'auto', theme: options.theme, apiEndpoint: options.friendly_region || 'global'});
+            Object.assign(widget.dataset, {
+                sitekey: options.site_key,
+                start: 'auto',
+                theme: options.theme,
+                apiEndpoint: options.friendly_region || 'global'
+            });
             widget.addEventListener('frc:widget.complete', event => complete(event.detail?.response));
             widget.addEventListener('frc:widget.error', failed);
             widget.addEventListener('frc:widget.expire', expired);
             await load('https://cdn.jsdelivr.net/npm/@friendlycaptcha/sdk@1.1.1/site.min.js', {module: true});
         } else if (options.provider === 'turnstile') {
             await load('https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=renopCaptchaReady', {callback: true});
-            window.turnstile.render(widget, {sitekey: options.site_key, action: options.action, theme: options.theme, size,
+            window.turnstile.render(widget, {
+                sitekey: options.site_key, action: options.action, theme: options.theme, size,
                 language, appearance: 'interaction-only',
                 callback: complete, 'error-callback': failed, 'expired-callback': expired,
-                'before-interactive-callback': () => send('renop-captcha-interactive')});
+                'before-interactive-callback': () => send('renop-captcha-interactive')
+            });
         } else if (options.provider === 'hcaptcha') {
             await load('https://js.hcaptcha.com/1/api.js?render=explicit&recaptchacompat=off&onload=renopCaptchaReady&hl=' + encodeURIComponent(language), {callback: true});
-            window.hcaptcha.render(widget, {sitekey: options.site_key, theme: options.theme, size,
-                callback: complete, 'error-callback': failed, 'expired-callback': expired});
+            window.hcaptcha.render(widget, {
+                sitekey: options.site_key, theme: options.theme, size,
+                callback: complete, 'error-callback': failed, 'expired-callback': expired
+            });
         } else if (options.provider.startsWith('recaptcha')) {
             const render = options.provider === 'recaptcha_v3' ? options.site_key : 'explicit';
-            await load('https://www.google.com/recaptcha/api.js?' + new URLSearchParams({render, hl: language, onload: 'renopCaptchaReady'}), {callback: true});
+            await load('https://www.google.com/recaptcha/api.js?' + new URLSearchParams({
+                render,
+                hl: language,
+                onload: 'renopCaptchaReady'
+            }), {callback: true});
             if (options.provider === 'recaptcha_v3') {
                 window.grecaptcha.ready(() => window.grecaptcha.execute(options.site_key, {action: options.action}).then(complete, failed));
             } else {
-                const id = window.grecaptcha.render(widget, {sitekey: options.site_key, theme: options.theme,
+                const id = window.grecaptcha.render(widget, {
+                    sitekey: options.site_key, theme: options.theme,
                     size: options.provider === 'recaptcha_invisible' ? 'invisible' : size, badge: 'inline',
-                    callback: complete, 'error-callback': failed, 'expired-callback': expired});
+                    callback: complete, 'error-callback': failed, 'expired-callback': expired
+                });
                 if (options.provider === 'recaptcha_invisible') window.grecaptcha.execute(id);
             }
         } else failed();
-    } catch { failed(); }
+    } catch {
+        failed();
+    }
 });

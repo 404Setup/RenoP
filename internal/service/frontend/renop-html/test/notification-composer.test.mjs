@@ -56,10 +56,18 @@ test('session targets reset on recipient changes and discard stale pages with re
     const requests = [], animations = [], timers = new Map();
     let nextTimer = 0, value = '', options = [];
     const select = {
-        querySelector: () => ({setAttribute() {}}),
+        querySelector: () => ({
+            setAttribute() {
+            }
+        }),
         getValue: () => value,
-        setValue: next => { value = next; },
-        setOptions: next => { options = next; if (!options.some(item => item.value === value)) value = ''; },
+        setValue: next => {
+            value = next;
+        },
+        setOptions: next => {
+            options = next;
+            if (!options.some(item => item.value === value)) value = '';
+        },
     };
     const context = vm.createContext({
         AbortController, encodeURIComponent,
@@ -67,14 +75,24 @@ test('session targets reset on recipient changes and discard stale pages with re
         expandElement: () => animations.push('expand'), collapseElement: () => animations.push('collapse'),
         SessionList: {}, t: key => key, formatTimestamp: value => String(value),
         fetchProto: (url, type, options) => new Promise(resolve => requests.push({url, ...options, resolve})),
-        setTimeout: fn => { timers.set(++nextTimer, fn); return nextTimer; },
+        setTimeout: fn => {
+            timers.set(++nextTimer, fn);
+            return nextTimer;
+        },
         clearTimeout: id => timers.delete(id),
     });
     vm.runInContext(source('js', 'notification-sessions.js').replace(/^import .*;\r?\n/gm, '').replaceAll('export ', ''), context);
     const field = {}, status = {};
-    const target = context.createNotificationSessions(field, {replaceChildren() {}}, status);
+    const target = context.createNotificationSessions(field, {
+        replaceChildren() {
+        }
+    }, status);
     const flush = () => new Promise(resolve => setImmediate(resolve));
-    const start = () => { const pending = [...timers.values()]; timers.clear(); pending.forEach(fn => fn()); };
+    const start = () => {
+        const pending = [...timers.values()];
+        timers.clear();
+        pending.forEach(fn => fn());
+    };
     target.update(['alice'], true);
     start();
     assert.equal(target.value(['alice']), '');

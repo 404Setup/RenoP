@@ -46,7 +46,7 @@ export default Object.freeze({
     "oauth.keyHint": "填入已註冊的 Stack Apps 應用程式金鑰。",
     "oauth.clearKey": "清除已儲存的 API 金鑰",
     "oauth.scopes": "授權範圍",
-    "oauth.scopesHint": "以空格分隔。內建服務提供預設值；OIDC 必須包含 openid。",
+    "oauth.scopesHint": "以空格分隔。內建服務提供預設值，OIDC 必須包含 openid。",
     "oauth.authorize_url": "授權 URL",
     "oauth.token_url": "權杖 URL",
     "oauth.userinfo_url": "用戶資訊 URL",
@@ -104,7 +104,7 @@ export default Object.freeze({
     "registration.settingsInvalid": "請用正整數限額，同埋唔超過一年嘅有效週期。",
     "registration.expired": "今次確認已過期，請等設定嘅冷卻期結束後重新註冊。",
     "registration.chooseUsername": "第三方用戶名稱已有人用，或者唔符合呢個實例嘅規則，請手動輸入名稱。",
-    "registration.providerHint": "已取得 GitHub 驗證嘅電郵。請設定密碼，並喺十分鐘內確認註冊；匯入資料可以自行選擇。",
+    "registration.providerHint": "已取得 GitHub 驗證嘅電郵。請設定密碼，並喺十分鐘內確認註冊，匯入資料可以自行選擇。",
     "registration.importProfile": "使用 GitHub 用戶名稱、暱稱同頭像",
     "registration.success": "帳戶已建立，請用新密碼或已連結嘅第三方帳戶登入。",
     "registration.avatarSkipped": "帳戶已建立，但匯入唔到頭像。你可以喺個人資料上傳頭像。",
@@ -292,4 +292,5 @@ export default Object.freeze({
     "oauth.revocationSecretHint": "至少 32 個字元，用嚟驗證第三方撤銷回調嘅簽章。",
     "oauth.clearRevocationSecret": "清除撤銷回調密鑰",
     "oauth.logoutRevokeFailed": "已經喺本機登出，但撤銷唔到第三方授權，請去該平台嘅設定撤銷。",
+    "mfa.deviceRateLimited": "由於安全配置，呢部裝置暫時無法繼續登入呢個帳號，請等到 {time}+1分鐘 再試。",
 });

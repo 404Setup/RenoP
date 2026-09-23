@@ -523,10 +523,21 @@ html.dark .ticket-status-pill.is-rejected {
     color: #059669;
 }
 
-html.dark .ticket-badge.is-admin { color: #f87171; }
-html.dark .ticket-badge.is-moderator { color: #c084fc; }
-html.dark .ticket-badge.is-team-admin { color: #60a5fa; }
-html.dark .ticket-badge.is-staff { color: #34d399; }
+html.dark .ticket-badge.is-admin {
+    color: #f87171;
+}
+
+html.dark .ticket-badge.is-moderator {
+    color: #c084fc;
+}
+
+html.dark .ticket-badge.is-team-admin {
+    color: #60a5fa;
+}
+
+html.dark .ticket-badge.is-staff {
+    color: #34d399;
+}
 
 .ticket-comment-body {
     padding: 0.95rem;

@@ -19,12 +19,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gofiber/fiber/v3"
-	"github.com/stretchr/testify/require"
 	"renop/internal/config"
 	"renop/internal/core"
 	"renop/internal/service/index"
 	"renop/internal/testutil/tickettest"
+
+	"github.com/gofiber/fiber/v3"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNativePublicationOwnershipReviewAndRestart(t *testing.T) {

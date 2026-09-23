@@ -115,15 +115,16 @@ func (s *Session) UnmarshalJSON(data []byte) error {
 }
 
 type SessionDto struct {
-	PublicID    string `json:"public_id"`
-	Username    string `json:"username"`
-	IP          string `json:"ip"`
-	UserAgent   string `json:"user_agent"`
-	CreatedAt   int64  `json:"created_at"`
-	LastActive  int64  `json:"last_active"`
-	ExpiresAt   int64  `json:"expires_at"`
-	Current     bool   `json:"current"`
-	LoginMethod string `json:"login_method"`
+	PublicID    string   `json:"public_id"`
+	Username    string   `json:"username"`
+	IP          string   `json:"ip"`
+	UserAgent   string   `json:"user_agent"`
+	CreatedAt   int64    `json:"created_at"`
+	LastActive  int64    `json:"last_active"`
+	ExpiresAt   int64    `json:"expires_at"`
+	Current     bool     `json:"current"`
+	LoginMethod string   `json:"login_method"`
+	RecentIPs   []string `json:"recent_ips,omitempty"`
 }
 
 // CurrentSessionID identifies the session attached to the current request.

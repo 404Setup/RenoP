@@ -587,7 +587,7 @@
     color: var(--text-muted);
     box-shadow: 0 2px 6px -3px rgba(15, 23, 42, 0.4);
     transition: transform 0.16s ease, box-shadow 0.16s ease,
-        border-color 0.16s ease, color 0.16s ease, background-color 0.16s ease;
+    border-color 0.16s ease, color 0.16s ease, background-color 0.16s ease;
 }
 
 .npm-metadata-copy:hover,

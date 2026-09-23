@@ -328,4 +328,13 @@ export default Object.freeze({
     "profile.apiTokenScope.adminNotifications": "Send administrator notifications",
     "profile.apiTokenScope.adminUpdates": "Manage system updates",
     "profile.apiTokenScope.adminStatistics": "Read system-wide statistics",
+    "profile.apiTokenRotate": "Rotate",
+    "profile.apiTokenRotateConfirm": "Rotate API token '{name}'? The current secret will stop working immediately.",
+    "profile.apiTokenRotated": "API token rotated",
+    "profile.apiTokenRotateFailed": "Failed to rotate API token",
+    "profile.apiTokenEdit": "Edit",
+    "profile.apiTokenEditTitle": "Edit API Token",
+    "profile.apiTokenEditDesc": "Update API token name and permissions without changing the secret.",
+    "profile.apiTokenEdited": "API token updated",
+    "profile.apiTokenEditFailed": "Failed to update API token",
 });

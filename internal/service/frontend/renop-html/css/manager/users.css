@@ -704,9 +704,99 @@ html:not(.light) .user-editor-card .modal-header {
     padding: 1rem 1.1rem 1.1rem;
 }
 
+.user-editor-step-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+    padding: 0.25rem 0;
+}
+
+.user-editor-step-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.85rem;
+    border-radius: 9999px;
+    border: 1px solid var(--border-color);
+    background: var(--card-bg);
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.user-editor-step-badge.active {
+    border-color: var(--link-hover-color);
+    background: color-mix(in srgb, var(--link-hover-color) 10%, transparent);
+    color: var(--link-hover-color);
+    font-weight: 600;
+}
+
+.user-editor-step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 50%;
+    background: var(--border-color);
+    color: var(--text-color);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.user-editor-step-badge.active .user-editor-step-num {
+    background: var(--link-hover-color);
+    color: #fff;
+}
+
+.user-editor-step-connector {
+    width: 2.5rem;
+    height: 2px;
+    background: var(--border-color);
+    border-radius: 1px;
+}
+
+.user-editor-step {
+    width: 100%;
+}
+
+@keyframes userStepSlideForward {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes userStepSlideBackward {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.user-editor-step.step-slide-forward {
+    animation: userStepSlideForward 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.user-editor-step.step-slide-backward {
+    animation: userStepSlideBackward 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 .user-editor-body {
     display: grid;
-    grid-template-columns: minmax(240px, 0.78fr) minmax(390px, 1.22fr);
+    grid-template-columns: minmax(0, 1fr);
     gap: 1rem;
     align-items: start;
 }
@@ -986,7 +1076,7 @@ renop-roles-group,
 }
 
 .role-chip-code {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-family: var(--font-mono, monospace);
     font-size: 0.68rem;
     font-weight: 500;
     opacity: 0.48;

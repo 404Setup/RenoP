@@ -10,8 +10,9 @@ description: RenoP の HTTP、REST、RPC API の概要
 RenoP は、管理自動化、クライアント統合、監視向けの HTTP API を提供します。既定の待受先は
 `http://localhost:3000` です。
 
-
-[API リファレンス](/api) では、システム管理、クライアント統合、状態監視に関する各エンドポイントを提供します。仕様の確認やクライアント生成には、生の [OpenAPI ファイル](/assets/openapi.yaml) をダウンロードして利用できます。
+[API リファレンス](/api)
+では、システム管理、クライアント統合、状態監視に関する各エンドポイントを提供します。仕様の確認やクライアント生成には、生の [OpenAPI ファイル](/assets/openapi.yaml)
+をダウンロードして利用できます。
 
 ## ルート構成
 
@@ -29,7 +30,8 @@ RenoP は、管理自動化、クライアント統合、監視向けの HTTP AP
 
 スキーマに基づく管理 API はバイナリ protobuf を使用します。`Content-Type: application/x-protobuf` を指定してください。
 要求は `application/protobuf` と `application/octet-stream` も受け付け、Content-Type が未指定の場合は protobuf です。
-JSON 本文は拒否され、エンドポイントに応じて `400` または `415` となります。応答は常に `application/x-protobuf` で、`Accept` で JSON に
+JSON 本文は拒否され、エンドポイントに応じて `400` または `415` となります。応答は常に `application/x-protobuf` で、`Accept`
+で JSON に
 切り替えることはできません。稼働バージョンの `proto/api/v1/api.proto` を使用してください。
 
 制御要求の上限は 1 MiB で、各エンドポイントのより小さい上限も維持します。protobuf メッセージの JSON 例は

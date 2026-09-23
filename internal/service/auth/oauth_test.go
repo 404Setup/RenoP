@@ -301,7 +301,7 @@ func TestCloudflareOAuthFlow(t *testing.T) {
 	var receivedAuthHeader string
 	var receivedForm url.Values
 	var tokenMode string
-	var returnSub string = "cf-user-999"
+	var returnSub = "cf-user-999"
 	var serveCFUser bool
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

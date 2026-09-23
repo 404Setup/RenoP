@@ -36,6 +36,14 @@ textarea {
     font-size: inherit;
 }
 
+code,
+kbd,
+samp,
+pre {
+    font-family: var(--font-mono, monospace);
+    font-size: 0.9em;
+}
+
 a {
     -webkit-user-drag: none;
     color: var(--link-color);

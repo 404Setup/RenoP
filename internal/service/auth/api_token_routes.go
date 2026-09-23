@@ -41,10 +41,97 @@ func setupAPITokenRoutes(auth fiber.Router, state *core.AppState) {
 	auth.Get("/profile/api-tokens", func(c fiber.Ctx) error { return listProfileAPITokens(c, state) })
 	auth.Get("/profile/api-tokens/scopes", func(c fiber.Ctx) error { return listProfileAPITokenScopes(c, state) })
 	auth.Post("/profile/api-tokens", func(c fiber.Ctx) error { return createProfileAPIToken(c, state) })
+	auth.Put("/profile/api-tokens/:token_id", func(c fiber.Ctx) error { return updateProfileAPIToken(c, state) })
+	auth.Post("/profile/api-tokens/:token_id/rotate", func(c fiber.Ctx) error { return rotateProfileAPIToken(c, state) })
 	auth.Put("/profile/api-tokens/:token_id/state", func(c fiber.Ctx) error {
 		return updateProfileAPITokenState(c, state)
 	})
 	auth.Delete("/profile/api-tokens/:token_id", func(c fiber.Ctx) error { return deleteProfileAPIToken(c, state) })
+}
+
+type updateAPITokenRequest struct {
+	Name    string              `json:"name"`
+	Scopes  []string            `json:"scopes"`
+	Targets map[string][]string `json:"targets"`
+}
+
+func updateProfileAPIToken(c fiber.Ctx, state *core.AppState) error {
+	user, err := requireAccountSession(c)
+	if err != nil {
+		return accountSessionError(c, err)
+	}
+	tokenID := strings.TrimSpace(c.Params("token_id"))
+	if uuid.Validate(tokenID) != nil {
+		return c.SendStatus(fiber.StatusNotFound)
+	}
+	var request updateAPITokenRequest
+	if err := utils.ReadJSONLimited(c, &request, utils.MaxJSONBodySize); err != nil {
+		return c.Status(fiber.StatusBadRequest).SendString("Invalid API token request")
+	}
+	account := state.GetTokenByName(user.Username)
+	if account == nil {
+		return c.Status(fiber.StatusNotFound).SendString("Account not found")
+	}
+	name := strings.TrimSpace(request.Name)
+	if !validAPITokenName(name) {
+		return c.Status(fiber.StatusBadRequest).SendString("API token name is invalid")
+	}
+	normalizedScopes, err := normalizeAPITokenScopes(account, request.Scopes)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).SendString("API token scopes are invalid")
+	}
+	normalizedTargets, err := normalizeAPITokenTargets(account, normalizedScopes, request.Targets)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).SendString("API token targets are invalid")
+	}
+	updated, err := state.GetDB().UpdateAPIToken(user.Username, tokenID, name, normalizedScopes, normalizedTargets)
+	switch {
+	case errors.Is(err, core.ErrAPITokenNotFound):
+		return c.SendStatus(fiber.StatusNotFound)
+	case errors.Is(err, core.ErrAPITokenNameExists):
+		c.Set("X-Renop-Error-Code", "API_TOKEN_NAME_CONFLICT")
+		return c.Status(fiber.StatusConflict).SendString("API token name already exists")
+	case err != nil:
+		return c.Status(fiber.StatusInternalServerError).SendString("Failed to update API token")
+	}
+	state.InvalidateAPITokenAuthCache(tokenID)
+	username, operator, authMethod, sessionID, ip := audit.ExtractAuthDetails(c, state)
+	audit.Log(state, &core.AuditLogEntry{
+		Username: username, Operator: operator, Action: audit.ActionTokenUpdate,
+		Details: "Updated API token " + updated.Name, AuthMethod: authMethod, SessionID: sessionID, IP: ip,
+	})
+	setPrivateResponseHeaders(c)
+	return c.JSON(fiber.Map{"token": updated})
+}
+
+func rotateProfileAPIToken(c fiber.Ctx, state *core.AppState) error {
+	user, err := requireAccountSession(c)
+	if err != nil {
+		return accountSessionError(c, err)
+	}
+	tokenID := strings.TrimSpace(c.Params("token_id"))
+	if uuid.Validate(tokenID) != nil {
+		return c.SendStatus(fiber.StatusNotFound)
+	}
+	newSecret, err := generateAPITokenSecret()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).SendString("Failed to generate token secret")
+	}
+	token, err := state.GetDB().RotateAPIToken(user.Username, tokenID, apiTokenSecretHash(newSecret))
+	switch {
+	case errors.Is(err, core.ErrAPITokenNotFound):
+		return c.SendStatus(fiber.StatusNotFound)
+	case err != nil:
+		return c.Status(fiber.StatusInternalServerError).SendString("Failed to rotate API token")
+	}
+	state.InvalidateAPITokenAuthCache(tokenID)
+	username, operator, authMethod, sessionID, ip := audit.ExtractAuthDetails(c, state)
+	audit.Log(state, &core.AuditLogEntry{
+		Username: username, Operator: operator, Action: audit.ActionTokenRotate,
+		Details: "Rotated API token " + token.Name, AuthMethod: authMethod, SessionID: sessionID, IP: ip,
+	})
+	setPrivateResponseHeaders(c)
+	return c.JSON(fiber.Map{"token": token, "secret": newSecret})
 }
 
 func updateProfileAPITokenState(c fiber.Ctx, state *core.AppState) error {

@@ -103,7 +103,12 @@ export class RenopDialog extends HTMLElement {
         const modalStyle = {};
         if (opts.maxWidth) modalStyle.maxWidth = opts.maxWidth;
 
-        this._modalContent = el('div', {class: modalClasses.join(' '), style: modalStyle, role: 'dialog', 'aria-modal': 'true'});
+        this._modalContent = el('div', {
+            class: modalClasses.join(' '),
+            style: modalStyle,
+            role: 'dialog',
+            'aria-modal': 'true'
+        });
 
         let formOrWrapper = this._modalContent;
         if (opts.form) {

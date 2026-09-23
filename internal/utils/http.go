@@ -13,6 +13,7 @@ package utils
 import (
 	"errors"
 	"net"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -120,7 +121,7 @@ func ParseRange(rangeStr string, fileSize uint64) (uint64, uint64, bool) {
 // ExtractIP returns the client IP for rate limiting and sessions.
 func ExtractIP(c fiber.Ctx, serverConfig *config.ServerConfig) string {
 	rawIP := peerIP(c)
-	if serverConfig.CdnIPHeader == "" || !serverConfig.IsTrustedProxy(rawIP) {
+	if serverConfig == nil || serverConfig.CdnIPHeader == "" || !serverConfig.IsTrustedProxy(rawIP) {
 		return rawIP
 	}
 
@@ -132,8 +133,8 @@ func ExtractIP(c fiber.Ctx, serverConfig *config.ServerConfig) string {
 	// Walk right-to-left: for X-Forwarded-For the rightmost entry is the nearest
 	// hop. Skip IPs that are themselves trusted proxies; return the first real client.
 	parts := strings.Split(val, ",")
-	for i := len(parts) - 1; i >= 0; i-- {
-		candidate := normalizeForwardedIP(parts[i])
+	for _, part := range slices.Backward(parts) {
+		candidate := normalizeForwardedIP(part)
 		if candidate == "" || net.ParseIP(candidate) == nil {
 			continue
 		}

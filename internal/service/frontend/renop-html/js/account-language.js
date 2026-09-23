@@ -117,7 +117,11 @@ export function installAccountLanguageSync() {
     }
 
     window.addEventListener('authChanged', event => {
-        if (demoMode.enabled) { active?.controller.abort(); active = null; return; }
+        if (demoMode.enabled) {
+            active?.controller.abort();
+            active = null;
+            return;
+        }
         const username = event.detail?.isLoggedIn ? event.detail.username : '';
         if (active?.username === username) return;
         active?.controller.abort();

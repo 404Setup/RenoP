@@ -32,7 +32,7 @@ func TestCustomResourceLockReasonSurvivesMigrationAndRestart(t *testing.T) {
 	db, err := database.InitDB(cfg)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, db.Close()) })
-	lock := &core.ResourceLock{ResourceLockTarget: core.ResourceLockTarget{Format: "cargo", Repository: "cargo", Name: "demo"},
+	lock := &core.ResourceLock{Format: "cargo", Repository: "cargo", Name: "demo",
 		Source: core.ResourceLockSystem, Mode: core.ResourceLockWrite, Reason: "hold", LockedAt: time.Now().UnixMilli()}
 	require.NoError(t, db.SetResourceLock(lock, "", ""))
 	_, err = db.Exec(`ALTER TABLE resource_locks DROP COLUMN reason_text`)

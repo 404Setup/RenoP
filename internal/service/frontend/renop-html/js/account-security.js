@@ -58,7 +58,10 @@ function renderAccountSecurity(security) {
     }
     const previous = document.getElementById('profile-previous-primary-emails');
     if (previous) previous.replaceChildren(...(security.previous_primary_emails || []).map(entry =>
-        el('p', {class: 'profile-security-hint'}, t('profile.previousPrimaryRecovery', {email: entry.email, date: formatTimestamp(entry.expires_at)}))));
+        el('p', {class: 'profile-security-hint'}, t('profile.previousPrimaryRecovery', {
+            email: entry.email,
+            date: formatTimestamp(entry.expires_at)
+        }))));
     if (locked) securityHoldTimer = setTimeout(() => void refreshAccountSecurity(), Math.min(security.security_hold_until - Date.now() + 1, 2147483647));
     const passkeyMFA = document.getElementById('profile-mfa-passkey');
     if (passkeyMFA) {

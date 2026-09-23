@@ -175,7 +175,12 @@ send.addEventListener('click', () => runButtonAction(send, async () => {
     const revision = epoch, address = email.value.trim();
     error.textContent = '';
     try {
-        const result = await requestJSON('registration/code', {json: {email: address, provider: pending?.provider || ''}});
+        const result = await requestJSON('registration/code', {
+            json: {
+                email: address,
+                provider: pending?.provider || ''
+            }
+        });
         if (!active || revision !== epoch || address !== email.value.trim()) return;
         clearDelivery();
         receipt = {...result, deadline: Date.now() + 600000};

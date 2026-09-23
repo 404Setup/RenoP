@@ -328,4 +328,13 @@ export default Object.freeze({
     "profile.retirePlanFailed": "계정 닫기 요구 사항을 확인하지 못했습니다.",
     "profile.accountRetired": "이 계정은 영구적으로 닫혔으며 사용자 이름은 계속 예약됩니다.",
     "profile.accountRetiredAt": "{date}에 닫힘",
+    "profile.apiTokenRotate": "순환",
+    "profile.apiTokenRotateConfirm": "API 토큰 '{name}'을(를) 순환하시겠습니까? 현재 보안 비밀은 즉시 작동을 멈춥니다.",
+    "profile.apiTokenRotated": "API 토큰이 순환되었습니다",
+    "profile.apiTokenRotateFailed": "API 토큰 순환 실패",
+    "profile.apiTokenEdit": "편집",
+    "profile.apiTokenEditTitle": "API 토큰 편집",
+    "profile.apiTokenEditDesc": "보안 비밀을 변경하지 않고 API 토큰 이름과 권한을 업데이트합니다.",
+    "profile.apiTokenEdited": "API 토큰이 업데이트되었습니다",
+    "profile.apiTokenEditFailed": "API 토큰 업데이트 실패",
 });

@@ -16,15 +16,15 @@ les archives de migration pour un éventuel retour à une ancienne version de Re
 
 ## Classer les données
 
-| Donnée                      | Emplacement courant                         | Rôle à la restauration                                              |
-|:----------------------------|:--------------------------------------------|:--------------------------------------------------------------------|
-| Configuration principale    | `renop-settings.db` ou `RENOP_SETTINGS_DB`             | Écoute, base, proxy, sécurité, aperçus, mise à jour                 |
-| Définition des dépôts       | Base de données | Format, visibilité, miroirs, stockage, règles                       |
-| Base de données             | `renop.db` ou DSN externe                   | Comptes, droits, sessions, jetons, équipes, revues, audit, messages |
-| Artefacts locaux            | `storage_path`                              | Paquets publiés, envois, cache amont                                |
-| Artefacts S3 compatibles    | Bucket et préfixe par dépôt                 | Paquets et cache des dépôts S3                                      |
-| Index de fichiers           | `index.json` ou `RENOP_INDEX`               | Instantané de performance, utile mais reconstructible               |
-| Secrets TLS et intégrations | Proxy ou gestionnaire de secrets            | Restauration du service public et des intégrations                  |
+| Donnée                      | Emplacement courant                        | Rôle à la restauration                                              |
+|:----------------------------|:-------------------------------------------|:--------------------------------------------------------------------|
+| Configuration principale    | `renop-settings.db` ou `RENOP_SETTINGS_DB` | Écoute, base, proxy, sécurité, aperçus, mise à jour                 |
+| Définition des dépôts       | Base de données                            | Format, visibilité, miroirs, stockage, règles                       |
+| Base de données             | `renop.db` ou DSN externe                  | Comptes, droits, sessions, jetons, équipes, revues, audit, messages |
+| Artefacts locaux            | `storage_path`                             | Paquets publiés, envois, cache amont                                |
+| Artefacts S3 compatibles    | Bucket et préfixe par dépôt                | Paquets et cache des dépôts S3                                      |
+| Index de fichiers           | `index.json` ou `RENOP_INDEX`              | Instantané de performance, utile mais reconstructible               |
+| Secrets TLS et intégrations | Proxy ou gestionnaire de secrets           | Restauration du service public et des intégrations                  |
 
 Les sorties du site, dépendances frontend et caches de build sont reproductibles et ne doivent contenir l’unique copie
 d’aucun secret d’exploitation.
@@ -127,4 +127,7 @@ et consignez :
 Une sauvegarde jamais restaurée reste une hypothèse. Reliez le runbook à la
 [Checklist de mise en production](./production-checklist.md) et conservez-en une copie hors ligne.
 
-Le partage S3 conserve les données dans l’espace privé `.renop-content-v1`. Incluez-le avec les objets des dépôts dans les sauvegardes et conservez l’index privé pour réduire les lectures de métadonnées après redémarrage. L’index utilise un flux de records JSON versionné ; les anciens instantanés restent lisibles. Consultez la [configuration des dépôts](/docs/configuration/repositories) pour la déduplication et la restauration.
+Le partage S3 conserve les données dans l’espace privé `.renop-content-v1`. Incluez-le avec les objets des dépôts dans
+les sauvegardes et conservez l’index privé pour réduire les lectures de métadonnées après redémarrage. L’index utilise
+un flux de records JSON versionné ; les anciens instantanés restent lisibles. Consultez
+la [configuration des dépôts](/docs/configuration/repositories) pour la déduplication et la restauration.

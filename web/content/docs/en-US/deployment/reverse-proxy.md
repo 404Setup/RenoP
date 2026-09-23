@@ -63,7 +63,8 @@ renop.example.com {
 ### Automatic installation
 
 Run the installer from RenoP's deployment directory. It discovers standard Caddyfile locations, validates the new
-site through the Caddy binary, then updates the Caddyfile and the settings database with rollback on failure and reloads Caddy. RenoP's `renop-settings.db` is
+site through the Caddy binary, then updates the Caddyfile and the settings database with rollback on failure and reloads
+Caddy. RenoP's `renop-settings.db` is
 synchronized to use the selected public hostname, a loopback listener, and Caddy-managed TLS.
 
 ```bash

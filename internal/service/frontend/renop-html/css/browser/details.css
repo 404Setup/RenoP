@@ -248,7 +248,7 @@
     width: max-content;
     min-width: 100%;
     margin: 0;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "JetBrains Mono", monospace;
+    font-family: var(--font-mono, monospace);
     font-size: 0.82rem;
     color: var(--text-color);
     line-height: 1.6;
@@ -313,8 +313,9 @@
 }
 
 .repository-fact-value code {
+    font-family: inherit;
     color: inherit;
-    font-size: 0.78rem;
+    font-size: inherit;
 }
 
 .repository-fact-value .user-identity {
@@ -502,7 +503,7 @@ renop-mirror-card,
     line-height: 1.4;
     opacity: 0.65;
     word-break: break-all;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "JetBrains Mono", monospace;
+    font-family: var(--font-mono, monospace);
 }
 
 .mirror-card-meta {

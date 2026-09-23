@@ -26,9 +26,9 @@ Disk or S3 storage          SQL database
 File index and mirrors      Identity, teams, audit, messages
 ```
 
-- `internal/api` 与中间件负责通用 HTTP 契约、搜索、异常检测和凭据边界；
-- 各引擎服务负责 Maven 域/目录、npm packument、Cargo Sparse Index、Docker Distribution v2 与文档预览；
-- 数据库层为 SQLite、MySQL、PostgreSQL 与 ClickHouse 提供方言感知事务；
+- `internal/api` 与中间件负责通用 HTTP 契约、搜索、异常检测和凭据边界。
+- 各引擎服务负责 Maven 域/目录、npm packument、Cargo Sparse Index、Docker Distribution v2 与文档预览。
+- 数据库层为 SQLite、MySQL、PostgreSQL 与 ClickHouse 提供方言感知事务。
 - Disk/S3 流式处理大型正文，文件索引提供有界元数据遍历。
 
 ## 请求与任务流水线
@@ -40,7 +40,7 @@ File index and mirrors      Identity, teams, audit, messages
 
 ### 认证与授权
 
-浏览器会话只使用 Cookie；Basic 仅用于标准包协议。Bearer API Token 的权限与精确目标限制会在每次请求时和
+浏览器会话只使用 Cookie。Basic 仅用于标准包协议。Bearer API Token 的权限与精确目标限制会在每次请求时和
 账号当前存储库权限、L0-L4 包/域成员关系取交集。不可变用户 ID 在用户名变更后继续保持所有权。
 
 ### 异步任务

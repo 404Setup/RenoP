@@ -57,17 +57,28 @@ export function resetLegalConsent(kind) {
 export async function loadLegalMetadata(refresh = false) {
     if (metadata && !refresh) return metadata;
     if (!pending) {
-        pending = fetch('/api/legal', {credentials: 'omit', cache: 'no-cache', headers: {Accept: 'application/x-protobuf'}, signal: AbortSignal.timeout(15000)})
+        pending = fetch('/api/legal', {
+            credentials: 'omit',
+            cache: 'no-cache',
+            headers: {Accept: 'application/x-protobuf'},
+            signal: AbortSignal.timeout(15000)
+        })
             .then(response => readResponseBytes(response, 'application/x-protobuf', 4096))
             .then(bytes => {
                 const value = LegalMetadata.toObject(LegalMetadata.decode(bytes), protoObjectOptions);
                 if (!/^[a-f0-9]{64}$/.test(value?.revision) || typeof value.cookie_banner !== 'boolean') throw new Error('invalid legal metadata');
                 const changed = !metadata || metadata.revision !== value.revision || metadata.cookie_banner !== value.cookie_banner || metadata.content_revision !== value.content_revision;
-                metadata = {revision: value.revision, cookie_banner: value.cookie_banner, content_revision: value.content_revision};
+                metadata = {
+                    revision: value.revision,
+                    cookie_banner: value.cookie_banner,
+                    content_revision: value.content_revision
+                };
                 updateConsentControls();
                 if (changed) window.dispatchEvent(new CustomEvent('legalConfigurationChanged', {detail: metadata}));
                 return metadata;
-            }).finally(() => { pending = null; });
+            }).finally(() => {
+                pending = null;
+            });
     }
     return pending;
 }
@@ -107,7 +118,13 @@ export function initializeLegalConsent() {
     for (const kind of ['login', 'registration']) {
         const slot = document.getElementById(kind + '-legal-consent-slot');
         if (!slot) continue;
-        const input = el('input', {type: 'checkbox', id: kind + '-legal-consent', required: true, disabled: true, 'data-legal-consent': ''});
+        const input = el('input', {
+            type: 'checkbox',
+            id: kind + '-legal-consent',
+            required: true,
+            disabled: true,
+            'data-legal-consent': ''
+        });
         input.addEventListener('change', () => {
             consentEpoch++;
             if (!metadata || input.dataset.revision !== metadata.revision) return;
@@ -119,7 +136,12 @@ export function initializeLegalConsent() {
         });
         const links = el('div', {class: 'legal-consent-links'});
         for (const name of ['privacy-policy', 'terms-of-service']) {
-            links.appendChild(el('a', {href: '/' + name, target: '_blank', rel: 'noopener', 'data-i18n': LEGAL_DOCUMENTS[name]}, t(LEGAL_DOCUMENTS[name])));
+            links.appendChild(el('a', {
+                href: '/' + name,
+                target: '_blank',
+                rel: 'noopener',
+                'data-i18n': LEGAL_DOCUMENTS[name]
+            }, t(LEGAL_DOCUMENTS[name])));
         }
         slot.replaceChildren(
             el('label', {class: 'legal-consent'}, input, el('span', {'data-i18n': 'legal.consentLabel'}, t('legal.consentLabel'))),
@@ -129,5 +151,8 @@ export function initializeLegalConsent() {
     void loadLegalMetadata().catch(() => {
         for (const kind of ['login', 'registration']) consentError(kind, 'legal.loadFailed');
     });
-    window.addEventListener('legalSettingsChanged', () => { void loadLegalMetadata(true).catch(() => {}); });
+    window.addEventListener('legalSettingsChanged', () => {
+        void loadLegalMetadata(true).catch(() => {
+        });
+    });
 }

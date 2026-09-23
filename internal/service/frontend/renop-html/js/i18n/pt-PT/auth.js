@@ -292,4 +292,5 @@ export default Object.freeze({
     "oauth.revocationSecretHint": "Pelo menos 32 caracteres. Verifica a assinatura dos callbacks de revogação do fornecedor.",
     "oauth.clearRevocationSecret": "Limpar segredo do callback de revogação",
     "oauth.logoutRevokeFailed": "Sessão local terminada. Não foi possível revogar a autorização; revogue-a nas definições do fornecedor.",
+    "mfa.deviceRateLimited": "Devido às definições de segurança, este dispositivo não pode iniciar sessão temporariamente. Aguarde até {time}+1 minuto e tente novamente.",
 });

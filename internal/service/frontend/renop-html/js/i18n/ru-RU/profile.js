@@ -328,4 +328,13 @@ export default Object.freeze({
     "profile.retirePlanFailed": "Не удалось проверить требования для закрытия учётной записи.",
     "profile.accountRetired": "Эта учётная запись окончательно закрыта. Имя пользователя остаётся зарезервированным.",
     "profile.accountRetiredAt": "Закрыта {date}",
+    "profile.apiTokenRotate": "Ротировать",
+    "profile.apiTokenRotateConfirm": "Ротировать API-токен '{name}'? Текущий секрет перестанет работать немедленно.",
+    "profile.apiTokenRotated": "API-токен ротирован",
+    "profile.apiTokenRotateFailed": "Не удалось ротировать API-токен",
+    "profile.apiTokenEdit": "Редактировать",
+    "profile.apiTokenEditTitle": "Редактировать API-токен",
+    "profile.apiTokenEditDesc": "Обновить имя и разрешения API-токена без изменения секрета.",
+    "profile.apiTokenEdited": "API-токен обновлен",
+    "profile.apiTokenEditFailed": "Не удалось обновить API-токен",
 });

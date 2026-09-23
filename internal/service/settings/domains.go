@@ -92,7 +92,7 @@ func UpdateDomainSettings(c fiber.Ctx, state *core.AppState) error {
 			limit += 3 * config.MaxLegalDocumentBytes
 		}
 		if err := protohttp.ReadLimit(c, msg, limit); err != nil {
-			if err == fiber.ErrRequestEntityTooLarge {
+			if errors.Is(err, fiber.ErrRequestEntityTooLarge) {
 				return err
 			}
 			return fiber.NewError(fiber.StatusBadRequest, "Bad Request")

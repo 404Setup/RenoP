@@ -27,7 +27,13 @@ test('ban editor loads current protection and submits the explicit IP choice', a
         Date, encodeURIComponent,
         makeCustomSelect: (_options, _value, change) => {
             chooseReason = change;
-            return {querySelector: () => ({setAttribute() {}, focus() {}})};
+            return {
+                querySelector: () => ({
+                    setAttribute() {
+                    }, focus() {
+                    }
+                })
+            };
         },
         t: key => key, showAlert: (message, tone) => alerts.push({message, tone}),
         apiRequest: async (url, options = {}) => {
@@ -81,15 +87,38 @@ test('ban editor loads current protection and submits the explicit IP choice', a
     assert.equal(JSON.parse(requests.at(-1).body).ban_ip, false);
     chooseReason('security_rules');
     assert.equal(fields.get('user-ban-reason').disabled, true);
-    await dialog.form.onSubmit({preventDefault() {}}, {close() {}});
-    assert.deepEqual(JSON.parse(requests.at(-1).body), {reason: '', reason_code: 'security_rules', expires_at: null, ban_ip: false});
-    assert.equal(context.accountBanReasonLabel({reason_code: 'security_rules', reason: 'Fallback'}), 'users.banReason.security_rules');
+    await dialog.form.onSubmit({
+        preventDefault() {
+        }
+    }, {
+        close() {
+        }
+    });
+    assert.deepEqual(JSON.parse(requests.at(-1).body), {
+        reason: '',
+        reason_code: 'security_rules',
+        expires_at: null,
+        ban_ip: false
+    });
+    assert.equal(context.accountBanReasonLabel({
+        reason_code: 'security_rules',
+        reason: 'Fallback'
+    }), 'users.banReason.security_rules');
     chooseReason('other');
     fields.get('user-ban-reason').value = 'users.banReason.security_rules';
-    await dialog.form.onSubmit({preventDefault() {}}, {close() {}});
+    await dialog.form.onSubmit({
+        preventDefault() {
+        }
+    }, {
+        close() {
+        }
+    });
     assert.equal(JSON.parse(requests.at(-1).body).reason, 'users.banReason.security_rules');
     assert.equal(JSON.parse(requests.at(-1).body).reason_code, '');
-    assert.equal(context.accountBanReasonLabel({reason_code: '', reason: '<literal custom reason>'}), '<literal custom reason>');
+    assert.equal(context.accountBanReasonLabel({
+        reason_code: '',
+        reason: '<literal custom reason>'
+    }), '<literal custom reason>');
     await dialog.footer.find(button => button.text === 'users.unban').onClick({currentTarget: {}}, {
         close() {
         }
@@ -109,9 +138,15 @@ test('profile suspension action enforces live role protection and refreshes afte
             opened++;
             await refresh();
         },
-        el: (_tag, attributes, ...children) => ({...attributes, children, isConnected: true,
-            addEventListener(type, handler) { this[type] = handler; },
-            replaceChildren(...nodes) { this.children = nodes; }}),
+        el: (_tag, attributes, ...children) => ({
+            ...attributes, children, isConnected: true,
+            addEventListener(type, handler) {
+                this[type] = handler;
+            },
+            replaceChildren(...nodes) {
+                this.children = nodes;
+            }
+        }),
     });
     vm.runInContext(source('internal/service/frontend/renop-html/js/users/profile-ban.js')
         .replace(/^import .*;\r?\n/gm, '').replaceAll('export ', ''), context);

@@ -12,5 +12,10 @@ import {el} from '@renop/ui/dom';
 
 /** Create the legal component. */
 export function renderLegal() {
-    return el("section", {"aria-labelledby": "legal-page-title", "class": "tab-content legal-page", "id": "tab-content-legal", "style": "display: none;"});
+    return el("section", {
+        "aria-labelledby": "legal-page-title",
+        "class": "tab-content legal-page",
+        "id": "tab-content-legal",
+        "style": "display: none;"
+    });
 }

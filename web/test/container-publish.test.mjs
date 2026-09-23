@@ -25,7 +25,14 @@ test('container publication reserves missing images and checks the existing toke
         requests.push([request.method, request.url]);
         response.setHeader('Content-Type', 'application/json');
         if (request.url.startsWith('/v2/token?')) {
-            const claims = {sub: 'publisher', access: [{type: 'repository', name: 'oci/renop', actions: mode === 'denied' ? ['pull'] : ['pull', 'push']}]};
+            const claims = {
+                sub: 'publisher',
+                access: [{
+                    type: 'repository',
+                    name: 'oci/renop',
+                    actions: mode === 'denied' ? ['pull'] : ['pull', 'push']
+                }]
+            };
             response.end(JSON.stringify({token: 'header.' + Buffer.from(JSON.stringify(claims)).toString('base64url') + '.signature'}));
         } else if (request.method === 'POST') {
             assert.deepEqual(JSON.parse(body), {image: 'renop', private: false});
@@ -39,11 +46,19 @@ test('container publication reserves missing images and checks the existing toke
     const run = () => new Promise((resolve, reject) => {
         const child = spawn('pwsh', ['-NoProfile', '-File', fileURLToPath(new URL('../../.github/scripts/prepare-container-publish.ps1', import.meta.url)),
             '-BaseUrl', `http://127.0.0.1:${server.address().port}`], {
-            env: loopbackTestEnvironment({GITHUB_OUTPUT: '', RENOP_PUBLISH_TOKEN: 'fixture-token', HTTP_PROXY: 'http://127.0.0.1:1'}), timeout: 30000,
+            env: loopbackTestEnvironment({
+                GITHUB_OUTPUT: '',
+                RENOP_PUBLISH_TOKEN: 'fixture-token',
+                HTTP_PROXY: 'http://127.0.0.1:1'
+            }), timeout: 30000,
         });
         let output = '';
-        child.stdout.on('data', value => { output += value; });
-        child.stderr.on('data', value => { output += value; });
+        child.stdout.on('data', value => {
+            output += value;
+        });
+        child.stderr.on('data', value => {
+            output += value;
+        });
         child.on('error', reject);
         child.on('close', code => resolve({code, output}));
     });
@@ -58,7 +73,8 @@ test('container publication reserves missing images and checks the existing toke
         assert.ok(requests.every(([method]) => method === 'GET'));
         mode = 'denied';
         assert.notEqual((await run()).code, 0);
-        mode = 'review'; exists = false;
+        mode = 'review';
+        exists = false;
         assert.notEqual((await run()).code, 0);
     } finally {
         await new Promise(resolve => server.close(resolve));

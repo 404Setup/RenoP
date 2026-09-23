@@ -11,41 +11,48 @@
 .captcha-modal {
     z-index: 2100;
 }
+
 .captcha-content {
     max-width: 440px;
     width: 92%;
 }
+
 .captcha-status {
     line-height: 1.5;
     margin: 0 0 0.75rem;
     font-size: 0.95rem;
     color: var(--text-color);
 }
+
 .captcha-widget-host {
     display: flex;
     justify-content: center;
     align-items: center;
     width: 100%;
+    min-width: 304px;
     min-height: 65px;
     margin: 0.5rem 0;
     overflow: visible;
 }
+
 .captcha-frame {
     display: block;
     width: 100%;
-    min-width: 280px;
+    min-width: 304px;
     height: 70px;
     border: 0;
     background: transparent;
     transition: height 180ms ease;
     overflow: visible;
 }
+
 .captcha-actions {
     display: flex;
     flex-wrap: wrap;
     justify-content: flex-end;
     gap: 0.6rem;
 }
+
 @media (prefers-reduced-motion: reduce) {
     .captcha-frame {
         transition: none;

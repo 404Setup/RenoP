@@ -148,7 +148,7 @@ type Session struct {
 	ChunkSize         int64
 	ChunkCount        int
 	mu                sync.Mutex
-	done              int32
+	done              atomic.Int32
 	closed            bool
 	aborting          bool
 	GenerateChecksums bool
@@ -327,7 +327,7 @@ func (m *Manager) CleanupExpired() {
 // claimChunk validates index/size and marks the slot as in-progress.
 // Returns offset, expected length, and the open file handle.
 func (s *Session) claimChunk(index int, contentLength int64) (offset, expected int64, file *os.File, err error) {
-	if atomic.LoadInt32(&s.done) != 0 {
+	if s.done.Load() != 0 {
 		return 0, 0, nil, errors.New("session already completed")
 	}
 	s.mu.Lock()
@@ -498,7 +498,7 @@ func (s *Session) AllReceived() bool {
 // BeginCompletion grants exactly one caller ownership of finalization. If a
 // chunk is still being written, the caller may retry after it finishes.
 func (s *Session) BeginCompletion() error {
-	if !atomic.CompareAndSwapInt32(&s.done, 0, 1) {
+	if !s.done.CompareAndSwap(0, 1) {
 		return errSessionFinished
 	}
 
@@ -509,7 +509,7 @@ func (s *Session) BeginCompletion() error {
 	}
 	for _, st := range s.received {
 		if st != 2 {
-			atomic.StoreInt32(&s.done, 0)
+			s.done.Store(0)
 			return errChunksIncomplete
 		}
 	}
@@ -549,7 +549,7 @@ func (s *Session) Abort() {
 	if path != "" {
 		_ = os.Remove(path)
 	}
-	atomic.StoreInt32(&s.done, 1)
+	s.done.Store(1)
 }
 
 // MarkCompleted marks the session finished (temp may have been renamed away).
@@ -561,7 +561,7 @@ func (s *Session) MarkCompleted() {
 		s.file = nil
 	}
 	s.mu.Unlock()
-	atomic.StoreInt32(&s.done, 1)
+	s.done.Store(1)
 }
 
 // OwnedBy reports whether the session belongs to the given username.

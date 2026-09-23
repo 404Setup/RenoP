@@ -11,6 +11,8 @@
 package settings
 
 import (
+	"errors"
+
 	"github.com/gofiber/fiber/v3"
 
 	"renop/internal/cache"
@@ -77,7 +79,7 @@ func putCacheSettings(c fiber.Ctx, state *core.AppState) error {
 	defer state.Inner.ConfigWriteLock.Unlock()
 	nextCache, err := readCacheSettings(c, state)
 	if err != nil {
-		if err == fiber.ErrBadRequest {
+		if errors.Is(err, fiber.ErrBadRequest) {
 			return cacheSettingsError(c, 400, "cache_settings_invalid")
 		}
 		return err
@@ -101,7 +103,7 @@ func testCacheSettings(c fiber.Ctx, state *core.AppState) error {
 	}
 	cfg, err := readCacheSettings(c, state)
 	if err != nil {
-		if err == fiber.ErrBadRequest {
+		if errors.Is(err, fiber.ErrBadRequest) {
 			return cacheSettingsError(c, 400, "cache_settings_invalid")
 		}
 		return err

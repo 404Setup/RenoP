@@ -61,7 +61,9 @@ envoyés lors de leur prochain traitement.
 Désactiver le service ou un compte suspend l’envoi, sans prolonger l’expiration des messages.
 
 `delay` accepte secondes, minutes ou heures ; zéro supprime l’attente, mais les envois restent séquentiels.
-`manual_rate` partage le quota configuré entre les scénarios par IP, réseau IPv6 /64, compte immuable et destinataire, tests compris. La période accepte minutes, heures ou jours. Les clés des destinataires sont des hachages avec clé ; les débits sont validés avec la mise en file et annulés en cas d’échec.
+`manual_rate` partage le quota configuré entre les scénarios par IP, réseau IPv6 /64, compte immuable et destinataire,
+tests compris. La période accepte minutes, heures ou jours. Les clés des destinataires sont des hachages avec clé ; les
+débits sont validés avec la mise en file et annulés en cas d’échec.
 `account_rate` inclut les tentatives automatiques et manuelles par compte ; sa période accepte aussi les secondes.
 Limites et durées doivent être positives. Valeurs par défaut : une demande manuelle par IP toutes les deux minutes et 50
 tentatives par compte par minute.
@@ -306,4 +308,6 @@ Les tâches finalisées par le travailleur perdent leur HTML et texte ; les soum
 chiffré jusqu’au nettoyage.
 Les journaux et API de statut n’exposent ni corps de message ni adresse destinataire.
 
-Après une soumission réussie, RenoP enregistre `accepted` et arrête le suivi si le connecteur ne permet pas une consultation fiable par message, notamment Cloudflare et Alibaba Direct Mail. L’acceptation ne prouve pas la livraison. Les anciens enregistrements `queued_provider` sont affichés comme `accepted`, sans nouvel envoi.
+Après une soumission réussie, RenoP enregistre `accepted` et arrête le suivi si le connecteur ne permet pas une
+consultation fiable par message, notamment Cloudflare et Alibaba Direct Mail. L’acceptation ne prouve pas la livraison.
+Les anciens enregistrements `queued_provider` sont affichés comme `accepted`, sans nouvel envoi.

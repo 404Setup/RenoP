@@ -61,7 +61,9 @@ messages when the worker next processes them.
 Disabling email or an account pauses sending. Existing messages retain their expiration times.
 
 `delay` accepts seconds, minutes, or hours; zero removes the delay while preserving serial delivery.
-`manual_rate` shares the configured allowance across scenes per IP, IPv6 /64, immutable account, and recipient, including test emails. Its interval accepts minutes, hours, or days. Recipient keys are keyed hashes; allowance debits commit atomically with the queued message and roll back on failure.
+`manual_rate` shares the configured allowance across scenes per IP, IPv6 /64, immutable account, and recipient,
+including test emails. Its interval accepts minutes, hours, or days. Recipient keys are keyed hashes; allowance debits
+commit atomically with the queued message and roll back on failure.
 `account_rate` includes manual and automatic attempts per sending account; its interval also accepts seconds.
 Both rate limits and their interval values must be positive. The defaults are one manual request per two minutes and 50
 attempts per account per minute.
@@ -305,4 +307,6 @@ Jobs finalized by the worker discard HTML/text content. Interrupted submissions 
 history cleanup.
 Logs and status APIs do not expose message bodies or recipient addresses.
 
-After a successful submission, RenoP records `accepted` and stops status polling for connectors without a supported per-message lookup. This includes Cloudflare and Alibaba Direct Mail; acceptance does not prove delivery. Existing `queued_provider` records are displayed as `accepted` and are not retried.
+After a successful submission, RenoP records `accepted` and stops status polling for connectors without a supported
+per-message lookup. This includes Cloudflare and Alibaba Direct Mail; acceptance does not prove delivery. Existing
+`queued_provider` records are displayed as `accepted` and are not retried.

@@ -313,8 +313,8 @@ func npmPackageFromPath(path string) string {
 	if err != nil {
 		return ""
 	}
-	if strings.HasPrefix(decoded, "-/package/") {
-		decoded = strings.TrimPrefix(decoded, "-/package/")
+	if after, ok := strings.CutPrefix(decoded, "-/package/"); ok {
+		decoded = after
 		if before, _, ok := strings.Cut(decoded, "/dist-tags"); ok {
 			decoded = before
 		}

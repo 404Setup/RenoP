@@ -10,8 +10,8 @@ description: RenoP HTTP RESTful and RPC API overview and endpoints
 RenoP provides a complete HTTP API for administrative automation, client integrations, and health monitoring. The server
 listens on `http://localhost:3000` by default.
 
-
-The [API reference](/api) documents management endpoints, client integration flows, and health monitoring. The raw [OpenAPI specification](/assets/openapi.yaml) is also available for direct reference and client generation.
+The [API reference](/api) documents management endpoints, client integration flows, and health monitoring. The
+raw [OpenAPI specification](/assets/openapi.yaml) is also available for direct reference and client generation.
 
 ## API Route Structure
 
@@ -29,7 +29,8 @@ The [API reference](/api) documents management endpoints, client integration flo
 
 Schema-backed management APIs use binary protobuf. Send `Content-Type: application/x-protobuf`; requests also accept
 `application/protobuf` and `application/octet-stream`, and a missing Content-Type defaults to protobuf. JSON request
-bodies are rejected with endpoint-specific `400` or `415` errors. Responses always use `application/x-protobuf`; `Accept` does not enable JSON.
+bodies are rejected with endpoint-specific `400` or `415` errors. Responses always use `application/x-protobuf`;
+`Accept` does not enable JSON.
 Use message definitions from `proto/api/v1/api.proto` for the deployed release.
 
 Control requests remain bounded to 1 MiB, with smaller endpoint limits retained. JSON examples accompanying protobuf

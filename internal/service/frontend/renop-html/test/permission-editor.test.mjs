@@ -15,14 +15,26 @@ import vm from 'node:vm';
 
 test('permission drafts stay isolated, preserve edits during discovery, and cancel stale loads', async () => {
     const loads = [];
-    const node = (tag, attrs = {}, ...children) => ({tag, attrs, children, listeners: {},
-        append(...values) { this.children.push(...values); },
-        appendChild(value) { this.children.push(value); },
-        replaceChildren(...values) { this.children = values; },
-        setAttribute(key, value) { this.attrs[key] = value; },
-        addEventListener(event, listener) { this.listeners[event] = listener; },
+    const node = (tag, attrs = {}, ...children) => ({
+        tag, attrs, children, listeners: {},
+        append(...values) {
+            this.children.push(...values);
+        },
+        appendChild(value) {
+            this.children.push(value);
+        },
+        replaceChildren(...values) {
+            this.children = values;
+        },
+        setAttribute(key, value) {
+            this.attrs[key] = value;
+        },
+        addEventListener(event, listener) {
+            this.listeners[event] = listener;
+        },
     });
-    const context = vm.createContext({t: key => key, el: node, MavenRepositoriesResponse: {},
+    const context = vm.createContext({
+        t: key => key, el: node, MavenRepositoriesResponse: {},
         createRolesGroup: title => node('group', {title}), createEmptyState: value => node('empty', value),
         createRoleChip: (value, options) => node('chip', {value, ...options}),
         fetchProto: () => new Promise(resolve => loads.push(resolve)),

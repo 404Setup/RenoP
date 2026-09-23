@@ -123,7 +123,8 @@ atomique.
 
 ## Lister les tâches
 
-GET /api/tickets renvoie une page bornée. `view` accepte `reviewer` ou `requested` ; `status` accepte `unprocessed`, `in_progress`, `processed`, `closed`, `completed` ou `all`. `limit` vaut 1–100 et `offset` est positif ou nul.
+GET /api/tickets renvoie une page bornée. `view` accepte `reviewer` ou `requested` ; `status` accepte `unprocessed`,
+`in_progress`, `processed`, `closed`, `completed` ou `all`. `limit` vaut 1–100 et `offset` est positif ou nul.
 Le filtre `types`, séparé par des virgules, accepte les types de parcours ainsi que `support`, `user`, `superteam`,
 `maven-domain`, `maven`, `cargo`, `npm`, `docker`.
 
@@ -202,10 +203,19 @@ téléchargements.
 Les demandes en attente sont limitées à 64 par compte et 4096 au total. Ces tâches ne proposent aucune archive de revue
 à télécharger.
 
-Le formulaire de signalement propose des sujets modifiables pour le spam, les abus, les logiciels malveillants, le droit d’auteur, l’usurpation et les autres problèmes. Le bouton est masqué sur son propre profil et le serveur refuse indépendamment les auto-signalements par identifiant immuable. Les sélecteurs de type et de portée partagent les contrôles étiquetés des paramètres.
+Le formulaire de signalement propose des sujets modifiables pour le spam, les abus, les logiciels malveillants, le droit
+d’auteur, l’usurpation et les autres problèmes. Le bouton est masqué sur son propre profil et le serveur refuse
+indépendamment les auto-signalements par identifiant immuable. Les sélecteurs de type et de portée partagent les
+contrôles étiquetés des paramètres.
 
 ## Messages et limites de requêtes
 
 La liste initiale utilise `status=all` ; l’ouverture du centre réinitialise les anciens filtres.
 
-GET /api/tickets/{id}/messages renvoie les 50 derniers messages dans l’ordre chronologique. `limit` accepte 1–100 ; transmettez `X-Renop-Next-Cursor` dans `before` pour lire les messages précédents. POST /api/tickets/{id}/messages accepte un `body` de 16384 caractères au maximum dans une requête JSON de 24 KiB. La session et les droits sont revérifiés lors de la validation ; les tickets fermés refusent les commentaires. Chaque compte peut publier 20 commentaires par minute et 200 par heure, avec 1000 commentaires par ticket. La création de tickets est aussi limitée à six demandes par dix minutes. Les budgets de lecture et d’écriture sont distincts ; les refus renvoient `429` et `review_limit`.
+GET /api/tickets/{id}/messages renvoie les 50 derniers messages dans l’ordre chronologique. `limit` accepte 1–100 ;
+transmettez `X-Renop-Next-Cursor` dans `before` pour lire les messages précédents. POST /api/tickets/{id}/messages
+accepte un `body` de 16384 caractères au maximum dans une requête JSON de 24 KiB. La session et les droits sont
+revérifiés lors de la validation ; les tickets fermés refusent les commentaires. Chaque compte peut publier 20
+commentaires par minute et 200 par heure, avec 1000 commentaires par ticket. La création de tickets est aussi limitée à
+six demandes par dix minutes. Les budgets de lecture et d’écriture sont distincts ; les refus renvoient `429` et
+`review_limit`.

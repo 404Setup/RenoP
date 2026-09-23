@@ -25,7 +25,10 @@ export async function loadInitialLocales(load, preferred, fallback = 'en-US') {
             const retry = el('button', {type: 'button', class: 'pill-btn pill-btn--primary'}, 'Retry');
             const notice = el('div', {class: 'locale-load-error', role: 'alert'},
                 el('p', {}, 'Language data could not be loaded. Please retry.'), retry);
-            retry.addEventListener('click', () => { notice.remove(); resolve(); }, {once: true});
+            retry.addEventListener('click', () => {
+                notice.remove();
+                resolve();
+            }, {once: true});
             document.body.appendChild(notice);
             retry.focus();
         });

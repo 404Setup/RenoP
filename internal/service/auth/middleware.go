@@ -220,6 +220,18 @@ func authResultFromCredential(credential *VerifiedCredential, scheme string) *au
 	}
 }
 
+func extractClientIP(state *core.AppState, c fiber.Ctx) string {
+	if c == nil {
+		return ""
+	}
+	if state != nil && state.Inner != nil && state.Inner.Config != nil {
+		if cfg := state.Inner.Config.Load(); cfg != nil {
+			return utils.ExtractIP(c, &cfg.Server)
+		}
+	}
+	return utils.ExtractIP(c, nil)
+}
+
 func handleBasicAuth(state *core.AppState, authHeader string, c fiber.Ctx) (*authResult, error) {
 	basicAuth := strings.TrimPrefix(authHeader, "Basic ")
 	decoded, err := utils.DecodeB64(basicAuth)
@@ -247,8 +259,16 @@ func handleBasicAuth(state *core.AppState, authHeader string, c fiber.Ctx) (*aut
 	if err != nil || credential == nil {
 		return nil, err
 	}
+	if credential.Kind != credentialKindAPIToken {
+		return nil, fiber.ErrUnauthorized
+	}
 	result := authResultFromCredential(credential, "basic")
 	setAuthTokenExpiry(c, result.ExpiresAt)
+	if state != nil && result.User != nil {
+		ip := extractClientIP(state, c)
+		ua := c.Get(fiber.HeaderUserAgent, "Unknown")
+		state.RecordDeviceAccess(result.User.Username, "basic", ua, ip, time.Now().UnixMilli())
+	}
 	return result, nil
 }
 
@@ -268,6 +288,17 @@ func handleSessionAuth(state *core.AppState, authHeader string, c fiber.Ctx) (*a
 	if err := accountAccessError(accessToken); err != nil {
 		_, _ = state.RevokeSession(sessionID)
 		return nil, fiber.ErrForbidden
+	}
+
+	if state != nil {
+		session := state.GetSession(sessionID)
+		loginMethod := "password"
+		if session != nil && session.LoginMethod != "" {
+			loginMethod = session.LoginMethod
+		}
+		ip := extractClientIP(state, c)
+		ua := c.Get(fiber.HeaderUserAgent, "Unknown")
+		state.RecordDeviceAccess(username, loginMethod, ua, ip, time.Now().UnixMilli())
 	}
 
 	return &authResult{
@@ -305,6 +336,11 @@ func handleBearerAuth(state *core.AppState, authHeader string, c fiber.Ctx) (*au
 	}
 	result := authResultFromCredential(credential, "bearer")
 	setAuthTokenExpiry(c, result.ExpiresAt)
+	if state != nil && result.User != nil && credential.Kind == credentialKindAPIToken {
+		ip := extractClientIP(state, c)
+		ua := c.Get(fiber.HeaderUserAgent, "Unknown")
+		state.RecordDeviceAccess(result.User.Username, "token", ua, ip, time.Now().UnixMilli())
+	}
 	return result, nil
 }
 

@@ -25,6 +25,7 @@ function cancelChallenges() {
     generation++;
     activeController?.abort();
 }
+
 for (const event of ['popstate', 'pagehide', 'appNavigation', 'authChanged', 'captchaSettingsChanged']) window.addEventListener(event, cancelChallenges);
 window.addEventListener('cookiePreferencesChanged', event => {
     if (!event.detail?.optional && activeController) cancelChallenges();
@@ -33,7 +34,11 @@ window.addEventListener('cookiePreferencesChanged', event => {
 /** Obtain a single-use approval while keeping third-party scripts within a disposable frame. */
 async function challenge(scope, signal, epoch) {
     if (epoch !== generation || signal?.aborted) throw new LocalizedResponseError(t('captcha.cancelled'));
-    const metadataResponse = await fetch('/api/captcha', {credentials: 'include', cache: 'no-store', signal: AbortSignal.any([AbortSignal.timeout(15000), ...(signal ? [signal] : [])])});
+    const metadataResponse = await fetch('/api/captcha', {
+        credentials: 'include',
+        cache: 'no-store',
+        signal: AbortSignal.any([AbortSignal.timeout(15000), ...(signal ? [signal] : [])])
+    });
     const metadata = JSON.parse(await readLegalTextResponse(metadataResponse, 'application/json', 4096));
     if (metadata.provider === 'disabled' || metadata.scopes?.[scope] !== true) return '';
     if (!providers.has(metadata.provider) || typeof metadata.site_key !== 'string') throw new LocalizedResponseError(t('captcha.unavailable'));
@@ -43,24 +48,44 @@ async function challenge(scope, signal, epoch) {
     const abort = () => controller.abort();
     signal?.addEventListener('abort', abort, {once: true});
     const previousFocus = document.activeElement;
-    const modal = el('div', {class: 'modal captcha-modal', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'captcha-title', style: {display: 'none'}});
+    const modal = el('div', {
+        class: 'modal captcha-modal',
+        role: 'dialog',
+        'aria-modal': 'true',
+        'aria-labelledby': 'captcha-title',
+        style: {display: 'none'}
+    });
     const backdrop = el('div', {class: 'modal-backdrop'});
     const modalContent = el('div', {class: 'modal-content modal-glass modal-sm captcha-content'});
-    const closeBtn = el('button', {type: 'button', class: 'close-btn', ariaLabel: t('modal.close') || 'Close', onclick: abort});
+    const closeBtn = el('button', {
+        type: 'button',
+        class: 'close-btn',
+        ariaLabel: t('modal.close') || 'Close',
+        onclick: abort
+    });
     closeBtn.appendChild(createIcon('close'));
     const header = el('div', {class: 'modal-header'},
-        el('h3', {class: 'modal-title', id: 'captcha-title'}, createIcon('compliance'), el('span', {}, t('captcha.title'))),
+        el('h3', {
+            class: 'modal-title',
+            id: 'captcha-title'
+        }, createIcon('compliance'), el('span', {}, t('captcha.title'))),
         closeBtn
     );
     const isHiddenByDefault = metadata.provider === 'turnstile' || metadata.provider === 'recaptcha_invisible' || metadata.provider === 'recaptcha_v3';
-    const status = el('p', {role: 'status', 'aria-live': 'polite', class: 'captcha-status'}, t(isHiddenByDefault ? 'captcha.verifying' : 'captcha.loading'));
+    const status = el('p', {
+        role: 'status',
+        'aria-live': 'polite',
+        class: 'captcha-status'
+    }, t(isHiddenByDefault ? 'captcha.verifying' : 'captcha.loading'));
     const host = el('div', {class: 'captcha-widget-host'});
     if (isHiddenByDefault) host.style.display = 'none';
 
-    const preferences = el('button', {type: 'button', class: 'action-btn', onclick: () => {
-        abort();
-        void openCookiePreferences();
-    }}, t('legal.cookiePreferences'));
+    const preferences = el('button', {
+        type: 'button', class: 'action-btn', onclick: () => {
+            abort();
+            void openCookiePreferences();
+        }
+    }, t('legal.cookiePreferences'));
     const retry = el('button', {type: 'button', class: 'action-btn primary-btn', hidden: true}, t('offline.retryBtn'));
     const cancel = el('button', {type: 'button', class: 'action-btn', onclick: abort}, t('common.cancel'));
     const footer = el('div', {class: 'modal-footer captcha-actions'}, preferences, retry, cancel);
@@ -95,9 +120,12 @@ async function challenge(scope, signal, epoch) {
             const failed = () => {
                 if (settled) return;
                 clearTimeout(frameTimer);
-                frame?.remove(); frame = undefined; verifying = false;
+                frame?.remove();
+                frame = undefined;
+                verifying = false;
                 host.style.display = 'none';
-                status.textContent = t('captcha.failed'); retry.hidden = false;
+                status.textContent = t('captcha.failed');
+                retry.hidden = false;
             };
             const render = async () => {
                 try {
@@ -117,18 +145,27 @@ async function challenge(scope, signal, epoch) {
                         status.textContent = t('captcha.loading');
                     }
                     nonce = Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join('');
-                    frame = el('iframe', {class: 'captcha-frame', title: t('captcha.title'), src: '/api/captcha/widget',
-                        sandbox: 'allow-scripts allow-same-origin allow-forms allow-popups', referrerPolicy: 'same-origin'});
+                    frame = el('iframe', {
+                        class: 'captcha-frame',
+                        title: t('captcha.title'),
+                        src: '/api/captcha/widget',
+                        sandbox: 'allow-scripts allow-same-origin allow-forms allow-popups',
+                        referrerPolicy: 'same-origin'
+                    });
                     const currentFrame = frame, currentNonce = nonce;
                     frameTimer = setTimeout(failed, 25000);
                     frame.addEventListener('load', () => {
                         if (frame !== currentFrame || controller.signal.aborted) return;
-                        currentFrame.contentWindow?.postMessage({...metadata, kind: 'renop-captcha-init', nonce: currentNonce,
+                        currentFrame.contentWindow?.postMessage({
+                            ...metadata, kind: 'renop-captcha-init', nonce: currentNonce,
                             action: 'renop_' + scope, language: document.documentElement.lang,
-                            theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light'}, location.origin);
+                            theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+                        }, location.origin);
                     }, {once: true});
                     host.replaceChildren(frame);
-                } catch { failed(); }
+                } catch {
+                    failed();
+                }
             };
             const onMessage = async event => {
                 const message = event.data;
@@ -144,24 +181,45 @@ async function challenge(scope, signal, epoch) {
                     verifying = true;
                     host.style.display = 'none';
                     status.textContent = t('captcha.verifying');
-                    frame.remove(); frame = undefined;
+                    frame.remove();
+                    frame = undefined;
                     try {
-                        const response = await fetch('/api/captcha/verify', {method: 'POST', credentials: 'include', cache: 'no-store',
-                            headers: {'Content-Type': 'application/json'}, signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]),
-                            body: JSON.stringify({scope, provider: metadata.provider, site_key: metadata.site_key, response: message.response})});
+                        const response = await fetch('/api/captcha/verify', {
+                            method: 'POST',
+                            credentials: 'include',
+                            cache: 'no-store',
+                            headers: {'Content-Type': 'application/json'},
+                            signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]),
+                            body: JSON.stringify({
+                                scope,
+                                provider: metadata.provider,
+                                site_key: metadata.site_key,
+                                response: message.response
+                            })
+                        });
                         if (!response.ok) {
                             if (response.status === 409) finish('', new LocalizedResponseError(t('captcha.changed')));
                             else failed();
                             return;
                         }
                         const result = JSON.parse(await readLegalTextResponse(response, 'application/json', 4096));
-                        if (typeof result.proof !== 'string' || result.proof.length > 128 || !result.proof) { failed(); return; }
-                        if (epoch !== generation || controller.signal.aborted || !await optionalServicesAllowed()) { abort(); return; }
+                        if (typeof result.proof !== 'string' || result.proof.length > 128 || !result.proof) {
+                            failed();
+                            return;
+                        }
+                        if (epoch !== generation || controller.signal.aborted || !await optionalServicesAllowed()) {
+                            abort();
+                            return;
+                        }
                         finish(result.proof);
-                    } catch { if (!controller.signal.aborted) failed(); }
+                    } catch {
+                        if (!controller.signal.aborted) failed();
+                    }
                 }
             };
-            const onPreferences = event => { if (event.detail?.optional) void render(); };
+            const onPreferences = event => {
+                if (event.detail?.optional) void render();
+            };
             const timer = setTimeout(() => finish('', new LocalizedResponseError(t('captcha.failed'))), 300000);
             controller.signal.addEventListener('abort', () => finish('', new LocalizedResponseError(t('captcha.cancelled'))), {once: true});
             retry.addEventListener('click', () => void render());
@@ -176,7 +234,9 @@ async function challenge(scope, signal, epoch) {
         signal?.removeEventListener('abort', abort);
         if (activeController === controller) activeController = undefined;
         if (previousFocus?.isConnected) previousFocus.focus({preventScroll: true});
-        closeModalWithAnim(modal, () => { modal.remove(); });
+        closeModalWithAnim(modal, () => {
+            modal.remove();
+        });
     }
 }
 
@@ -189,8 +249,11 @@ export async function captchaHeaders(response, url, signal) {
     if (pending >= 8) throw new LocalizedResponseError(t('captcha.unavailable'));
     const epoch = generation;
     pending++;
-    const task = queue.then(() => challenge(scope, signal, epoch)).finally(() => { pending--; });
-    queue = task.catch(() => {});
+    const task = queue.then(() => challenge(scope, signal, epoch)).finally(() => {
+        pending--;
+    });
+    queue = task.catch(() => {
+    });
     const proof = await task;
     if (epoch !== generation || signal?.aborted) throw new LocalizedResponseError(t('captcha.cancelled'));
     return proof ? {'X-Renop-Captcha': proof} : {};
@@ -201,12 +264,16 @@ export async function captchaFetch(url, options = {}) {
     const response = await fetch(url, options);
     if (typeof ReadableStream !== 'undefined' && options.body instanceof ReadableStream) return response;
     let approval;
-    try { approval = await captchaHeaders(response, url, options.signal); } catch (error) {
-        await response.body?.cancel().catch(() => {});
+    try {
+        approval = await captchaHeaders(response, url, options.signal);
+    } catch (error) {
+        await response.body?.cancel().catch(() => {
+        });
         throw error;
     }
     if (approval === null) return response;
-    await response.body?.cancel().catch(() => {});
+    await response.body?.cancel().catch(() => {
+    });
     const headers = new Headers(options.headers);
     for (const [key, value] of Object.entries(approval)) headers.set(key, value);
     return fetch(url, {...options, headers});

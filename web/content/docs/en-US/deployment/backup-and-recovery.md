@@ -16,15 +16,15 @@ rollback to an older RenoP version is required.
 
 ## Classify the data
 
-| Data                        | Typical location                            | Recovery role                                                                 |
-|:----------------------------|:--------------------------------------------|:------------------------------------------------------------------------------|
-| Main configuration          | `renop-settings.db` or `RENOP_SETTINGS_DB`             | Listener, database, proxy, security, previews, updater                        |
-| Repository definitions      | Database | Format, visibility, mirrors, storage backend, policy                          |
-| Database                    | `renop.db` or external DSN                  | Accounts, permissions, sessions, tokens, teams, reviews, audit, messages      |
-| Local artifact data         | `storage_path`                              | Published packages, uploads, cached upstream content                          |
-| S3-compatible artifact data | Bucket and per-repository prefix            | Published packages and cached content for S3-backed repositories              |
-| File index                  | `index.json` or `RENOP_INDEX`               | Performance snapshot; useful to keep, but rebuildable from authoritative data |
-| TLS and integration secrets | Proxy or secret manager                     | Required to restore the same public service and integrations                  |
+| Data                        | Typical location                           | Recovery role                                                                 |
+|:----------------------------|:-------------------------------------------|:------------------------------------------------------------------------------|
+| Main configuration          | `renop-settings.db` or `RENOP_SETTINGS_DB` | Listener, database, proxy, security, previews, updater                        |
+| Repository definitions      | Database                                   | Format, visibility, mirrors, storage backend, policy                          |
+| Database                    | `renop.db` or external DSN                 | Accounts, permissions, sessions, tokens, teams, reviews, audit, messages      |
+| Local artifact data         | `storage_path`                             | Published packages, uploads, cached upstream content                          |
+| S3-compatible artifact data | Bucket and per-repository prefix           | Published packages and cached content for S3-backed repositories              |
+| File index                  | `index.json` or `RENOP_INDEX`              | Performance snapshot; useful to keep, but rebuildable from authoritative data |
+| TLS and integration secrets | Proxy or secret manager                    | Required to restore the same public service and integrations                  |
 
 Generated website output, downloaded frontend dependencies, and build caches can be recreated and should not be the
 only copy of any operational secret.
@@ -121,4 +121,7 @@ periodically, restore the newest backup into an empty environment and record:
 A backup that has never been restored is an untested assumption. Link the final runbook from the
 [Production Deployment Checklist](./production-checklist.md) and keep an offline copy available during an outage.
 
-S3 content sharing keeps payloads in the private `.renop-content-v1` namespace. Include it with repository objects in backups, and retain the private index to reduce metadata reads after restart. The index is a versioned stream of JSON records; older snapshots remain readable. See [repository configuration](/docs/configuration/repositories) for deduplication and recovery behavior.
+S3 content sharing keeps payloads in the private `.renop-content-v1` namespace. Include it with repository objects in
+backups, and retain the private index to reduce metadata reads after restart. The index is a versioned stream of JSON
+records; older snapshots remain readable. See [repository configuration](/docs/configuration/repositories) for
+deduplication and recovery behavior.

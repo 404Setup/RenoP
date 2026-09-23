@@ -41,6 +41,8 @@ const userEditorIds = Object.freeze({
 
 let passwordStrengthController = null;
 let usersRefreshHandler = null;
+let currentModalStep = 1;
+let advanceModalStep = null;
 
 /**
  * Registers the callback used to refresh the users table after a successful save.
@@ -122,6 +124,10 @@ function createUserSection(icon, titleKey, descriptionKey, children, modifier) {
  */
 async function handleUserSubmit(event, dialog) {
     event.preventDefault();
+    if (currentModalStep === 1) {
+        if (typeof advanceModalStep === 'function') advanceModalStep(2, 'forward');
+        return;
+    }
     const originalName = document.getElementById(userEditorIds.originalName)?.value.trim() || '';
     const username = document.getElementById(userEditorIds.username)?.value.trim() || '';
     const nickname = document.getElementById(userEditorIds.nickname)?.value.trim() || '';
@@ -265,14 +271,123 @@ export async function openUserModal(account = null) {
     );
     permissionsSection.querySelector('.user-editor-section-header')?.appendChild(permissionCount);
 
+    currentModalStep = 1;
+    const step1 = el('div', {class: 'user-editor-step user-editor-step-1'}, identitySection);
+    const step2 = el('div', {
+        class: 'user-editor-step user-editor-step-2',
+        style: {display: 'none'}
+    }, permissionsSection);
+
+    function validateStep1() {
+        const originalName = document.getElementById(userEditorIds.originalName)?.value.trim() || '';
+        const usernameVal = document.getElementById(userEditorIds.username)?.value.trim() || '';
+        const nicknameVal = document.getElementById(userEditorIds.nickname)?.value.trim() || '';
+        const passwordVal = document.getElementById(userEditorIds.password)?.value || '';
+
+        if ((!originalName || usernameVal.toLowerCase() !== originalName.toLowerCase()) &&
+            !/^[A-Za-z0-9_]{4,18}$/.test(usernameVal)) {
+            showAlert(t('profile.usernameHint'), 'error');
+            document.getElementById(userEditorIds.username)?.focus();
+            return false;
+        }
+        if (Array.from(nicknameVal).length > 36) {
+            showAlert(t('profile.nicknameHint'), 'error');
+            document.getElementById(userEditorIds.nickname)?.focus();
+            return false;
+        }
+        if (passwordVal) {
+            const lengthError = getPasswordLengthError(passwordVal);
+            if (lengthError) {
+                showAlert(lengthError, 'error');
+                document.getElementById(userEditorIds.password)?.focus();
+                return false;
+            }
+        }
+        return true;
+    }
+
+    const step1Tab = el('button', {
+            type: 'button',
+            class: 'user-editor-step-badge active',
+            'aria-current': 'step',
+            onClick: () => goToStep(1, 'backward'),
+        },
+        el('span', {class: 'user-editor-step-num'}, '1'),
+        el('span', {'data-i18n': 'users.accountSectionTitle'}, t('users.accountSectionTitle'))
+    );
+
+    const stepConnector = el('div', {class: 'user-editor-step-connector'});
+
+    const step2Tab = el('button', {
+            type: 'button',
+            class: 'user-editor-step-badge',
+            onClick: () => goToStep(2, 'forward'),
+        },
+        el('span', {class: 'user-editor-step-num'}, '2'),
+        el('span', {'data-i18n': 'users.rolesLabel'}, t('users.rolesLabel'))
+    );
+
+    const stepNav = el('nav', {
+        class: 'user-editor-step-nav',
+        'aria-label': 'Steps'
+    }, step1Tab, stepConnector, step2Tab);
+
+    function goToStep(step, direction = 'forward') {
+        if (step === currentModalStep) return;
+        if (step === 2 && !validateStep1()) return;
+
+        currentModalStep = step;
+        const cancelBtn = document.getElementById(userEditorIds.cancel);
+        const prevBtn = document.getElementById('user-editor-prev');
+        const nextBtn = document.getElementById('user-editor-next');
+        const submitBtn = document.getElementById(userEditorIds.submit);
+
+        if (currentModalStep === 1) {
+            step2.style.display = 'none';
+            step1.style.display = 'block';
+            step1.classList.remove('step-slide-forward', 'step-slide-backward');
+            void step1.offsetWidth;
+            step1.classList.add('step-slide-backward');
+
+            step1Tab.classList.add('active');
+            step1Tab.setAttribute('aria-current', 'step');
+            step2Tab.classList.remove('active');
+            step2Tab.removeAttribute('aria-current');
+
+            if (cancelBtn) cancelBtn.style.display = '';
+            if (prevBtn) prevBtn.style.display = 'none';
+            if (nextBtn) nextBtn.style.display = '';
+            if (submitBtn) submitBtn.style.display = 'none';
+        } else {
+            step1.style.display = 'none';
+            step2.style.display = 'block';
+            step2.classList.remove('step-slide-forward', 'step-slide-backward');
+            void step2.offsetWidth;
+            step2.classList.add('step-slide-forward');
+
+            step2Tab.classList.add('active');
+            step2Tab.setAttribute('aria-current', 'step');
+            step1Tab.classList.remove('active');
+            step1Tab.removeAttribute('aria-current');
+
+            if (cancelBtn) cancelBtn.style.display = 'none';
+            if (prevBtn) prevBtn.style.display = '';
+            if (nextBtn) nextBtn.style.display = 'none';
+            if (submitBtn) submitBtn.style.display = '';
+        }
+    }
+
+    advanceModalStep = goToStep;
+
     const body = el('div', {class: 'user-editor-body'},
         el('input', {
             type: 'hidden',
             id: userEditorIds.originalName,
             value: editing ? account.name : '',
         }),
-        identitySection,
-        permissionsSection
+        stepNav,
+        step1,
+        step2
     );
 
     void RenopDialog.show({
@@ -304,15 +419,31 @@ export async function openUserModal(account = null) {
                 onClick: (event, dialog) => dialog.close(false),
             },
             {
+                text: t('common.prev'),
+                className: 'action-btn',
+                id: 'user-editor-prev',
+                style: {display: 'none'},
+                onClick: () => goToStep(1, 'backward'),
+            },
+            {
+                text: t('common.next'),
+                className: 'action-btn primary-btn',
+                id: 'user-editor-next',
+                onClick: () => goToStep(2, 'forward'),
+            },
+            {
                 text: t('users.saveBtn'),
                 className: 'action-btn primary-btn',
                 type: 'submit',
                 id: userEditorIds.submit,
+                style: {display: 'none'},
             },
         ],
         onClose: () => {
             cancelUserPermissionLoad();
             passwordStrengthController = null;
+            advanceModalStep = null;
+            currentModalStep = 1;
         },
     });
 

@@ -244,13 +244,11 @@ func TestSuperTeamTransferReviewIsSingleDecisionAndReversible(t *testing.T) {
 	var wait sync.WaitGroup
 	claimReviewTicket(t, db, task.ID, "bob")
 	for range 2 {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			decided, decisionErr := db.DecideReviewTask(
 				task.ID, "bob", core.ReviewStatusApproved, "", now+11)
 			results <- decisionResult{task: decided, err: decisionErr}
-		}()
+		})
 	}
 	wait.Wait()
 	close(results)

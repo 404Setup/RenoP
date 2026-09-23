@@ -158,10 +158,10 @@ test('locale loader rejects truncated, oversized, and mismatched catalogs and re
         if (mode === 'oversized') headers['Content-Length'] = String((2 << 20) + 1);
         return new Response(data, {headers});
     });
-    const load = createLocaleLoader({index:'/keys', revision:'test', locales:{'fr-FR':'/french'}});
+    const load = createLocaleLoader({index: '/keys', revision: 'test', locales: {'fr-FR': '/french'}});
     for (mode of ['truncated', 'mismatched', 'missing', 'oversized']) await assert.rejects(load('fr-FR'));
     mode = 'valid';
-    assert.deepEqual({...await load('fr-FR')}, {alpha:'Bonjour {name}', beta:'Prêt'});
+    assert.deepEqual({...await load('fr-FR')}, {alpha: 'Bonjour {name}', beta: 'Prêt'});
 });
 
 test('locale and control API protobuf modules have independent roots', async () => {

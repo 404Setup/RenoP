@@ -292,4 +292,5 @@ export default Object.freeze({
     "oauth.revocationSecretHint": "32자 이상. 제공자의 인증 취소 콜백 서명을 검증합니다.",
     "oauth.clearRevocationSecret": "취소 콜백 비밀키 삭제",
     "oauth.logoutRevokeFailed": "로컬에서 로그아웃했습니다. 외부 인증을 취소하지 못했으니 제공자 설정에서 취소하세요.",
+    "mfa.deviceRateLimited": "보안 설정으로 인해 이 기기에서 현재 계정에 로그인할 수 없습니다. {time}+1분까지 기다린 후 다시 시도하세요.",
 });

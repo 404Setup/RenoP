@@ -47,10 +47,15 @@ export async function changeProfilePassword(newPassword) {
         const choices = [];
         if (security.totp_enabled) choices.push({value: 'totp', label: t('mfa.authenticator')});
         if (security.passkey_second_factor) choices.push({value: 'passkey', label: t('mfa.usePasskey')});
-        if (security.email && security.email_verification_required) choices.push({value: 'email', label: t('profile.passwordEmailMethod')});
+        if (security.email && security.email_verification_required) choices.push({
+            value: 'email',
+            label: t('profile.passwordEmailMethod')
+        });
         let factor = choices[0].value;
-        const code = el('input', {id: 'password-change-code', type: 'text', inputmode: 'numeric',
-            autocomplete: 'one-time-code', pattern: '[0-9]{6}', minlength: '6', maxlength: '6'});
+        const code = el('input', {
+            id: 'password-change-code', type: 'text', inputmode: 'numeric',
+            autocomplete: 'one-time-code', pattern: '[0-9]{6}', minlength: '6', maxlength: '6'
+        });
         const codeField = el('div', {class: 'account-field'}, el('label', {for: code.id}, t('mfa.code')), code);
         const error = el('p', {class: 'account-form-error', role: 'alert', hidden: true});
         const update = () => {
@@ -60,7 +65,10 @@ export async function changeProfilePassword(newPassword) {
             code.value = '';
             error.hidden = true;
         };
-        const picker = makeCustomSelect(choices, factor, value => { factor = value; update(); });
+        const picker = makeCustomSelect(choices, factor, value => {
+            factor = value;
+            update();
+        });
         picker.querySelector('button')?.setAttribute('aria-label', t('profile.passwordSecondFactor'));
         const form = el('form', {class: 'account-verification'},
             el('p', {}, t('profile.passwordSecondFactor')), picker, codeField, error);
@@ -95,8 +103,10 @@ export async function changeProfilePassword(newPassword) {
                         const credential = await requestPasskeyAssertion(challenge.options, {
                             signal: controller.signal, button: document.getElementById('password-change-verify'),
                         });
-                        proof = {factor: 'passkey', challenge_id: challenge.challenge_id,
-                            passkey_credential: new TextEncoder().encode(JSON.stringify(credential))};
+                        proof = {
+                            factor: 'passkey', challenge_id: challenge.challenge_id,
+                            passkey_credential: new TextEncoder().encode(JSON.stringify(credential))
+                        };
                     }
                     const response = await submit(proof);
                     code.value = '';
@@ -117,9 +127,17 @@ export async function changeProfilePassword(newPassword) {
             maxWidth: '480px', body: form,
             footer: [
                 {text: t('common.cancel'), className: 'action-btn', onClick: close},
-                {id: 'password-change-verify', text: t('mfa.verify'), className: 'action-btn primary-btn', onClick: () => form.requestSubmit()},
+                {
+                    id: 'password-change-verify',
+                    text: t('mfa.verify'),
+                    className: 'action-btn primary-btn',
+                    onClick: () => form.requestSubmit()
+                },
             ],
-            onClose: () => { controller.abort(); code.value = ''; },
+            onClose: () => {
+                controller.abort();
+                code.value = '';
+            },
         }) === true;
     } catch (error) {
         if (!active()) return false;

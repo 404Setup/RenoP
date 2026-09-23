@@ -12,14 +12,14 @@ import {buildSnippets} from './docker-snippets.js';
 
 export default Object.freeze({
     buildSnippets,
-        id: 'docker',
-        protocol: 'docker',
-        icon: 'repositoryDocker',
-        labelKey: 'repos.formatDocker',
-        descriptionKey: 'repos.formatDockerDesc',
-        supportsBrowserUpload: false,
-        supportsRedeployment: true,
-        supportsGpg: false,
-        supportsArtifactTemplate: false,
-        snippetTabs: Object.freeze(['docker-pull', 'docker-tag', 'docker-push', 'docker-login'])
+    id: 'docker',
+    protocol: 'docker',
+    icon: 'repositoryDocker',
+    labelKey: 'repos.formatDocker',
+    descriptionKey: 'repos.formatDockerDesc',
+    supportsBrowserUpload: false,
+    supportsRedeployment: true,
+    supportsGpg: false,
+    supportsArtifactTemplate: false,
+    snippetTabs: Object.freeze(['docker-pull', 'docker-tag', 'docker-push', 'docker-login'])
 });

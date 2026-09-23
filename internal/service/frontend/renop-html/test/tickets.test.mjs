@@ -89,8 +89,15 @@ test('ticket entry resets stale filters and account changes reset the requester 
     const pages = [];
     const context = vm.createContext({
         localStorage: {getItem: () => username},
-        window: {location: {pathname: '/account/tickets', search: '', hash: ''}, dispatchEvent() {}, history: {replaceState() {}}},
-        PopStateEvent: class {}, pages,
+        window: {
+            location: {pathname: '/account/tickets', search: '', hash: ''}, dispatchEvent() {
+            }, history: {
+                replaceState() {
+                }
+            }
+        },
+        PopStateEvent: class {
+        }, pages,
     });
     loadScript('../js/tickets.js', context,
         'loadTasks = async () => pages.push({view: activeView, status: activeStatus, offset: pageOffset, types: [...activeTypes]});');

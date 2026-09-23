@@ -145,6 +145,67 @@ func TestLegalSnapshotInvalidatesMetadataAndDocumentsTogether(t *testing.T) {
 	require.Equal(t, "# Updated notice", string(body))
 }
 
+func TestLegalMultiLanguageAndAutoDate(t *testing.T) {
+	cfg := config.DefaultConfig()
+	state := core.NewAppState()
+	state.Inner.Config.Store(cfg)
+	app := fiber.New()
+	SetupRoutes(app, state)
+
+	// Verify default has today's date
+	req := httptest.NewRequest("GET", "/legal/privacy-policy", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	resp.Body.Close()
+	require.Contains(t, string(body), "Last updated: ")
+
+	// Add translation
+	next := cfg.DeepCopy()
+	next.Legal.Translations = map[string]config.LegalDocumentSet{
+		"zh-cn": {
+			PrivacyPolicy:  "最后更新: 2026年1月1日\n\n# 隐私政策内容",
+			TermsOfService: "最后更新: 2026年1月1日\n\n# 服务条款内容",
+			LegalNotice:    "# 法律声明内容",
+		},
+	}
+	require.NoError(t, next.Legal.Normalize())
+	state.Inner.Config.Store(next)
+
+	// Query with ?lang=zh-CN
+	reqZh := httptest.NewRequest("GET", "/legal/privacy-policy?lang=zh-CN", nil)
+	respZh, err := app.Test(reqZh)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, respZh.StatusCode)
+	bodyZh, err := io.ReadAll(respZh.Body)
+	require.NoError(t, err)
+	respZh.Body.Close()
+	require.Contains(t, string(bodyZh), "隐私政策内容")
+
+	// Query with Accept-Language: zh-CN
+	reqHeader := httptest.NewRequest("GET", "/legal/terms-of-service", nil)
+	reqHeader.Header.Set("Accept-Language", "zh-CN, zh")
+	respHeader, err := app.Test(reqHeader)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, respHeader.StatusCode)
+	bodyHeader, err := io.ReadAll(respHeader.Body)
+	require.NoError(t, err)
+	respHeader.Body.Close()
+	require.Contains(t, string(bodyHeader), "服务条款内容")
+
+	// Fallback to English for unconfigured language
+	reqFr := httptest.NewRequest("GET", "/legal/privacy-policy?lang=fr", nil)
+	respFr, err := app.Test(reqFr)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, respFr.StatusCode)
+	bodyFr, err := io.ReadAll(respFr.Body)
+	require.NoError(t, err)
+	respFr.Body.Close()
+	require.Contains(t, string(bodyFr), "This Privacy Policy explains")
+}
+
 func BenchmarkLegalSnapshot(b *testing.B) {
 	cfg := config.DefaultConfig()
 	cfg.Legal.PrivacyPolicy = strings.Repeat("x", config.MaxLegalDocumentBytes)

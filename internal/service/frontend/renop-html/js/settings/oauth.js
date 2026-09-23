@@ -213,7 +213,13 @@ export function renderOAuthSettings(container, data, changed) {
                 chevron.before(quickToggle);
             }
 
-            function makeInput(object, key, {type = 'text', max = 2048, hint = '', required = false, label = key} = {}) {
+            function makeInput(object, key, {
+                type = 'text',
+                max = 2048,
+                hint = '',
+                required = false,
+                label = key
+            } = {}) {
                 const control = buildInput(type, object[key], '', event => {
                     object[key] = event.target.value;
                     changed();
@@ -268,7 +274,10 @@ export function renderOAuthSettings(container, data, changed) {
             // Section 2: Credentials
             provFields.appendChild(createSubHeader('ssl', t('oauth.provider')));
 
-            const clientIdInput = makeInput(prov, 'client_id', {max: prov.type === 'github' ? 128 : 512, required: prov.enabled});
+            const clientIdInput = makeInput(prov, 'client_id', {
+                max: prov.type === 'github' ? 128 : 512,
+                required: prov.enabled
+            });
             clientIdInput.addEventListener('input', updateHeader);
 
             if (prov.token_auth !== 'none') {
@@ -358,8 +367,10 @@ export function renderOAuthSettings(container, data, changed) {
             if (['custom', 'cloudflare', 'microsoft'].includes(prov.type)) {
                 makeInput(prov, 'revocation_url', {type: 'url', hint: t('oauth.revocationHint')});
             }
-            makeInput(prov, 'revocation_secret', {type: 'password', max: 4096,
-                hint: t(prov.revocation_secret_configured ? 'oauth.secretSaved' : 'oauth.revocationSecretHint')});
+            makeInput(prov, 'revocation_secret', {
+                type: 'password', max: 4096,
+                hint: t(prov.revocation_secret_configured ? 'oauth.secretSaved' : 'oauth.revocationSecretHint')
+            });
             if (prov.revocation_secret_configured) {
                 provFields.appendChild(createToggleRow(t('oauth.clearRevocationSecret'), '', prov.clear_revocation_secret === true, value => {
                     prov.clear_revocation_secret = value;

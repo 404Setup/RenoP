@@ -20,12 +20,23 @@ import {caughtErrorMessage} from '../response-errors.js';
 import {t} from '../i18n.js';
 import {getRepositoryFormat} from '../repository-formats.js';
 import {decodePathSegment, encodeRelativePath, formatBytes} from './utils.js';
-import {createRepositoryBackButton, ensureRepositoryView, formatRepositoryTimestamp, hideRepositoryView, replaceRepositoryView, setRepositoryViewBusy} from './repository-view.js';
+import {
+    createRepositoryBackButton,
+    ensureRepositoryView,
+    formatRepositoryTimestamp,
+    hideRepositoryView,
+    replaceRepositoryView,
+    setRepositoryViewBusy
+} from './repository-view.js';
 import {RepositoryUserSuggestions} from './user-suggestions.js';
 import {copyWithFeedback} from './copy-feedback.js';
 import {createTicketReportButton} from '../ticket-report.js';
-import {createDeprecatePackageButton, createPackageDeprecationBadge, createPackageDeprecationNotice} from '../package-deprecation.js';
-import {createResourceLockButton, createResourceLockBadge, createResourceLockNotices} from '../resource-locks.js';
+import {
+    createDeprecatePackageButton,
+    createPackageDeprecationBadge,
+    createPackageDeprecationNotice
+} from '../package-deprecation.js';
+import {createResourceLockBadge, createResourceLockButton, createResourceLockNotices} from '../resource-locks.js';
 import {openProfileGPGDialog} from '../profile.js';
 
 const errorKeys = Object.freeze({
@@ -166,15 +177,15 @@ export async function renderNativeRepository(path, details, navigate, offset = 0
                 const href = resourcePath(repository, resource.name);
                 const isPublished = Boolean(resource.published_at);
                 const card = el('a', {
-                    class: 'native-card native-resource-link',
-                    href,
-                    onclick: event => {
-                        if (!event.ctrlKey && !event.metaKey && !event.shiftKey) {
-                            event.preventDefault();
-                            navigate(href);
+                        class: 'native-card native-resource-link',
+                        href,
+                        onclick: event => {
+                            if (!event.ctrlKey && !event.metaKey && !event.shiftKey) {
+                                event.preventDefault();
+                                navigate(href);
+                            }
                         }
-                    }
-                },
+                    },
                     el('div', {class: 'native-resource-link-top'},
                         el('div', {class: 'native-resource-link-title'},
                             createIcon('box', {class: 'native-resource-icon'}),
@@ -323,12 +334,20 @@ export async function renderNativeRepository(path, details, navigate, offset = 0
 
             // Resource settings (for L3+ managers and owners)
             if (canManage) {
-                const description = el('textarea', {class: 'cfg-textarea', rows: 3, maxLength: 2000}, resource.description || '');
+                const description = el('textarea', {
+                    class: 'cfg-textarea',
+                    rows: 3,
+                    maxLength: 2000
+                }, resource.description || '');
                 const isGPGFormat = ['rpm', 'conan'].includes(format.protocol);
                 const isAPKFormat = format.protocol === 'apk';
                 const isRPMFormat = format.protocol === 'rpm';
                 const isConanFormat = format.protocol === 'conan';
-                const key = el('textarea', {class: 'cfg-textarea native-key-input', rows: 6, placeholder: '-----BEGIN ...-----'}, resource.signing_key || '');
+                const key = el('textarea', {
+                    class: 'cfg-textarea native-key-input',
+                    rows: 6,
+                    placeholder: '-----BEGIN ...-----'
+                }, resource.signing_key || '');
 
                 let signingHintKey = 'native.signingHint';
                 if (isAPKFormat) {
@@ -369,7 +388,10 @@ export async function renderNativeRepository(path, details, navigate, offset = 0
                 settingsChildren.push(
                     action('common.save', async () => {
                         const signingKeyVal = (isGPGFormat || isAPKFormat) ? key.value : '';
-                        await request('', {method: 'PUT', json: {name, description: description.value, signing_key: signingKeyVal}});
+                        await request('', {
+                            method: 'PUT',
+                            json: {name, description: description.value, signing_key: signingKeyVal}
+                        });
                         await refresh();
                     }, 'pill-btn pill-btn--primary')
                 );
@@ -499,7 +521,10 @@ export async function renderNativeRepository(path, details, navigate, offset = 0
                             String(member.level),
                             async value => {
                                 try {
-                                    await request('/members', {method: 'PUT', json: {name, username: member.username, level: Number(value)}});
+                                    await request('/members', {
+                                        method: 'PUT',
+                                        json: {name, username: member.username, level: Number(value)}
+                                    });
                                     await refresh();
                                 } catch (err) {
                                     showAlert(caughtErrorMessage(err, 'native.failed'), 'error');
@@ -513,7 +538,10 @@ export async function renderNativeRepository(path, details, navigate, offset = 0
                             controls.append(action('common.delete', async () => {
                                 if (!await showConfirm(t('npm.removeMemberConfirm', {name: member.username}) || `Remove ${member.username}?`, {danger: true})) return false;
                                 try {
-                                    await request('/members', {method: 'PUT', json: {name, username: member.username, level: -1}});
+                                    await request('/members', {
+                                        method: 'PUT',
+                                        json: {name, username: member.username, level: -1}
+                                    });
                                     await refresh();
                                 } catch (err) {
                                     showAlert(caughtErrorMessage(err, 'native.failed'), 'error');
@@ -532,12 +560,21 @@ export async function renderNativeRepository(path, details, navigate, offset = 0
                 }
                 members.append(memberList);
 
-                const username = el('input', {class: 'cfg-input native-invite-input', type: 'text', maxLength: 255, autocomplete: 'off', required: true, placeholder: t('npm.invitePlaceholder') || ''});
+                const username = el('input', {
+                    class: 'cfg-input native-invite-input',
+                    type: 'text',
+                    maxLength: 255,
+                    autocomplete: 'off',
+                    required: true,
+                    placeholder: t('npm.invitePlaceholder') || ''
+                });
                 let level = 1;
                 const select = makeCustomSelect(
                     (canOwn ? [0, 1, 2, 3, 4] : [0, 1, 2, 3]).map(v => ({value: String(v), label: permissionLabel(v)})),
                     '1',
-                    value => { level = Number(value); }
+                    value => {
+                        level = Number(value);
+                    }
                 );
                 select.classList.add('native-invite-permission-select');
 
@@ -552,7 +589,10 @@ export async function renderNativeRepository(path, details, navigate, offset = 0
                         action('native.addMember', async () => {
                             if (!username.reportValidity()) return false;
                             try {
-                                await request('/members', {method: 'PUT', json: {name, username: username.value.trim(), level}});
+                                await request('/members', {
+                                    method: 'PUT',
+                                    json: {name, username: username.value.trim(), level}
+                                });
                                 await refresh();
                             } catch (err) {
                                 showAlert(caughtErrorMessage(err, 'native.failed'), 'error');
@@ -564,7 +604,10 @@ export async function renderNativeRepository(path, details, navigate, offset = 0
                     event.preventDefault();
                     if (!username.reportValidity()) return;
                     try {
-                        await request('/members', {method: 'PUT', json: {name, username: username.value.trim(), level}});
+                        await request('/members', {
+                            method: 'PUT',
+                            json: {name, username: username.value.trim(), level}
+                        });
                         await refresh();
                     } catch (err) {
                         showAlert(caughtErrorMessage(err, 'native.failed'), 'error');

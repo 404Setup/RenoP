@@ -26,5 +26,9 @@ function buildCargoSnippets(repositoryName) {
 }
 
 export function buildSnippets(_path, pathParts) {
-    return {snippets: buildCargoSnippets(pathParts[0]), titleKey: 'details.cargoTitle', subtitleKey: 'details.cargoSubtitle'};
+    return {
+        snippets: buildCargoSnippets(pathParts[0]),
+        titleKey: 'details.cargoTitle',
+        subtitleKey: 'details.cargoSubtitle'
+    };
 }

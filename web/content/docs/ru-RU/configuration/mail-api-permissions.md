@@ -24,7 +24,7 @@ RenoP выполняет HTTP-запросы напрямую, без SDK про
 | Amazon SES v2       | `ses:SendEmail`                               | `ses:GetMessageInsights`                            | `ses:GetAccount`; без запроса баланса                                           |
 | SendGrid            | `mail.send`                                   | `messages.read` и дополнение истории Email Activity | `user.credits.read`; без денежного баланса                                      |
 | Gmail               | `https://www.googleapis.com/auth/gmail.send`  | `https://www.googleapis.com/auth/gmail.metadata`    | Без запроса остатка отправлений или баланса                                     |
-| Alibaba Direct Mail | `dm:SingleSendMail`                           | —                  | `dm:DescAccountSummary`; дополнительно `bss:DescribeAcccount`                   |
+| Alibaba Direct Mail | `dm:SingleSendMail`                           | —                                                   | `dm:DescAccountSummary`; дополнительно `bss:DescribeAcccount`                   |
 | Tencent SES         | `ses:SendEmail`                               | `ses:GetSendEmailStatus`                            | Дополнительно `finance:DescribeAccountBalance`; без запроса остатка отправлений |
 | Feishu / Lark       | `mail:user_mailbox.message:send`              | `mail:user_mailbox.message:readonly`                | Соответствующий запрос не реализован                                            |
 
@@ -44,7 +44,9 @@ RenoP обновляет сохранённые учётные данные; н�
 RenoP вызывает `POST /accounts/{account_id}/email/sending/send` относительно `https://api.cloudflare.com/client/v4`.
 Передаются структурированные адреса, текст и HTML; читаются `message_id`, `delivered`, `permanent_bounces`, `queued` и
 `suppressed_recipients`.
-После успешной отправки запроса RenoP сохраняет `accepted` и прекращает опрос, если коннектор не поддерживает надёжный статус отдельного письма, в том числе Cloudflare и Alibaba Direct Mail. Принятие не доказывает доставку. Старые записи `queued_provider` показываются как `accepted` без повторной отправки.
+После успешной отправки запроса RenoP сохраняет `accepted` и прекращает опрос, если коннектор не поддерживает надёжный
+статус отдельного письма, в том числе Cloudflare и Alibaba Direct Mail. Принятие не доказывает доставку. Старые записи
+`queued_provider` показываются как `accepted` без повторной отправки.
 См. [настройку и права токена](https://developers.cloudflare.com/email-service/get-started/send-emails/)
 и [схему отправки](https://developers.cloudflare.com/api/resources/email_sending/methods/send/).
 
@@ -155,7 +157,9 @@ RenoP проверяет метку `SENT` через `GET /users/me/messages/{m
 
 RenoP выполняет подписанные RPC POST-запросы Direct Mail версии `2015-11-23`.
 `SingleSendMail` возвращает `EnvId`, а `DescAccountSummary` — бесплатный остаток и состояние аккаунта.
-После успешной отправки запроса RenoP сохраняет `accepted` и прекращает опрос, если коннектор не поддерживает надёжный статус отдельного письма, в том числе Cloudflare и Alibaba Direct Mail. Принятие не доказывает доставку. Старые записи `queued_provider` показываются как `accepted` без повторной отправки.
+После успешной отправки запроса RenoP сохраняет `accepted` и прекращает опрос, если коннектор не поддерживает надёжный
+статус отдельного письма, в том числе Cloudflare и Alibaba Direct Mail. Принятие не доказывает доставку. Старые записи
+`queued_provider` показываются как `accepted` без повторной отправки.
 Имя отправителя ограничено 15 символами. Адрес биллинга выбирается по коммерческому региону аккаунта, отдельно от
 региона отправки; валюта модели должна совпадать с возвращаемой.
 

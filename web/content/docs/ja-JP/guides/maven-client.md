@@ -19,13 +19,18 @@ username は account name、password は Token です。
 ### 依存関係解決 (`pom.xml`)
 
 ```xml
+
 <repositories>
     <repository>
         <id>renop-releases</id>
         <name>RenoP Releases</name>
         <url>https://packages.example.com/releases</url>
-        <releases><enabled>true</enabled></releases>
-        <snapshots><enabled>false</enabled></snapshots>
+        <releases>
+            <enabled>true</enabled>
+        </releases>
+        <snapshots>
+            <enabled>false</enabled>
+        </snapshots>
     </repository>
 </repositories>
 ```
@@ -36,6 +41,7 @@ Snapshot が必要なら 2 つ目を追加します。`HIDDEN` は exact URL で
 ### 公開先 (`pom.xml`)
 
 ```xml
+
 <distributionManagement>
     <repository>
         <id>renop-releases</id>
@@ -51,6 +57,7 @@ publication rule を使います。
 ### Credential (`~/.m2/settings.xml`)
 
 ```xml
+
 <settings>
     <servers>
         <server>

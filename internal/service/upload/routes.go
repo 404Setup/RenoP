@@ -111,7 +111,7 @@ func handleInit(c fiber.Ctx, state *core.AppState, mgr *Manager) error {
 
 	var req pb.ChunkedUploadInitRequest
 	if err := protohttp.Read(c, &req); err != nil {
-		if err == fiber.ErrRequestEntityTooLarge {
+		if errors.Is(err, fiber.ErrRequestEntityTooLarge) {
 			return err
 		}
 		return jsonErr(c, fiber.StatusBadRequest, "Invalid request body")

@@ -67,7 +67,10 @@ export async function openUserBanDialog(account, refresh) {
     const preset = makeCustomSelect([
         ...BAN_REASON_CODES.map(value => ({value, label: t(`users.banReason.${value}`)})),
         {value: 'other', label: t('users.banReasonOther')},
-    ], reasonCode, value => { reasonCode = value; syncReason(); });
+    ], reasonCode, value => {
+        reasonCode = value;
+        syncReason();
+    });
     preset.querySelector('button')?.setAttribute('aria-label', t('users.banReasonLabel'));
     syncReason();
     const permanent = el('input', {
@@ -135,7 +138,12 @@ export async function openUserBanDialog(account, refresh) {
         await runButtonAction(button, async () => {
             const response = await apiRequest(`/api/tokens/${encodeURIComponent(account.name)}/ban`, {
                 method: 'PUT', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({reason: normalizedReason, reason_code: reasonCode === 'other' ? '' : reasonCode, expires_at: expiry, ban_ip: banIP.checked}),
+                body: JSON.stringify({
+                    reason: normalizedReason,
+                    reason_code: reasonCode === 'other' ? '' : reasonCode,
+                    expires_at: expiry,
+                    ban_ip: banIP.checked
+                }),
             });
             if (!response.ok) {
                 showAlert(await responseErrorMessage(response, 'users.banFailed'), 'error');

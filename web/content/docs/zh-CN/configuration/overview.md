@@ -8,12 +8,12 @@ description: 配置文件、服务设置、存储、代理、品牌与更新策�
 # 配置概览
 
 RenoP 将系统设置保存在私有 SQLite 数据库 `renop-settings.db`，通过 `RENOP_SETTINGS_DB` 指定路径。请在管理员设置页面调整监听
-IP、端口和应用数据库连接；监听配置变更需重启。法律文档合并到前端设置，索引控制合并到存储设置。下文示例仅描述保存的字段，不要创建或编辑
+IP、端口和应用数据库连接。监听配置变更需重启。法律文档合并到前端设置，索引控制合并到存储设置。下文示例仅描述保存的字段，不要创建或编辑
 YAML 配置文件。
 
-设置导航合并为外观与政策、账户与登录、发布管理、存储与缓存、服务与网络以及邮件分类；各子页仍独立保留草稿和保存。
+设置导航合并为外观与政策、账户与登录、发布管理、存储与缓存、服务与网络以及邮件分类。各子页仍独立保留草稿和保存。
 
-仅首次启动时导入已有的 `config.yaml`（或 `RENOP_CONFIG` 指定的文件），提交后归档。之后只使用数据库快照。请同时备份设置数据库和应用数据库；加密密钥保存在设置数据库中。
+仅首次启动时导入已有的 `config.yaml`（或 `RENOP_CONFIG` 指定的文件），提交后归档。之后只使用数据库快照。请同时备份设置数据库和应用数据库。加密密钥保存在设置数据库中。
 
 ## 配置文件
 
@@ -70,7 +70,7 @@ server:
 全部 Origin。只有直接连接来源匹配 `trusted_proxies` 时才信任转发客户端 IP 请求头。主机、端口、TLS、压缩、
 调试模式及部分缓存设置变更要求重启。
 
-GitHub OAuth 同样存储在 `server.github_oauth` 下；应通过界面配置 Client ID 与只写 Secret。
+GitHub OAuth 同样存储在 `server.github_oauth` 下。应通过界面配置 Client ID 与只写 Secret。
 
 其他 [OAuth 服务](../security/oauth-login.md)通过 `server.oauth_providers` 配置。后台编辑器提供官方预设，保存但不回传凭据，并立即将新配置应用于新的授权。
 
@@ -119,7 +119,7 @@ frontend:
 
 品牌 URL 使用前会被校验。背景图必须满足 WebP 格式与大小策略。
 `font_preset` 支持 `system`、`inter`、`noto_sans`、`open_sans`、`source_sans` 和 `custom`。预设使用本机
-已安装字体；自定义值可使用 WOFF2、WOFF、TTF 文件直链或 Google Fonts CSS URL。资源在后台加载，主要字体
+已安装字体。自定义值可使用 WOFF2、WOFF、TTF 文件直链或 Google Fonts CSS URL。资源在后台加载，主要字体
 完整可用后才会启用，因此不会阻塞首次渲染。
 
 ### `updater` 更新策略
@@ -130,7 +130,7 @@ updater:
   mode: "manual"
 ```
 
-`channel` 为 `release` 或 `nightly`；`mode` 为 `manual`、`auto_check` 或 `auto_install`。自动检查由进程级调度器
+`channel` 为 `release` 或 `nightly`。`mode` 为 `manual`、`auto_check` 或 `auto_install`。自动检查由进程级调度器
 合并执行，结果通过消息中心发送给管理员。
 
 [法律文档与 Cookie 偏好](./legal.md)

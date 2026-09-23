@@ -10,10 +10,12 @@ description: Repository engines, visibility, upstream mirrors, migration, and S3
 Repository definitions are stored in the database and edited through repository management. On the first upgrade,
 RenoP imports `repositories.yaml` (or `RENOP_REPOSITORIES`) only if no database snapshot exists, then archives the
 source as `repositories.yaml.migrated.<id>`. Invalid input stops startup without replacing the source. An existing
-database snapshot always wins, including an empty repository set. New installations leave the repository set empty and do not create a YAML file. Back up the database and protect the archived file, which can contain
+database snapshot always wins, including an empty repository set. New installations leave the repository set empty and
+do not create a YAML file. Back up the database and protect the archived file, which can contain
 S3 and mirror credentials. A repository name is an immutable lowercase slug and the first URL segment.
 
-Fresh installations start with an empty repository list. Create repositories explicitly in the administration page; existing database snapshots and one-time legacy imports retain their configured repositories.
+Fresh installations start with an empty repository list. Create repositories explicitly in the administration page;
+existing database snapshots and one-time legacy imports retain their configured repositories.
 
 ## Legacy migration example
 
@@ -43,17 +45,17 @@ repositories:
 
 ## Repository fields
 
-| Field                   | Default        | Description                                                                     |
-|:------------------------|:---------------|:--------------------------------------------------------------------------------|
-| `name`                  | Required       | Immutable repository slug and URL prefix                                        |
+| Field                   | Default        | Description                                                                                                               |
+|:------------------------|:---------------|:--------------------------------------------------------------------------------------------------------------------------|
+| `name`                  | Required       | Immutable repository slug and URL prefix                                                                                  |
 | `format`                | `maven`        | `maven`, `maven-classic`, `files`, `npm`, `cargo`, `docker`, `conan`, `conda`, `conda-native`, `apk`, `apt`, `rpm`, `yum` |
-| `visibility`            | `PUBLIC`       | `PUBLIC`, `HIDDEN`, or `PRIVATE`                                                |
-| `allow_redeployment`    | `false`        | Maven version redeployment or replacement in files/Docker, when supported       |
-| `require_gpg_signature` | `false`        | Require detached OpenPGP validation for Maven publication                       |
-| `publication_review`    | `off`          | Maven/npm/Cargo/Docker review policy: `off`, `new_packages`, or `every_version` |
-| `download_statistics`   | Engine default | Enabled for Maven/npm/Cargo/Docker; unstructured `files` opts in                |
-| `mirrors`               | `[]`           | Ordered upstream definitions                                                    |
-| `s3`                    | omitted        | Repository-specific S3-compatible storage                                       |
+| `visibility`            | `PUBLIC`       | `PUBLIC`, `HIDDEN`, or `PRIVATE`                                                                                          |
+| `allow_redeployment`    | `false`        | Maven version redeployment or replacement in files/Docker, when supported                                                 |
+| `require_gpg_signature` | `false`        | Require detached OpenPGP validation for Maven publication                                                                 |
+| `publication_review`    | `off`          | Maven/npm/Cargo/Docker review policy: `off`, `new_packages`, or `every_version`                                           |
+| `download_statistics`   | Engine default | Enabled for Maven/npm/Cargo/Docker; unstructured `files` opts in                                                          |
+| `mirrors`               | `[]`           | Ordered upstream definitions                                                                                              |
+| `s3`                    | omitted        | Repository-specific S3-compatible storage                                                                                 |
 
 For npm and Docker, `new_packages` reviews the explicit creation request before reserving the name; `every_version`
 also reviews every later version or manifest. Maven and Cargo have no empty-package creation step, so their
@@ -67,7 +69,8 @@ repository's effective download-statistics switch.
 Uploads and mirror downloads in `files` repositories preserve neighboring files even when paths contain `SNAPSHOT`
 or names end in `.md5`, `.asc`, or `-javadoc.jar`. Maven version cleanup and Javadoc extraction apply only to Maven.
 
-Publication review supports Maven, npm, Cargo, Docker, and managed native resources. Maven review forces `allow_redeployment` to `false`; npm
+Publication review supports Maven, npm, Cargo, Docker, and managed native resources. Maven review forces
+`allow_redeployment` to `false`; npm
 keeps its immutable
 version and dist-tag transaction. Local files remain hidden until a repository moderator or system administrator
 approves them, and mirror content is never reviewed. Pending reviews prevent repository reconfiguration, deletion, or
@@ -138,32 +141,71 @@ s3:
 `force_path_style` is commonly required by MinIO. With `redirect_downloads: true`, RenoP authorizes the request and
 returns a short-lived presigned redirect; otherwise it streams the object through the server.
 
-`capacity_limit_bytes` is the per-repository installed-byte limit; `0` means unlimited. The UI edits it in MiB. Disk and S3 commits count artifacts, generated checksums, pending-review objects, and cached mirror content, excluding temporary staging copies. Capacity is reserved before commits so concurrent uploads share the same limit. Excess writes return `507` with `repository_capacity_exceeded`; a valid mirror response can still stream without being cached. Existing files remain readable when the limit is lowered below usage. After out-of-band storage changes, rebuild the index or restart to remeasure usage. Omitting the optional field preserves the existing limit for older clients.
+`capacity_limit_bytes` is the per-repository installed-byte limit; `0` means unlimited. The UI edits it in MiB. Disk and
+S3 commits count artifacts, generated checksums, pending-review objects, and cached mirror content, excluding temporary
+staging copies. Capacity is reserved before commits so concurrent uploads share the same limit. Excess writes return
+`507` with `repository_capacity_exceeded`; a valid mirror response can still stream without being cached. Existing files
+remain readable when the limit is lowered below usage. After out-of-band storage changes, rebuild the index or restart
+to remeasure usage. Omitting the optional field preserves the existing limit for older clients.
 
 ## Native package repositories
 
-Conan supports recipe and binary revisions through the native client. Conda and Conda native accept `.conda` and `.tar.bz2` packages in platform directories such as `noarch/` and generate `repodata.json`. APK generates `APKINDEX.tar.gz` beside packages in architecture directories such as `x86_64/`. apt accepts `.deb` files, generates `Packages`, `Packages.gz`, and `dists/<suite>/Release`, and maps `pool/<component>/` to that component. rpm/yum generates `repodata/repomd.xml` and its referenced metadata.
+Conan supports recipe and binary revisions through the native client. Conda and Conda native accept `.conda` and
+`.tar.bz2` packages in platform directories such as `noarch/` and generate `repodata.json`. APK generates
+`APKINDEX.tar.gz` beside packages in architecture directories such as `x86_64/`. apt accepts `.deb` files, generates
+`Packages`, `Packages.gz`, and `dists/<suite>/Release`, and maps `pool/<component>/` to that component. rpm/yum
+generates `repodata/repomd.xml` and its referenced metadata.
 
-Reserve each hosted native resource in the repository browser before uploading. Resource identities come from package metadata or Conan recipe references and do not require a global-team prefix. L0 reads, L1 publishes, L2 replaces or deletes versions, L3 manages settings and members, and L4 owns the resource. At least one L4 owner must remain. Repository write permission alone does not grant access to another resource. Native mirror repositories remain pull-only.
+Reserve each hosted native resource in the repository browser before uploading. Resource identities come from package
+metadata or Conan recipe references and do not require a global-team prefix. L0 reads, L1 publishes, L2 replaces or
+deletes versions, L3 manages settings and members, and L4 owns the resource. At least one L4 owner must remain.
+Repository write permission alone does not grant access to another resource. Native mirror repositories remain
+pull-only.
 
-`new_packages` reviews the first publication after reservation; `every_version` reviews each native version or Conan revision. Incomplete signatures and pending reviews stay out of downloads and generated indexes, including after restart. APK requires an RSA PEM publisher key and a valid native signature covering the control and payload; RPM requires a trusted OpenPGP signature covering the payload directly or through a signed payload digest. Configure the public key in resource settings. APT uses signed repository indexes rather than a detached signature for each `.deb`; Conda uses its native package hashes and has no extra `.asc` upload requirement.
+`new_packages` reviews the first publication after reservation; `every_version` reviews each native version or Conan
+revision. Incomplete signatures and pending reviews stay out of downloads and generated indexes, including after
+restart. APK requires an RSA PEM publisher key and a valid native signature covering the control and payload; RPM
+requires a trusted OpenPGP signature covering the payload directly or through a signed payload digest. Configure the
+public key in resource settings. APT uses signed repository indexes rather than a detached signature for each `.deb`;
+Conda uses its native package hashes and has no extra `.asc` upload requirement.
 
-New uploads cannot replace generated repository indexes. Existing legacy metadata is preserved until an administrator removes it. An automatic index is limited to 10,000 packages; split larger collections into repositories or native subdirectories. Package uploads are bounded to 8 GiB, with at most 256 unpublished files per resource and 16,384 across the instance. Existing uncatalogued artifacts remain readable; an administrator must handle them before a conflicting managed upload can replace them.
+New uploads cannot replace generated repository indexes. Existing legacy metadata is preserved until an administrator
+removes it. An automatic index is limited to 10,000 packages; split larger collections into repositories or native
+subdirectories. Package uploads are bounded to 8 GiB, with at most 256 unpublished files per resource and 16,384 across
+the instance. Existing uncatalogued artifacts remain readable; an administrator must handle them before a conflicting
+managed upload can replace them.
 
-Generated APK, apt, and rpm metadata is signed with independent persistent keys in the private settings database. Public keys are served at `renop.rsa.pub`, `renop.asc`, and `repodata/repomd.xml.key`, respectively. apt also serves `InRelease` and `Release.gpg`; rpm serves `repomd.xml.asc`. Import the key before using the client commands shown in the repository browser. rpm package signatures still belong to their publishers and require the corresponding publisher keys.
+Generated APK, apt, and rpm metadata is signed with independent persistent keys in the private settings database. Public
+keys are served at `renop.rsa.pub`, `renop.asc`, and `repodata/repomd.xml.key`, respectively. apt also serves
+`InRelease` and `Release.gpg`; rpm serves `repomd.xml.asc`. Import the key before using the client commands shown in the
+repository browser. rpm package signatures still belong to their publishers and require the corresponding publisher
+keys.
 
-Conan requires its official signing-extension manifest and an OpenPGP signature. Install `scripts/conan/sign.py` at `<CONAN_HOME>/extensions/plugins/sign/sign.py`, register the public key on the resource, and set `RENOP_CONAN_GPG_KEY` to the private-key fingerprint and `RENOP_CONAN_GPG_KEYRING` to a trusted dearmored public keyring for `gpgv`. Uploads remain hidden until every manifest file and signature arrives. Byte-identical retries of published Conan files are idempotent.
+Conan requires its official signing-extension manifest and an OpenPGP signature. Install `scripts/conan/sign.py` at
+`<CONAN_HOME>/extensions/plugins/sign/sign.py`, register the public key on the resource, and set `RENOP_CONAN_GPG_KEY`
+to the private-key fingerprint and `RENOP_CONAN_GPG_KEYRING` to a trusted dearmored public keyring for `gpgv`. Uploads
+remain hidden until every manifest file and signature arrives. Byte-identical retries of published Conan files are
+idempotent.
 
 ```sh
 conan cache sign "PACKAGE/*"
 conan upload "PACKAGE/*" --remote "REPOSITORY" --confirm
 ```
 
-
 ## Shared file contents
 
-Identical Disk files share immutable contents through hard links while keeping their logical paths. Writes replace a file atomically, and deleting one path preserves other references. One background task scans existing files in batches, skips busy repositories, and pauses between batches. Mutable indexes, staging files, and expiring Disk mirror caches keep independent files.
+Identical Disk files share immutable contents through hard links while keeping their logical paths. Writes replace a
+file atomically, and deleting one path preserves other references. One background task scans existing files in batches,
+skips busy repositories, and pauses between batches. Mutable indexes, staging files, and expiring Disk mirror caches
+keep independent files.
 
-S3 payloads of at least 64 KiB use logical references to shared content; smaller objects remain direct objects. Hashes and references are persisted in the private file index. Known records avoid repeated metadata probes. Legacy objects without a trusted hash are left untouched until an ordinary upload or complete download through RenoP supplies one; background deduplication does not download them just to compare contents. Index rebuilding may use LIST pages and verify missing reference metadata once. Regular collection processes the indexed reclamation queue rather than repeatedly scanning the bucket.
+S3 payloads of at least 64 KiB use logical references to shared content; smaller objects remain direct objects. Hashes
+and references are persisted in the private file index. Known records avoid repeated metadata probes. Legacy objects
+without a trusted hash are left untouched until an ordinary upload or complete download through RenoP supplies one;
+background deduplication does not download them just to compare contents. Index rebuilding may use LIST pages and verify
+missing reference metadata once. Regular collection processes the indexed reclamation queue rather than repeatedly
+scanning the bucket.
 
-A complete S3 backup includes the private `.renop-content-v1` namespace alongside repository objects and the private index. Independent RenoP deployments should use separate key prefixes. Unreferenced contents are reclaimed after a grace period. Repository capacity and download accounting continue to use logical file sizes, regardless of physical sharing.
+A complete S3 backup includes the private `.renop-content-v1` namespace alongside repository objects and the private
+index. Independent RenoP deployments should use separate key prefixes. Unreferenced contents are reclaimed after a grace
+period. Repository capacity and download accounting continue to use logical file sizes, regardless of physical sharing.

@@ -75,4 +75,7 @@ Utilisez TLS et un gestionnaire de secrets ; ne publiez jamais les clés dans le
   courte
   durée, ce qui réduit la bande passante du serveur.
 
-Le partage S3 conserve les données dans l’espace privé `.renop-content-v1`. Incluez-le avec les objets des dépôts dans les sauvegardes et conservez l’index privé pour réduire les lectures de métadonnées après redémarrage. L’index utilise un flux de records JSON versionné ; les anciens instantanés restent lisibles. Consultez la [configuration des dépôts](/docs/configuration/repositories) pour la déduplication et la restauration.
+Le partage S3 conserve les données dans l’espace privé `.renop-content-v1`. Incluez-le avec les objets des dépôts dans
+les sauvegardes et conservez l’index privé pour réduire les lectures de métadonnées après redémarrage. L’index utilise
+un flux de records JSON versionné ; les anciens instantanés restent lisibles. Consultez
+la [configuration des dépôts](/docs/configuration/repositories) pour la déduplication et la restauration.

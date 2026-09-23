@@ -268,7 +268,7 @@ func UpsertToken(c fiber.Ctx, state *core.AppState, opChan chan<- TokenOp) error
 	var reqMsg pb.CreateAccessTokenRequest
 	readErr := protohttp.Read(c, &reqMsg)
 	if readErr != nil {
-		if readErr == fiber.ErrRequestEntityTooLarge {
+		if errors.Is(readErr, fiber.ErrRequestEntityTooLarge) {
 			return readErr
 		}
 		return c.Status(fiber.StatusBadRequest).SendString("Bad request")

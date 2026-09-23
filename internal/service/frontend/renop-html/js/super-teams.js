@@ -691,7 +691,9 @@ function teamDetailContent(details, prefix, {publicView = false, quotaStatus = n
     if (details.moderator && cachedIsLoggedIn) actions.appendChild(createResourceLockButton({
         locks: team.locks, name: team.prefix || prefix,
         request: (mode, reason, reasonText) => apiRequest(`/api/super-teams/${encodeURIComponent(team.prefix || prefix)}/locks`, {
-            method: mode ? 'PUT' : 'DELETE', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({mode, reason, reason_text: reasonText})
+            method: mode ? 'PUT' : 'DELETE',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({mode, reason, reason_text: reasonText})
         }),
         onSuccess: () => {
             if (generation !== loadGeneration) return;

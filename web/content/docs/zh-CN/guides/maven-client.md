@@ -8,7 +8,7 @@ description: 验证发布域并配置 Maven 与 Gradle 客户端
 # Maven 与 Gradle 客户端配置
 
 先创建 Maven 仓库，再从账号菜单创建并验证制品使用的反向域名命名空间。域及其 L0-L4 团队在所有 Maven
-仓库中共享。读取由仓库可见性控制；发布同时要求仓库写入权限与域发布等级。
+仓库中共享。读取由仓库可见性控制。发布同时要求仓库写入权限与域发布等级。
 
 自动化建议使用可过期并带有 `repository:read`、`repository:publish` 的 API Token。Basic 用户名填写账号名，
 密码填写 Token。
@@ -18,22 +18,28 @@ description: 验证发布域并配置 Maven 与 Gradle 客户端
 ### 依赖解析 (`pom.xml`)
 
 ```xml
+
 <repositories>
     <repository>
         <id>renop-releases</id>
         <name>RenoP Releases</name>
         <url>https://packages.example.com/releases</url>
-        <releases><enabled>true</enabled></releases>
-        <snapshots><enabled>false</enabled></snapshots>
+        <releases>
+            <enabled>true</enabled>
+        </releases>
+        <snapshots>
+            <enabled>false</enabled>
+        </snapshots>
     </repository>
 </repositories>
 ```
 
-需要 Snapshot 时增加第二个仓库配置。`HIDDEN` 可通过精确 URL 解析但不参与发现；`PRIVATE` 读取要求凭据。
+需要 Snapshot 时增加第二个仓库配置。`HIDDEN` 可通过精确 URL 解析但不参与发现。`PRIVATE` 读取要求凭据。
 
 ### 发布目标 (`pom.xml`)
 
 ```xml
+
 <distributionManagement>
     <repository>
         <id>renop-releases</id>
@@ -48,6 +54,7 @@ description: 验证发布域并配置 Maven 与 Gradle 客户端
 ### 凭据 (`~/.m2/settings.xml`)
 
 ```xml
+
 <settings>
     <servers>
         <server>

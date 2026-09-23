@@ -1,8 +1,9 @@
 /*
  * Copyright (c) 2026 404Setup. All rights reserved.
  *
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
- * If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
  *
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
@@ -136,4 +137,101 @@ func (db *DB) IsIPBanned(ip string) (bool, error) {
 		}
 	}
 	return false, core.ErrDatabaseUnavailable
+}
+
+// BanAccountIP restricts an IP address from accessing or authenticating this account.
+func (db *DB) BanAccountIP(username, ip string) error {
+	if db == nil || db.SQLDB == nil {
+		return core.ErrDatabaseUnavailable
+	}
+	ip = normalizedBanIP(ip)
+	if ip == "" {
+		return errors.New("invalid IP address")
+	}
+	username = strings.ToLower(strings.TrimSpace(username))
+	var userID string
+	if err := db.QueryRow(`SELECT user_id FROM user_profiles WHERE username = ?`, username).Scan(&userID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return core.ErrUserProfileNotFound
+		}
+		return err
+	}
+	var existing int
+	err := db.QueryRow(`SELECT 1 FROM account_ip_bans WHERE user_id = ? AND ip = ?`, userID, ip).Scan(&existing)
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	_, err = db.Exec(`INSERT INTO account_ip_bans (user_id, ip) VALUES (?, ?)`, userID, ip)
+	return err
+}
+
+// UnbanAccountIP lifts an IP restriction for this account.
+func (db *DB) UnbanAccountIP(username, ip string) error {
+	if db == nil || db.SQLDB == nil {
+		return core.ErrDatabaseUnavailable
+	}
+	ip = normalizedBanIP(ip)
+	if ip == "" {
+		return nil
+	}
+	username = strings.ToLower(strings.TrimSpace(username))
+	var userID string
+	if err := db.QueryRow(`SELECT user_id FROM user_profiles WHERE username = ?`, username).Scan(&userID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return core.ErrUserProfileNotFound
+		}
+		return err
+	}
+	_, err := db.Exec(`DELETE FROM account_ip_bans WHERE user_id = ? AND ip = ?`, userID, ip)
+	return err
+}
+
+// IsAccountIPBanned checks whether an IP is blocked for this specific account.
+func (db *DB) IsAccountIPBanned(username, ip string) (bool, error) {
+	if db == nil || db.SQLDB == nil {
+		return false, core.ErrDatabaseUnavailable
+	}
+	ip = normalizedBanIP(ip)
+	if ip == "" {
+		return false, nil
+	}
+	username = strings.ToLower(strings.TrimSpace(username))
+	var existing int
+	err := db.QueryRow(`SELECT 1 FROM account_ip_bans banned
+		JOIN user_profiles profile ON profile.user_id = banned.user_id
+		WHERE profile.username = ? AND banned.ip = ?`, username, ip).Scan(&existing)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return existing == 1, nil
+}
+
+// ListAccountBannedIPs returns all banned IPs for this account.
+func (db *DB) ListAccountBannedIPs(username string) ([]string, error) {
+	if db == nil || db.SQLDB == nil {
+		return nil, core.ErrDatabaseUnavailable
+	}
+	username = strings.ToLower(strings.TrimSpace(username))
+	rows, err := db.Query(`SELECT banned.ip FROM account_ip_bans banned
+		JOIN user_profiles profile ON profile.user_id = banned.user_id
+		WHERE profile.username = ? ORDER BY banned.ip`, username)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	ips := make([]string, 0)
+	for rows.Next() {
+		var ip string
+		if err := rows.Scan(&ip); err != nil {
+			return nil, err
+		}
+		ips = append(ips, ip)
+	}
+	return ips, rows.Err()
 }

@@ -15,7 +15,8 @@
     gap: 1.5rem;
     padding: 0.9rem 1.5rem;
     border-bottom: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent);
-    transition: background-color 0.15s;
+    border-radius: 0.6rem;
+    transition: background-color 0.15s, border-radius 0.15s, box-shadow 0.15s;
 }
 
 .cfg-field-row:last-child {
@@ -23,7 +24,9 @@
 }
 
 .cfg-field-row:hover {
+    border-radius: 0.6rem;
     background-color: color-mix(in srgb, var(--item-hover-bg) 50%, transparent);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .cfg-field-label {

@@ -91,7 +91,11 @@ export async function updateLegalPage(active) {
     } catch {
         if (revision !== epoch || controller.signal.aborted) return;
         body.replaceChildren(el('p', {role: 'alert'}, t('legal.loadFailed')),
-            el('button', {type: 'button', class: 'pill-btn pill-btn--soft', onclick: () => void updateLegalPage(true)}, t('offline.retryBtn')));
+            el('button', {
+                type: 'button',
+                class: 'pill-btn pill-btn--soft',
+                onclick: () => void updateLegalPage(true)
+            }, t('offline.retryBtn')));
     } finally {
         if (revision === epoch) body.setAttribute('aria-busy', 'false');
     }
@@ -112,7 +116,8 @@ export function initializeLegalPages() {
         if (!link) return;
         const name = legalPageFromPath(link.getAttribute('href') || '');
         if (name) {
-            void fetchLegalDocument(name).catch(() => {});
+            void fetchLegalDocument(name).catch(() => {
+            });
         }
     }, {passive: true});
 

@@ -29,7 +29,8 @@ paquet
 
 Les API de gestion avec schéma utilisent protobuf binaire. Envoyez `Content-Type: application/x-protobuf` ; les requêtes
 acceptent aussi `application/protobuf` et `application/octet-stream`. Sans Content-Type, protobuf reste le défaut.
-Un corps JSON est rejeté avec une erreur `400` ou `415` selon l’endpoint. Les réponses utilisent toujours `application/x-protobuf` ; `Accept`
+Un corps JSON est rejeté avec une erreur `400` ou `415` selon l’endpoint. Les réponses utilisent toujours
+`application/x-protobuf` ; `Accept`
 n’active pas JSON. Utilisez `proto/api/v1/api.proto` de la version déployée.
 
 Les requêtes restent limitées à 1 MiB, avec les limites plus basses propres aux endpoints. Les exemples JSON associés
@@ -112,7 +113,8 @@ stables et arrêtez lorsque la page indique la fin. Un filtre d’interface ne m
 ## Garder les contrats d’une même version
 
 `web/assets/openapi.yaml` / `proto/api/v1/api.proto`
-Conservez les définitions OpenAPI et protobuf de la version déployée. Décodez les réponses binaires avec le type de message correspondant ; les clients natifs gardent les formats de leur protocole.
+Conservez les définitions OpenAPI et protobuf de la version déployée. Décodez les réponses binaires avec le type de
+message correspondant ; les clients natifs gardent les formats de leur protocole.
 
 Avant mise à niveau, testez hors production : connexion, autorisation par jeton, liste des dépôts, lecture et écriture
 de

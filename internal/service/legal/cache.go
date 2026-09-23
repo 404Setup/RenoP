@@ -28,10 +28,11 @@ import (
 type legalDocument struct{ content, etag string }
 
 type legalSnapshot struct {
-	config    *config.Config
-	documents map[string]legalDocument
-	metadata  []byte
-	etag      string
+	config       *config.Config
+	documents    map[string]legalDocument
+	translations map[string]map[string]legalDocument
+	metadata     []byte
+	etag         string
 }
 
 // legalCache retains one immutable configuration snapshot; edits replace every representation together.
@@ -57,7 +58,11 @@ func (cache *legalCache) load(cfg *config.Config) (*legalSnapshot, error) {
 	if current := cache.current.Load(); current != nil && current.config == cfg {
 		return current, nil
 	}
-	value := &legalSnapshot{config: cfg, documents: make(map[string]legalDocument, 3)}
+	value := &legalSnapshot{
+		config:       cfg,
+		documents:    make(map[string]legalDocument, 3),
+		translations: make(map[string]map[string]legalDocument, len(cfg.Legal.Translations)),
+	}
 	for name, content := range map[string]string{
 		"privacy-policy": cfg.Legal.PrivacyPolicy, "terms-of-service": cfg.Legal.TermsOfService, "legal-notice": cfg.Legal.LegalNotice,
 	} {
@@ -65,6 +70,20 @@ func (cache *legalCache) load(cfg *config.Config) (*legalSnapshot, error) {
 			return nil, fiber.ErrServiceUnavailable
 		}
 		value.documents[name] = legalDocument{content: content, etag: contentETag(content)}
+	}
+	for lang, set := range cfg.Legal.Translations {
+		lowerLang := strings.ToLower(lang)
+		trDocs := make(map[string]legalDocument, 3)
+		for name, content := range map[string]string{
+			"privacy-policy": set.PrivacyPolicy, "terms-of-service": set.TermsOfService, "legal-notice": set.LegalNotice,
+		} {
+			if content != "" && len(content) <= config.MaxLegalDocumentBytes {
+				trDocs[name] = legalDocument{content: content, etag: contentETag(content)}
+			}
+		}
+		if len(trDocs) > 0 {
+			value.translations[lowerLang] = trDocs
+		}
 	}
 	contentRevision := contentETag(value.documents["privacy-policy"].etag + value.documents["terms-of-service"].etag + value.documents["legal-notice"].etag)
 	var err error
@@ -99,11 +118,50 @@ func (value *legalSnapshot) serveMetadata(c fiber.Ctx) error {
 	return c.Send(value.metadata)
 }
 
+func parseRequestedLanguage(c fiber.Ctx) string {
+	if lang := strings.TrimSpace(c.Query("lang")); lang != "" {
+		return strings.ToLower(lang)
+	}
+	accept := c.Get(fiber.HeaderAcceptLanguage)
+	if accept == "" {
+		return ""
+	}
+	semicolon := string(byte(59))
+	parts := strings.SplitSeq(accept, ",")
+	for part := range parts {
+		tag, _, _ := strings.Cut(part, semicolon)
+		tag = strings.TrimSpace(tag)
+		if tag != "" {
+			return strings.ToLower(tag)
+		}
+	}
+	return ""
+}
+
 func (value *legalSnapshot) serveDocument(c fiber.Ctx, name string) error {
 	document, ok := value.documents[name]
 	if !ok {
 		return fiber.ErrNotFound
 	}
+	if reqLang := parseRequestedLanguage(c); reqLang != "" && len(value.translations) > 0 {
+		if trDocs, found := value.translations[reqLang]; found {
+			if doc, hasDoc := trDocs[name]; hasDoc && doc.content != "" {
+				document = doc
+			}
+		} else {
+			primary, _, _ := strings.Cut(reqLang, "-")
+			for k, trDocs := range value.translations {
+				kPrimary, _, _ := strings.Cut(k, "-")
+				if kPrimary == primary {
+					if doc, hasDoc := trDocs[name]; hasDoc && doc.content != "" {
+						document = doc
+						break
+					}
+				}
+			}
+		}
+	}
+	c.Vary(fiber.HeaderAcceptLanguage)
 	if conditionalResponse(c, document.etag, "text/plain; charset=utf-8") {
 		return c.SendStatus(fiber.StatusNotModified)
 	}

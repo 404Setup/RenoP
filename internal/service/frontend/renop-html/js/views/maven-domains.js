@@ -21,7 +21,10 @@ export function renderMavenDomains() {
                 ),
                 el("div", {},
                     el("span", {"class": "maven-kicker"}, "Maven"),
-                    el("h2", {"data-i18n": "maven.domainCenterTitle", "id": "maven-domain-page-title"}, "Global Maven domains"),
+                    el("h2", {
+                        "data-i18n": "maven.domainCenterTitle",
+                        "id": "maven-domain-page-title"
+                    }, "Global Maven domains"),
                     el("p", {"data-i18n": "maven.domainCenterSubtitle"}, "Configure a publishing domain once and use its team across every Maven repository.")
                 )
             ),

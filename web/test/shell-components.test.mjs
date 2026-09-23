@@ -21,13 +21,21 @@ test('JS shell components retain unique mount points and native SVG attributes',
     for (const id of ['app', 'page-root', 'language-modal', 'footer-copyright']) assert.ok(ids.includes(id), id);
     const source = readFileSync(new URL('../../packages/renop-ui/js/dom.js', import.meta.url), 'utf8')
         .replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '');
-    const context = vm.createContext({document: {
-        createElementNS(namespace, tag) {
-            return {namespace, tag, attrs: {}, children: [],
-                setAttribute(name, value) { this.attrs[name] = value; },
-                append(...children) { this.children.push(...children); }};
-        },
-    }});
+    const context = vm.createContext({
+        document: {
+            createElementNS(namespace, tag) {
+                return {
+                    namespace, tag, attrs: {}, children: [],
+                    setAttribute(name, value) {
+                        this.attrs[name] = value;
+                    },
+                    append(...children) {
+                        this.children.push(...children);
+                    }
+                };
+            },
+        }
+    });
     vm.runInContext(source, context);
     const child = context.svg('path', {d: 'M0 0L1 1'});
     const icon = context.svg('svg', {viewBox: '0 0 24 24', width: 16}, child);

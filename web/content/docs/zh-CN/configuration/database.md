@@ -83,7 +83,7 @@ database:
 
 官方 ClickHouse 构建必须包含 `EmbeddedRocksDB`。RenoP 使用物化的无碰撞复合键创建可变键值表，并把行更新
 转换为同步原生 mutation。ClickHouse 26.9 不提供多语句事务，因此 RenoP 会串行执行写操作并记录行级持久
-快照；中断的事务会在下次启动时根据日志回滚。此存储模式不支持 ClickHouse Cloud。数据库矩阵已使用
+快照。中断的事务会在下次启动时根据日志回滚。此存储模式不支持 ClickHouse Cloud。数据库矩阵已使用
 ClickHouse 26.9.1 与 `clickhouse-go/v2` 2.48.0 验证。
 
 ## 连接池参数说明

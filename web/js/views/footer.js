@@ -14,7 +14,11 @@ import {el} from '@renop/ui/dom';
 export function renderFooter() {
     return el("footer", {},
         el("div", {"id": "footer-links"},
-            el("a", {"href": "https://github.com/404Setup/RenoP", "rel": "noopener noreferrer", "target": "_blank"}, "GitHub"),
+            el("a", {
+                "href": "https://github.com/404Setup/RenoP",
+                "rel": "noopener noreferrer",
+                "target": "_blank"
+            }, "GitHub"),
             el("span", {"class": "separator"}, "·"),
             el("a", {"data-i18n": "nav.docs", "data-link": true, "href": "/docs"}, "Docs"),
             el("span", {"class": "separator"}, "·"),
@@ -24,9 +28,19 @@ export function renderFooter() {
             el("span", {"class": "separator"}, "·"),
             el("a", {"data-i18n": "nav.contributors", "data-link": true, "href": "/contributors"}, "Contributors"),
             el("span", {"class": "separator"}, "·"),
-            el("a", {"data-i18n": "nav.community", "href": "https://discord.gg/ANjjKxpGX9", "rel": "noopener noreferrer", "target": "_blank"}, "Community"),
+            el("a", {
+                "data-i18n": "nav.community",
+                "href": "https://discord.gg/ANjjKxpGX9",
+                "rel": "noopener noreferrer",
+                "target": "_blank"
+            }, "Community"),
             el("span", {"class": "separator"}, "·"),
-            el("a", {"data-i18n": "nav.donate", "href": "https://www.patreon.com/tranic", "rel": "noopener noreferrer", "target": "_blank"}, "Donate")
+            el("a", {
+                "data-i18n": "nav.donate",
+                "href": "https://www.patreon.com/tranic",
+                "rel": "noopener noreferrer",
+                "target": "_blank"
+            }, "Donate")
         ),
         el("div", {"id": "footer-copyright"})
     );

@@ -12,6 +12,7 @@ package hex
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -115,7 +116,7 @@ func TestDecodeErr(t *testing.T) {
 	for _, tt := range errTests {
 		out := make([]byte, len(tt.in)+10)
 		n, err := Decode(out, []byte(tt.in))
-		if string(out[:n]) != tt.out || err != tt.err {
+		if string(out[:n]) != tt.out || !errors.Is(err, tt.err) {
 			t.Errorf("Decode(%q) = %q, %v, want %q, %v", tt.in, string(out[:n]), err, tt.out, tt.err)
 		}
 	}
@@ -124,7 +125,7 @@ func TestDecodeErr(t *testing.T) {
 func TestDecodeStringErr(t *testing.T) {
 	for _, tt := range errTests {
 		out, err := DecodeString(tt.in)
-		if string(out) != tt.out || err != tt.err {
+		if string(out) != tt.out || !errors.Is(err, tt.err) {
 			t.Errorf("DecodeString(%q) = %q, %v, want %q, %v", tt.in, out, err, tt.out, tt.err)
 		}
 	}
@@ -170,10 +171,10 @@ func TestDecoderErr(t *testing.T) {
 		out, err := io.ReadAll(dec)
 		wantErr := tt.err
 		// Decoder is reading from stream, so it reports io.ErrUnexpectedEOF instead of ErrLength.
-		if wantErr == ErrLength {
+		if errors.Is(wantErr, ErrLength) {
 			wantErr = io.ErrUnexpectedEOF
 		}
-		if string(out) != tt.out || err != wantErr {
+		if string(out) != tt.out || !errors.Is(wantErr, err) {
 			t.Errorf("NewDecoder(%q) = %q, %v, want %q, %v", tt.in, out, err, tt.out, wantErr)
 		}
 	}

@@ -10,8 +10,9 @@ description: Public health, runtime metrics, snapshots, and protected diagnostic
 Status responses use protobuf where noted. Health and runtime status are public; memory diagnostics require a manager
 and `server.debug_mode` enabled when the process starts.
 
-
-Schema-backed status endpoints return binary protobuf. `Accept: application/json` does not change that format. Save the response to a file and decode it using `InstanceStatus` from the matching schema. Examples below show decoded logical values; health text and profiler downloads retain their own formats.
+Schema-backed status endpoints return binary protobuf. `Accept: application/json` does not change that format. Save the
+response to a file and decode it using `InstanceStatus` from the matching schema. Examples below show decoded logical
+values; health text and profiler downloads retain their own formats.
 
 ```sh
 curl --fail -H "Accept: application/x-protobuf" -o instance-status.pb http://localhost:3000/api/status/instance

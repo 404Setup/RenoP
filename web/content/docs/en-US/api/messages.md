@@ -80,11 +80,18 @@ reviewer copies and sends one localized `review_result` to the requester without
 
 ## Session-targeted notifications
 
-Set `session_id` to a public browser-session ID and provide exactly one recipient with `all: false`. An empty ID preserves delivery to all of that account's credentials. The server rechecks that the session is still active and belongs to the recipient; a revoked or expired target returns `409`.
+Set `session_id` to a public browser-session ID and provide exactly one recipient with `all: false`. An empty ID
+preserves delivery to all of that account's credentials. The server rechecks that the session is still active and
+belongs to the recipient; a revoked or expired target returns `409`.
 
-`GET /api/messages/admin/sessions?username=alice&cursor=...` lists active sessions in pages of at most 100. Follow `next_cursor` to obtain the remaining sessions. The response contains public IDs, device information and timestamps, never session secrets. Manager authority and `admin:notifications` are required for API-token callers.
+`GET /api/messages/admin/sessions?username=alice&cursor=...` lists active sessions in pages of at most 100. Follow
+`next_cursor` to obtain the remaining sessions. The response contains public IDs, device information and timestamps,
+never session secrets. Manager authority and `admin:notifications` are required for API-token callers.
 
-Lists, unread counts, individual and bulk read/delete operations all use the authenticated session's scope. Other sessions and API tokens cannot retrieve or modify a targeted notification, even when its ID is known or an API request also carries the target cookie. Targeted notifications are excluded from email delivery. The browser composer shows an animated custom selector for a single recipient and defaults to all sessions.
+Lists, unread counts, individual and bulk read/delete operations all use the authenticated session's scope. Other
+sessions and API tokens cannot retrieve or modify a targeted notification, even when its ID is known or an API request
+also carries the target cookie. Targeted notifications are excluded from email delivery. The browser composer shows an
+animated custom selector for a single recipient and defaults to all sessions.
 
 ```json
 {"recipients":["alice"],"all":false,"session_id":"00000000-0000-4000-8000-000000000001","severity":"info","title":"Session notice","body":"Only this browser session can read this notification."}

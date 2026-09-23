@@ -83,8 +83,8 @@ html.dark .cfg-callout--danger {
     gap: 0.75rem;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
     transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
-                box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1),
-                border-color 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .cfg-index-card:hover {
@@ -302,19 +302,9 @@ html.dark .cfg-badge--warning {
     }
 
 
-
-
-
-
-
     .cfg-input {
         max-width: 100%;
     }
-
-
-
-
-
 
 
     .cfg-index-grid {

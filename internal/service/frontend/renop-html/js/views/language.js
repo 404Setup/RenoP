@@ -15,12 +15,28 @@ export function renderLanguage() {
     return el("div", {"class": "modal", "id": "language-modal", "style": "display: none;"},
         el("div", {"class": "modal-backdrop", "id": "language-backdrop"}),
         el("div", {"class": "modal-content language-modal-content", "style": "max-width: 580px;"},
-            el("button", {"aria-label": "Close modal", "class": "close-btn", "data-i18n-aria-label": "modal.close", "id": "btn-close-language-modal"}, "× "),
+            el("button", {
+                "aria-label": "Close modal",
+                "class": "close-btn",
+                "data-i18n-aria-label": "modal.close",
+                "id": "btn-close-language-modal"
+            }, "× "),
             el("div", {"class": "modal-header"},
                 el("h3", {"class": "modal-title", "data-i18n": "language.modalTitle"}, "Select Language"),
-                el("p", {"class": "modal-subtitle", "data-i18n": "language.modalSubtitle", "style": "margin-top: 4px; font-size: 0.875rem; opacity: 0.75;"}, "Choose your preferred interface language")
+                el("p", {
+                    "class": "modal-subtitle",
+                    "data-i18n": "language.modalSubtitle",
+                    "style": "margin-top: 4px; font-size: 0.875rem; opacity: 0.75;"
+                }, "Choose your preferred interface language")
             ),
-            el("div", {"aria-label": "Loading", "class": "language-load-progress", "data-i18n-aria-label": "common.loading", "hidden": true, "id": "language-load-progress", "role": "progressbar"},
+            el("div", {
+                    "aria-label": "Loading",
+                    "class": "language-load-progress",
+                    "data-i18n-aria-label": "common.loading",
+                    "hidden": true,
+                    "id": "language-load-progress",
+                    "role": "progressbar"
+                },
                 el("span", {})
             ),
             el("div", {"class": "modal-body"},

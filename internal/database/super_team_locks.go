@@ -1,7 +1,10 @@
 /*
  * Copyright (c) 2026 404Setup. All rights reserved.
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
- * If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
+ *
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
@@ -34,7 +37,7 @@ func (db *DB) attachSuperTeamLocks(teams []*core.SuperTeam) error {
 	}
 	defer rows.Close()
 	for rows.Next() {
-		lock := &core.ResourceLock{ResourceLockTarget: core.ResourceLockTarget{Format: "superteam"}}
+		lock := &core.ResourceLock{Format: "superteam"}
 		if err := rows.Scan(&lock.Name, &lock.Source, &lock.Mode, &lock.Reason, &lock.ReasonText, &lock.LockedAt); err != nil {
 			return err
 		}

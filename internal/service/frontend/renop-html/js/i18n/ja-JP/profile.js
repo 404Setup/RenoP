@@ -328,4 +328,13 @@ export default Object.freeze({
     "profile.retirePlanFailed": "アカウント閉鎖の要件を確認できませんでした。",
     "profile.accountRetired": "このアカウントは完全に閉鎖されています。ユーザー名は引き続き予約されています。",
     "profile.accountRetiredAt": "{date} に閉鎖",
+    "profile.apiTokenRotate": "ローテーション",
+    "profile.apiTokenRotateConfirm": "API トークン '{name}' をローテーションしますか？現在のシークレットは直ちに無効になります。",
+    "profile.apiTokenRotated": "API トークンをローテーションしました",
+    "profile.apiTokenRotateFailed": "API トークンのローテーションに失敗しました",
+    "profile.apiTokenEdit": "編集",
+    "profile.apiTokenEditTitle": "API トークンの編集",
+    "profile.apiTokenEditDesc": "シークレットを変更せずに、API トークンの名前と権限を更新します。",
+    "profile.apiTokenEdited": "API トークンを更新しました",
+    "profile.apiTokenEditFailed": "API トークンの更新に失敗しました",
 });

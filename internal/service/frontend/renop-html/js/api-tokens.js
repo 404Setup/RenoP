@@ -434,7 +434,129 @@ function openCreateAPITokenDialog(catalog, onCreated) {
  * @param {() => Promise<void>} reload - List refresh callback.
  * @returns {void}
  */
-function renderAPITokenList(list, tokens, reload) {
+function openEditAPITokenDialog(token, catalog, onUpdated) {
+    if (document.getElementById('profile-api-token-edit-dialog')) return
+    const nameInput = el('input', {
+        class: 'profile-input', type: 'text', maxlength: '80', autocomplete: 'off',
+        value: token.name || '',
+        placeholder: t('profile.apiTokenNamePlaceholder'),
+        'data-i18n-placeholder': 'profile.apiTokenNamePlaceholder'
+    })
+    const targetSelections = new Map()
+    if (token.targets && typeof token.targets === 'object') {
+        Object.entries(token.targets).forEach(([scope, targets]) => {
+            if (Array.isArray(targets) && targets.length > 0) {
+                targetSelections.set(scope, [...targets])
+            }
+        })
+    }
+    const tokenScopes = new Set(Array.isArray(token.scopes) ? token.scopes : [])
+    const scopeGrid = createScopeGroups(catalog.scopes, catalog.targetKinds, targetSelections, catalog.targetLimit)
+    scopeGrid.querySelectorAll('input[type="checkbox"]').forEach(input => {
+        input.checked = tokenScopes.has(input.value)
+        input.dispatchEvent(new Event('change'))
+    })
+    targetSelections.forEach((targets, scope) => {
+        const entry = scopeGrid.querySelector(`input[value="${CSS.escape(scope)}"]`)?.closest('.profile-api-token-scope-entry')
+        const summary = entry?.querySelector('.profile-api-token-target-summary')
+        if (summary) {
+            summary.dataset.apiTokenTargetCount = String(targets.length)
+            summary.textContent = targets.length ? t('profile.apiTokenSelectedTargets', {count: targets.length}) : t('profile.apiTokenAllTargets')
+            summary.title = targets.join(', ')
+        }
+    })
+    const error = el('p', {class: 'password-recovery-error', role: 'alert'})
+    const body = el('div', {class: 'profile-api-token-create-form'},
+        el('label', {}, el('span', {'data-i18n': 'profile.apiTokenName'}, t('profile.apiTokenName')), nameInput),
+        el('fieldset', {class: 'profile-api-token-scopes'},
+            el('legend', {'data-i18n': 'profile.apiTokenScopes'}, t('profile.apiTokenScopes')),
+            el('p', {
+                class: 'profile-security-hint', 'data-i18n': 'profile.apiTokenScopesHint'
+            }, t('profile.apiTokenScopesHint')),
+            scopeGrid
+        ),
+        error
+    )
+    void RenopDialog.show({
+        id: 'profile-api-token-edit-dialog',
+        glass: false,
+        className: 'profile-api-token-create-modal',
+        maxWidth: '720px',
+        icon: 'fileKey',
+        title: el('span', {'data-i18n': 'profile.apiTokenEditTitle'}, t('profile.apiTokenEditTitle')),
+        subtitle: el('span', {'data-i18n': 'profile.apiTokenEditDesc'}, t('profile.apiTokenEditDesc')),
+        body,
+        form: {
+            id: 'profile-api-token-edit-form',
+            onSubmit: async (event, dialog) => {
+                event.preventDefault()
+                morphInlineError(body, error, '')
+                const scopes = Array.from(scopeGrid.querySelectorAll('input:checked'), input => input.value)
+                if (!nameInput.value.trim()) {
+                    morphInlineError(body, error, 'profile.apiTokenNameRequired')
+                    nameInput.focus()
+                    return
+                }
+                if (scopes.length === 0) {
+                    morphInlineError(body, error, 'profile.apiTokenScopeRequired')
+                    return
+                }
+                const targets = {}
+                let targetCount = 0
+                scopes.forEach(scope => {
+                    const values = targetSelections.get(scope) || []
+                    if (values.length > 0) {
+                        targets[scope] = values
+                        targetCount += values.length
+                    }
+                })
+                if (targetCount > catalog.targetLimit) {
+                    morphInlineError(body, error, 'profile.apiTokenTargetLimitReached', {
+                        limit: catalog.targetLimit,
+                    })
+                    return
+                }
+                const submit = dialog.querySelector('#profile-api-token-edit-submit')
+                await runButtonAction(submit, async () => {
+                    const response = await apiRequest(`/api/auth/profile/api-tokens/${encodeURIComponent(token.id)}`, {
+                        method: 'PUT',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            name: nameInput.value.trim(), scopes, targets,
+                        }),
+                    })
+                    if (!response.ok) {
+                        const code = response.headers.get('X-Renop-Error-Code')
+                        morphInlineError(body, error, code === 'API_TOKEN_NAME_CONFLICT'
+                            ? 'profile.apiTokenNameConflict'
+                            : 'profile.apiTokenEditFailed')
+                        return
+                    }
+                    dialog.close(true)
+                    showAlert(t('profile.apiTokenEdited'), 'success')
+                    try {
+                        await onUpdated()
+                    } catch (reloadError) {
+                        console.error('Failed to refresh API tokens after edit', reloadError)
+                    }
+                })
+            }
+        },
+        footer: [
+            {
+                id: 'profile-api-token-edit-cancel', text: t('common.cancel'), className: 'action-btn',
+                onClick: (event, dialog) => dialog.close(false)
+            },
+            {
+                id: 'profile-api-token-edit-submit', text: t('common.save'),
+                className: 'action-btn primary-btn', type: 'submit'
+            }
+        ]
+    })
+    requestAnimationFrame(() => nameInput.focus())
+}
+
+function renderAPITokenList(list, tokens, reload, getCatalog) {
     list.replaceChildren();
     if (tokens.length === 0) {
         list.appendChild(el('div', {class: 'profile-api-token-empty'}, t('profile.apiTokensNone')));
@@ -476,6 +598,38 @@ function renderAPITokenList(list, tokens, reload) {
                 await reload();
             });
         });
+        const editButton = el('button', {
+            type: 'button', class: 'pill-btn pill-btn--soft pill-btn--sm', disabled: expired,
+        }, t('profile.apiTokenEdit'))
+        editButton.addEventListener('click', () => {
+            const catalog = typeof getCatalog === 'function' ? getCatalog() : (activeAPITokenManager?.catalog || {
+                scopes: [],
+                targetKinds: {},
+                targetLimit: 128
+            })
+            openEditAPITokenDialog(token, catalog, reload)
+        })
+        const rotateButton = el('button', {
+            type: 'button', class: 'pill-btn pill-btn--soft pill-btn--sm', disabled: expired,
+        }, t('profile.apiTokenRotate'))
+        rotateButton.addEventListener('click', () => {
+            void runButtonAction(rotateButton, async () => {
+                if (!(await window.showConfirm(t('profile.apiTokenRotateConfirm', {name: token.name})))) return
+                const response = await apiRequest(`/api/auth/profile/api-tokens/${encodeURIComponent(token.id)}/rotate`, {
+                    method: 'POST'
+                })
+                if (!response.ok) {
+                    showAlert(t('profile.apiTokenRotateFailed'), 'error')
+                    return
+                }
+                const result = await response.json()
+                if (result.secret && result.token) {
+                    showAPITokenSecret(result.secret, result.token)
+                }
+                showAlert(t('profile.apiTokenRotated'), 'success')
+                await reload()
+            })
+        })
         const stateButton = el('button', {
             type: 'button', class: 'pill-btn pill-btn--soft pill-btn--sm', disabled: expired,
         }, t(disabled ? 'profile.apiTokenEnable' : 'profile.apiTokenDisable'));
@@ -519,7 +673,7 @@ function renderAPITokenList(list, tokens, reload) {
                             date: formatTimestamp(token.created_at, {fallback: t('common.unknown')})
                         }))
                 ),
-                el('div', {class: 'profile-api-token-card-actions'}, stateButton, revoke)
+                el('div', {class: 'profile-api-token-card-actions'}, editButton, rotateButton, stateButton, revoke)
             ),
             scopeList,
             ...(targetList ? [targetList] : []),
@@ -552,7 +706,15 @@ function openAPITokenManager() {
     let tokenLimit = 50;
     let scopesLoaded = false;
     const managerState = {
-        count, create, list, tokens: [], limit: tokenLimit, reload: null, loaded: false, loadFailed: false
+        count,
+        create,
+        list,
+        tokens: [],
+        limit: tokenLimit,
+        reload: null,
+        loaded: false,
+        loadFailed: false,
+        catalog: scopeCatalog
     };
     /**
      * Synchronize create-button availability after either bounded request completes.
@@ -578,7 +740,7 @@ function openAPITokenManager() {
         count.removeAttribute('data-i18n');
         count.textContent = t('profile.apiTokensCount', {count: result.tokens.length, limit: result.limit});
         updateCreateAvailability();
-        renderAPITokenList(list, result.tokens, reload);
+        renderAPITokenList(list, result.tokens, reload, () => scopeCatalog);
         renderAPITokenSummary(cachedTokenCount, cachedTokenLimit);
     };
     managerState.reload = reload;
@@ -600,6 +762,7 @@ function openAPITokenManager() {
     });
     void fetchAllowedScopes().then(catalog => {
         scopeCatalog = catalog;
+        if (managerState) managerState.catalog = catalog;
         scopesLoaded = true;
         updateCreateAvailability();
     }).catch(error => {
@@ -651,7 +814,11 @@ window.addEventListener('languageChanged', () => {
         manager.count.textContent = t('profile.apiTokensCount', {
             count: manager.tokens.length, limit: manager.limit
         });
-        renderAPITokenList(manager.list, manager.tokens, manager.reload);
+        renderAPITokenList(manager.list, manager.tokens, manager.reload, () => manager.catalog || {
+            scopes: [],
+            targetKinds: {},
+            targetLimit: 128
+        });
     }
     if (activeAPITokenCreate?.expiration?.isConnected) {
         const value = activeAPITokenCreate.getValue();

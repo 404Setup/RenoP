@@ -27,22 +27,22 @@ func compareDecode(t testing.TB, src []byte) {
 	got, want := bytes.Repeat([]byte{0xa5}, size+32), bytes.Repeat([]byte{0xa5}, size+32)
 	n, err := Decode(got[16:16+size:16+size], src)
 	wn, we := stdhex.Decode(want[16:16+size:16+size], src)
-	if n != wn || err != we || !bytes.Equal(got, want) {
+	if n != wn || !errors.Is(we, err) || !bytes.Equal(got, want) {
 		t.Fatalf("Decode(%x): (%d, %v, %x), want (%d, %v, %x)", src, n, err, got, wn, we, want)
 	}
 	inplace := bytes.Clone(src)
 	in, ie := Decode(inplace, inplace)
-	if in != wn || ie != we || !bytes.Equal(inplace[:in], want[16:16+wn]) {
+	if in != wn || !errors.Is(ie, we) || !bytes.Equal(inplace[:in], want[16:16+wn]) {
 		t.Fatalf("in-place Decode(%x): (%d, %v)", src, in, ie)
 	}
 	gd, ge := DecodeString(string(src))
 	wd, we := stdhex.DecodeString(string(src))
-	if ge != we || !bytes.Equal(gd, wd) {
+	if !errors.Is(ge, we) || !bytes.Equal(gd, wd) {
 		t.Fatalf("DecodeString(%x): (%x, %v), want (%x, %v)", src, gd, ge, wd, we)
 	}
 	gd, ge = AppendDecode(make([]byte, 7, 7+size), src)
 	wd, we = stdhex.AppendDecode(make([]byte, 7, 7+size), src)
-	if ge != we || !bytes.Equal(gd, wd) {
+	if !errors.Is(ge, we) || !bytes.Equal(gd, wd) {
 		t.Fatalf("AppendDecode(%x): (%x, %v), want (%x, %v)", src, gd, ge, wd, we)
 	}
 }
@@ -109,7 +109,7 @@ func TestShortDestinationCompatibility(t *testing.T) {
 			var ge, we error
 			gp = didPanic(func() { gn, ge = Decode(got[:size:size], src) })
 			wp = didPanic(func() { wn, we = stdhex.Decode(want[:size:size], src) })
-			if gp != wp || gn != wn || ge != we || !bytes.Equal(got, want) {
+			if gp != wp || gn != wn || !errors.Is(ge, we) || !bytes.Equal(got, want) {
 				t.Fatalf("short Decode size %d: (%v, %d, %v), want (%v, %d, %v)", size, gp, gn, ge, wp, wn, we)
 			}
 		}
@@ -152,7 +152,7 @@ func TestFragmentedDecoderCompatibility(t *testing.T) {
 					gb, wb := make([]byte, size), make([]byte, size)
 					gn, ge := got.Read(gb)
 					wn, we := want.Read(wb)
-					if gn != wn || ge != we || !bytes.Equal(gb, wb) {
+					if gn != wn || !errors.Is(we, ge) || !bytes.Equal(gb, wb) {
 						t.Fatalf("stream suffix %q chunk %d step %d: (%d, %v), want (%d, %v)", suffix, chunk, step, gn, ge, wn, we)
 					}
 					if ge != nil {
@@ -188,7 +188,7 @@ func TestEncoderFailureCompatibility(t *testing.T) {
 		for i := range 3 {
 			gn, ge := got.Write(data)
 			wn, we := want.Write(data)
-			if gn != wn || ge != we || !bytes.Equal(gw.Bytes(), ww.Bytes()) {
+			if gn != wn || !errors.Is(we, ge) || !bytes.Equal(gw.Bytes(), ww.Bytes()) {
 				t.Fatalf("writer limit %d call %d: (%d, %v), want (%d, %v)", limit, i, gn, ge, wn, we)
 			}
 		}

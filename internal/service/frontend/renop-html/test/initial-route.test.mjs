@@ -25,10 +25,21 @@ test('saved manager tabs apply only at the root, preserving direct repository an
         ['/account/tickets', null, 'tickets', 'tickets'],
     ]) {
         let loadingRemoved = false;
-        const context = {window: {location: {pathname}}, profileRoute, accountTab,
-            document: {getElementById: () => ({remove() { loadingRemoved = true; }})},
-            localStorage: {getItem: () => 'settings', setItem() {}}, cachedIsLoggedIn: true, cachedIsManager: true,
-            isAccountTab: tab => tab === 'tickets', isManagerTab: tab => tab === 'settings'};
+        const context = {
+            window: {location: {pathname}}, profileRoute, accountTab,
+            document: {
+                getElementById: () => ({
+                    remove() {
+                        loadingRemoved = true;
+                    }
+                })
+            },
+            localStorage: {
+                getItem: () => 'settings', setItem() {
+                }
+            }, cachedIsLoggedIn: true, cachedIsManager: true,
+            isAccountTab: tab => tab === 'tickets', isManagerTab: tab => tab === 'settings'
+        };
         assert.equal(vm.runInNewContext(block + '\nsavedTab', context), expected, pathname);
         assert.equal(loadingRemoved, true);
     }
@@ -45,11 +56,17 @@ test('Back restores the root tab recorded in that history entry', () => {
     ]) {
         let selected;
         vm.runInNewContext(handler, {
-            window: {location: {pathname}, history: {state: {renopTab}}, addEventListener: (_name, callback) => callback()},
+            window: {
+                location: {pathname},
+                history: {state: {renopTab}},
+                addEventListener: (_name, callback) => callback()
+            },
             profileRouteFromPath: () => null, publicMavenDomainRouteFromPath: () => false,
             publicSuperTeamRouteFromPath: () => false, accountTabFromPath: () => '',
             isManagerTab: value => ['settings', 'dashboard', 'users', 'repositories'].includes(value),
-            switchTab: tab => { selected = tab; },
+            switchTab: tab => {
+                selected = tab;
+            },
         });
         assert.equal(selected, expected);
     }

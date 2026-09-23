@@ -11,6 +11,8 @@
 package auth
 
 import (
+	"errors"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
@@ -21,6 +23,7 @@ import (
 	"renop/internal/core"
 	"renop/internal/service/audit"
 	"renop/internal/service/token"
+	"renop/internal/utils"
 	"renop/internal/utils/protohttp"
 	"renop/pkg/pb"
 )
@@ -33,7 +36,7 @@ func UpdatePassword(c fiber.Ctx, state *core.AppState, opChan chan<- token.Token
 	var req pb.UpdatePasswordRequest
 	readErr := protohttp.ReadLimit(c, &req, 16<<10)
 	if readErr != nil {
-		if readErr == fiber.ErrRequestEntityTooLarge {
+		if errors.Is(readErr, fiber.ErrRequestEntityTooLarge) {
 			return readErr
 		}
 		return c.Status(fiber.StatusBadRequest).SendString("Bad Request")
@@ -181,4 +184,88 @@ func RevokeOtherSessions(c fiber.Ctx, state *core.AppState) error {
 	})
 
 	return protohttp.Write(c, pb.StatusOkSuccess())
+}
+
+type banIPRequest struct {
+	IP string `json:"ip"`
+}
+
+func ListAccountIPBans(c fiber.Ctx, state *core.AppState) error {
+	userInt := c.Locals("user")
+	if userInt == nil {
+		return c.Status(fiber.StatusUnauthorized).SendString("Unauthorized")
+	}
+	user := userInt.(*config.User)
+	db := state.GetDB()
+	if db == nil {
+		return c.Status(fiber.StatusInternalServerError).SendString("Database unavailable")
+	}
+	ips, err := db.ListAccountBannedIPs(user.Username)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).SendString("Failed to list banned IPs")
+	}
+	setPrivateResponseHeaders(c)
+	return c.JSON(fiber.Map{"ips": ips})
+}
+
+func BanAccountIP(c fiber.Ctx, state *core.AppState) error {
+	userInt := c.Locals("user")
+	if userInt == nil {
+		return c.Status(fiber.StatusUnauthorized).SendString("Unauthorized")
+	}
+	user := userInt.(*config.User)
+	var req banIPRequest
+	if err := utils.ReadJSONLimited(c, &req, 1024); err != nil || strings.TrimSpace(req.IP) == "" {
+		return c.Status(fiber.StatusBadRequest).SendString("Invalid IP address")
+	}
+	db := state.GetDB()
+	if db == nil {
+		return c.Status(fiber.StatusInternalServerError).SendString("Database unavailable")
+	}
+	if err := db.BanAccountIP(user.Username, strings.TrimSpace(req.IP)); err != nil {
+		return c.Status(fiber.StatusInternalServerError).SendString("Failed to ban IP")
+	}
+	_, op, authMethod, sID, ip := audit.ExtractAuthDetails(c, state)
+	audit.Log(state, &core.AuditLogEntry{
+		Username:   user.Username,
+		Operator:   op,
+		Action:     audit.ActionUserBan,
+		Details:    "Blocked IP " + req.IP + " for account",
+		AuthMethod: authMethod,
+		SessionID:  sID,
+		IP:         ip,
+	})
+	setPrivateResponseHeaders(c)
+	return c.JSON(fiber.Map{"success": true})
+}
+
+func UnbanAccountIP(c fiber.Ctx, state *core.AppState) error {
+	userInt := c.Locals("user")
+	if userInt == nil {
+		return c.Status(fiber.StatusUnauthorized).SendString("Unauthorized")
+	}
+	user := userInt.(*config.User)
+	targetIP := strings.TrimSpace(c.Params("ip"))
+	if targetIP == "" {
+		return c.Status(fiber.StatusBadRequest).SendString("Invalid IP address")
+	}
+	db := state.GetDB()
+	if db == nil {
+		return c.Status(fiber.StatusInternalServerError).SendString("Database unavailable")
+	}
+	if err := db.UnbanAccountIP(user.Username, targetIP); err != nil {
+		return c.Status(fiber.StatusInternalServerError).SendString("Failed to unban IP")
+	}
+	_, op, authMethod, sID, ip := audit.ExtractAuthDetails(c, state)
+	audit.Log(state, &core.AuditLogEntry{
+		Username:   user.Username,
+		Operator:   op,
+		Action:     audit.ActionUserUnban,
+		Details:    "Unblocked IP " + targetIP + " for account",
+		AuthMethod: authMethod,
+		SessionID:  sID,
+		IP:         ip,
+	})
+	setPrivateResponseHeaders(c)
+	return c.JSON(fiber.Map{"success": true})
 }

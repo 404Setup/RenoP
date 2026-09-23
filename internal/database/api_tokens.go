@@ -273,6 +273,102 @@ func (db *DB) DeleteAPIToken(username, tokenID string) error {
 	return nil
 }
 
+// UpdateAPIToken modifies an existing token's name, scopes, and targets.
+func (db *DB) UpdateAPIToken(username, tokenID, name string, scopes []string, targets map[string][]string) (*core.APIToken, error) {
+	username = strings.ToLower(strings.TrimSpace(username))
+	if uuid.Validate(tokenID) != nil {
+		return nil, core.ErrAPITokenNotFound
+	}
+	name = strings.TrimSpace(SanitizeInputString(name, core.MaxAPITokenNameLength))
+	if name == "" || strings.HasPrefix(strings.ToLower(name), strings.ToLower(core.LegacyAPITokenNamePrefix)) {
+		return nil, errors.New("API token name is required")
+	}
+	userID, err := db.userIDForExistingAccount(username)
+	if err != nil {
+		return nil, err
+	}
+	row := db.QueryRow(`SELECT id, name, scopes_json, created_at, expires_at, disabled
+		FROM user_api_tokens WHERE id = ? AND user_id = ?`, tokenID, userID)
+	token, err := scanAPIToken(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, core.ErrAPITokenNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	var duplicateCount int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM user_api_tokens
+		WHERE user_id = ? AND id != ? AND LOWER(name) = LOWER(?)`, userID, tokenID, name).Scan(&duplicateCount); err != nil {
+		return nil, fmt.Errorf("check duplicate API token name: %w", err)
+	}
+	if duplicateCount > 0 {
+		return nil, core.ErrAPITokenNameExists
+	}
+	token.Name = name
+	token.Scopes = scopes
+	token.Targets = targets
+	if err := normalizeStoredAPIToken(token); err != nil {
+		return nil, err
+	}
+	scopesJSON, err := encodeStoredAPITokenAuthorization(token)
+	if err != nil {
+		return nil, fmt.Errorf("encode API token authorization: %w", err)
+	}
+	result, err := db.Exec(`UPDATE user_api_tokens SET name = ?, scopes_json = ?
+		WHERE id = ? AND user_id = ?`, token.Name, string(scopesJSON), tokenID, userID)
+	if err != nil {
+		if uniqueConstraintError(err) {
+			return nil, core.ErrAPITokenNameExists
+		}
+		return nil, fmt.Errorf("update API token: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("count updated API tokens: %w", err)
+	}
+	if affected != 1 {
+		return nil, core.ErrAPITokenNotFound
+	}
+	return token, nil
+}
+
+// RotateAPIToken replaces an existing token's secret hash.
+func (db *DB) RotateAPIToken(username, tokenID, newSecretHash string) (*core.APIToken, error) {
+	username = strings.ToLower(strings.TrimSpace(username))
+	if uuid.Validate(tokenID) != nil {
+		return nil, core.ErrAPITokenNotFound
+	}
+	if !validAPITokenHash(newSecretHash) {
+		return nil, errors.New("API token secret hash is invalid")
+	}
+	userID, err := db.userIDForExistingAccount(username)
+	if err != nil {
+		return nil, err
+	}
+	row := db.QueryRow(`SELECT id, name, scopes_json, created_at, expires_at, disabled
+		FROM user_api_tokens WHERE id = ? AND user_id = ?`, tokenID, userID)
+	token, err := scanAPIToken(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, core.ErrAPITokenNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	result, err := db.Exec(`UPDATE user_api_tokens SET secret_hash = ?
+		WHERE id = ? AND user_id = ?`, newSecretHash, tokenID, userID)
+	if err != nil {
+		return nil, fmt.Errorf("rotate API token: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("count rotated API tokens: %w", err)
+	}
+	if affected != 1 {
+		return nil, core.ErrAPITokenNotFound
+	}
+	return token, nil
+}
+
 // GetAPITokenByHash resolves one credential hash and its owning account.
 func (db *DB) GetAPITokenByHash(secretHash, username string) (*core.APITokenCredential, error) {
 	if !validAPITokenHash(secretHash) {

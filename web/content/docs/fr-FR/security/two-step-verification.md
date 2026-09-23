@@ -93,4 +93,9 @@ est exclue des réponses des paramètres. Sauvegardez la configuration avec la b
 d’une migration. Sa perte empêche la vérification par authentificateur ; utilisez les codes de récupération hors ligne
 pour rétablir l’accès.
 
-Lorsqu’un second facteur est activé, changer le mot de passe exige un nouveau code TOTP ou une assertion de Passkey secondaire ; un code envoyé à l’adresse principale actuelle est aussi possible si l’envoi est activé. `PUT /api/auth/profile/password` reçoit le binaire `UpdatePasswordRequest` avec `factor` (`totp`, `passkey`, `email`) et la preuve (`totp_code`, `challenge_id` avec `passkey_credential`, ou `email_code`). Commencez la preuve Passkey via `POST /api/auth/profile/password/passkey/begin`. La preuve dépend de la session et des identifiants actuels, n’est utilisable qu’une fois, et les autres sessions sont révoquées après succès.
+Lorsqu’un second facteur est activé, changer le mot de passe exige un nouveau code TOTP ou une assertion de Passkey
+secondaire ; un code envoyé à l’adresse principale actuelle est aussi possible si l’envoi est activé.
+`PUT /api/auth/profile/password` reçoit le binaire `UpdatePasswordRequest` avec `factor` (`totp`, `passkey`, `email`) et
+la preuve (`totp_code`, `challenge_id` avec `passkey_credential`, ou `email_code`). Commencez la preuve Passkey via
+`POST /api/auth/profile/password/passkey/begin`. La preuve dépend de la session et des identifiants actuels, n’est
+utilisable qu’une fois, et les autres sessions sont révoquées après succès.

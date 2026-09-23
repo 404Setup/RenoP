@@ -273,7 +273,9 @@ function domainLockButton(details, refresh) {
     return createResourceLockButton({
         locks: domain.locks, name: domain.domain,
         request: (mode, reason, reasonText) => apiRequest(`/api/maven/domains/${encodeURIComponent(domain.domain)}/locks`, {
-            method: mode ? 'PUT' : 'DELETE', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({mode, reason, reason_text: reasonText})
+            method: mode ? 'PUT' : 'DELETE',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({mode, reason, reason_text: reasonText})
         }),
         onSuccess: refresh,
     });
@@ -606,10 +608,20 @@ function mavenImportSection(artifact) {
         },
         {id: 'gradle-kotlin', label: 'Gradle Kotlin DSL', value: `implementation("${coordinate}")`},
         {id: 'gradle-groovy', label: 'Gradle Groovy DSL', value: `implementation '${coordinate}'`},
-        {id: 'sbt', label: 'SBT', value: `libraryDependencies += "${artifact.group_id}" % "${artifact.artifact_id}" % "${version}"`},
-        {id: 'ivy', label: 'Ivy', value: `<dependency org="${artifact.group_id}" name="${artifact.artifact_id}" rev="${version}" />`},
         {
-            id: 'grape', label: 'Grape', value: `@Grapes(\n  @Grab(group='${artifact.group_id}', module='${artifact.artifact_id}', version='${version}')\n)`
+            id: 'sbt',
+            label: 'SBT',
+            value: `libraryDependencies += "${artifact.group_id}" % "${artifact.artifact_id}" % "${version}"`
+        },
+        {
+            id: 'ivy',
+            label: 'Ivy',
+            value: `<dependency org="${artifact.group_id}" name="${artifact.artifact_id}" rev="${version}" />`
+        },
+        {
+            id: 'grape',
+            label: 'Grape',
+            value: `@Grapes(\n  @Grab(group='${artifact.group_id}', module='${artifact.artifact_id}', version='${version}')\n)`
         },
         {id: 'leiningen', label: 'Leiningen', value: `[${artifact.group_id}/${artifact.artifact_id} "${version}"]`},
         {id: 'bazel', label: 'Bazel', value: `artifact("${coordinate}")`},
@@ -617,7 +629,11 @@ function mavenImportSection(artifact) {
     ];
     const tabs = el('div', {class: 'maven-import-tabs', role: 'tablist'});
     const code = el('code', {});
-    const block = el('div', {class: 'maven-import-code', role: 'tabpanel', id: 'maven-import-panel'}, el('pre', {}, code));
+    const block = el('div', {
+        class: 'maven-import-code',
+        role: 'tabpanel',
+        id: 'maven-import-panel'
+    }, el('pre', {}, code));
     const copy = el('button', {
         type: 'button', class: 'maven-icon-btn', title: t('details.copy'), 'aria-label': t('details.copy')
     }, createIcon('copy'));
@@ -634,7 +650,9 @@ function mavenImportSection(artifact) {
             entry.button.tabIndex = selected ? 0 : -1;
         }
         block.setAttribute('aria-labelledby', 'maven-import-tab-' + current.id);
-        const replace = () => { code.textContent = current.value; };
+        const replace = () => {
+            code.textContent = current.value;
+        };
         if (animate) {
             void morphElementHeight(block, replace, {duration: 240});
             if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {

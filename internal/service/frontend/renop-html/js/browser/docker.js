@@ -755,7 +755,9 @@ async function renderImageDetailsView(container, repoName, imageName, seq) {
         const anyVersionLocked = image.version_locked === true;
         const lockButton = (version = '', locks = image.locks) => details.moderator === true
             ? createResourceLockButton({
-                locks, inheritedLocks: version ? image.locks || [] : [], name: version ? `${imageName}@${version}` : imageName,
+                locks,
+                inheritedLocks: version ? image.locks || [] : [],
+                name: version ? `${imageName}@${version}` : imageName,
                 request: (mode, reason, reasonText) => apiRequest(`/api/docker/repositories/${encodeURIComponent(repoName)}/locks?image=${encodeURIComponent(imageName)}`, {
                     method: mode ? 'PUT' : 'DELETE', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({version, mode, reason, reason_text: reasonText})

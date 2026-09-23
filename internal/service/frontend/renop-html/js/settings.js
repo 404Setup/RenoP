@@ -46,7 +46,7 @@ import {renderRegistrationSettings} from './settings/registration.js';
 import {renderMavenDomainSettings} from './settings/maven-domains.js';
 import {renderOAuthSettings} from './settings/oauth.js';
 import {renderMailSettings} from './settings/mail.js';
-import {settingsGroups, settingsGroupFor} from './settings/navigation.js';
+import {settingsGroupFor, settingsGroups} from './settings/navigation.js';
 import {
     formatClickHouseDsn,
     formatMysqlDsn,
@@ -1442,7 +1442,10 @@ export async function saveDomainSettings() {
                 savedData.providers = savedData.providers.filter(p => p.type !== 'github');
             }
         } else if (domain === 'legal') {
-            ({response, data: savedData} = await putProto('/api/settings/legal', LegalSettings, submitted, LegalSettings));
+            ({
+                response,
+                data: savedData
+            } = await putProto('/api/settings/legal', LegalSettings, submitted, LegalSettings));
         } else if (DOMAIN_MESSAGE_TYPES[domain]) {
             ({response} = await putProto(`/api/settings/domain/${domain}`, DOMAIN_MESSAGE_TYPES[domain], submitted));
         } else {

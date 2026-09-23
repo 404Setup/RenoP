@@ -20,14 +20,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gofiber/fiber/v3"
-	"github.com/stretchr/testify/require"
 	"renop/internal/config"
 	"renop/internal/core"
 	"renop/internal/database"
 	"renop/internal/service/auth"
 	"renop/internal/service/index"
 	"renop/internal/testutil"
+
+	"github.com/gofiber/fiber/v3"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNativeResourceAPIRequiresOwnershipAndBrowserSession(t *testing.T) {

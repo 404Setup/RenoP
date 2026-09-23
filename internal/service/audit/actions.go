@@ -29,6 +29,8 @@ const (
 	ActionTokenRevoke            = "TOKEN_REVOKE"
 	ActionTokenDisable           = "TOKEN_DISABLE"
 	ActionTokenEnable            = "TOKEN_ENABLE"
+	ActionTokenUpdate            = "TOKEN_UPDATE"
+	ActionTokenRotate            = "TOKEN_ROTATE"
 	ActionUserPermissionUpdate   = "USER_PERMISSION_UPDATE"
 	ActionUserRegister           = "USER_REGISTER"
 	ActionUserBan                = "USER_BAN"
@@ -143,6 +145,8 @@ func KnownActions() []string {
 		ActionTokenRevoke,
 		ActionTokenDisable,
 		ActionTokenEnable,
+		ActionTokenUpdate,
+		ActionTokenRotate,
 		ActionUserPermissionUpdate,
 		ActionUserRegister,
 		ActionUserBan,

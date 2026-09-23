@@ -29,7 +29,8 @@ Native package URL に `/api` を付けないでください。Package protocol 
 
 スキーマに基づく管理 API はバイナリ protobuf を使用します。`Content-Type: application/x-protobuf` を指定してください。
 要求は `application/protobuf` と `application/octet-stream` も受け付け、Content-Type が未指定の場合は protobuf です。
-JSON 本文は拒否され、エンドポイントに応じて `400` または `415` となります。応答は常に `application/x-protobuf` で、`Accept` で JSON に
+JSON 本文は拒否され、エンドポイントに応じて `400` または `415` となります。応答は常に `application/x-protobuf` で、`Accept`
+で JSON に
 切り替えることはできません。稼働バージョンの `proto/api/v1/api.proto` を使用してください。
 
 制御要求の上限は 1 MiB で、各エンドポイントのより小さい上限も維持します。protobuf メッセージの JSON 例は

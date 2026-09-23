@@ -13,23 +13,33 @@ package config
 import (
 	"crypto/sha256"
 	"errors"
-	"renop/pkg/hex"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/goccy/go-json"
 	"go.yaml.in/yaml/v3"
+
+	"renop/pkg/hex"
 )
 
 // MaxLegalDocumentBytes bounds each administrator-authored Markdown document.
 const MaxLegalDocumentBytes = 512 << 10
 
-// LegalConfig owns the instance's legal documents and cookie notice.
-type LegalConfig struct {
+// LegalDocumentSet defines localized documents for a language.
+type LegalDocumentSet struct {
 	PrivacyPolicy  string `json:"privacy_policy" yaml:"privacy_policy"`
 	TermsOfService string `json:"terms_of_service" yaml:"terms_of_service"`
 	LegalNotice    string `json:"legal_notice" yaml:"legal_notice"`
-	CookieBanner   bool   `json:"cookie_banner" yaml:"cookie_banner"`
+}
+
+// LegalConfig owns the instance's legal documents and cookie notice.
+type LegalConfig struct {
+	PrivacyPolicy  string                      `json:"privacy_policy" yaml:"privacy_policy"`
+	TermsOfService string                      `json:"terms_of_service" yaml:"terms_of_service"`
+	LegalNotice    string                      `json:"legal_notice" yaml:"legal_notice"`
+	CookieBanner   bool                        `json:"cookie_banner" yaml:"cookie_banner"`
+	Translations   map[string]LegalDocumentSet `json:"translations,omitempty" yaml:"translations,omitempty"`
 	revision       string
 }
 
@@ -139,11 +149,46 @@ This service is operated by the instance administrator. Please update this docum
 This repository hosts software packages, source code, and container images authored and submitted by registered users and third-party upstream mirrors. While reasonable measures are taken to investigate reported violations, the operator assumes no liability for the content, correctness, or licensing of user-submitted artifacts.
 `
 
+// UpdateLastUpdated updates or injects the Last updated line in a legal document.
+func UpdateLastUpdated(content string, t time.Time, lang string) string {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return content
+	}
+	var prefix string
+	lowerLang := strings.ToLower(lang)
+	if strings.HasPrefix(lowerLang, "zh") {
+		prefix = "最后更新: " + t.Format("2006年1月2日")
+	} else {
+		prefix = "Last updated: " + t.Format("January 2, 2006")
+	}
+
+	if strings.Contains(content, "{{last_updated}}") {
+		return strings.ReplaceAll(content, "{{last_updated}}", prefix)
+	}
+
+	lines := strings.Split(content, "\n")
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		lower := strings.ToLower(trimmed)
+		if strings.HasPrefix(lower, "last updated:") || strings.HasPrefix(lower, "最后更新:") || strings.HasPrefix(lower, "最后更新：") {
+			lines[i] = prefix
+			return strings.Join(lines, "\n")
+		}
+		if i > 5 {
+			break
+		}
+	}
+
+	return content
+}
+
 // DefaultLegalConfig supplies preset legal documents and cookie notice defaults.
 func DefaultLegalConfig() LegalConfig {
+	today := time.Now().UTC()
 	value := LegalConfig{
-		PrivacyPolicy:  defaultPrivacyPolicy,
-		TermsOfService: defaultTermsOfService,
+		PrivacyPolicy:  UpdateLastUpdated(defaultPrivacyPolicy, today, "en"),
+		TermsOfService: UpdateLastUpdated(defaultTermsOfService, today, "en"),
 		LegalNotice:    defaultLegalNotice,
 		CookieBanner:   true,
 	}
@@ -152,7 +197,12 @@ func DefaultLegalConfig() LegalConfig {
 }
 
 func (value *LegalConfig) updateRevision() {
-	digest := sha256.Sum256([]byte(value.PrivacyPolicy + "\x00" + value.TermsOfService))
+	h := sha256.New()
+	h.Write([]byte(value.PrivacyPolicy + "\x00" + value.TermsOfService))
+	for k, v := range value.Translations {
+		h.Write([]byte("\x00" + k + "\x00" + v.PrivacyPolicy + "\x00" + v.TermsOfService + "\x00" + v.LegalNotice))
+	}
+	digest := h.Sum(nil)
 	value.revision = hex.EncodeToString(digest[:])
 }
 
@@ -174,6 +224,16 @@ func (value *LegalConfig) Normalize() error {
 			return errors.New("legal document must contain UTF-8 text within 512 KiB")
 		}
 	}
+	for lang, set := range value.Translations {
+		if len(lang) > 32 || !utf8.ValidString(lang) {
+			return errors.New("invalid translation language key")
+		}
+		for _, doc := range []string{set.PrivacyPolicy, set.TermsOfService, set.LegalNotice} {
+			if len(doc) > MaxLegalDocumentBytes || !utf8.ValidString(doc) || strings.ContainsRune(doc, 0) {
+				return errors.New("translated legal document must contain UTF-8 text within 512 KiB")
+			}
+		}
+	}
 	value.updateRevision()
 	return nil
 }
@@ -191,6 +251,17 @@ func (value LegalConfig) DeepCopy() LegalConfig {
 	value.PrivacyPolicy = strings.Clone(value.PrivacyPolicy)
 	value.TermsOfService = strings.Clone(value.TermsOfService)
 	value.LegalNotice = strings.Clone(value.LegalNotice)
+	if value.Translations != nil {
+		cloned := make(map[string]LegalDocumentSet, len(value.Translations))
+		for k, v := range value.Translations {
+			cloned[k] = LegalDocumentSet{
+				PrivacyPolicy:  strings.Clone(v.PrivacyPolicy),
+				TermsOfService: strings.Clone(v.TermsOfService),
+				LegalNotice:    strings.Clone(v.LegalNotice),
+			}
+		}
+		value.Translations = cloned
+	}
 	return value
 }
 

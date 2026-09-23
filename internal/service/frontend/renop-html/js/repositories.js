@@ -498,7 +498,9 @@ function buildRepoSection(container, data, repoKey, repo) {
                 repo.capacity_limit_bytes = previous;
                 capacity.value = String(previous / 1048576);
             }
-        } finally { capacity.disabled = false; }
+        } finally {
+            capacity.disabled = false;
+        }
     });
     fields.appendChild(makeFieldRow(t('repos.capacityLimit'), t('repos.capacityHint'), capacity));
 

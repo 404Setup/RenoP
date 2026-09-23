@@ -12,7 +12,12 @@ import {el} from '@renop/ui/dom';
 
 /** Create the recovery component. */
 export function renderRecovery() {
-    return el("section", {"aria-labelledby": "recovery-title", "class": "tab-content", "id": "tab-content-recovery", "style": "display: none;"},
+    return el("section", {
+            "aria-labelledby": "recovery-title",
+            "class": "tab-content",
+            "id": "tab-content-recovery",
+            "style": "display: none;"
+        },
         el("div", {"class": "account-page"},
             el("header", {"class": "account-page-heading"},
                 el("renop-icon", {"aria-hidden": "true", "class": "account-page-symbol", "name": "fileKey"}),
@@ -25,40 +30,111 @@ export function renderRecovery() {
             ),
             el("form", {"class": "account-page-form", "id": "account-recovery-form"},
                 el("div", {"class": "account-field"},
-                    el("label", {"data-i18n": "login.recoveryIdentifier", "for": "recovery-identifier"}, "Primary email"),
-                    el("input", {"autocomplete": "email", "data-i18n-placeholder": "login.recoveryIdentifierPlaceholder", "id": "recovery-identifier", "maxlength": "254", "required": true, "type": "email"})
+                    el("label", {
+                        "data-i18n": "login.recoveryIdentifier",
+                        "for": "recovery-identifier"
+                    }, "Primary email"),
+                    el("input", {
+                        "autocomplete": "email",
+                        "data-i18n-placeholder": "login.recoveryIdentifierPlaceholder",
+                        "id": "recovery-identifier",
+                        "maxlength": "254",
+                        "required": true,
+                        "type": "email"
+                    })
                 ),
                 el("fieldset", {"class": "account-recovery-codes"},
                     el("legend", {"data-i18n": "login.recoveryCodesPrompt"}, "Four distinct recovery codes"),
                     el("div", {"class": "account-field"},
                         el("label", {"for": "recovery-code-1"}, "Recovery code 1"),
-                        el("input", {"autocapitalize": "characters", "autocomplete": "off", "id": "recovery-code-1", "maxlength": "64", "name": "recovery-code", "required": true, "spellcheck": "false", "type": "text"})
+                        el("input", {
+                            "autocapitalize": "characters",
+                            "autocomplete": "off",
+                            "id": "recovery-code-1",
+                            "maxlength": "64",
+                            "name": "recovery-code",
+                            "required": true,
+                            "spellcheck": "false",
+                            "type": "text"
+                        })
                     ),
                     el("div", {"class": "account-field"},
                         el("label", {"for": "recovery-code-2"}, "Recovery code 2"),
-                        el("input", {"autocapitalize": "characters", "autocomplete": "off", "id": "recovery-code-2", "maxlength": "64", "name": "recovery-code", "required": true, "spellcheck": "false", "type": "text"})
+                        el("input", {
+                            "autocapitalize": "characters",
+                            "autocomplete": "off",
+                            "id": "recovery-code-2",
+                            "maxlength": "64",
+                            "name": "recovery-code",
+                            "required": true,
+                            "spellcheck": "false",
+                            "type": "text"
+                        })
                     ),
                     el("div", {"class": "account-field"},
                         el("label", {"for": "recovery-code-3"}, "Recovery code 3"),
-                        el("input", {"autocapitalize": "characters", "autocomplete": "off", "id": "recovery-code-3", "maxlength": "64", "name": "recovery-code", "required": true, "spellcheck": "false", "type": "text"})
+                        el("input", {
+                            "autocapitalize": "characters",
+                            "autocomplete": "off",
+                            "id": "recovery-code-3",
+                            "maxlength": "64",
+                            "name": "recovery-code",
+                            "required": true,
+                            "spellcheck": "false",
+                            "type": "text"
+                        })
                     ),
                     el("div", {"class": "account-field"},
                         el("label", {"for": "recovery-code-4"}, "Recovery code 4"),
-                        el("input", {"autocapitalize": "characters", "autocomplete": "off", "id": "recovery-code-4", "maxlength": "64", "name": "recovery-code", "required": true, "spellcheck": "false", "type": "text"})
+                        el("input", {
+                            "autocapitalize": "characters",
+                            "autocomplete": "off",
+                            "id": "recovery-code-4",
+                            "maxlength": "64",
+                            "name": "recovery-code",
+                            "required": true,
+                            "spellcheck": "false",
+                            "type": "text"
+                        })
                     )
                 ),
                 el("div", {"class": "account-field"},
                     el("label", {"data-i18n": "profile.newPasswordLabel", "for": "recovery-password"}, "New password"),
-                    el("input", {"autocomplete": "new-password", "id": "recovery-password", "maxlength": "72", "required": true, "type": "password"})
+                    el("input", {
+                        "autocomplete": "new-password",
+                        "id": "recovery-password",
+                        "maxlength": "72",
+                        "required": true,
+                        "type": "password"
+                    })
                 ),
                 el("div", {"class": "account-field"},
-                    el("label", {"data-i18n": "login.confirmNewPassword", "for": "recovery-password-confirmation"}, "Confirm new password"),
-                    el("input", {"autocomplete": "new-password", "id": "recovery-password-confirmation", "maxlength": "72", "required": true, "type": "password"})
+                    el("label", {
+                        "data-i18n": "login.confirmNewPassword",
+                        "for": "recovery-password-confirmation"
+                    }, "Confirm new password"),
+                    el("input", {
+                        "autocomplete": "new-password",
+                        "id": "recovery-password-confirmation",
+                        "maxlength": "72",
+                        "required": true,
+                        "type": "password"
+                    })
                 ),
                 el("p", {"class": "account-form-error", "id": "recovery-error", "role": "alert"}),
-                el("button", {"class": "account-submit", "data-i18n": "login.resetPassword", "type": "submit"}, "Reset password"),
+                el("button", {
+                    "class": "account-submit",
+                    "data-i18n": "login.resetPassword",
+                    "type": "submit"
+                }, "Reset password"),
                 el("div", {"class": "account-form-links"},
-                    el("a", {"class": "account-form-link", "data-i18n": "login.forgotPassword", "data-password-reset-link": true, "hidden": true, "href": "/account/forgot-password"}, "Forgot password?")
+                    el("a", {
+                        "class": "account-form-link",
+                        "data-i18n": "login.forgotPassword",
+                        "data-password-reset-link": true,
+                        "hidden": true,
+                        "href": "/account/forgot-password"
+                    }, "Forgot password?")
                 )
             )
         )

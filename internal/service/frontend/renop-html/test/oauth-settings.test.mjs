@@ -21,19 +21,38 @@ function createDOMContext() {
             tag,
             className: attrs.class || '',
             classList: {
-                add(c) { elem.className += ' ' + c; },
-                remove(c) { elem.className = elem.className.replace(c, '').trim(); },
-                toggle(c, v) { if (v) this.add(c); else this.remove(c); }
+                add(c) {
+                    elem.className += ' ' + c;
+                },
+                remove(c) {
+                    elem.className = elem.className.replace(c, '').trim();
+                },
+                toggle(c, v) {
+                    if (v) this.add(c); else this.remove(c);
+                }
             },
             dataset: {},
             children: children.flat(),
             listeners: {},
-            appendChild(child) { elem.children.push(child); return child; },
-            append(...items) { elem.children.push(...items); },
-            replaceChildren(...items) { elem.children = items; },
-            before(item) { elem.children.unshift(item); },
-            addEventListener(name, fn) { elem.listeners[name] = fn; },
-            setAttribute(name, val) { elem[name] = val; },
+            appendChild(child) {
+                elem.children.push(child);
+                return child;
+            },
+            append(...items) {
+                elem.children.push(...items);
+            },
+            replaceChildren(...items) {
+                elem.children = items;
+            },
+            before(item) {
+                elem.children.unshift(item);
+            },
+            addEventListener(name, fn) {
+                elem.listeners[name] = fn;
+            },
+            setAttribute(name, val) {
+                elem[name] = val;
+            },
             querySelector(sel) {
                 if (sel === '.cfg-fields') {
                     if (!elem.fields) {
@@ -100,9 +119,12 @@ function createDOMContext() {
             inp.addEventListener('input', e => onChange(e));
             return inp;
         },
-        collapseElement: async () => {},
-        expandElement: async () => {},
-        writeClipboardText: async () => {},
+        collapseElement: async () => {
+        },
+        expandElement: async () => {
+        },
+        writeClipboardText: async () => {
+        },
         createSettingsGuide: () => node('div', {class: 'guide'}),
         window: {
             location: {origin: 'https://renop.test'},
@@ -128,8 +150,8 @@ test('renderOAuthSettings renders delete button for GitHub and supports removing
 
     // Strip imports and run renderOAuthSettings
     const code = source
-        .replace(/import\s+[\s\S]*?from\s+['"][^'"]+['"];?/g, '')
-        .replace('export function renderOAuthSettings', 'function renderOAuthSettings') +
+            .replace(/import\s+[\s\S]*?from\s+['"][^'"]+['"];?/g, '')
+            .replace('export function renderOAuthSettings', 'function renderOAuthSettings') +
         '; renderOAuthSettings';
 
     const renderOAuthSettings = vm.runInNewContext(code, sandbox);
@@ -154,10 +176,12 @@ test('renderOAuthSettings renders delete button for GitHub and supports removing
 
     // 2. Look for the remove button in GitHub provider
     const allButtons = [];
+
     function findButtons(n) {
         if (n.tag === 'button') allButtons.push(n);
         if (n.children) n.children.forEach(c => typeof c === 'object' && findButtons(c));
     }
+
     findButtons(container);
 
     const removeBtn = allButtons.find(b => b.children.some(c => typeof c === 'string' && c.startsWith('oauth.remove')));
@@ -206,8 +230,8 @@ test('renderOAuthSettings hides added non-custom presets from dropdown and keeps
     const sandbox = vm.createContext(ctx);
 
     const code = source
-        .replace(/import\s+[\s\S]*?from\s+['"][^'"]+['"];?/g, '')
-        .replace('export function renderOAuthSettings', 'function renderOAuthSettings') +
+            .replace(/import\s+[\s\S]*?from\s+['"][^'"]+['"];?/g, '')
+            .replace('export function renderOAuthSettings', 'function renderOAuthSettings') +
         '; renderOAuthSettings';
 
     const renderOAuthSettings = vm.runInNewContext(code, sandbox);
@@ -223,7 +247,8 @@ test('renderOAuthSettings hides added non-custom presets from dropdown and keeps
             {type: 'custom', name: 'OAuth 2.0'}
         ]
     };
-    renderOAuthSettings(container, data, () => {});
+    renderOAuthSettings(container, data, () => {
+    });
 
     // 1. Initial state: Google is already in providers, so it should NOT be in options
     let options = ctx.getSelectOptions();
@@ -234,10 +259,12 @@ test('renderOAuthSettings hides added non-custom presets from dropdown and keeps
     // 2. Add Microsoft
     ctx.triggerSelectChange('microsoft');
     const allButtons = [];
+
     function findButtons(n) {
         if (n.tag === 'button') allButtons.push(n);
         if (n.children) n.children.forEach(c => typeof c === 'object' && findButtons(c));
     }
+
     findButtons(container);
     const addBtn = allButtons.find(b => b.action);
     await addBtn.action();
@@ -281,8 +308,8 @@ test('renderOAuthSettings disables add button when limit of 12 is reached', asyn
     const sandbox = vm.createContext(ctx);
 
     const code = source
-        .replace(/import\s+[\s\S]*?from\s+['"][^'"]+['"];?/g, '')
-        .replace('export function renderOAuthSettings', 'function renderOAuthSettings') +
+            .replace(/import\s+[\s\S]*?from\s+['"][^'"]+['"];?/g, '')
+            .replace('export function renderOAuthSettings', 'function renderOAuthSettings') +
         '; renderOAuthSettings';
 
     const renderOAuthSettings = vm.runInNewContext(code, sandbox);
@@ -298,13 +325,16 @@ test('renderOAuthSettings disables add button when limit of 12 is reached', asyn
             {type: 'custom', name: 'OAuth 2.0'}
         ]
     };
-    renderOAuthSettings(container, data, () => {});
+    renderOAuthSettings(container, data, () => {
+    });
 
     const allButtons = [];
+
     function findButtons(n) {
         if (n.tag === 'button') allButtons.push(n);
         if (n.children) n.children.forEach(c => typeof c === 'object' && findButtons(c));
     }
+
     findButtons(container);
     const addBtn = allButtons.find(b => b.action);
     assert.ok(addBtn, 'Add button should exist');

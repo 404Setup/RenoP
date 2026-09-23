@@ -293,7 +293,7 @@ provider login.
 | GET    | `/api/auth/profile/oauth`            | Private connection states, display login, authorization timestamp, and permitted actions |
 | DELETE | `/api/auth/profile/oauth/:provider`  | Disconnect; `204`, or `409` with `oauth_last_login_method`                               |
 | GET    | `/api/settings/oauth-providers`      | Administrator view: `providers` and `presets`, without secrets                           |
-| PUT    | `/api/settings/oauth-providers`      | Binary protobuf `OAuthSettings`: `providers`, `replace_providers: true`; 128 KiB |
+| PUT    | `/api/settings/oauth-providers`      | Binary protobuf `OAuthSettings`: `providers`, `replace_providers: true`; 128 KiB         |
 
 Profile operations require the current browser session. A provider callback returns a stable result marker in `oauth`
 and its ID in `provider`; the SPA translates and removes the markers. Failures never display raw provider responses.
@@ -315,7 +315,11 @@ the signature, issuer, audience, subject, nonce, time bounds, and token hash whe
 algorithms are RS256 and ES256. Provider responses are limited to 1 MiB and requests have bounded timeouts. The
 configured outbound proxy applies.
 
-RenoP binds a stable subject to its provider type, client, endpoints, and verified issuer. Changing this authority does not transfer existing bindings. Access and refresh tokens used for browser login are encrypted for that specific session with the private `mfa_encryption_key` and are deleted with the session. They never appear in public sessions, API responses, or logs. Keep that key across restarts. Protected registration avatars retain their existing temporary encrypted token until confirmation or expiry.
+RenoP binds a stable subject to its provider type, client, endpoints, and verified issuer. Changing this authority does
+not transfer existing bindings. Access and refresh tokens used for browser login are encrypted for that specific session
+with the private `mfa_encryption_key` and are deleted with the session. They never appear in public sessions, API
+responses, or logs. Keep that key across restarts. Protected registration avatars retain their existing temporary
+encrypted token until confirmation or expiry.
 
 Account retirement releases every third-party binding atomically. Another live account may bind the released identity,
 while the retired username remains reserved permanently, the email remains held for 14 days, and activity retention
@@ -327,6 +331,12 @@ See [login email aliases](./email-verification.md) for verification, removal, an
 
 ## Provider logout and revocation
 
-Logout revocation is built in for GitHub app tokens, Google, GitLab (including the configured instance), and Stack Exchange. For a custom client, Cloudflare, or Microsoft, set `revocation_url` only if that authorization service publishes an RFC 7009 endpoint. No endpoint is guessed, and provider-wide administrative sign-out is not used. Some providers revoke the entire grant even when one token is supplied. Sessions created before token retention was available must sign in again to obtain a revocable grant.
+Logout revocation is built in for GitHub app tokens, Google, GitLab (including the configured instance), and Stack
+Exchange. For a custom client, Cloudflare, or Microsoft, set `revocation_url` only if that authorization service
+publishes an RFC 7009 endpoint. No endpoint is guessed, and provider-wide administrative sign-out is not used. Some
+providers revoke the entire grant even when one token is supplied. Sessions created before token retention was available
+must sign in again to obtain a revocable grant.
 
-Public provider discovery and private connection status use binary protobuf. The unified settings API uses `OAuthSettings`; writes require `replace_providers: true`. Refer to [authentication API](../api/authentication.md) for the signed callback formats.
+Public provider discovery and private connection status use binary protobuf. The unified settings API uses
+`OAuthSettings`; writes require `replace_providers: true`. Refer to [authentication API](../api/authentication.md) for
+the signed callback formats.

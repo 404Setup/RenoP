@@ -292,4 +292,5 @@ export default Object.freeze({
     "oauth.revocationSecretHint": "32 文字以上。プロバイダーからの取り消し通知の署名を検証します。",
     "oauth.clearRevocationSecret": "取り消しコールバックのシークレットを消去",
     "oauth.logoutRevokeFailed": "ローカルでログアウトしました。外部認可を取り消せなかったため、プロバイダーの設定で取り消してください。",
+    "mfa.deviceRateLimited": "セキュリティ設定のため、このデバイスは現在このアカウントにログインできません。{time}+1分まで待ってから再試行してください。",
 });

@@ -77,7 +77,7 @@ header.main-header {
     width: fit-content;
     max-width: 100%;
     box-sizing: border-box;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "JetBrains Mono", monospace;
+    font-family: var(--font-mono, monospace);
     font-size: 0.78rem;
     font-weight: 500;
     color: var(--text-color);

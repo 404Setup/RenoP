@@ -38,7 +38,7 @@ RenoP 实现 Cargo Registry 与 Sparse Index 规范。
 - **路径**：`PUT /{repo}/api/v1/crates/new`
 - **认证**：需要在 `Authorization: <token>` 中提供 Token。
 - **正文**：4 字节 JSON 长度、JSON 元数据以及 `.crate` 二进制归档。
-- **名称冲突**：首次发布时，若规范化名称已存在于本地或适用镜像，返回 `409 Conflict`；无法确定上游结果时
+- **名称冲突**：首次发布时，若规范化名称已存在于本地或适用镜像，返回 `409 Conflict`。无法确定上游结果时
   返回 `503 Service Unavailable`。
 
 发布时，RenoP 会解析 `Cargo.toml` 中的 `package.readme` 声明，

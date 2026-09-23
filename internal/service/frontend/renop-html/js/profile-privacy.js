@@ -9,7 +9,7 @@
  */
 
 import {el} from '@renop/ui/dom';
-import {createToggle, createFieldRow, createActionButton, createIcon} from './components.js';
+import {createActionButton, createFieldRow, createIcon, createToggle} from './components.js';
 import {createJSONClient} from './api.js';
 import {syncUserProfile} from './user-profiles.js';
 import {t} from './i18n.js';
@@ -17,7 +17,9 @@ import {t} from './i18n.js';
 /** Render an owner-controlled privacy draft independently from profile links and identity. */
 export function createProfilePrivacyEditor(profile) {
     let privateProfile = profile.private === true;
-    const toggle = createToggle(privateProfile, value => { privateProfile = value; });
+    const toggle = createToggle(privateProfile, value => {
+        privateProfile = value;
+    });
     const save = createJSONClient('/api/auth/profile/privacy', 'profile.privacySaveFailed');
     const card = el('details', {class: 'profile-settings-section profile-privacy-card profile-collapsible-card'});
     const button = createActionButton(t('common.save'), async () => {

@@ -12,6 +12,7 @@ package protohttp
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -61,7 +62,7 @@ func TestReadRejectsOversizedBody(t *testing.T) {
 	defer app.ReleaseCtx(ctx)
 
 	var req pb.LoginRequest
-	if err := Read(ctx, &req); err != fiber.ErrRequestEntityTooLarge {
+	if err := Read(ctx, &req); !errors.Is(err, fiber.ErrRequestEntityTooLarge) {
 		t.Fatalf("Read error = %v, want %v", err, fiber.ErrRequestEntityTooLarge)
 	}
 }

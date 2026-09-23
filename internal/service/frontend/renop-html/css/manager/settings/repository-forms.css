@@ -67,11 +67,19 @@ html.dark .cfg-warning-banner {
 }
 
 @keyframes settingsPageIn {
-    from { opacity: 0; transform: translateY(0.35rem); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(0.35rem);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
     #settings-form-container > *,
-    #settings-form-container .cfg-fields > renop-callout { animation: none; }
+    #settings-form-container .cfg-fields > renop-callout {
+        animation: none;
+    }
 }

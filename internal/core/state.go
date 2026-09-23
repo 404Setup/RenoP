@@ -15,12 +15,13 @@ import (
 	"crypto/rand"
 	"errors"
 	"strings"
-	"sync"
 	"sync/atomic"
 	atomic2 "sync/atomic/v2"
+	"sync/v2"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/google/uuid"
 	"github.com/llxisdsh/pb"
 
 	"renop/internal/cache"
@@ -88,9 +89,15 @@ type StateDB interface {
 	EnsureRepositoryResourcesMutable(repository string) error
 	ListAPITokens(username string) ([]*APIToken, error)
 	CreateAPIToken(username string, token *APIToken, secretHash string) error
+	UpdateAPIToken(username, tokenID, name string, scopes []string, targets map[string][]string) (*APIToken, error)
+	RotateAPIToken(username, tokenID, newSecretHash string) (*APIToken, error)
 	DeleteAPIToken(username, tokenID string) error
 	SetAPITokenDisabled(username, tokenID string, disabled bool) error
 	GetAPITokenByHash(secretHash, username string) (*APITokenCredential, error)
+	BanAccountIP(username, ip string) error
+	UnbanAccountIP(username, ip string) error
+	IsAccountIPBanned(username, ip string) (bool, error)
+	ListAccountBannedIPs(username string) ([]string, error)
 	CountAPITokens(username string) (int, error)
 	CountAPITokensByUsername() (map[string]int, error)
 	SearchTokenNames(prefix string, limit int, now int64, includePrivate bool) ([]string, error)
@@ -431,6 +438,7 @@ type AppStateInner struct {
 	DownloadStatisticsCounterMu sync.Mutex
 	ExternalAuthStates          *TransientAuthStateStore
 	CaptchaApprovals            *TransientAuthStateStore
+	DeviceAccess                sync.Map[string, *DeviceAccessRecord]
 
 	RepositoryCapacity     *repositorycapacity.Manager
 	FileIndex              *index.FileIndex
@@ -609,29 +617,128 @@ func sessionToDto(secretToken string, session *Session, currentSessionToken stri
 	}
 }
 
-// ListUserSessions returns browser sessions for username (Basic/Bearer are not sessions).
-// currentSessionToken is the secret token of the request's session, if any.
+type DeviceAccessRecord struct {
+	mu          sync.Mutex
+	PublicID    string
+	Username    string
+	UserAgent   string
+	LoginMethod string
+	IPs         []string
+	CreatedAt   int64
+	LastActive  int64
+}
+
+// RecordDeviceAccess tracks recent device accesses from Basic Auth, API Token, and browser sessions.
+func (state *AppState) RecordDeviceAccess(username, loginMethod, userAgent, ip string, now int64) {
+	if state == nil || state.Inner == nil || username == "" {
+		return
+	}
+	username = strings.ToLower(strings.TrimSpace(username))
+	userAgent = strings.TrimSpace(userAgent)
+	if userAgent == "" {
+		userAgent = "Unknown"
+	}
+	ip = strings.TrimSpace(ip)
+	key := username + "\x00" + loginMethod + "\x00" + userAgent
+	initialIPs := make([]string, 0, 10)
+	if ip != "" {
+		initialIPs = append(initialIPs, ip)
+	}
+	val, loaded := state.Inner.DeviceAccess.LoadOrStore(key, &DeviceAccessRecord{
+		PublicID:    uuid.NewString(),
+		Username:    username,
+		UserAgent:   userAgent,
+		LoginMethod: loginMethod,
+		CreatedAt:   now,
+		LastActive:  now,
+		IPs:         initialIPs,
+	})
+	if loaded {
+		val.mu.Lock()
+		val.LastActive = now
+		if ip != "" {
+			newIPs := make([]string, 0, 10)
+			newIPs = append(newIPs, ip)
+			for _, existing := range val.IPs {
+				if existing != ip && len(newIPs) < 10 {
+					newIPs = append(newIPs, existing)
+				}
+			}
+			val.IPs = newIPs
+		}
+		val.mu.Unlock()
+	}
+}
+
+// RemoveDeviceAccess drops in-memory tracked device access for a given public ID.
+func (state *AppState) RemoveDeviceAccess(username, publicID string) {
+	if state == nil || state.Inner == nil {
+		return
+	}
+	username = strings.ToLower(strings.TrimSpace(username))
+	state.Inner.DeviceAccess.Range(func(k string, rec *DeviceAccessRecord) bool {
+		if rec.Username == username && rec.PublicID == publicID {
+			state.Inner.DeviceAccess.Delete(k)
+		}
+		return true
+	})
+}
+
+// ListUserSessions returns browser sessions and active device accesses for username.
+// Basic Auth and API Token requests from the same device are merged, with up to 10 recent IPs.
 func (state *AppState) ListUserSessions(username, currentSessionToken string) []SessionDto {
 	if state == nil || state.Inner == nil || username == "" {
 		return []SessionDto{}
 	}
-	if db := state.GetDB(); db != nil {
-		sessions, err := db.ListUserSessions(username, currentSessionToken)
-		if err != nil || sessions == nil {
-			return []SessionDto{}
-		}
-		return sessions
-	}
+	lowerUser := strings.ToLower(strings.TrimSpace(username))
 	var sessions []SessionDto
-	state.Inner.Sessions.Range(func(key string, value *Session) bool {
-		if value != nil && value.Username == username {
-			sessions = append(sessions, sessionToDto(key, value, currentSessionToken))
+	if db := state.GetDB(); db != nil {
+		dbSessions, err := db.ListUserSessions(username, currentSessionToken)
+		if err == nil && dbSessions != nil {
+			sessions = append(sessions, dbSessions...)
+		}
+	} else {
+		state.Inner.Sessions.Range(func(key string, value *Session) bool {
+			if value != nil && strings.EqualFold(value.Username, lowerUser) {
+				sessions = append(sessions, sessionToDto(key, value, currentSessionToken))
+			}
+			return true
+		})
+	}
+	for i := range sessions {
+		if len(sessions[i].RecentIPs) == 0 && sessions[i].IP != "" {
+			sessions[i].RecentIPs = []string{sessions[i].IP}
+		}
+	}
+
+	now := time.Now().UnixMilli()
+	state.Inner.DeviceAccess.Range(func(k string, rec *DeviceAccessRecord) bool {
+		if rec.Username == lowerUser && (rec.LoginMethod == "basic" || rec.LoginMethod == "token") {
+			rec.mu.Lock()
+			lastActive := rec.LastActive
+			var primaryIP string
+			if len(rec.IPs) > 0 {
+				primaryIP = rec.IPs[0]
+			}
+			if now-lastActive <= SessionIdleTimeoutMillis {
+				sessions = append(sessions, SessionDto{
+					PublicID:    rec.PublicID,
+					Username:    rec.Username,
+					IP:          primaryIP,
+					UserAgent:   rec.UserAgent,
+					CreatedAt:   rec.CreatedAt,
+					LastActive:  lastActive,
+					ExpiresAt:   lastActive + SessionIdleTimeoutMillis,
+					Current:     false,
+					LoginMethod: rec.LoginMethod,
+					RecentIPs:   append([]string(nil), rec.IPs...),
+				})
+			}
+			rec.mu.Unlock()
 		}
 		return true
 	})
-	if sessions == nil {
-		return []SessionDto{}
-	}
+
 	return sessions
 }
 
@@ -641,6 +748,7 @@ func (state *AppState) RevokeUserSessionByPublicID(username, publicID, currentSe
 	if state == nil || state.Inner == nil || username == "" || publicID == "" {
 		return false, false, nil
 	}
+	defer state.RemoveDeviceAccess(username, publicID)
 	if db := state.GetDB(); db != nil {
 		token, revoked, wasCurrent, err := db.DeleteUserSessionByPublicID(username, publicID, currentSessionToken)
 		if err != nil {

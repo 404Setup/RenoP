@@ -20,7 +20,10 @@ export function renderLegalSettings(container, data, changed) {
     const wrap = el('div', {class: 'cfg-layout'});
     const notice = createSection(createIcon('compliance'), t('legal.title'), t('legal.settingsHint'), {defaultCollapsed: true});
     notice.querySelector('.cfg-fields').appendChild(createToggleRow(t('legal.cookieBanner'), t('legal.cookieBannerHint'),
-        data.cookie_banner === true, checked => { data.cookie_banner = checked; changed(); }));
+        data.cookie_banner === true, checked => {
+            data.cookie_banner = checked;
+            changed();
+        }));
     wrap.appendChild(notice);
 
     for (const [key, title] of [['privacy_policy', 'footer.privacyPolicy'], ['terms_of_service', 'legal.termsTitle'], ['legal_notice', 'footer.legalNotice']]) {

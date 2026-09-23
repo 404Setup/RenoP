@@ -12,7 +12,11 @@
 const groups = Object.freeze([
     {id: 'frontend', label: 'settings.groupAppearance', domains: ['frontend', 'legal']},
     {id: 'identity', label: 'settings.groupIdentity', domains: ['registration', 'oauth_providers', 'captcha']},
-    {id: 'publication', label: 'settings.groupPublication', domains: ['super_teams', 'publication_quota', 'maven_domains']},
+    {
+        id: 'publication',
+        label: 'settings.groupPublication',
+        domains: ['super_teams', 'publication_quota', 'maven_domains']
+    },
     {id: 'storage', label: 'settings.groupStorage', domains: ['storage', 'index', 'cache']},
     {id: 'service', label: 'settings.groupService', domains: ['server', 'proxy', 'updater']},
     {id: 'mail', label: 'mail.title', domains: ['mail']},

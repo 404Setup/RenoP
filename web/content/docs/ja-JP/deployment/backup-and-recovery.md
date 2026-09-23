@@ -16,15 +16,15 @@ description: 整合したバックアップ、復元演習、バックエンド�
 
 ## データを分類する
 
-| データ            | 代表的な場所                                    | 復旧時の役割                                                      |
-|:------------------|:------------------------------------------------|:------------------------------------------------------------------|
-| メイン設定        | `renop-settings.db` または `RENOP_SETTINGS_DB`             | Listener、database、proxy、security、preview、updater             |
-| リポジトリ定義    | データベース | Format、visibility、mirror、storage backend、policy               |
-| データベース      | `renop.db` または外部 DSN                       | Account、permission、session、token、team、review、audit、message |
-| ローカルデータ    | `storage_path`                                  | Published package、upload、upstream cache                         |
-| S3 互換データ     | Bucket と repository prefix                     | S3-backed repository の package と cache                          |
-| ファイル索引      | `index.json` または `RENOP_INDEX`               | Performance snapshot。保持を推奨するが再構築可能                  |
-| TLS・連携秘密情報 | Proxy または secret manager                     | 同じ公開 service と integration の復旧                            |
+| データ            | 代表的な場所                                   | 復旧時の役割                                                      |
+|:------------------|:-----------------------------------------------|:------------------------------------------------------------------|
+| メイン設定        | `renop-settings.db` または `RENOP_SETTINGS_DB` | Listener、database、proxy、security、preview、updater             |
+| リポジトリ定義    | データベース                                   | Format、visibility、mirror、storage backend、policy               |
+| データベース      | `renop.db` または外部 DSN                      | Account、permission、session、token、team、review、audit、message |
+| ローカルデータ    | `storage_path`                                 | Published package、upload、upstream cache                         |
+| S3 互換データ     | Bucket と repository prefix                    | S3-backed repository の package と cache                          |
+| ファイル索引      | `index.json` または `RENOP_INDEX`              | Performance snapshot。保持を推奨するが再構築可能                  |
+| TLS・連携秘密情報 | Proxy または secret manager                    | 同じ公開 service と integration の復旧                            |
 
 生成済み website、frontend dependency、build cache は再生成できます。運用 secret の唯一のコピーにしないでください。
 
@@ -119,4 +119,8 @@ Database だけでなく complete service の RPO と RTO を定義します。�
 Restore したことのない backup は未検証の仮定です。最終 runbook を
 [本番デプロイチェックリスト](./production-checklist.md)から参照できるようにし、offline copy も保持してください。
 
-S3 の共有データは非公開の `.renop-content-v1` 名前空間に保存します。バックアップにはリポジトリのオブジェクトとこの名前空間を含め、再起動後のメタデータ読み取りを減らすため非公開のインデックスも保持してください。インデックスはバージョン付き JSON レコードストリームを使用し、旧スナップショットも読み取れます。重複排除と復元については[リポジトリ設定](/docs/configuration/repositories)を参照してください。
+S3 の共有データは非公開の `.renop-content-v1`
+名前空間に保存します。バックアップにはリポジトリのオブジェクトとこの名前空間を含め、再起動後のメタデータ読み取りを減らすため非公開のインデックスも保持してください。インデックスはバージョン付き
+JSON
+レコードストリームを使用し、旧スナップショットも読み取れます。重複排除と復元については[リポジトリ設定](/docs/configuration/repositories)
+を参照してください。

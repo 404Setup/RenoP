@@ -12,7 +12,12 @@ import {el} from '@renop/ui/dom';
 
 /** Create the password recovery component. */
 export function renderPasswordRecovery() {
-    return el("section", {"aria-labelledby": "password-reset-title", "class": "tab-content", "id": "tab-content-password-recovery", "style": "display: none;"},
+    return el("section", {
+            "aria-labelledby": "password-reset-title",
+            "class": "tab-content",
+            "id": "tab-content-password-recovery",
+            "style": "display: none;"
+        },
         el("div", {"class": "account-page"},
             el("header", {"class": "account-page-heading"},
                 el("renop-icon", {"aria-hidden": "true", "class": "account-page-symbol", "name": "fileKey"}),
@@ -27,29 +32,92 @@ export function renderPasswordRecovery() {
                 el("p", {"class": "account-form-error", "id": "password-reset-availability", "role": "status"}),
                 el("fieldset", {"class": "account-reset-fields", "disabled": true, "id": "password-reset-fields"},
                     el("div", {"class": "account-field"},
-                        el("label", {"data-i18n": "profile.privateEmailLabel", "for": "password-reset-email"}, "Private email"),
-                        el("input", {"autocomplete": "email", "id": "password-reset-email", "maxlength": "254", "required": true, "type": "email"})
+                        el("label", {
+                            "data-i18n": "profile.privateEmailLabel",
+                            "for": "password-reset-email"
+                        }, "Private email"),
+                        el("input", {
+                            "autocomplete": "email",
+                            "id": "password-reset-email",
+                            "maxlength": "254",
+                            "required": true,
+                            "type": "email"
+                        })
                     ),
-                    el("button", {"class": "account-provider", "data-i18n": "login.sendEmailCode", "id": "password-reset-send", "type": "button"}, "Send verification code "),
-                    el("div", {"aria-live": "polite", "class": "account-mail-status", "id": "password-reset-delivery", "role": "status"}),
-                    el("button", {"class": "account-provider", "data-i18n": "mail.refreshStatus", "hidden": true, "id": "password-reset-refresh", "type": "button"}, "Refresh "),
+                    el("button", {
+                        "class": "account-provider",
+                        "data-i18n": "login.sendEmailCode",
+                        "id": "password-reset-send",
+                        "type": "button"
+                    }, "Send verification code "),
+                    el("div", {
+                        "aria-live": "polite",
+                        "class": "account-mail-status",
+                        "id": "password-reset-delivery",
+                        "role": "status"
+                    }),
+                    el("button", {
+                        "class": "account-provider",
+                        "data-i18n": "mail.refreshStatus",
+                        "hidden": true,
+                        "id": "password-reset-refresh",
+                        "type": "button"
+                    }, "Refresh "),
                     el("div", {"class": "account-field"},
-                        el("label", {"data-i18n": "login.emailCode", "for": "password-reset-code"}, "Verification code"),
-                        el("input", {"autocomplete": "one-time-code", "id": "password-reset-code", "inputmode": "numeric", "maxlength": "8", "pattern": "[0-9]{8}", "required": true, "type": "text"})
+                        el("label", {
+                            "data-i18n": "login.emailCode",
+                            "for": "password-reset-code"
+                        }, "Verification code"),
+                        el("input", {
+                            "autocomplete": "one-time-code",
+                            "id": "password-reset-code",
+                            "inputmode": "numeric",
+                            "maxlength": "8",
+                            "pattern": "[0-9]{8}",
+                            "required": true,
+                            "type": "text"
+                        })
                     ),
                     el("div", {"class": "account-field"},
-                        el("label", {"data-i18n": "profile.newPasswordLabel", "for": "password-reset-password"}, "New password"),
-                        el("input", {"autocomplete": "new-password", "id": "password-reset-password", "maxlength": "72", "required": true, "type": "password"})
+                        el("label", {
+                            "data-i18n": "profile.newPasswordLabel",
+                            "for": "password-reset-password"
+                        }, "New password"),
+                        el("input", {
+                            "autocomplete": "new-password",
+                            "id": "password-reset-password",
+                            "maxlength": "72",
+                            "required": true,
+                            "type": "password"
+                        })
                     ),
                     el("div", {"class": "account-field"},
-                        el("label", {"data-i18n": "login.confirmNewPassword", "for": "password-reset-confirmation"}, "Confirm new password"),
-                        el("input", {"autocomplete": "new-password", "id": "password-reset-confirmation", "maxlength": "72", "required": true, "type": "password"})
+                        el("label", {
+                            "data-i18n": "login.confirmNewPassword",
+                            "for": "password-reset-confirmation"
+                        }, "Confirm new password"),
+                        el("input", {
+                            "autocomplete": "new-password",
+                            "id": "password-reset-confirmation",
+                            "maxlength": "72",
+                            "required": true,
+                            "type": "password"
+                        })
                     ),
                     el("p", {"class": "account-form-error", "id": "password-reset-error", "role": "alert"}),
-                    el("button", {"class": "account-submit", "data-i18n": "login.resetPassword", "type": "submit"}, "Reset password ")
+                    el("button", {
+                        "class": "account-submit",
+                        "data-i18n": "login.resetPassword",
+                        "type": "submit"
+                    }, "Reset password ")
                 ),
                 el("div", {"class": "account-form-links"},
-                    el("a", {"class": "account-form-link", "data-i18n": "login.recoveryTitle", "href": "/account/recovery", "id": "password-reset-recover-account"}, "Recover account")
+                    el("a", {
+                        "class": "account-form-link",
+                        "data-i18n": "login.recoveryTitle",
+                        "href": "/account/recovery",
+                        "id": "password-reset-recover-account"
+                    }, "Recover account")
                 )
             )
         )

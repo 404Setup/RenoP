@@ -12,6 +12,7 @@ package auth
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -199,4 +200,129 @@ func TestMFACounterIsAtomicAndRejectsStaleSessions(t *testing.T) {
 		}
 	}
 	require.Equal(t, 1, passed)
+}
+
+func TestPasskeyLoginSkipsMFA(t *testing.T) {
+	resetMFALimiterForTest()
+	db := newTestAuthDB(t)
+	state := core.NewAppState()
+	state.Inner.DB = db
+	cfg := config.DefaultConfig()
+	state.Inner.Config.Store(cfg)
+	require.NoError(t, db.SaveToken(&core.AccessToken{Name: "alice", EncryptedSecret: "hash", Permissions: []string{"base"}}))
+	session := &core.Session{Username: "alice", PublicID: "session-1", CreatedAt: time.Now().UnixMilli()}
+	session.LastActive.Store(session.CreatedAt)
+	require.NoError(t, db.SaveSession(session, "session-1"))
+	require.NoError(t, db.SaveFidoDevice(&core.FidoDevice{ID: "key-1", Username: "alice", Name: "Key", CredentialID: []byte("cred"), PublicKey: []byte("pub"), CreatedAt: time.Now().UnixMilli()}))
+
+	// Enable MFA with passkey second factor
+	mfa, err := db.GetMFAState("alice")
+	require.NoError(t, err)
+	require.NoError(t, db.UpdateMFA("alice", mfa.Snapshot, "totp-secret", true, 0, "session-1"))
+
+	app := fiber.New()
+	app.Get("/test-login", func(c fiber.Ctx) error {
+		snapshot, err := prepareBrowserLogin(c, state, "alice", c.Query("method"), "")
+		if err != nil {
+			if errors.Is(err, errMFARequired) {
+				return c.Status(409).SendString("MFA_REQUIRED")
+			}
+			return c.Status(400).SendString(err.Error())
+		}
+		return c.SendString(snapshot)
+	})
+
+	// Passkey login (method: "fido") should skip 2FA and succeed
+	reqFido := httptest.NewRequest("GET", "/test-login?method=fido", nil)
+	respFido, err := app.Test(reqFido)
+	require.NoError(t, err)
+	require.Equal(t, 200, respFido.StatusCode)
+
+	// Password login (method: "password") should require 2FA
+	reqPass := httptest.NewRequest("GET", "/test-login?method=password", nil)
+	respPass, err := app.Test(reqPass)
+	require.NoError(t, err)
+	require.Equal(t, 409, respPass.StatusCode)
+}
+
+func TestMFADeviceRateLimiting(t *testing.T) {
+	db := newTestAuthDB(t)
+	state := core.NewAppState()
+	state.Inner.DB = db
+	cfg := config.DefaultConfig()
+	state.Inner.Config.Store(cfg)
+	require.NoError(t, db.SaveToken(&core.AccessToken{Name: "bob", EncryptedSecret: "hash", Permissions: []string{"base"}}))
+	session := &core.Session{Username: "bob", PublicID: "session-1", CreatedAt: time.Now().UnixMilli()}
+	session.LastActive.Store(session.CreatedAt)
+	require.NoError(t, db.SaveSession(session, "session-1"))
+
+	mfa, err := db.GetMFAState("bob")
+	require.NoError(t, err)
+	require.NoError(t, db.UpdateMFA("bob", mfa.Snapshot, "totp-secret", false, 0, "session-1"))
+
+	ip := "198.51.100.55"
+	ua := "TestBrowser/1.0"
+	now := time.Now()
+
+	// Clear any previous attempts for this key
+	mfaLimiter.Lock()
+	delete(mfaLimiter.attempts, ip+"|"+ua+"|bob")
+	mfaLimiter.Unlock()
+
+	// First 3 creations succeed
+	for range 3 {
+		err := mfaLimiter.checkAndRecord(ip, ua, "bob", now)
+		require.NoError(t, err)
+	}
+
+	// 4th creation fails with rate limit error
+	err = mfaLimiter.checkAndRecord(ip, ua, "bob", now)
+	var rateErr *ErrMFADeviceRateLimited
+	require.ErrorAs(t, err, &rateErr)
+	expectedTime := now.Add(10 * time.Minute).Format("15:04")
+	require.Contains(t, err.Error(), expectedTime)
+	require.Contains(t, err.Error(), "device login rate limit reached")
+}
+
+func TestBasicAuthRequiresAPIToken(t *testing.T) {
+	db := newTestAuthDB(t)
+	state := core.NewAppState()
+	state.Inner.DB = db
+	cfg := config.DefaultConfig()
+	state.Inner.Config.Store(cfg)
+
+	hash, err := bcrypt.GenerateFromPassword([]byte("account-pass"), bcrypt.MinCost)
+	require.NoError(t, err)
+	account := &core.AccessToken{
+		Name:            "carol",
+		EncryptedSecret: string(hash),
+		Tokens:          []string{"valid-api-token"},
+		Permissions:     []string{"base"},
+	}
+	require.NoError(t, db.SaveToken(account))
+
+	app := fiber.New()
+	app.Get("/test-basic", func(c fiber.Ctx) error {
+		res, err := handleBasicAuth(state, c.Get("Authorization"), c)
+		if err != nil {
+			return c.SendStatus(401)
+		}
+		return c.SendString(res.User.Username)
+	})
+
+	// Basic Auth with account password should fail (must be rejected)
+	basicPass := "Basic " + base64.StdEncoding.EncodeToString([]byte("carol:account-pass"))
+	reqPass := httptest.NewRequest("GET", "/test-basic", nil)
+	reqPass.Header.Set("Authorization", basicPass)
+	respPass, err := app.Test(reqPass)
+	require.NoError(t, err)
+	require.Equal(t, 401, respPass.StatusCode)
+
+	// Basic Auth with API Token should succeed
+	basicToken := "Basic " + base64.StdEncoding.EncodeToString([]byte("carol:valid-api-token"))
+	reqToken := httptest.NewRequest("GET", "/test-basic", nil)
+	reqToken.Header.Set("Authorization", basicToken)
+	respToken, err := app.Test(reqToken)
+	require.NoError(t, err)
+	require.Equal(t, 200, respToken.StatusCode)
 }

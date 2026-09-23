@@ -642,7 +642,7 @@ html.dark .cargo-state-badge.is-pending {
     margin: 0;
     padding: 0.85rem 3.2rem 0.85rem 1rem;
     overflow-x: auto;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-family: var(--font-mono, monospace);
     font-size: 0.82rem;
     line-height: 1.55;
     color: var(--text-color);
@@ -794,7 +794,7 @@ html.dark .cargo-state-badge.is-pending {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-family: monospace;
+    font-family: var(--font-mono, monospace);
     font-size: 0.76rem;
     color: color-mix(in srgb, var(--text-color) 80%, transparent);
 }
@@ -874,7 +874,7 @@ html.dark .cargo-state-badge.is-pending {
 }
 
 .cargo-dep-req {
-    font-family: monospace;
+    font-family: var(--font-mono, monospace);
     font-size: 0.74rem;
     font-weight: 700;
     padding: 0.12rem 0.4rem;
@@ -932,7 +932,7 @@ html.dark .cargo-dep-badge.is-target {
 
 .cargo-feature-sub-badge {
     display: inline-flex;
-    font-family: monospace;
+    font-family: var(--font-mono, monospace);
     font-size: 0.72rem;
     padding: 0.12rem 0.38rem;
     border-radius: 0.35rem;

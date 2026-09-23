@@ -292,4 +292,5 @@ export default Object.freeze({
     "oauth.revocationSecretHint": "At least 32 characters. Used to verify signed provider revocation callbacks.",
     "oauth.clearRevocationSecret": "Clear revocation callback secret",
     "oauth.logoutRevokeFailed": "Signed out locally. Provider authorization could not be revoked; revoke it from the provider settings.",
+    "mfa.deviceRateLimited": "Due to security settings, this device cannot log in to this account temporarily. Please wait until {time}+1 minute and try again.",
 });

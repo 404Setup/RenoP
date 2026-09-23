@@ -37,8 +37,8 @@
     border-radius: 0.75rem;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
     transition: border-color 0.35s cubic-bezier(0.16, 1, 0.3, 1),
-                box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1),
-                transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .cfg-service-stack .cfg-section.cfg-service-card--active {
@@ -78,30 +78,37 @@
     background: color-mix(in srgb, #24292f 10%, var(--card-bg));
     color: var(--text-color);
 }
+
 .cfg-service-stack .cfg-section-icon.is-google {
     background: color-mix(in srgb, #ea4335 10%, var(--card-bg));
 }
+
 .cfg-service-stack .cfg-section-icon.is-microsoft,
 .cfg-service-stack .cfg-section-icon.is-entra {
     background: color-mix(in srgb, #00a4ef 10%, var(--card-bg));
 }
+
 .cfg-service-stack .cfg-section-icon.is-gitlab {
     background: color-mix(in srgb, #fc6d26 10%, var(--card-bg));
 }
+
 .cfg-service-stack .cfg-section-icon.is-cloudflare {
     background: color-mix(in srgb, #f38020 10%, var(--card-bg));
 }
+
 .cfg-service-stack .cfg-section-icon.is-smtp,
 .cfg-service-stack .cfg-section-icon.is-sendgrid {
     background: color-mix(in srgb, var(--link-hover-color) 10%, var(--card-bg));
     color: var(--link-hover-color);
 }
+
 .cfg-service-stack .cfg-section-icon.is-ses,
 .cfg-service-stack .cfg-section-icon.is-aliyun,
 .cfg-service-stack .cfg-section-icon.is-tencent {
     background: color-mix(in srgb, #ea580c 10%, var(--card-bg));
     color: #ea580c;
 }
+
 .cfg-service-stack .cfg-section-icon.is-feishu {
     background: color-mix(in srgb, #00d6b9 10%, var(--card-bg));
     color: #059669;

@@ -22,7 +22,16 @@ export function renderUsers() {
         el("div", {"class": "users-stats-cards"},
             el("div", {"class": "stat-card"},
                 el("div", {"class": "stat-icon stat-icon--total"},
-                    svg("svg", {"fill": "none", "height": "20", "stroke": "currentColor", "stroke-linecap": "round", "stroke-linejoin": "round", "stroke-width": "2", "viewBox": "0 0 24 24", "width": "20"},
+                    svg("svg", {
+                            "fill": "none",
+                            "height": "20",
+                            "stroke": "currentColor",
+                            "stroke-linecap": "round",
+                            "stroke-linejoin": "round",
+                            "stroke-width": "2",
+                            "viewBox": "0 0 24 24",
+                            "width": "20"
+                        },
                         svg("path", {"d": "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"}),
                         svg("circle", {"cx": "9", "cy": "7", "r": "4"}),
                         svg("path", {"d": "M23 21v-2a4 4 0 0 0-3-3.87"}),
@@ -36,7 +45,16 @@ export function renderUsers() {
             ),
             el("div", {"class": "stat-card"},
                 el("div", {"class": "stat-icon stat-icon--admin"},
-                    svg("svg", {"fill": "none", "height": "20", "stroke": "currentColor", "stroke-linecap": "round", "stroke-linejoin": "round", "stroke-width": "2", "viewBox": "0 0 24 24", "width": "20"},
+                    svg("svg", {
+                            "fill": "none",
+                            "height": "20",
+                            "stroke": "currentColor",
+                            "stroke-linecap": "round",
+                            "stroke-linejoin": "round",
+                            "stroke-width": "2",
+                            "viewBox": "0 0 24 24",
+                            "width": "20"
+                        },
                         svg("path", {"d": "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"})
                     )
                 ),
@@ -47,7 +65,16 @@ export function renderUsers() {
             ),
             el("div", {"class": "stat-card"},
                 el("div", {"class": "stat-icon stat-icon--active"},
-                    svg("svg", {"fill": "none", "height": "20", "stroke": "currentColor", "stroke-linecap": "round", "stroke-linejoin": "round", "stroke-width": "2", "viewBox": "0 0 24 24", "width": "20"},
+                    svg("svg", {
+                            "fill": "none",
+                            "height": "20",
+                            "stroke": "currentColor",
+                            "stroke-linecap": "round",
+                            "stroke-linejoin": "round",
+                            "stroke-width": "2",
+                            "viewBox": "0 0 24 24",
+                            "width": "20"
+                        },
                         svg("rect", {"height": "11", "rx": "2", "width": "18", "x": "3", "y": "11"}),
                         svg("path", {"d": "M7 11V7a5 5 0 0 1 10 0v4"})
                     )
@@ -60,15 +87,50 @@ export function renderUsers() {
         ),
         el("div", {"class": "users-toolbar"},
             el("div", {"class": "search-input-wrapper"},
-                svg("svg", {"class": "search-icon", "fill": "none", "height": "16", "stroke": "currentColor", "stroke-linecap": "round", "stroke-linejoin": "round", "stroke-width": "2.5", "viewBox": "0 0 24 24", "width": "16"},
+                svg("svg", {
+                        "class": "search-icon",
+                        "fill": "none",
+                        "height": "16",
+                        "stroke": "currentColor",
+                        "stroke-linecap": "round",
+                        "stroke-linejoin": "round",
+                        "stroke-width": "2.5",
+                        "viewBox": "0 0 24 24",
+                        "width": "16"
+                    },
                     svg("circle", {"cx": "11", "cy": "11", "r": "8"}),
                     svg("line", {"x1": "21", "x2": "16.65", "y1": "21", "y2": "16.65"})
                 ),
-                el("input", {"autocomplete": "off", "data-i18n-placeholder": "users.searchPlaceholder", "id": "users-search-input", "placeholder": "Search users by name or permission...", "type": "text"})
+                el("input", {
+                    "autocomplete": "off",
+                    "data-i18n-placeholder": "users.searchPlaceholder",
+                    "id": "users-search-input",
+                    "placeholder": "Search users by name or permission...",
+                    "type": "text"
+                })
             ),
-            el("div", {"class": "users-toolbar-actions", "style": "display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;"},
-                el("button", {"class": "settings-save-btn", "data-i18n-title": "users.createUserBtnTitle", "id": "btn-create-user", "title": "Create a new user", "type": "button"},
-                    svg("svg", {"aria-hidden": "true", "fill": "none", "height": "16", "stroke": "currentColor", "stroke-linecap": "round", "stroke-linejoin": "round", "stroke-width": "2.5", "viewBox": "0 0 24 24", "width": "16"},
+            el("div", {
+                    "class": "users-toolbar-actions",
+                    "style": "display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;"
+                },
+                el("button", {
+                        "class": "settings-save-btn",
+                        "data-i18n-title": "users.createUserBtnTitle",
+                        "id": "btn-create-user",
+                        "title": "Create a new user",
+                        "type": "button"
+                    },
+                    svg("svg", {
+                            "aria-hidden": "true",
+                            "fill": "none",
+                            "height": "16",
+                            "stroke": "currentColor",
+                            "stroke-linecap": "round",
+                            "stroke-linejoin": "round",
+                            "stroke-width": "2.5",
+                            "viewBox": "0 0 24 24",
+                            "width": "16"
+                        },
                         svg("line", {"x1": "12", "x2": "12", "y1": "5", "y2": "19"}),
                         svg("line", {"x1": "5", "x2": "19", "y1": "12", "y2": "12"})
                     ),

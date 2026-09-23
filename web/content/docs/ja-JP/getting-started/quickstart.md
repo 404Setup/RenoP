@@ -49,12 +49,12 @@ traffic 前に実際の認証操作で DB と storage も検証してくださ�
 
 ## 主要な環境変数
 
-| 変数                           | 既定                | 用途                              |
-|:-------------------------------|:--------------------|:----------------------------------|
-| `RENOP_SETTINGS_DB`                 | `renop-settings.db`       | main config path                  |
+| 変数                           | 既定                | 用途                                |
+|:-------------------------------|:--------------------|:------------------------------------|
+| `RENOP_SETTINGS_DB`            | `renop-settings.db` | main config path                    |
 | `RENOP_REPOSITORIES`           | `repositories.yaml` | 旧設定の移行パス。DB 初期化後は無視 |
-| `RENOP_INDEX`                  | `index.json`        | file-index snapshot path          |
-| `RENOP_DEFAULT_ADMIN_PASSWORD` | 1 回生成            | `admin` がない場合の初期 password |
+| `RENOP_INDEX`                  | `index.json`        | file-index snapshot path            |
+| `RENOP_DEFAULT_ADMIN_PASSWORD` | 1 回生成            | `admin` がない場合の初期 password   |
 
 account、session、team、API Token、audit、message は DB data であり YAML path 変数はありません。
 

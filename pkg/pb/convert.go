@@ -112,6 +112,7 @@ func FromSessionDto(s core.SessionDto) *SessionDto {
 		ExpiresAt:   s.ExpiresAt,
 		Current:     s.Current,
 		LoginMethod: lm,
+		RecentIps:   append([]string(nil), s.RecentIPs...),
 	}
 }
 

@@ -38,6 +38,14 @@ func issueBrowserSession(c fiber.Ctx, state *core.AppState, user *config.User, m
 	if err := accountAccessError(accessToken); err != nil {
 		return err
 	}
+	cfg := state.Inner.Config.Load()
+	ip := utils.ExtractIP(c, &cfg.Server)
+	if db := state.GetDB(); db != nil {
+		if banned, err := db.IsAccountIPBanned(user.Username, ip); err == nil && banned {
+			c.Set("X-Renop-Error-Code", "ACCOUNT_IP_BANNED")
+			return fiber.NewError(fiber.StatusForbidden, "IP is restricted from logging into this account")
+		}
+	}
 	snapshot, err := prepareBrowserLogin(c, state, user.Username, method, user.AuthenticationSnapshot)
 	if err != nil {
 		return err
@@ -45,8 +53,6 @@ func issueBrowserSession(c fiber.Ctx, state *core.AppState, user *config.User, m
 	sessionToken := uuid.NewString()
 	publicID := uuid.NewString()
 	now := time.Now().UnixMilli()
-	cfg := state.Inner.Config.Load()
-	ip := utils.ExtractIP(c, &cfg.Server)
 	credentialID, _ := c.Locals("verified_fido_credential").([]byte)
 	session := &core.Session{
 		AuthenticationSnapshot: snapshot,

@@ -10,7 +10,10 @@
 
 package hex
 
-import "io"
+import (
+	"errors"
+	"io"
+)
 
 // bufferSize is the number of hexadecimal characters to buffer in encoder and decoder.
 const bufferSize = 1024
@@ -62,7 +65,7 @@ func (d *decoder) Read(p []byte) (n int, err error) {
 		if d.err == io.EOF && len(d.in)%2 != 0 {
 
 			_, d.err = Decode(nil, d.in[len(d.in)-1:])
-			if d.err == ErrLength {
+			if errors.Is(d.err, ErrLength) {
 				d.err = io.ErrUnexpectedEOF
 			}
 		}

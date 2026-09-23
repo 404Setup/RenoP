@@ -7,11 +7,14 @@ description: 浏览器会话、个人资料、登录方式、恢复代码与会�
 
 # 认证 API
 
-浏览器端认证使用具备 `HttpOnly` 属性的 `renop_session` Cookie。为保障安全性，用户信息与会话列表中均不包含会话私钥，接口也不支持通过请求头或 URL 参数传递该密钥。账号核心安全设置仅限有效浏览器会话访问。
+浏览器端认证使用具备 `HttpOnly` 属性的 `renop_session` Cookie。为保障安全性，用户信息与会话列表中均不包含会话私钥，接口也不支持通过请求头或
+URL 参数传递该密钥。账号核心安全设置仅限有效浏览器会话访问。
 
-Web 登录入口为 `/account/login`，支持通过 `return_to` 参数指定登录成功后跳转的本站站内路径（外部链接或无效路径将默认重定向至首页）。会话失效时自动引导至登录页，权限不足时返回首页并保留当前登录态。
+Web 登录入口为 `/account/login`，支持通过 `return_to`
+参数指定登录成功后跳转的本站站内路径（外部链接或无效路径将默认重定向至首页）。会话失效时自动引导至登录页，权限不足时返回首页并保留当前登录态。
 
-关于验证器配置、二次验证、等待验证响应及离线恢复机制，请参阅[二次验证](../security/two-step-verification.md)。离线恢复时将重置双重验证；通过邮件找回密码则继续保留原有二步验证设置。
+关于验证器配置、二次验证、等待验证响应及离线恢复机制，请参阅[二次验证](../security/two-step-verification.md)
+。离线恢复时将重置双重验证。通过邮件找回密码则继续保留原有二步验证设置。
 
 ## 使用密码或邮箱登录
 
@@ -30,7 +33,7 @@ Web 登录入口为 `/account/login`，支持通过 `return_to` 参数指定登�
 
 ### 会话结果
 
-成功后设置带有 `HttpOnly`、`SameSite=Lax` 的 `renop_session`；检测到 HTTPS 时同时设置 `Secure`。protobuf
+成功后设置带有 `HttpOnly`、`SameSite=Lax` 的 `renop_session`。检测到 HTTPS 时同时设置 `Secure`。protobuf
 `SessionDetails` 包含账号权限与路由，但 `session_token` 始终为空。
 
 ## Passkey 与 GitHub 登录
@@ -41,9 +44,11 @@ Web 登录入口为 `/account/login`，支持通过 `return_to` 参数指定登�
 - **GitHub 回调**：`GET /api/auth/github/callback`
 - **GitHub 可用状态**：`GET /api/auth/github/status`
 
-GitHub 登录需由管理员配置 OAuth 参数后启用。RenoP 仅读取公开用户与组织基础资料，保存不可变 Provider ID 与账号快照，不持久化 OAuth Access Token。
+GitHub 登录需由管理员配置 OAuth 参数后启用。RenoP 仅读取公开用户与组织基础资料，保存不可变 Provider ID 与账号快照，不持久化
+OAuth Access Token。
 
-首次使用未绑定的 GitHub 账号登录时，需先完成[账号注册](../security/registration.md)并设置密码。授权请求范围为 `read:user read:org user:email`，回调过程严格校验安全会话 Cookie。
+首次使用未绑定的 GitHub 账号登录时，需先完成[账号注册](../security/registration.md)并设置密码。授权请求范围为
+`read:user read:org user:email`，回调过程严格校验安全会话 Cookie。
 
 Microsoft、Google、GitLab 等其他身份提供商请参阅[第三方登录 API](../security/oauth-login.md)，支持账号绑定、邮箱所有权校验与统一的二次验证流程。
 
@@ -57,9 +62,12 @@ Microsoft、Google、GitLab 等其他身份提供商请参阅[第三方登录 AP
 - **公开个人资料**：`GET /api/users/:username/profile`
 - **包成员关系**：`GET /api/users/:username/memberships?format=cargo|docker|maven|npm`
 
-启用二次验证后，修改密码必须提供已配置的 TOTP 验证码或二次验证 Passkey；启用发件服务时也可向当前主邮箱发送验证码。`PUT /api/auth/profile/password` 接收二进制 `UpdatePasswordRequest`，包含 `factor`（`totp`、`passkey`、`email`）及对应证明（`totp_code`、`challenge_id` 加 `passkey_credential`、或 `email_code`）。Passkey 证明通过 `POST /api/auth/profile/password/passkey/begin` 开始，绑定当前浏览器会话和凭据状态，仅可使用一次；成功后撤销其他会话。
+启用二次验证后，修改密码必须提供已配置的 TOTP 验证码或二次验证 Passkey。启用发件服务时也可向当前主邮箱发送验证码。
+`PUT /api/auth/profile/password` 接收二进制 `UpdatePasswordRequest`，包含 `factor`（`totp`、`passkey`、`email`）及对应证明（
+`totp_code`、`challenge_id` 加 `passkey_credential`、或 `email_code`）。Passkey 证明通过
+`POST /api/auth/profile/password/passkey/begin` 开始，绑定当前浏览器会话和凭据状态，仅可使用一次。成功后撤销其他会话。
 
-可见路由使用用户名，不可变用户 ID 保持内部使用。`HIDDEN` 存储库成员关系不会返回；私有成员关系只对有权
+可见路由使用用户名，不可变用户 ID 保持内部使用。`HIDDEN` 存储库成员关系不会返回。私有成员关系只对有权
 查看者显示。
 
 ## 账号安全
@@ -69,10 +77,10 @@ Microsoft、Google、GitLab 等其他身份提供商请参阅[第三方登录 AP
 ### 邮箱与密码登录策略
 
 - **读取状态**：`GET /api/auth/profile/security`
-- **设置邮箱**：`PUT /api/auth/profile/email`；邮件入队后的确认流程及 GitHub
+- **设置邮箱**：`PUT /api/auth/profile/email`。邮件入队后的确认流程及 GitHub
   验证见[安全邮箱验证](../security/email-verification.md)。
 - **启用或禁用密码登录**：`PUT /api/auth/profile/password-login`
-- 只有仍保留用于主要登录的 Passkey 或第三方账号时才能禁用密码登录；重新启用前必须已经设置密码。
+- 只有仍保留用于主要登录的 Passkey 或第三方账号时才能禁用密码登录。重新启用前必须已经设置密码。
 
 ### 邮件验证码找回密码
 
@@ -107,7 +115,7 @@ Microsoft、Google、GitLab 等其他身份提供商请参阅[第三方登录 AP
 - **生成**：`POST /api/auth/profile/recovery-codes`
 - **重设密码**：`POST /api/auth/recovery/password`
 - 系统一次性签发 12 组恢复代码（服务端仅保存 Argon2id 哈希）。
-  重置时需提供其中 4 组未使用的代码；验证通过后代码立即失效并撤销当前所有会话。
+  重置时需提供其中 4 组未使用的代码。验证通过后代码立即失效并撤销当前所有会话。
 
 ```json
 {
@@ -117,7 +125,10 @@ Microsoft、Google、GitLab 等其他身份提供商请参阅[第三方登录 AP
 }
 ```
 
-离线恢复要求当前主邮箱，或更换后 14 天内的历史主邮箱，加四个未使用的恢复码。使用历史主邮箱恢复时，会强制恢复该地址、移除被替换的主邮箱并清除恢复窗口。用户名和普通副邮箱不能用于恢复。正常更换主邮箱后，14 天内禁止重新生成恢复码、增删 Passkey 或更改二次验证器（`ACCOUNT_SECURITY_HOLD`）；已有验证器可继续使用，首次生成恢复码不受影响。保护期内不能删除历史主邮箱。私有安全接口返回 `security_hold_until` 和 `previous_primary_emails`（`email`、`expires_at`）。
+离线恢复要求当前主邮箱，或更换后 14 天内的历史主邮箱，加四个未使用的恢复码。使用历史主邮箱恢复时，会强制恢复该地址、移除被替换的主邮箱并清除恢复窗口。用户名和普通副邮箱不能用于恢复。正常更换主邮箱后，14
+天内禁止重新生成恢复码、增删 Passkey 或更改二次验证器（`ACCOUNT_SECURITY_HOLD`
+）。已有验证器可继续使用，首次生成恢复码不受影响。保护期内不能删除历史主邮箱。私有安全接口返回 `security_hold_until` 和
+`previous_primary_emails`（`email`、`expires_at`）。
 
 ## 登录方式管理
 
@@ -147,8 +158,8 @@ Microsoft、Google、GitLab 等其他身份提供商请参阅[第三方登录 AP
 {"confirmation":"alice"}
 ```
 
-确认内容必须与当前用户名完全一致。注销成功返回 `204 No Content`；
-确认信息不匹配返回 `400`（`ACCOUNT_RETIREMENT_CONFIRMATION`）；
+确认内容必须与当前用户名完全一致。注销成功返回 `204 No Content`。
+确认信息不匹配返回 `400`（`ACCOUNT_RETIREMENT_CONFIRMATION`）。
 若存在未满足的注销前置条件，返回 `409`（`ACCOUNT_RETIREMENT_BLOCKED`）及详细检查项。
 检查字段包含 `eligible`、`protected_role`、`super_team_owner_count`、
 `maven_domain_owner_count`、`package_owner_count` 与 `pending_review_count`。
@@ -174,7 +185,9 @@ Maven 发布域所有权、未弃用软件包的管理权限或待处理的审�
 
 ## 公开资料链接
 
-PUT /api/auth/profile/links 接收 JSON，包含网站、Discord、自定义链接以及 `visibility.github` 和 `visibility.gitlab`。两个开关默认关闭。GitHub URL 和 `providers` 为只读字段：链接从当前绑定身份生成，GitLab 绑定还必须匹配配置中的服务身份。显示偏好仅本人可见；全局团队的 GitHub URL 仍可手动编辑。
+PUT /api/auth/profile/links 接收 JSON，包含网站、Discord、自定义链接以及 `visibility.github` 和 `visibility.gitlab`
+。两个开关默认关闭。GitHub URL 和 `providers` 为只读字段：链接从当前绑定身份生成，GitLab 绑定还必须匹配配置中的服务身份。显示偏好仅本人可见。全局团队的
+GitHub URL 仍可手动编辑。
 
 ```json
 {"website":"https://example.com","visibility":{"github":true,"gitlab":false}}
@@ -182,16 +195,27 @@ PUT /api/auth/profile/links 接收 JSON，包含网站、Discord、自定义链�
 
 ## 第三方登出与撤销
 
-`POST /api/auth/logout` 会先撤销本地浏览器会话，再联系登录服务商。没有第三方授权的会话返回 `204`；其他会话返回二进制 protobuf `LogoutResponse`，包含 `local_revoked`、`provider` 和 `provider_status`（`revoked`、`failed`、`unavailable` 或 `unsupported`）。第三方失败不会恢复本地会话。`POST /api/auth/oauth/:provider/revoke` 会在确认当前 Cookie 认证会话属于该服务商后执行相同操作，API 令牌不能调用。
+`POST /api/auth/logout` 会先撤销本地浏览器会话，再联系登录服务商。没有第三方授权的会话返回 `204`。其他会话返回二进制
+protobuf `LogoutResponse`，包含 `local_revoked`、`provider` 和 `provider_status`（`revoked`、`failed`、`unavailable` 或
+`unsupported`）。第三方失败不会恢复本地会话。`POST /api/auth/oauth/:provider/revoke` 会在确认当前 Cookie
+认证会话属于该服务商后执行相同操作，API 令牌不能调用。
 
-`POST /api/auth/oauth/:provider/backchannel-logout` 接收标准表单字段 `logout_token`。签名 OIDC JWT 必须包含匹配配置的签发者、受众、`iat`、`exp`、`jti` 和后端登出事件，使用 `sub`、`sid` 或两者确定目标，且不能包含 `nonce`。超过十分钟的事件会被拒绝。
+`POST /api/auth/oauth/:provider/backchannel-logout` 接收标准表单字段 `logout_token`。签名 OIDC JWT 必须包含匹配配置的签发者、受众、
+`iat`、`exp`、`jti` 和后端登出事件，使用 `sub`、`sid` 或两者确定目标，且不能包含 `nonce`。超过十分钟的事件会被拒绝。
 
-`POST /api/auth/oauth/:provider/revoked` 接收二进制 protobuf `ProviderRevocationRequest`。先配置至少 32 字节的只写 `revocation_secret`，再发送 `X-Renop-Signature-256: sha256=<对原始请求字节计算 HMAC-SHA256 后的十六进制值>`。消息包含 `event_id`、`subject`、`session_id`、Unix 毫秒时间 `issued_at`，OIDC 客户端还需提供经过验证的 `issuer`；纯 OAuth 客户端将其留空。使用其他 Webhook 格式的平台需要可信适配器，此端点不接收它们的原始请求体。
+`POST /api/auth/oauth/:provider/revoked` 接收二进制 protobuf `ProviderRevocationRequest`。先配置至少 32 字节的只写
+`revocation_secret`，再发送 `X-Renop-Signature-256: sha256=<对原始请求字节计算 HMAC-SHA256 后的十六进制值>`。消息包含
+`event_id`、`subject`、`session_id`、Unix 毫秒时间 `issued_at`，OIDC 客户端还需提供经过验证的 `issuer`。纯 OAuth 客户端将其留空。使用其他
+Webhook 格式的平台需要可信适配器，此端点不接收它们的原始请求体。
 
-有效及重复事件返回 `200`，无效或过期声明返回 `400`，HMAC 无效返回 `401`，请求准入或持久化暂不可用时返回 `429`/`503`。回调只撤销该授权来源下匹配且早于事件的会话，保留身份绑定和 API 令牌。重放或延迟的 MFA 证明无法重建已撤销会话。
+有效及重复事件返回 `200`，无效或过期声明返回 `400`，HMAC 无效返回 `401`，请求准入或持久化暂不可用时返回 `429`/`503`
+。回调只撤销该授权来源下匹配且早于事件的会话，保留身份绑定和 API 令牌。重放或延迟的 MFA 证明无法重建已撤销会话。
 
 ## 账号封禁
 
-超级管理员可在公开用户页面直接封禁或解封。`GET /api/tokens/:name/ban` 读取实时保护状态；`PUT /api/tokens/:name/ban` 接收 JSON `reason_code`、自定义 `reason`、可选毫秒时间戳 `expires_at` 和 `ban_ip`；`DELETE /api/tokens/:name/ban` 解封。管理员和版主必须先移除受保护角色才能被封禁。下列代码对应本地化预设理由；`reason_code` 为空时使用自定义文本，不做翻译。
+超级管理员可在公开用户页面直接封禁或解封。`GET /api/tokens/:name/ban` 读取实时保护状态。`PUT /api/tokens/:name/ban` 接收
+JSON `reason_code`、自定义 `reason`、可选毫秒时间戳 `expires_at` 和 `ban_ip`。`DELETE /api/tokens/:name/ban`
+解封。管理员和版主必须先移除受保护角色才能被封禁。下列代码对应本地化预设理由。`reason_code` 为空时使用自定义文本，不做翻译。
 
-`harassment_abuse`, `spam_misleading`, `automation`, `alternate_accounts`, `security_rules`, `harmful_content`, `terms_violation`, `impersonation`, `copyright`.
+`harassment_abuse`, `spam_misleading`, `automation`, `alternate_accounts`, `security_rules`, `harmful_content`,
+`terms_violation`, `impersonation`, `copyright`.

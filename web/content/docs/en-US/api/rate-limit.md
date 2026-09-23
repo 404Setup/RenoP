@@ -33,5 +33,6 @@ Configure `server.max_active_requests` in system settings (default: 512):
 
 ## Trusted Proxies
 
-When placed behind reverse proxies or CDNs, set `server.trusted_proxies` and `server.cdn_ip_header` in system settings so
+When placed behind reverse proxies or CDNs, set `server.trusted_proxies` and `server.cdn_ip_header` in system settings
+so
 rate limiting evaluates real client IPs rather than proxy IPs.

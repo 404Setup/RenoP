@@ -66,7 +66,7 @@ func GeneratePom(c fiber.Ctx, state *core.AppState) error {
 	var pomMsg pb.PomDetails
 	readErr := protohttp.Read(c, &pomMsg)
 	if readErr != nil {
-		if readErr == fiber.ErrRequestEntityTooLarge {
+		if errors.Is(readErr, fiber.ErrRequestEntityTooLarge) {
 			return readErr
 		}
 		return c.Status(fiber.StatusBadRequest).SendString("Bad Request")

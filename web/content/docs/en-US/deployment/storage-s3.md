@@ -74,4 +74,7 @@ manager; never commit access keys to Git.
 - **Direct redirect (`redirect_downloads: true`)**: RenoP authorizes and returns `302 Found` to a short-lived presigned
   URL, reducing RenoP bandwidth.
 
-S3 content sharing keeps payloads in the private `.renop-content-v1` namespace. Include it with repository objects in backups, and retain the private index to reduce metadata reads after restart. The index is a versioned stream of JSON records; older snapshots remain readable. See [repository configuration](/docs/configuration/repositories) for deduplication and recovery behavior.
+S3 content sharing keeps payloads in the private `.renop-content-v1` namespace. Include it with repository objects in
+backups, and retain the private index to reduce metadata reads after restart. The index is a versioned stream of JSON
+records; older snapshots remain readable. See [repository configuration](/docs/configuration/repositories) for
+deduplication and recovery behavior.

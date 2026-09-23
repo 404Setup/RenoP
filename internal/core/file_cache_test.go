@@ -12,6 +12,7 @@ package core
 
 import (
 	"bytes"
+	"errors"
 	"strconv"
 	"sync"
 	"testing"
@@ -53,7 +54,7 @@ func TestFileByteCacheOversizedReplacementInvalidatesOldValue(t *testing.T) {
 	if err := c.Set("path", []byte("new-large")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := c.Get("path"); err != ErrFileCacheMiss {
+	if _, err := c.Get("path"); !errors.Is(err, ErrFileCacheMiss) {
 		t.Fatalf("oversized replacement retained stale content: %v", err)
 	}
 }
@@ -61,7 +62,7 @@ func TestFileByteCacheOversizedReplacementInvalidatesOldValue(t *testing.T) {
 func TestFileByteCacheGetSetDelete(t *testing.T) {
 	c := NewFileByteCache(1024)
 	c.UseRemote(testutil.RemoteCache(t))
-	if _, err := c.Get("missing"); err != ErrFileCacheMiss {
+	if _, err := c.Get("missing"); !errors.Is(err, ErrFileCacheMiss) {
 		t.Fatalf("expected miss, got %v", err)
 	}
 	if err := c.Set("a", []byte("hello")); err != nil {
@@ -80,7 +81,7 @@ func TestFileByteCacheGetSetDelete(t *testing.T) {
 		t.Fatalf("cache mutated: %q", got2)
 	}
 	_ = c.Delete("a")
-	if _, err := c.Get("a"); err != ErrFileCacheMiss {
+	if _, err := c.Get("a"); !errors.Is(err, ErrFileCacheMiss) {
 		t.Fatalf("expected miss after delete, got %v", err)
 	}
 }
@@ -97,7 +98,7 @@ func TestFileByteCacheEvictsToMaxBytes(t *testing.T) {
 		t.Fatal("expected at least one entry retained")
 	}
 	_ = c.Set("big", make([]byte, 200))
-	if _, err := c.Get("big"); err != ErrFileCacheMiss {
+	if _, err := c.Get("big"); !errors.Is(err, ErrFileCacheMiss) {
 		t.Fatalf("expected oversized entry to be skipped")
 	}
 }
@@ -239,10 +240,10 @@ func TestFileByteCacheDisabledZeroAlloc(t *testing.T) {
 			t.Fatalf("expected 0 shards for size %d, got %d", size, len(c.shards))
 		}
 		c.UseRemote(nil)
-		if _, err := c.Get("any"); err != ErrFileCacheMiss {
+		if _, err := c.Get("any"); !errors.Is(err, ErrFileCacheMiss) {
 			t.Fatalf("expected miss for size %d, got %v", size, err)
 		}
-		if _, err := c.GetReadOnlyView("any"); err != ErrFileCacheMiss {
+		if _, err := c.GetReadOnlyView("any"); !errors.Is(err, ErrFileCacheMiss) {
 			t.Fatalf("expected miss for size %d, got %v", size, err)
 		}
 		if err := c.Set("any", []byte("hello")); err != nil {

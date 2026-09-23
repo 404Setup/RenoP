@@ -8,24 +8,24 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
-import {apiRequest, createJSONClient, fetchProto, postProto, putProto} from './api.js';
+import {apiRequest, createJSONClient, fetchProto, postProto} from './api.js';
 import {createTicketReportButton} from './ticket-report.js';
 import {createProfileBanAction} from './users/profile-ban.js';
 import {showAlert} from './alert.js';
 import {t, translateKnownError} from './i18n.js';
 import {el} from '@renop/ui/dom';
-import {createActionButton, createIcon, RenopDialog, runButtonAction} from './components.js';
+import {
+    createActionButton,
+    createFieldRow,
+    createIcon,
+    createToggle,
+    RenopDialog,
+    runButtonAction
+} from './components.js';
 import {attachPasswordStrength, confirmWeakPasswordIfNeeded, getPasswordLengthError} from './password-strength.js';
 import {openSessionsDialog} from './sessions.js';
 import {passkeyErrorMessage, requestPasskeyRegistration} from './fido-utils.js';
-import {
-    FidoDeviceList,
-    GpgKeyDto,
-    GpgKeyList,
-    GpgKeyReferenceRequest,
-    GpgReleaseList,
-    StatusOk
-} from './proto/index.js';
+import {FidoDeviceList, GpgKeyDto, GpgKeyList, GpgKeyReferenceRequest, GpgReleaseList} from './proto/index.js';
 import {closeModalWithAnim} from './app-ui.js';
 import {openAuditLogsDialog} from './audit.js';
 import {formatTimestamp} from './time.js';
@@ -38,7 +38,6 @@ import {refreshAPITokenSummary} from './api-tokens.js';
 import {createProfileSuperTeamLimits} from './super-teams.js';
 import {createPublicationQuotaPanel, openPublicationQuotaDialog} from './publication-quota.js';
 import {createProfileAvatarEditor} from './profile-avatar.js';
-import {createProfilePrivacyEditor} from './profile-privacy.js';
 import {
     createPublicProfileLinks,
     createPublicProfileLinksEditor,
@@ -69,7 +68,9 @@ window.addEventListener('userProfileChanged', event => {
     const updated = event.detail?.profile;
     if (updated?.user_id && updated.user_id === displayedProfile?.user_id) displayedProfile.links = updated.links;
 });
-window.addEventListener('authChanged', () => { displayedProfile = null; });
+window.addEventListener('authChanged', () => {
+    displayedProfile = null;
+});
 
 /**
  * Format a GPG timestamp for the current locale.
@@ -630,19 +631,31 @@ function profileRenameHint(profile) {
  */
 function leaveUserProfileRoute() {
     const route = profileRouteFromPath(window.location.pathname);
-    if (window.history.state?.renopProfileCanGoBack) {
-        window.history.back();
+    const activeView = document.querySelector('#tab-content-profile .profile-route-view:not([hidden])');
+    const executeLeave = () => {
+        if (window.history.state?.renopProfileCanGoBack) {
+            window.history.back();
+            return;
+        }
+        if (route?.section) {
+            window.history.replaceState({
+                renopProfileReturnPath: '/',
+                renopProfileCanGoBack: false
+            }, '', `/user/${encodeURIComponent(route.username)}`);
+        } else {
+            window.history.replaceState(null, '', window.history.state?.renopProfileReturnPath || '/');
+        }
+        window.dispatchEvent(new PopStateEvent('popstate'));
+    };
+    if (activeView && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        activeView.classList.add('is-leaving');
+        setTimeout(() => {
+            activeView.classList.remove('is-leaving');
+            executeLeave();
+        }, 180);
         return;
     }
-    if (route?.section) {
-        window.history.replaceState({
-            renopProfileReturnPath: '/',
-            renopProfileCanGoBack: false
-        }, '', `/user/${encodeURIComponent(route.username)}`);
-    } else {
-        window.history.replaceState(null, '', window.history.state?.renopProfileReturnPath || '/');
-    }
-    window.dispatchEvent(new PopStateEvent('popstate'));
+    executeLeave();
 }
 
 /**
@@ -953,7 +966,7 @@ function renderPublicProfile(profile) {
                 el('div', {class: 'profile-public-heading'},
                     el('h2', {class: 'profile-public-name', title: displayName}, displayName),
                     el('p', {class: 'profile-public-username'}, `@${profile.username}`),
-                    el('p', {class: 'profile-public-description'}, t('profile.publicDescription')),
+                    profile.private ? null : el('p', {class: 'profile-public-description'}, t('profile.publicDescription')),
                     createPublicProfileLinks(profile.links),
                     actions.childElementCount ? actions : null
                 ),
@@ -1131,6 +1144,11 @@ function buildProfileIdentityEditor(profile) {
     });
     usernameInput.addEventListener('input', () => usernameInput.setCustomValidity(''));
     const rateHint = el('p', {class: 'profile-rate-hint'}, profileRenameHint(profile));
+    let privateProfile = profile.private === true;
+    const privacyToggle = createToggle(privateProfile, value => {
+        privateProfile = value;
+    });
+    const privacyRow = createFieldRow(t('profile.privateProfile'), t('profile.privacyHint'), privacyToggle, 'cfg-field-row--toggle');
     const saveButton = el('button', {
         type: 'submit', class: 'pill-btn pill-btn--primary'
     }, t('users.saveBtn'));
@@ -1155,6 +1173,7 @@ function buildProfileIdentityEditor(profile) {
             el('p', {id: 'profile-username-hint', class: 'profile-field-hint'}, t('profile.usernameHint')),
             rateHint
         ),
+        privacyRow,
         el('div', {class: 'profile-identity-actions'}, saveButton)
     );
     form.addEventListener('submit', async event => {
@@ -1173,39 +1192,59 @@ function buildProfileIdentityEditor(profile) {
         }
         saveButton.disabled = true;
         try {
-            const response = await apiRequest('/api/auth/profile', {
-                method: 'PUT',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({username: requestedUsername, nickname: requestedNickname})
-            });
-            if (!response.ok) {
-                const message = response.status === 409
-                    ? t('profile.usernameExists')
-                    : (response.status === 429
-                        ? t('profile.renameRateLimited')
-                        : (response.status === 400
-                            ? t('profile.identityInvalid')
-                            : await responseErrorMessage(response, 'profile.updateFailed')));
-                throw new LocalizedResponseError(message, response.status);
+            let changed = false;
+            if (requestedUsername !== profile.username || requestedNickname !== (profile.nickname || '')) {
+                const response = await apiRequest('/api/auth/profile', {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username: requestedUsername, nickname: requestedNickname})
+                });
+                if (!response.ok) {
+                    const message = response.status === 409
+                        ? t('profile.usernameExists')
+                        : (response.status === 429
+                            ? t('profile.renameRateLimited')
+                            : (response.status === 400
+                                ? t('profile.identityInvalid')
+                                : await responseErrorMessage(response, 'profile.updateFailed')));
+                    throw new LocalizedResponseError(message, response.status);
+                }
+                const updated = await response.json();
+                const oldUsername = profile.username;
+                profile = {...profile, ...updated};
+                localStorage.setItem('username', updated.username);
+                syncUserProfile(profile, {oldUsername});
+                if (oldUsername !== updated.username) {
+                    const route = profileRouteFromPath(window.location.pathname);
+                    const suffix = route?.section === 'edit' ? '/edit' : '';
+                    const path = `/user/${encodeURIComponent(updated.username)}${suffix}`;
+                    window.history.replaceState(window.history.state, '', path);
+                }
+                nicknameInput.value = updated.nickname || '';
+                usernameInput.value = updated.username;
+                rateHint.textContent = profileRenameHint(updated);
+                updateCounter();
+                updateProfileEditHeading(updated);
+                void refreshOAuthProfile(updated.username);
+                changed = true;
             }
-            const updated = await response.json();
-            const oldUsername = profile.username;
-            profile = {...profile, ...updated};
-            localStorage.setItem('username', updated.username);
-            syncUserProfile(profile, {oldUsername});
-            showAlert(t('profile.updated'), 'success');
-            if (oldUsername !== updated.username) {
-                const route = profileRouteFromPath(window.location.pathname);
-                const suffix = route?.section === 'edit' ? '/edit' : '';
-                const path = `/user/${encodeURIComponent(updated.username)}${suffix}`;
-                window.history.replaceState(window.history.state, '', path);
+            if (privateProfile !== (profile.private === true)) {
+                const privRes = await apiRequest('/api/auth/profile/privacy', {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({user_id: profile.user_id, private: privateProfile})
+                });
+                if (!privRes.ok) {
+                    throw new LocalizedResponseError(await responseErrorMessage(privRes, 'profile.privacySaveFailed'), privRes.status);
+                }
+                const privData = await privRes.json();
+                Object.assign(profile, privData);
+                syncUserProfile(privData);
+                changed = true;
             }
-            nicknameInput.value = updated.nickname || '';
-            usernameInput.value = updated.username;
-            rateHint.textContent = profileRenameHint(updated);
-            updateCounter();
-            updateProfileEditHeading(updated);
-            void refreshOAuthProfile(updated.username);
+            if (changed) {
+                showAlert(t('profile.updated'), 'success');
+            }
         } catch (error) {
             console.error('Failed to update profile identity', error);
             showAlert(caughtErrorMessage(error, 'profile.updateFailed'), 'error');
@@ -1285,8 +1324,6 @@ function showProfileEdit(profile) {
     updateProfileEditHeading(profile);
     const identityCard = buildProfileIdentityEditor(profile);
     buildProfileLinksEditor(profile, identityCard);
-    editView.querySelector('.profile-privacy-card')?.remove();
-    identityCard?.after(createProfilePrivacyEditor(profile));
     editView.querySelectorAll('details.profile-collapsible-card').forEach(card => {
         resetProfileDisclosure(card);
         wireProfileDisclosure(card);

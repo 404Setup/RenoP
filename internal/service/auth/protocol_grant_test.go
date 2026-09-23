@@ -38,7 +38,7 @@ func TestProtocolGrantRechecksRepositoryExpiryAndCredential(t *testing.T) {
 	state.Inner.Config.Store(cfg)
 	hash, err := bcrypt.GenerateFromPassword([]byte("password"), bcrypt.MinCost)
 	require.NoError(t, err)
-	account := &core.AccessToken{Name: "alice", EncryptedSecret: string(hash), Permissions: []string{"base"}}
+	account := &core.AccessToken{Name: "alice", EncryptedSecret: string(hash), Tokens: []string{"test-api-token"}, Permissions: []string{"base"}}
 	require.NoError(t, db.SaveToken(account))
 	state.Inner.TokensCount.Store(1)
 	app := fiber.New()
@@ -52,7 +52,7 @@ func TestProtocolGrantRechecksRepositoryExpiryAndCredential(t *testing.T) {
 	})
 	app.Get("/*", func(c fiber.Ctx) error { return c.SendString(GetUser(c).Username) })
 	request := httptest.NewRequest("GET", "/first/authenticate", nil)
-	request.SetBasicAuth("alice", "password")
+	request.SetBasicAuth("alice", "test-api-token")
 	response, err := app.Test(request)
 	require.NoError(t, err)
 	data, err := io.ReadAll(response.Body)
@@ -84,9 +84,7 @@ func TestProtocolGrantRechecksRepositoryExpiryAndCredential(t *testing.T) {
 	binary.BigEndian.PutUint64(payload, uint64(time.Now().Add(-time.Second).Unix()))
 	expired := protocolGrantPrefix + base64.RawURLEncoding.EncodeToString(key.Seal(nil, nil, payload, []byte("first")))
 	check("/first/file", expired, 401)
-	newHash, err := bcrypt.GenerateFromPassword([]byte("changed"), bcrypt.MinCost)
-	require.NoError(t, err)
-	account.EncryptedSecret = string(newHash)
+	account.Tokens = []string{"changed-token"}
 	require.NoError(t, db.SaveToken(account))
 	state.InvalidateAccountAuthCache(false, "alice")
 	check("/first/file", grant, 401)

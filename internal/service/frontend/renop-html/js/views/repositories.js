@@ -18,8 +18,24 @@ export function renderRepositories() {
                 el("h2", {"data-i18n": "repos.title"}, "Repositories"),
                 el("p", {"data-i18n": "repos.subtitle"}, "Manage package repositories and their protocol-specific configuration.")
             ),
-            el("button", {"class": "settings-save-btn", "data-i18n-title": "repos.addRepoTitle", "id": "btn-add-repository", "title": "Add a package repository", "type": "button"},
-                svg("svg", {"aria-hidden": "true", "fill": "none", "height": "16", "stroke": "currentColor", "stroke-linecap": "round", "stroke-linejoin": "round", "stroke-width": "2.5", "viewBox": "0 0 24 24", "width": "16"},
+            el("button", {
+                    "class": "settings-save-btn",
+                    "data-i18n-title": "repos.addRepoTitle",
+                    "id": "btn-add-repository",
+                    "title": "Add a package repository",
+                    "type": "button"
+                },
+                svg("svg", {
+                        "aria-hidden": "true",
+                        "fill": "none",
+                        "height": "16",
+                        "stroke": "currentColor",
+                        "stroke-linecap": "round",
+                        "stroke-linejoin": "round",
+                        "stroke-width": "2.5",
+                        "viewBox": "0 0 24 24",
+                        "width": "16"
+                    },
                     svg("line", {"x1": "12", "x2": "12", "y1": "5", "y2": "19"}),
                     svg("line", {"x1": "5", "x2": "19", "y1": "12", "y2": "12"})
                 ),

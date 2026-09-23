@@ -22,7 +22,9 @@ function externalProfileLink(label, href) {
     if (!label || !href) return null;
     try {
         if (!['https:', 'http:'].includes(new URL(href).protocol)) return null;
-    } catch { return null; }
+    } catch {
+        return null;
+    }
     return el('a', {
         class: 'public-profile-link', href, target: '_blank', rel: 'noopener noreferrer nofollow'
     }, createIcon('network'), el('span', {}, label));
@@ -80,7 +82,9 @@ export function createPublicProfileLinksEditor(links, {boundProviders = false} =
                 el('p', {class: 'profile-section-desc'}, t('profile.providerLinksHint')),
                 ...['github', 'gitlab'].map(provider => createToggleRow(
                     t(provider === 'github' ? 'profile.showGitHub' : 'profile.showGitLab'),
-                    '', visibility[provider], value => { visibility[provider] = value; }
+                    '', visibility[provider], value => {
+                        visibility[provider] = value;
+                    }
                 ))) : null
         ),
         /** @returns {object|null} Validated link payload. */

@@ -15,10 +15,18 @@ export function renderLanguage() {
     return el("div", {"class": "modal", "id": "language-modal", "style": "display: none;"},
         el("div", {"class": "modal-backdrop", "id": "language-backdrop"}),
         el("div", {"class": "modal-content language-modal-content", "style": "max-width: 580px;"},
-            el("button", {"aria-label": "Close modal", "class": "close-btn", "data-i18n-aria-label": "modal.close", "id": "btn-close-language-modal"}, "× "),
+            el("button", {
+                "aria-label": "Close modal",
+                "class": "close-btn",
+                "data-i18n-aria-label": "modal.close",
+                "id": "btn-close-language-modal"
+            }, "× "),
             el("div", {"class": "modal-header"},
                 el("h3", {"class": "modal-title", "data-i18n": "language.modalTitle"}, "Select Language"),
-                el("p", {"class": "modal-subtitle", "data-i18n": "language.modalSubtitle"}, "Choose your preferred interface language")
+                el("p", {
+                    "class": "modal-subtitle",
+                    "data-i18n": "language.modalSubtitle"
+                }, "Choose your preferred interface language")
             ),
             el("div", {"class": "modal-body"},
                 el("div", {"class": "language-grid", "id": "language-grid"})

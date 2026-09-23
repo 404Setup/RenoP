@@ -67,7 +67,8 @@ import {protectedRouteDeniedEvent} from './protected-route.js';
 import {accountPageFromPath, isLoginPath, leaveLoginPage, loginReturnTo, navigateToLogin} from './login-route.js';
 
 // Policy detection can overlap locale loading; service consent remains fail-closed.
-void loadLegalMetadata().catch(() => {});
+void loadLegalMetadata().catch(() => {
+});
 await initI18n();
 initializeLegalConsent();
 initializeLegalPages();
@@ -510,12 +511,12 @@ document.addEventListener('keydown', (e) => {
         // Dynamic dialogs own their dismissal and resolve the caller's draft result.
         if (m instanceof RenopDialog) return;
         if (m) {
-                const closeBtn = m.querySelector('.close-btn') || m.querySelector('#user-editor-cancel');
-                if (closeBtn) {
-                    closeBtn.click();
-                } else {
-                    closeModalWithAnim(m);
-                }
+            const closeBtn = m.querySelector('.close-btn') || m.querySelector('#user-editor-cancel');
+            if (closeBtn) {
+                closeBtn.click();
+            } else {
+                closeModalWithAnim(m);
+            }
         }
         if (document.activeElement && document.activeElement !== document.body) {
             document.activeElement.blur();

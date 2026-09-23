@@ -10,8 +10,8 @@ description: Vue d’ensemble de l’API HTTP, REST et RPC de RenoP
 RenoP fournit une API HTTP complète pour l’administration, les intégrations clientes et la supervision. Par défaut,
 le serveur écoute sur `http://localhost:3000`.
 
-
-La [référence API](/api) documente les points de terminaison d’administration, d’intégration cliente et de surveillance. La spécification brute [OpenAPI](/assets/openapi.yaml) est également disponible au téléchargement.
+La [référence API](/api) documente les points de terminaison d’administration, d’intégration cliente et de surveillance.
+La spécification brute [OpenAPI](/assets/openapi.yaml) est également disponible au téléchargement.
 
 ## Structure des routes
 
@@ -29,7 +29,8 @@ La [référence API](/api) documente les points de terminaison d’administratio
 
 Les API de gestion avec schéma utilisent protobuf binaire. Envoyez `Content-Type: application/x-protobuf` ; les requêtes
 acceptent aussi `application/protobuf` et `application/octet-stream`. Sans Content-Type, protobuf reste le défaut.
-Un corps JSON est rejeté avec une erreur `400` ou `415` selon l’endpoint. Les réponses utilisent toujours `application/x-protobuf` ; `Accept`
+Un corps JSON est rejeté avec une erreur `400` ou `415` selon l’endpoint. Les réponses utilisent toujours
+`application/x-protobuf` ; `Accept`
 n’active pas JSON. Utilisez `proto/api/v1/api.proto` de la version déployée.
 
 Les requêtes restent limitées à 1 MiB, avec les limites plus basses propres aux endpoints. Les exemples JSON associés

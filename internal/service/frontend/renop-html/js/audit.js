@@ -134,7 +134,8 @@ export async function openAuditLogsDialog(options = {}) {
     const addFilter = (name, label, type = 'text', choices = null) => {
         if (choices) {
             const options = choices.map(([value, text]) => ({value, label: text}));
-            const select = makeCustomSelect(options, '', () => {});
+            const select = makeCustomSelect(options, '', () => {
+            });
             fields[name] = select;
             select.style.minWidth = '0';
             fieldset.append(el('label', {
@@ -475,7 +476,14 @@ export async function openAuditLogsDialog(options = {}) {
                     min: '1',
                     max: String(totalPages),
                     value: String(page),
-                    style: {width: '54px', padding: '2px 6px', fontSize: '0.8rem', textAlign: 'center', margin: '0 4px', display: 'inline-block'}
+                    style: {
+                        width: '54px',
+                        padding: '2px 6px',
+                        fontSize: '0.8rem',
+                        textAlign: 'center',
+                        margin: '0 4px',
+                        display: 'inline-block'
+                    }
                 });
 
                 const doJump = () => {
@@ -502,7 +510,14 @@ export async function openAuditLogsDialog(options = {}) {
                     doJump();
                 });
 
-                const jumpLabel = el('span', {style: {opacity: '0.85', display: 'inline-flex', alignItems: 'center', gap: '4px'}},
+                const jumpLabel = el('span', {
+                        style: {
+                            opacity: '0.85',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                        }
+                    },
                     el('span', {}, t('common.page') || 'Page'),
                     jumpInput,
                     el('span', {}, `/ ${totalPages}`)

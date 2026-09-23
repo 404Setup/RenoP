@@ -103,8 +103,8 @@ test('Actions matrices compile every target before packaging and assemble only a
     const directory = mkdtempSync(resolve(tmpdir(), 'renop-matrix-test-'));
     try {
         const matrix = spawnSync('pwsh', ['-NoProfile', '-Command',
-            '(Import-PowerShellDataFile ./scripts/build-targets.psd1).Targets | ConvertTo-Json -Compress'],
-        {cwd: repositoryRoot, encoding: 'utf8'});
+                '(Import-PowerShellDataFile ./scripts/build-targets.psd1).Targets | ConvertTo-Json -Compress'],
+            {cwd: repositoryRoot, encoding: 'utf8'});
         assert.equal(matrix.status, 0, matrix.stderr);
         const targets = JSON.parse(matrix.stdout);
         assert.equal(targets.length, 31);
@@ -116,13 +116,19 @@ test('Actions matrices compile every target before packaging and assemble only a
             const {GOOS: os, GOARCH: arch} = target;
             const file = `renop-fixture-${os}-${arch}.br`;
             writeFileSync(resolve(packages, file), compressed);
-            writeFileSync(resolve(packages, `${os}-${arch}.json`), JSON.stringify({os, arch, file,
+            writeFileSync(resolve(packages, `${os}-${arch}.json`), JSON.stringify({
+                os, arch, file,
                 sha256: createHash('sha256').update(compressed).digest('hex'), size: compressed.length,
-                uncompressed_size: raw.length, format: 'brotli', executable: os === 'windows' ? 'renop.exe' : 'renop'}));
+                uncompressed_size: raw.length, format: 'brotli', executable: os === 'windows' ? 'renop.exe' : 'renop'
+            }));
         }
         const run = name => spawnSync('pwsh', ['-NoProfile', '-File', '.github/scripts/assemble-matrix.ps1',
             '-PackageDir', packages, '-DistDir', resolve(directory, name), '-Version', 'fixture',
-            '-Development', 'true', '-Commit', 'a'.repeat(40)], {cwd: repositoryRoot, encoding: 'utf8', timeout: 30_000});
+            '-Development', 'true', '-Commit', 'a'.repeat(40)], {
+            cwd: repositoryRoot,
+            encoding: 'utf8',
+            timeout: 30_000
+        });
         const success = run('complete');
         assert.equal(success.status, 0, success.stdout + success.stderr);
         const manifest = JSON.parse(readFileSync(resolve(directory, 'complete/manifest.json'), 'utf8').replace(/^\uFEFF/, ''));
@@ -166,16 +172,23 @@ test('publishing cleans actual SHA directories, recovers orphans, and verifies d
         for await (const chunk of request) body += chunk;
         requests.push([request.method, request.url]);
         if (request.method === 'GET' && request.url.startsWith('/api/repositories/details/')) {
-            if (mode === 'inventory-failure') { response.writeHead(503).end(); return; }
+            if (mode === 'inventory-failure') {
+                response.writeHead(503).end();
+                return;
+            }
             response.writeHead(200, {'Content-Type': 'application/x-protobuf'});
-            response.end(FileDetails.encode({type: 'DIRECTORY', name: 'nightly', files:
-                directories.map(name => ({type: 'DIRECTORY', name}))}).finish());
+            response.end(FileDetails.encode({
+                type: 'DIRECTORY', name: 'nightly', files:
+                    directories.map(name => ({type: 'DIRECTORY', name}))
+            }).finish());
         } else if (request.method === 'GET') {
             response.writeHead(mode === 'read-failure' ? 503 : 200, {'Content-Type': 'application/json'});
-            response.end(JSON.stringify({releases: [
-                {version: 'unknown', commit: 'a'.repeat(40)},
-                ...commits.map(commit => ({commit, version: commit.slice(0, 7)})),
-            ]}));
+            response.end(JSON.stringify({
+                releases: [
+                    {version: 'unknown', commit: 'a'.repeat(40)},
+                    ...commits.map(commit => ({commit, version: commit.slice(0, 7)})),
+                ]
+            }));
         } else if (request.method === 'PUT') {
             if (request.url.endsWith('/info.json')) published = JSON.parse(body);
             response.writeHead(mode === 'upload-failure' ? 500 : 201).end();
@@ -204,12 +217,23 @@ test('publishing cleans actual SHA directories, recovers orphans, and verifies d
         await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
         const run = () => new Promise((resolve, reject) => {
             const child = spawn('pwsh', ['-NoProfile', '-File', `${repositoryRoot}/.github/scripts/publish-update.ps1`,
-                '-Channel', 'nightly', '-IndexTool', indexTool, '-DistDir', `${directory}/dist`, '-Version', commits.at(-1).slice(0, 7),
-                '-Commit', commits.at(-1), '-Changelog', 'fixture', '-BaseUrl', `http://127.0.0.1:${server.address().port}`],
-            {cwd: directory, env: loopbackTestEnvironment({RENOP_PUBLISH_TOKEN: 'isolated-test-token', HTTP_PROXY: 'http://127.0.0.1:1'}), timeout: 30_000});
+                    '-Channel', 'nightly', '-IndexTool', indexTool, '-DistDir', `${directory}/dist`, '-Version', commits.at(-1).slice(0, 7),
+                    '-Commit', commits.at(-1), '-Changelog', 'fixture', '-BaseUrl', `http://127.0.0.1:${server.address().port}`],
+                {
+                    cwd: directory,
+                    env: loopbackTestEnvironment({
+                        RENOP_PUBLISH_TOKEN: 'isolated-test-token',
+                        HTTP_PROXY: 'http://127.0.0.1:1'
+                    }),
+                    timeout: 30_000
+                });
             let output = '';
-            child.stdout.on('data', chunk => { output += chunk; });
-            child.stderr.on('data', chunk => { output += chunk; });
+            child.stdout.on('data', chunk => {
+                output += chunk;
+            });
+            child.stderr.on('data', chunk => {
+                output += chunk;
+            });
             child.on('error', reject);
             child.on('close', code => resolve({code, output}));
         });

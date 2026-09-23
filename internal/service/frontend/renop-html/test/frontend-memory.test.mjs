@@ -21,14 +21,22 @@ test('profile invalidation rejects stale cache fills without stranding a queued 
     const queued = [];
     let release, requests = 0;
     const context = vm.createContext({
-        t: key => key, window: {dispatchEvent() {}}, CustomEvent: class {},
+        t: key => key, window: {
+            dispatchEvent() {
+            }
+        }, CustomEvent: class {
+        },
         queueMicrotask: task => queued.push(task),
         fetch: async url => {
             const attempt = ++requests;
-            if (attempt === 1) await new Promise(resolve => { release = resolve; });
-            return {ok: true, json: async () => url.includes('names=')
-                ? {profiles: [{username: 'bobby', nickname: 'Current'}]}
-                : {username: 'alice', nickname: attempt === 1 ? 'Old' : 'Current'}};
+            if (attempt === 1) await new Promise(resolve => {
+                release = resolve;
+            });
+            return {
+                ok: true, json: async () => url.includes('names=')
+                    ? {profiles: [{username: 'bobby', nickname: 'Current'}]}
+                    : {username: 'alice', nickname: attempt === 1 ? 'Old' : 'Current'}
+            };
         }
     });
     const source = readFileSync(join(frontendRoot, 'js/user-profiles.js'), 'utf8');

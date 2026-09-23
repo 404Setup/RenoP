@@ -24,7 +24,10 @@ async function loadTargets(kind, signal) {
     const username = encodeURIComponent(localStorage.getItem('username') || '');
     const formats = kind === 'domain' ? ['maven'] : kind === 'team' ? ['cargo', 'npm', 'docker', 'maven'] : ['cargo', 'npm', 'docker'];
     const lists = await Promise.all(formats.map(async format => {
-        const response = await apiRequest(`/api/users/${username}/memberships?format=${format}`, {signal, cache: 'no-store'});
+        const response = await apiRequest(`/api/users/${username}/memberships?format=${format}`, {
+            signal,
+            cache: 'no-store'
+        });
         if (!response.ok) throw new Error('Target catalog unavailable');
         const result = await response.json();
         return (result.memberships || []).slice(0, 256).map(entry => format === 'maven'
@@ -32,7 +35,10 @@ async function loadTargets(kind, signal) {
             : (kind === 'team' ? 'package/' : '') + entry.repository + '/' + entry.name);
     }));
     if (kind === 'team') {
-        const response = await apiRequest(`/api/users/${username}/super-teams?limit=50&offset=0`, {signal, cache: 'no-store'});
+        const response = await apiRequest(`/api/users/${username}/super-teams?limit=50&offset=0`, {
+            signal,
+            cache: 'no-store'
+        });
         if (!response.ok) throw new Error('Target catalog unavailable');
         const result = await response.json();
         lists.push((result.teams || []).map(team => 'global/' + team.prefix));
@@ -70,24 +76,34 @@ export function openAPITokenTargets({label, kind, targets, limit, onConfirm}) {
         choices.set(value, checkbox);
         cards.appendChild(el('label', {class: 'profile-api-token-target-card'}, checkbox, el('code', {}, value)));
     }
+
     targets.forEach(addChoice);
-    const add = el('button', {type: 'button', class: 'pill-btn pill-btn--soft', onclick: () => {
-        const values = [...new Set(input.value.split(/[\n,]+/u).map(value => value.trim()).filter(Boolean))];
-        if (new Set([...selected, ...values]).size > limit || new Set([...choices.keys(), ...values]).size > 384) {
-            error.textContent = t('profile.apiTokenTargetLimitReached', {limit});
-            return;
+    const add = el('button', {
+        type: 'button', class: 'pill-btn pill-btn--soft', onclick: () => {
+            const values = [...new Set(input.value.split(/[\n,]+/u).map(value => value.trim()).filter(Boolean))];
+            if (new Set([...selected, ...values]).size > limit || new Set([...choices.keys(), ...values]).size > 384) {
+                error.textContent = t('profile.apiTokenTargetLimitReached', {limit});
+                return;
+            }
+            values.forEach(value => {
+                selected.add(value);
+                addChoice(value);
+                choices.get(value).checked = true;
+            });
+            if (values.length) restricted.checked = true;
+            input.value = '';
+            error.textContent = '';
         }
-        values.forEach(value => { selected.add(value); addChoice(value); choices.get(value).checked = true; });
-        if (values.length) restricted.checked = true;
-        input.value = '';
-        error.textContent = '';
-    }}, t('common.add'));
+    }, t('common.add'));
     const body = el('div', {class: 'profile-api-token-target-dialog'},
         el('label', {class: 'profile-api-token-target-card'}, all,
             el('span', {'data-i18n': 'profile.apiTokenAllTargets'}, t('profile.apiTokenAllTargets'))),
         el('label', {class: 'profile-api-token-target-card'}, restricted,
             el('span', {'data-i18n': 'profile.apiTokenTargetLimit'}, t('profile.apiTokenTargetLimit'))),
-        el('p', {class: 'profile-security-hint', 'data-i18n': 'profile.apiTokenTargetsHelp'}, t('profile.apiTokenTargetsHelp')),
+        el('p', {
+            class: 'profile-security-hint',
+            'data-i18n': 'profile.apiTokenTargetsHelp'
+        }, t('profile.apiTokenTargetsHelp')),
         loading, cards, input, add, error);
     void RenopDialog.show({
         id: 'profile-api-token-target-dialog', maxWidth: '600px', icon: 'fileKey',
@@ -95,22 +111,24 @@ export function openAPITokenTargets({label, kind, targets, limit, onConfirm}) {
         title: label, body,
         footer: [
             {text: t('common.cancel'), className: 'action-btn', onClick: (event, dialog) => dialog.close(false)},
-            {text: t('confirm.confirmBtn'), className: 'action-btn primary-btn', onClick: (event, dialog) => {
-                if (input.value.trim()) {
-                    add.click();
-                    if (input.value.trim()) return;
+            {
+                text: t('confirm.confirmBtn'), className: 'action-btn primary-btn', onClick: (event, dialog) => {
+                    if (input.value.trim()) {
+                        add.click();
+                        if (input.value.trim()) return;
+                    }
+                    if (restricted.checked && selected.size === 0) {
+                        error.textContent = t('profile.apiTokenTargetRequired');
+                        return;
+                    }
+                    if (restricted.checked && selected.size > limit) {
+                        error.textContent = t('profile.apiTokenTargetLimitReached', {limit});
+                        return;
+                    }
+                    onConfirm(all.checked ? [] : [...selected]);
+                    dialog.close(true);
                 }
-                if (restricted.checked && selected.size === 0) {
-                    error.textContent = t('profile.apiTokenTargetRequired');
-                    return;
-                }
-                if (restricted.checked && selected.size > limit) {
-                    error.textContent = t('profile.apiTokenTargetLimitReached', {limit});
-                    return;
-                }
-                onConfirm(all.checked ? [] : [...selected]);
-                dialog.close(true);
-            }},
+            },
         ],
         onClose: () => controller.abort(),
     });

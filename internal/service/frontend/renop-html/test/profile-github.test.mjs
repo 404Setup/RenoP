@@ -83,16 +83,25 @@ test('authorized private panels render on the profile home instead of the editor
 test('account menu closes visibly and reopening cancels stale close callbacks', () => {
     const animations = [];
     let expanded = 'false', reduced = false;
-    const menu = {hidden: true, animate() {
-        const animation = {cancel() {}};
-        animations.push(animation);
-        return animation;
-    }};
+    const menu = {
+        hidden: true, animate() {
+            const animation = {
+                cancel() {
+                }
+            };
+            animations.push(animation);
+            return animation;
+        }
+    };
     const main = readFileSync(join(frontendRoot, 'js/main.js'), 'utf8');
     const declaration = main.match(/^function setProfileMenuOpen\([\s\S]*?^}/m)[0];
     const toggle = vm.runInNewContext('let profileMenuAnimation; ' + declaration + '; setProfileMenuOpen', {
         profileMenu: menu,
-        profileTrigger: {getAttribute: () => expanded, setAttribute: (_key, value) => { expanded = value; }},
+        profileTrigger: {
+            getAttribute: () => expanded, setAttribute: (_key, value) => {
+                expanded = value;
+            }
+        },
         getComputedStyle: () => ({opacity: '1', transform: 'none'}),
         window: {matchMedia: () => ({matches: reduced})},
     });
