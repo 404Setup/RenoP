@@ -15,6 +15,7 @@ import {responseErrorMessage} from '../response-errors.js';
 import {createIcon, RenopDialog, runButtonAction} from '../components.js';
 import {el} from '@renop/ui/dom';
 import {makeCustomSelect} from '@renop/ui/custom-select';
+import {morphElementHeight} from '@renop/ui/height-anim';
 import {accountBanReasonLabel, BAN_REASON_CODES} from './ban-reasons.js';
 import {formatTimestamp} from '../time.js';
 
@@ -59,6 +60,17 @@ export async function openUserBanDialog(account, refresh) {
     });
     const reasonField = el('label', {class: 'user-ban-field', htmlFor: reason.id},
         el('span', {}, t('users.banReasonOther')), reason);
+    const animateModalHeight = (mutate) => {
+        const modalContent = document.getElementById('user-ban-modal')?.querySelector?.('.modal-content')
+            || document.querySelector?.('#user-ban-modal .modal-content')
+            || document.getElementById('user-ban-modal');
+        if (modalContent) {
+            void morphElementHeight(modalContent, mutate, {duration: 240});
+        } else {
+            mutate();
+        }
+    };
+
     const syncReason = () => {
         reasonField.hidden = reasonCode !== 'other';
         reason.disabled = reasonCode !== 'other';
@@ -69,7 +81,7 @@ export async function openUserBanDialog(account, refresh) {
         {value: 'other', label: t('users.banReasonOther')},
     ], reasonCode, value => {
         reasonCode = value;
-        syncReason();
+        animateModalHeight(() => syncReason());
     });
     preset.querySelector('button')?.setAttribute('aria-label', t('users.banReasonLabel'));
     syncReason();
@@ -88,7 +100,7 @@ export async function openUserBanDialog(account, refresh) {
         expiryGroup.hidden = permanent.checked;
         expiresAt.disabled = permanent.checked;
     };
-    permanent.addEventListener('change', syncExpiry);
+    permanent.addEventListener('change', () => animateModalHeight(() => syncExpiry()));
     syncExpiry();
 
     const body = el('div', {class: 'user-ban-body'},

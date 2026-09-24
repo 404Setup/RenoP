@@ -15,6 +15,7 @@ export const DOCKER_ERROR_CODE_HEADER = 'X-Renop-Error-Code';
 const dockerErrorKeys = Object.freeze({
     authentication_required: 'docker.authenticationRequired',
     cannot_invite_self: 'docker.cannotInviteSelf',
+    description_too_large: 'docker.descriptionTooLarge',
     image_not_found: 'docker.imageNotFound',
     invalid_permission_level: 'docker.invalidPermissionLevel',
     invalid_request: 'docker.invalidRequest',

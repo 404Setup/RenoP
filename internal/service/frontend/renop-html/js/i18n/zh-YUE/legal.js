@@ -32,5 +32,8 @@ export default Object.freeze({
     "legal.necessaryOnly": "只用必要 Cookie",
     "legal.acceptAll": "全部接受",
     "legal.cookiePreferences": "Cookie 偏好設定",
-    "legal.savePreferences": "儲存偏好"
+    "legal.savePreferences": "儲存偏好",
+    "legal.language": "文件語言",
+    "legal.defaultLanguage": "英文（預設）",
+    "legal.translationNotice": "揀選要編輯嘅語言版本。實例預設淨係提供英文。"
 });

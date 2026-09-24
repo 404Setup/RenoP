@@ -192,7 +192,7 @@ func packageInfo(data string) map[string]any {
 	settings, options := map[string]string{}, map[string]string{}
 	requires := []string{}
 	section := ""
-	for _, line := range strings.Split(data, "\n") {
+	for line := range strings.SplitSeq(data, "\n") {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
 			section = strings.Trim(line, "[]")

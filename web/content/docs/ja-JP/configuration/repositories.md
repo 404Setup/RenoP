@@ -28,18 +28,18 @@ repositories:
     require_gpg_signature: true
     publication_review: every_version
     download_statistics: true
-    mirrors: []
+    mirrors: [ ]
   crates:
     name: crates
     format: cargo
     visibility: PUBLIC
-    mirrors: []
+    mirrors: [ ]
   containers:
     name: containers
     format: docker
     visibility: PRIVATE
     allow_redeployment: false
-    mirrors: []
+    mirrors: [ ]
 ```
 
 ## リポジトリ項目
@@ -56,9 +56,9 @@ repositories:
 | `mirrors`               | `[]`         | 順序付き上流定義                                                                                                          |
 | `s3`                    | 省略         | リポジトリ固有 S3 storage                                                                                                 |
 
-npm と Docker の `new_packages` は、名前を予約する前に明示的な作成 request を審査します。`every_version` は
-その後の各 version または manifest も審査します。Maven と Cargo には空 package の作成段階がないため、
-`new_packages` は最初の公開を審査します。mirror import はすべての engine で審査対象外です。
+npm と Docker の `new_packages` は、名前を予約する前に明示的な作成申請を審査します。`every_version` は
+その後の各バージョンまたはマニフェストも審査します。Maven と Cargo には空パッケージの作成段階がないため、
+`new_packages` は最初の公開を審査します。ミラーからの取り込みはすべてのエンジンで審査対象外です。
 
 `maven-classic` は画面レイアウトだけを変え、Maven の公開規則を維持します。`files` は非構造化で、
 チェックサムや POM の生成、署名検証を行いません。Maven と `files` の相互移行ではオブジェクトを移動せず、
@@ -67,26 +67,28 @@ Maven へ戻す際にカタログと保存済みの方針を復元します。�
 `files` のアップロードとミラーダウンロードは、パスに `SNAPSHOT` を含む場合や、名前が `.md5`、`.asc`、
 `-javadoc.jar` で終わる場合も隣接ファイルを保持します。旧バージョンの削除と Javadoc 展開は Maven のみに適用されます。
 
-公開審査は Maven、npm、Cargo、Docker と管理対象ネイティブリソース に対応します。Maven では `allow_redeployment` を `false`
+公開審査は Maven、npm、Cargo、Docker と管理対象ネイティブリソースに対応します。Maven では `allow_redeployment` を `false`
 に固定し、npm では不変
-バージョンと dist-tag のトランザクションを維持します。ローカルファイルはリポジトリモデレーターまたはシステム
+バージョンと dist-tag のトランザクションを維持します。ローカルファイルはリポジトリ審査者またはシステム
 管理者の承認まで非公開となり、ミラーは審査されません。保留中の審査があるリポジトリは設定変更、削除、
 エンジン移行ができません。
 
-`npm` repository は publication 前の package 予約、不変 SemVer、dist-tag、scoped private package、L0-L4 team、
-完全名または `@scope/*` 規則の mirror を提供します。
+`npm` リポジトリは公開前のパッケージ予約、不変のセマンティックバージョン（SemVer）、配布タグ、スコープ付き非公開パッケージ、L0-L4
+チーム、
+完全名または `@scope/*` 規則によるミラーを提供します。
 
 ### 可視性
 
-- **PUBLIC**: 匿名の読み取りと発見を許可します。
+- **PUBLIC**: 匿名の読み取りと一覧取得を許可します。
 - **HIDDEN**: 匿名ユーザーや閲覧権限のないユーザーの一覧とプロフィールの所属情報には表示されません。
   管理者と明示的なリポジトリ閲覧権限を持つユーザーには表示されます。既知の正確なファイルパスは読み取れます。
-- **PRIVATE**: 読み取り、一覧、書き込みに明示権限が必要です。非公開 Docker image は L0-L4 も確認します。
+- **PRIVATE**: 読み取り、一覧、書き込みに明示権限が必要です。非公開 Docker イメージは L0-L4 権限も確認します。
 
 ## 上流ミラー
 
-ローカルにない object は有効ミラーから stream し、本文全体を buffer せず保存できます。Cargo と Docker は
-適用対象の上流名が存在する場合、ローカル作成を拒否します。
+ローカルに存在しないオブジェクトは有効なミラーからストリーミング転送し、本文全体をバッファすることなく保存できます。Cargo
+と Docker は
+適用対象の上流名が存在する場合、ローカルでの作成を拒否します。
 
 ```yaml
 mirrors:
@@ -97,28 +99,28 @@ mirrors:
     negative_cache: true
     timeout_secs: 30
     proxy: ""
-    allow_artifacts: []
-    deny_artifacts: []
+    allow_artifacts: [ ]
+    deny_artifacts: [ ]
 ```
 
-| 項目              | 既定    | 説明                                       |
-|:------------------|:--------|:-------------------------------------------|
-| `name`            | 必須    | リポジトリ内で一意の名前                   |
-| `url`             | 必須    | 上流 base URL                              |
-| `persist`         | `true`  | 成功レスポンスを保存                       |
-| `cache_ttl_secs`  | `86400` | positive cache lifetime                    |
-| `negative_cache`  | `true`  | 対応する上流 miss を cache                 |
-| `timeout_secs`    | `30`    | 上流要求 timeout                           |
-| `proxy`           | `""`    | 全体 route、`direct`、または名前付き proxy |
-| `allow_artifacts` | `[]`    | format-aware allow rule                    |
-| `deny_artifacts`  | `[]`    | 優先される deny rule                       |
+| 項目              | 既定    | 説明                                         |
+|:------------------|:--------|:---------------------------------------------|
+| `name`            | 必須    | リポジトリ内で一意の名前                     |
+| `url`             | 必須    | 上流のベース URL                             |
+| `persist`         | `true`  | 成功レスポンスを保存                         |
+| `cache_ttl_secs`  | `86400` | 成功レスポンスのキャッシュ有効期間（秒）     |
+| `negative_cache`  | `true`  | 上流で見つからない場合のネガティブキャッシュ |
+| `timeout_secs`    | `30`    | 上流への要求タイムアウト（秒）               |
+| `proxy`           | `""`    | 全体設定に従う、直接接続、または指定プロキシ |
+| `allow_artifacts` | `[]`    | 形式に応じた許可ルール                       |
+| `deny_artifacts`  | `[]`    | 優先される拒否ルール                         |
 
 資格情報は構造化 authorization 項目に置き、`url` に埋め込まないでください。
 
 ## S3 互換ストレージ
 
-各リポジトリは Disk または独立 S3 を使用できます。storage/engine 変更は repository gate が upload、delete、
-GPG commit、mirror write と直列化します。
+各リポジトリはローカルディスクまたは独立した S3 互換ストレージを使用できます。ストレージやエンジンの変更はリポジトリゲートによってアップロード、削除、
+GPG コミット、ミラー書き込みと直列化されます。
 
 ```yaml
 s3:
@@ -133,11 +135,11 @@ s3:
   redirect_downloads: false
 ```
 
-MinIO は通常 `force_path_style` を必要とします。`redirect_downloads` 有効時は認可後に短期署名 URL へ
-redirect し、無効時は RenoP が stream します。
+MinIO では通常 `force_path_style` が必要です。`redirect_downloads` 有効時は認可後に有効期限付き署名 URL へ
+リダイレクトし、無効時は RenoP がストリーミング転送します。
 
-`capacity_limit_bytes` はリポジトリごとの保存済みバイト数上限です。`0` は無制限で、画面では MiB を使用します。Disk/S3
-のパッケージ、生成チェックサム、審査待ちオブジェクト、ミラーキャッシュを含め、ステージングの一時コピーは除外します。コミット前に予約し、並行アップロードで上限を共有します。超過は
+`capacity_limit_bytes` はリポジトリごとの保存容量上限（バイト）です。`0` は無制限で、画面上では MiB 単位で設定します。ディスク/S3
+のパッケージ、生成されたチェックサム、審査待ちオブジェクト、ミラーキャッシュを計上し、一時領域のコピーは除外します。コミット前に予約し、並行アップロードで上限を共有します。超過は
 `507` と `repository_capacity_exceeded`
 を返し、正常なミラー応答はキャッシュせず転送できます。上限を既存使用量以下にしても読み取りは可能です。外部からストレージを変更した場合は索引再構築か再起動で再計測します。旧クライアントが省略した場合は現在の上限を維持します。
 

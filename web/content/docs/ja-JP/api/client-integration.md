@@ -2,38 +2,35 @@
 title: HTTP API 連携
 order: 19
 category: API リファレンス
-description: API の選択、protobuf media type、認証情報、エラー、再試行、クライアント互換性
+description: API の選択、Protobuf 形式、認証情報、エラーハンドリング、再試行設計、クライアント互換性
 ---
 
 # HTTP API 連携
 
-RenoP は同じ origin から management endpoint と複数の package protocol を提供します。Media type や credential を選ぶ前に
-API family を
-特定してください。すべての route を JSON REST endpoint として扱うのは誤りです。
+RenoP は同一のオリジンから管理用エンドポイントと複数のパッケージプロトコルを提供します。メディアタイプや認証情報を
+選択する前に、対象の API 群を正しく特定してください。すべてのルートを JSON REST エンドポイントとして扱うことはできません。
 
 ## 正しい API サーフェスを選ぶ
 
 | サーフェス              | 主なパス                                    | 想定クライアント                      |
 |:------------------------|:--------------------------------------------|:--------------------------------------|
-| Management・browser API | `/api/...`                                  | RenoP UI、管理 tool、automation       |
-| Maven・generic file     | `/{repo}/{path}`                            | Maven、Gradle、HTTP artifact client   |
-| Cargo sparse registry   | `/{repo}/config.json`、`/{repo}/api/v1/...` | Cargo と互換 tool                     |
-| npm registry            | `/{repo}/{package}`、`/{repo}/-/...`        | npm-compatible client                 |
-| Docker/OCI Distribution | `/v2/...`、`/v2/token`                      | Docker、Podman、OCI client            |
-| Documentation preview   | `/javadoc/...`、`/cargodoc/...`             | Repository authorization 後の browser |
+| 管理・ブラウザ API      | `/api/...`                                  | RenoP UI、管理ツール、自動化スクリプト |
+| Maven・汎用ファイル     | `/{repo}/{path}`                            | Maven、Gradle、HTTP クライアント      |
+| Cargo sparse レジストリ | `/{repo}/config.json`、`/{repo}/api/v1/...` | Cargo および互換ツール                |
+| npm レジストリ          | `/{repo}/{package}`、`/{repo}/-/...`        | npm 互換クライアント                  |
+| Docker/OCI Distribution | `/v2/...`、`/v2/token`                      | Docker、Podman、OCI クライアント      |
+| ドキュメント事前確認    | `/javadoc/...`、`/cargodoc/...`             | リポジトリ認可後のブラウザ            |
 
-Native package URL に `/api` を付けないでください。Package protocol の method/error shape から management semantics
-を推測しないでください。
+パッケージ専用の URL に `/api` を付与しないでください。また、パッケージプロトコルの通信形式やエラー仕様から管理 API の仕様を推測しないでください。
 
 ## 宣言された表現形式を使う
 
-スキーマに基づく管理 API はバイナリ protobuf を使用します。`Content-Type: application/x-protobuf` を指定してください。
-要求は `application/protobuf` と `application/octet-stream` も受け付け、Content-Type が未指定の場合は protobuf です。
+スキーマに基づく管理 API はバイナリ Protobuf を使用します。`Content-Type: application/x-protobuf` を指定してください。
+要求は `application/protobuf` と `application/octet-stream` も受け付け、Content-Type が未指定の場合は Protobuf です。
 JSON 本文は拒否され、エンドポイントに応じて `400` または `415` となります。応答は常に `application/x-protobuf` で、`Accept`
-で JSON に
-切り替えることはできません。稼働バージョンの `proto/api/v1/api.proto` を使用してください。
+で JSON に切り替えることはできません。稼働バージョンの `proto/api/v1/api.proto` を使用してください。
 
-制御要求の上限は 1 MiB で、各エンドポイントのより小さい上限も維持します。protobuf メッセージの JSON 例は
+制御要求の上限は 1 MiB で、各エンドポイントのより小さい上限も維持します。Protobuf メッセージの JSON 例は
 デコード後のフィールドを示し、JSON 転送形式ではありません。JSON 専用のエンドポイント、パッケージのネイティブ
 プロトコル、アップロード部分、ヘルステキスト、個別エラーは宣言された形式を維持します。
 
@@ -46,96 +43,90 @@ Accept: application/x-protobuf
 
 | 認証情報               | 用途                                               | 重要な制限                                  |
 |:-----------------------|:---------------------------------------------------|:--------------------------------------------|
-| `renop_session` cookie | Interactive browser UI と private account-security | HttpOnly。Script へ抽出・再利用しない       |
-| Bearer API token       | Management automation と対応 route                 | Account/team の現在の permission と積を取る |
-| HTTP Basic             | Package client と指定 upload flow                  | Session/Bearer の一般的な代替ではない       |
-| Docker Bearer token    | Docker/OCI Distribution operation                  | Registry challenge と token exchange で取得 |
+| `renop_session` Cookie | ブラウザ UI およびアカウントセキュリティ操作       | HttpOnly。JavaScript からの参照や再利用は不可 |
+| Bearer API トークン    | 管理処理の自動化および対応エンドポイント           | アカウントやチームの現在の権限と突き合わせて評価 |
+| HTTP Basic 認証        | パッケージクライアントおよび特定のアップロードフロー | セッションや Bearer の一般的な代替としては使用不可 |
+| Docker Bearer トークン | Docker/OCI レジストリ操作                          | レジストリの認証要求とトークン交換によって取得 |
 
-Token secret は作成時だけ表示されます。Secret manager に保存し、expiration、target、scope を最小化し、job/device 廃止時に
-revoke します。
-Query credential と `Authorization: Session` は拒否されます。
+トークンのシークレット値は作成時に一度だけ表示されます。機密管理ツールに安全に保存し、有効期限、対象制限、スコープを
+最小限に設定し、ジョブや端末の廃止時には速やかに失効させてください。クエリパラメータによる認証情報や `Authorization: Session` は拒否されます。
 
 ## ベース URL を正しく構成する
 
-Production では一つの正規 HTTPS origin を使います。Cookie、redirect、Docker challenge、generated repository URL が public
-service を指すよう、
-reverse proxy は元の `Host` と scheme を保持します。
+本番環境では一つの正規 HTTPS オリジンを使用します。Cookie、リダイレクト、Docker の認証要求、生成されるリポジトリ URL が
+公開サービスを正しく指すよう、リバースプロキシは元の `Host` ヘッダーとスキームを保持してください。
 
 ```bash
 curl --fail-with-body https://packages.example.com/api/status/health
 ```
 
-成功時の response body は `"UP"` です。
+成功時のレスポンス本文は `"UP"` です。
 
-Health endpoint は reachability 用で、database/storage commit を証明しません。Deployment automation で dependency
-を検証する場合は、別の
-認証済み readiness operation を実行します。
+ヘルスチェック用エンドポイントは死活監視専用であり、データベースやストレージの正常性までは保証しません。デプロイ自動化で
+依存関係を検証する場合は、別途認証付きのレディネス確認操作を実行してください。
 
 ## 安定した順序でレスポンスを処理する
 
-1. HTTP status を読む。
-2. Response `Content-Type` を確認する。
-3. 存在する場合は `X-Renop-Error-Code` を読む。
-4. 対応する protocol decoder だけで body を decode する。
-5. Credential を除き、timestamp と sanitized context を記録する。
+1. HTTP ステータスコードを確認する。
+2. レスポンスの `Content-Type` を確認する。
+3. 存在する場合は `X-Renop-Error-Code` ヘッダーを確認する。
+4. 対応するプロトコルのデコーダーのみで本文をデコードする。
+5. 秘密情報を除外した上で、タイムスタンプと文脈情報をログに記録する。
 
-Management failure は短い plain text の場合があります。Docker Distribution、Cargo、npm は native structured error
-を保持します。完全な英語文を
-branch condition にしないでください。
+管理 API のエラーは短いプレーンテキストの場合があります。Docker Distribution、Cargo、npm はそれぞれのプロトコル固有の
+構造化エラーを返します。完全一致の英文メッセージに依存した分岐処理は避けてください。
 
 ## ステータスをクライアント動作へ割り当てる
 
 | ステータス  | クライアント動作                                                                     |
 |:------------|:-------------------------------------------------------------------------------------|
-| `200`–`204` | 文書化された type で decode。仕様上の empty success body も有効                      |
-| `202`       | Accepted だが visible とは限らない。Publication review が pending の場合がある       |
-| `302`       | Authorized S3 presigned URL など、文書化された download だけ追従                     |
-| `400`       | Request を修正。自動 retry は同じ failure を繰り返すことが多い                       |
-| `401`       | Credential type が許可されるか確認してから refresh/replace                           |
-| `403`       | Blind retry しない。Scope、target、permission、team、policy、debug mode の変更が必要 |
-| `404`       | Path と visibility を確認。Private/hidden data は意図的に隠される場合がある          |
-| `409`       | State を読み直し、immutable/concurrent operation を変更できるか判断                  |
-| `413`       | 妥当な場合だけ payload を縮小し、それ以外は proxy/server limit を修正                |
-| `429`       | Retry guidance、jitter、lower concurrency を使用                                     |
-| `5xx`       | Bounded safe operation だけ retry。Original error を残し dependency を確認           |
+| `200`–`204` | 定義された型でデコード。仕様上の空の成功レスポンスも有効として扱う                   |
+| `202`       | 受理されたが即時公開とは限らない。公開審査が保留中の場合がある                       |
+| `302`       | S3 の署名付きダウンロード URL など、仕様に定められたリダイレクトにのみ追従           |
+| `400`       | リクエスト内容を修正。修正なしの自動再試行は同じ失敗を繰り返す                       |
+| `401`       | 認証方式が許可されているか確認した上で、トークンを再取得・置換する                   |
+| `403`       | 無条件の再試行は避ける。スコープ、対象制限、権限、チーム、各種方針の変更が必要       |
+| `404`       | パスと公開範囲を確認。非公開データや非表示データは意図的に隠蔽される場合がある       |
+| `409`       | 現在の状態を再取得し、不変バージョンの重複や並行操作の競合を解消できるか判断する   |
+| `413`       | 可能な場合のみ送信データを縮小し、それ以外はプロキシやサーバーの容量上限を修正する   |
+| `429`       | 再試行待機時間（Retry-After）に従い、ゆらぎ（jitter）を加え、並列度を下げて再試行する |
+| `5xx`       | 冪等性が保証された安全な操作のみ再試行。元エラーを保持しつつ依存関係の状態を確認する |
 
 ## セマンティクスが許す場合だけ再試行する
 
-Transport failure 後の GET/HEAD は一般に安全です。Write は idempotency と、切断前に server commit 済みの可能性を確認します。Jitter
-を含む
-bounded exponential backoff と total deadline を使います。
+ネットワーク障害後の GET/HEAD リクエストは一般に再試行可能です。書き込み処理の再試行時は、操作の冪等性と、
+切断前にサーバー側でコミットが完了していた可能性を考慮してください。ゆらぎ（jitter）を含む指数バックオフと
+全体のタイムアウト時間を設けてください。
 
-Immutable publication で version を黙って変えたり、data を削除したり、credential を広げたりしないでください。Chunked/registry
-upload は
-protocol 自身の upload state から継続します。
+不変のパッケージ公開において、バージョン番号を勝手に変更したり、既存データを削除したり、権限スコープを無闇に
+広げたりしないでください。分割アップロードはプロトコル自身のアップロード状態から安全に再開してください。
 
 ## エンドポイント固有のページングとフィルターに従う
 
-List endpoint に共通 cursor/page model はありません。Endpoint documentation の parameter を使い、server の stable
-identifier を保持し、
-response が完了を示したら停止します。UI filter が authorization/visibility を変えると仮定しないでください。
+一覧取得エンドポイント全体で統一されたカーソルやページングの共通モデルはありません。各エンドポイントのドキュメントに記載された
+パラメータを使用し、サーバーが返す安定識別子を保持し、レスポンスが完了を示したら走査を停止してください。画面の表示フィルターが
+認可や公開範囲を変更すると仮定してはいけません。
 
 ## 同じリリースの契約を使う
 
-`web/assets/openapi.yaml` / `proto/api/v1/api.proto`
-稼働バージョンの OpenAPI と protobuf 定義を使用してください。バイナリ応答は対応するメッセージ型でデコードし、ネイティブクライアントは各プロトコルの形式を使用します。
+稼働バージョンの OpenAPI（`web/assets/openapi.yaml`）と Protobuf 定義（`proto/api/v1/api.proto`）を使用してください。
+バイナリ応答は対応するメッセージ型でデコードし、ネイティブクライアントは各プロトコルの形式を使用します。
 
-Production upgrade 前に non-production で login、token authorization、repository list、各 format の
-read/write、pagination、error decoding、
-reverse proxy behavior を contract test します。
+本番環境のアップグレード前に、検証環境でログイン、トークン認可、リポジトリ一覧、各形式での読み書き、ページング、
+エラーデコード、リバースプロキシの挙動に関する結合テストを実施してください。
 
 ## 連携チェックリスト
 
-- [ ] 正しい API family と repository base path を選んだ。
-- [ ] HTTPS origin、proxy host、scheme が正規値である。
-- [ ] Request/response media type を明示した。
-- [ ] Target route で credential type が許可されている。
-- [ ] Token scope、target、expiration、owner permission が最小かつ有効である。
-- [ ] Body text より先に status を処理する。
-- [ ] Retry は bounded、jittered、operation-safe である。
-- [ ] Log から cookie、password、token、signed URL を除外する。
-- [ ] OpenAPI/protobuf が deployed release と一致する。
-- [ ] Deployment 前に protocol-native end-to-end test を実行する。
+- [ ] 正しい API ファミリとリポジトリのベースパスを選択した。
+- [ ] HTTPS オリジン、プロキシホスト名、スキームが正規の値である。
+- [ ] リクエストおよびレスポンスのメディアタイプを明示した。
+- [ ] 対象エンドポイントで指定した認証方式が許可されている。
+- [ ] トークンのスコープ、対象制限、有効期限、所有者権限が最小限かつ有効である。
+- [ ] 本文テキストより先に HTTP ステータスコードを処理している。
+- [ ] 再試行処理に上限、ゆらぎ、安全性への考慮が盛り込まれている。
+- [ ] ログ出力から Cookie、パスワード、トークン、署名付き URL を除外している。
+- [ ] OpenAPI および Protobuf の定義がデプロイ済みリリースと一致している。
+- [ ] デプロイ前にプロトコルネイティブのエンドツーエンドテストを実施した。
 
-Route-level detail は [認証 API](./authentication.md)、[API トークンとユーザー](./tokens.md)、
-[トラブルシューティング](../guides/troubleshooting.md)を参照してください。
+エンドポイントごとの詳細は、[認証 API](./authentication.md)、[API トークンとユーザー](./tokens.md)、
+[トラブルシューティング](../guides/troubleshooting.md) を参照してください。

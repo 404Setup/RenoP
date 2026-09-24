@@ -207,16 +207,8 @@ func TestOAuthRegistrationAndMFALogin(t *testing.T) {
 	require.NoError(t, state.GetDB().UpdateMFA("external", mfa.Snapshot, sealed, false, -1, sessionCookie.Value))
 	start, callback = flow()
 	response = registrationRequest(t, app, callback, nil, start.Cookies()[0])
-	require.Contains(t, response.Header.Get("Location"), "/account/login?mfa=1")
-	require.Equal(t, mfaCookieName, response.Cookies()[0].Name)
-	mfaChallenges.Lock()
-	proof := mfaChallenges.entries[response.Cookies()[0].Value].oauth
-	mfaChallenges.Unlock()
-	require.NotNil(t, proof)
-	require.Equal(t, p.ID, proof.ProviderID)
-	require.True(t, currentOAuthProofConfiguration(state.Inner.Config.Load(), proof))
-	verified := registrationRequest(t, app, "/api/auth/mfa/totp", map[string]any{"code": core.TOTPCode(secret, time.Now().Unix()/30)}, response.Cookies()[0])
-	require.Equal(t, 200, verified.StatusCode)
+	require.Contains(t, response.Header.Get("Location"), "oauth=success")
+	require.Equal(t, sessionCookieName, response.Cookies()[0].Name)
 	start, callback = flow()
 	next := cfg.DeepCopy()
 	next.Server.OAuthProviders[0].ClientSecret = "rotated"

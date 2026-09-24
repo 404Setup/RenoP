@@ -2,24 +2,23 @@
 title: Maven と Gradle
 order: 1
 category: ガイド
-description: 公開 domain の検証と Maven / Gradle client 設定
+description: 公開ドメインの検証と Maven / Gradle クライアント設定
 ---
 
-# Maven / Gradle client 設定
+# Maven / Gradle クライアント設定
 
-Maven repository を作成し、account menu で成果物の reverse-domain namespace を作成・検証します。domain と
-L0-L4 team は全 Maven repository で共有します。read は visibility、publication は repository write と domain
-publication level の両方が必要です。
+Maven リポジトリを作成し、アカウントメニューで成果物の逆ドメイン名前空間を作成・検証します。公開ドメインと
+L0-L4 チームはすべての Maven リポジトリで共有されます。読み取りには公開範囲（Visibility）、公開にはリポジトリの書き込み権限とドメインの
+公開レベルの両方が必要です。
 
-automation には `repository:read` や `repository:publish` を持つ expiring API Token を推奨します。Basic の
-username は account name、password は Token です。
+自動化（CI/CD）には `repository:read` や `repository:publish` 権限を持つ有効期限付き API トークンの利用を推奨します。HTTP Basic 認証の
+ユーザー名はアカウント名、パスワードには API トークンを指定します。
 
 ## Maven
 
 ### 依存関係解決 (`pom.xml`)
 
 ```xml
-
 <repositories>
     <repository>
         <id>renop-releases</id>
@@ -35,13 +34,12 @@ username は account name、password は Token です。
 </repositories>
 ```
 
-Snapshot が必要なら 2 つ目を追加します。`HIDDEN` は exact URL で解決できますが discovery されず、`PRIVATE`
-の read は credential が必要です。
+Snapshot が必要な場合は 2 つ目のリポジトリ定義を追加します。`HIDDEN` は正確な URL で解決できますが一覧には表示されず、`PRIVATE`
+の読み取りには認証情報が必要です。
 
 ### 公開先 (`pom.xml`)
 
 ```xml
-
 <distributionManagement>
     <repository>
         <id>renop-releases</id>
@@ -51,13 +49,12 @@ Snapshot が必要なら 2 つ目を追加します。`HIDDEN` は exact URL で
 </distributionManagement>
 ```
 
-`groupId` は publisher が管理する検証済み domain 配下です。classic/modern layout は同じ client URL と
-publication rule を使います。
+`groupId` は公開者が管理する検証済みドメインの配下である必要があります。クラシックとモダンのレイアウトは同じクライアント URL と
+公開規則を使用します。
 
-### Credential (`~/.m2/settings.xml`)
+### 認証情報 (`~/.m2/settings.xml`)
 
 ```xml
-
 <settings>
     <servers>
         <server>
@@ -69,7 +66,7 @@ publication rule を使います。
 </settings>
 ```
 
-`<id>` は `pom.xml` と完全一致させます。credential は project 外に置き、CI secret manager から注入します。
+`<id>` は `pom.xml` の `<id>` と完全一致させます。認証情報はプロジェクト外で管理し、CI の機密管理から注入してください。
 
 ---
 
@@ -116,12 +113,12 @@ publishing {
 }
 ```
 
-`renopUser` と `renopToken` は user Gradle property または CI secret に保存し、source control に置きません。
+`renopUser` と `renopToken` はユーザーの Gradle プロパティまたは CI の機密情報に保存し、ソース管理には含めないでください。
 
-## Javadoc viewer
+## Javadoc の表示
 
-有効な `*-javadoc.jar` があり preview 有効なら、path/size limit 下で sandbox viewer に抽出します。
+有効な `*-javadoc.jar` が存在し事前確認が有効な場合、パスやファイルサイズの上限内でサンドボックスビューアに展開されます。
 
 URL: `https://packages.example.com/javadoc/{repo}/{group}/{artifact}/{version}/index.html`
 
-Javadoc の有無は認可を変えません。UI の signed state は archive name ではなく backend GPG record 由来です。
+Javadoc の有無によって認可規則が変わることはありません。画面上の署名済み表示は、ファイル名ではなくバックエンドの GPG 署名記録に基づいて判定されます。

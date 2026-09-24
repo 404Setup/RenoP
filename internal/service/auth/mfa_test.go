@@ -238,6 +238,17 @@ func TestPasskeyLoginSkipsMFA(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 200, respFido.StatusCode)
 
+	// Third-party login (method: "github", "oauth:...") should skip 2FA and succeed
+	reqGitHub := httptest.NewRequest("GET", "/test-login?method=github", nil)
+	respGitHub, err := app.Test(reqGitHub)
+	require.NoError(t, err)
+	require.Equal(t, 200, respGitHub.StatusCode)
+
+	reqOAuth := httptest.NewRequest("GET", "/test-login?method=oauth:google", nil)
+	respOAuth, err := app.Test(reqOAuth)
+	require.NoError(t, err)
+	require.Equal(t, 200, respOAuth.StatusCode)
+
 	// Password login (method: "password") should require 2FA
 	reqPass := httptest.NewRequest("GET", "/test-login?method=password", nil)
 	respPass, err := app.Test(reqPass)

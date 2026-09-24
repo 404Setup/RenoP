@@ -1,11 +1,11 @@
 ---
-title: コンテナー
+title: コンテナ
 order: 7
 category: デプロイ
 description: Docker、Podman、Kubernetes で RenoP を実行する
 ---
 
-# コンテナー
+# コンテナ
 
 ## 実行
 
@@ -22,7 +22,7 @@ docker logs renop
 では `docker` を `podman` に置き換えてください。
 
 macOS では Docker Desktop、Podman machine、Colima、OrbStack、Rancher Desktop、Apple container で Linux
-イメージを実行します。通常のコンテナーマーカーが隠される場合も、イメージの `RENOP_CONTAINER=1` で判定できます。
+イメージを実行します。通常のコンテナ検出マーカーが隠される場合も、イメージの `RENOP_CONTAINER=1` で判定できます。
 
 ## 永続データ
 
@@ -31,11 +31,11 @@ macOS では Docker Desktop、Podman machine、Colima、OrbStack、Rancher Deskt
 環境の Podman では必要に応じて `:Z` を指定します。SQLite がジャーナルファイルを作成できるよう、ディレクトリ全体をマウントしてください。
 
 `RENOP_SETTINGS_DB` と `RENOP_INDEX` は既定で `/data` 内のファイルを参照します。読み取り専用ルートには
-`--read-only --tmpfs /tmp` などで書き込み可能な `/tmp` も必要です。コンテナー置換時は永続ボリュームを保持し、更新前にバックアップしてください。
+`--read-only --tmpfs /tmp` などで書き込み可能な `/tmp` も必要です。コンテナ置換時は永続ボリュームを保持し、更新前にバックアップしてください。
 
 ## 更新と終了
 
-コンテナーでは自動確認、オンライン／オフラインの実行ファイル更新、サービス登録、プロセス内再起動が無効になります。更新はランタイムで行います。SIGTERM
+コンテナでは自動確認、オンライン／オフラインの実行ファイル更新、サービス登録、プロセス内再起動が無効になります。更新はランタイムで行います。SIGTERM
 は HTTP リクエスト、バックグラウンド処理、データベース書き込みを終了させます。終了に90秒を確保してください。
 
 ```bash

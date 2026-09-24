@@ -1395,6 +1395,23 @@
     }
 }
 
+@keyframes profileCardIn {
+    from {
+        opacity: 0;
+        transform: translateY(12px) scale(0.985);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.profile-public-card,
+.profile-memberships-card,
+.profile-settings-card {
+    animation: profileCardIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 @keyframes profileViewOut {
     from {
         opacity: 1;
@@ -1527,8 +1544,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .profile-route-view {
-        animation: none;
+    .profile-route-view,
+    .profile-public-card,
+    .profile-memberships-card,
+    .profile-settings-card {
+        animation: none !important;
     }
 
     .profile-collapse-chevron {

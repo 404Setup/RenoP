@@ -2,13 +2,13 @@
 title: Cargo (Rust) Registry
 order: 2
 category: ガイド
-description: Cargo repository、Sparse Index、publication、ownership、Cargodoc
+description: Cargo リポジトリ、Sparse Index、公開、所有権管理、Cargodoc
 ---
 
 # Cargo (Rust) Registry ガイド
 
-client 設定前に format `cargo` の repository を作成します。例の名前は `crates` です。RenoP は Cargo Sparse
-Index を実装し、Git index clone なしで crate archive を stream します。
+クライアント設定を行う前に、形式 `cargo` のリポジトリを作成します（例: `crates`）。RenoP は Cargo Sparse
+Index を実装しており、Git リポジトリ全体のクローンを行うことなく、crate アーカイブをストリーミング転送できます。
 
 ## Cargo 設定 (`.cargo/config.toml`)
 
@@ -16,35 +16,35 @@ Index を実装し、Git index clone なしで crate archive を stream しま�
 [registries.renop]
 index = "sparse+http://localhost:3000/crates/"
 
-# Optional: replace default crates.io upstream
+# 任意: 既定の crates.io 上流を置き換える場合
 # [source.crates-io]
 # replace-with = "renop"
 # [source.renop]
 # registry = "sparse+http://localhost:3000/crates/"
 ```
 
-本番は HTTPS を使用します。repository `config.json` が download/API route を通知します。private repository は
-`auth-required` を設定し、index と crate read に credential が必要です。
+本番環境では HTTPS を使用してください。リポジトリの `config.json` がダウンロードや API のエンドポイントを通知します。非公開リポジトリでは
+`auth-required` を設定し、インデックスと crate の読み取りに認証情報が求められます。
 
 ## 認証
 
-専用の expiring API Token を作成します。初回公開は通常 `repository:read`、`repository:publish`、
-`package:create` を使います。archive/yank は `package:lifecycle`、owner 管理は `team:manage` を追加します。
+専用の有効期限付き API トークンを作成します。初回の公開には通常 `repository:read`、`repository:publish`、
+`package:create` 権限を使用します。アーカイブや取り下げ（yank）には `package:lifecycle`、所有者管理には `team:manage` 権限を追加してください。
 
 ```bash
 cargo login --registry renop
-# Paste your RenoP token when prompted
+# プロンプトが表示されたら RenoP のトークンを貼り付けます
 ```
 
-Cargo は `~/.cargo/credentials.toml` に保存します。
+Cargo は認証情報を `~/.cargo/credentials.toml` に保存します。
 
 ```toml
 [registries.renop]
 token = "your_renop_token"
 ```
 
-Token は完全な `Authorization` 値です。RenoP は scope/target と現在の account、repository、package-team
-permission を必ず交差します。
+トークンは `Authorization` ヘッダー値として検証されます。RenoP はトークンのスコープや対象制限を、現在の
+アカウント権限、リポジトリ権限、パッケージチーム権限と突き合わせて厳密に評価します。
 
 ## 依存関係と公開
 
@@ -61,42 +61,42 @@ my-crate = { version = "0.1.0", registry = "renop" }
 cargo publish --registry renop
 ```
 
-初回成功時に正規化名を予約し、publisher に L4 を与えます。ローカルまたは適用ミラーの同名は拒否します。
-上流確認が確定しない場合は `503` で安全に失敗し、package を予約しません。後続 version は team の公開 level
-が必要です。
+初回の公開成功時に正規化された名前を予約し、公開者に L4（所有者）権限を付与します。ローカルまたは適用ミラーに同名が存在する場合は拒否されます。
+上流の確認が完了しない場合は `503` で安全に失敗し、パッケージ名は予約されません。後続のバージョン公開にはチームの公開権限が
+必要です。
 
-公開審査を有効にすると、archive の保存後に `cargo publish` は `202 Accepted` を返します。リポジトリの
-モデレーターまたはシステム管理者が承認するまで、crate は sparse index と公開 catalog に表示されません。
-`new_packages` では最初の公開 version が承認されるまで適用されます。mirror 由来の crate は審査対象外です。
+公開審査を有効にすると、アーカイブの保存後に `cargo publish` は `202 Accepted` を返します。リポジトリの
+審査者またはシステム管理者が承認するまで、crate は sparse インデックスおよび公開カタログには表示されません。
+`new_packages` では最初の公開バージョンが承認されるまで審査が適用されます。ミラー由来の crate は審査対象外です。
 
-### Search、yank、unyank
+### 検索、取り下げ（yank）、復元（unyank）
 
 ```bash
-# Search crates
+# crate の検索
 cargo search --registry renop my-crate
 
-# Yank a version
+# 特定バージョンの取り下げ
 cargo yank --registry renop --version 0.1.0 my-crate
 
-# Unyank
+# 取り下げの解除（復元）
 cargo yank --registry renop --undo --version 0.1.0 my-crate
 ```
 
-owner は package page で L0-L4 collaborator と invitation を管理します。mirror crate は upstream 表示され、
-local owner を持たず read-only です。
+所有者はパッケージ詳細画面から L0-L4 の共同作業者や招待を管理できます。ミラー由来の crate は上流由来として表示され、
+ローカルの所有者は存在せず読み取り専用となります。
 
 ## Cargodoc
 
-RenoP は rustdoc を検証して sandbox viewer に抽出します。システム設定 で Cargodoc と size limit を有効化します。
+RenoP は rustdoc の出力を検証し、安全なサンドボックスビューアに展開します。システム設定で Cargodoc とファイルサイズ上限を有効化してください。
 
 URL: `http://localhost:3000/cargodoc/{repo}/{crate}/{version}/index.html`
 
 ## リソースのロック
 
-管理者とリポジトリのモデレーターはパッケージページから全体または個別バージョンをロックし、公開理由を選択できます。
-書き込み禁止は変更を停止します。読み取り禁止はメタデータも担当者と共同作業者のみに制限し、
-すべてのファイルダウンロードと Cargodoc プレビューを禁止します。メンバーはメタデータを閲覧できますが、
-ロックされた内容を変更できません。手動ロックの解除後もシステムロックは有効です。
-他のロックされていないバージョンは公開できますが、パッケージ全体を書き換える操作は禁止されます。
+管理者とリポジトリ審査者は、パッケージ詳細画面からパッケージ全体または個別バージョンをロックし、公開理由を設定できます。
+書き込み禁止にすると更新や削除が停止されます。読み取り禁止にするとメタデータの表示も担当者と共同作業者のみに制限され、
+すべてのファイルダウンロードと Cargodoc プレビューが遮断されます。チームメンバーはメタデータを閲覧できますが、
+ロックされた内容を変更することはできません。手動ロックを解除した後も、システムロックが優先して適用されます。
+ロックされていない他のバージョンは通常どおり公開できますが、パッケージ全体を書き換える操作は禁止されます。
 
-リクエスト、理由、応答コードは [Cargo API](/api/cargo) を参照してください。
+リクエスト形式やエラーコードの詳細は [Cargo API](/api/cargo) を参照してください。

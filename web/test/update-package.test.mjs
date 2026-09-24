@@ -81,7 +81,7 @@ test('release tooling decouples bounded compilation from raw Brotli packaging', 
     assert.match(workflow, /^\s+THIRD_PARTY_NOTICES\.md$/m);
     assert.doesNotMatch(publish, /README\.md|THIRD_PARTY_NOTICES\.md|LICENSE/);
     assert.match(workflow, /previous_commit/);
-    assert.match(publish, /\$nightlyPackageRetention = 9/);
+    assert.match(publish, /\$nightlyPackageRetention = 1/);
     assert.match(publish, /Get-NightlyReleases -CurrentRelease \$currentRelease -ExistingReleases/);
 });
 
@@ -122,7 +122,12 @@ test('Actions matrices compile every target before packaging and assemble only a
                 uncompressed_size: raw.length, format: 'brotli', executable: os === 'windows' ? 'renop.exe' : 'renop'
             }));
         }
-        const run = name => spawnSync('pwsh', ['-NoProfile', '-File', '.github/scripts/assemble-matrix.ps1',
+        const actionsTool = resolve(directory, process.platform === 'win32' ? 'renop-actions.exe' : 'renop-actions');
+        const buildActions = spawnSync('go', ['build', '-p', '1', '-o', actionsTool, './cmd/renop-actions'], {
+            cwd: repositoryRoot, encoding: 'utf8', timeout: 120_000,
+        });
+        assert.equal(buildActions.status, 0, buildActions.error?.message || buildActions.stdout + buildActions.stderr);
+        const run = name => spawnSync(actionsTool, ['-step', 'assemble',
             '-PackageDir', packages, '-DistDir', resolve(directory, name), '-Version', 'fixture',
             '-Development', 'true', '-Commit', 'a'.repeat(40)], {
             cwd: repositoryRoot,
@@ -136,7 +141,7 @@ test('Actions matrices compile every target before packaging and assemble only a
         assert.equal(manifest.commit, 'a'.repeat(40));
         assert.equal(manifest.development, true);
         assert.deepEqual(manifest.targets.map(t => t.os + '/' + t.arch), targets.map(t => t.GOOS + '/' + t.GOARCH));
-        const payload = spawnSync('pwsh', ['-NoProfile', '-File', '.github/scripts/test-release-payload.ps1',
+        const payload = spawnSync(actionsTool, ['-step', 'validate-payload',
             '-DistDir', resolve(directory, 'complete')], {cwd: repositoryRoot, encoding: 'utf8'});
         assert.equal(payload.status, 0, payload.stdout + payload.stderr);
         const target = targets[0];
@@ -201,13 +206,13 @@ test('publishing cleans actual SHA directories, recovers orphans, and verifies d
         }
     });
     try {
-        const build = spawnSync('go', ['build', '-p', '1', '-o', indexTool, './cmd/renop-release-index'], {
+        const build = spawnSync('go', ['build', '-p', '1', '-o', indexTool, './cmd/renop-actions'], {
             cwd: repositoryRoot, encoding: 'utf8', timeout: 120_000,
         });
         assert.equal(build.status, 0, build.error?.message || build.stdout + build.stderr);
         git('init', '--quiet');
         git('config', 'core.abbrev', '7');
-        for (let i = 0; i < 20; i++) {
+        for (let i = 0; i < 8; i++) {
             git('-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', '-c', 'commit.gpgsign=false',
                 'commit', '--quiet', '--allow-empty', '-m', `fix: published ${i}`);
             commits.push(git('rev-parse', 'HEAD'));
@@ -242,7 +247,7 @@ test('publishing cleans actual SHA directories, recovers orphans, and verifies d
         const success = await run();
         assert.equal(success.code, 0, success.output);
         assert.equal(published.releases[0].commit, commits.at(-1));
-        const obsolete = commits.toReversed().slice(9, 16).map(commit => `/update/renop/nightly/${commit.slice(0, 8)}`);
+        const obsolete = commits.toReversed().slice(1, 8).map(commit => `/update/renop/nightly/${commit.slice(0, 8)}`);
         assert.deepEqual(requests.filter(([method]) => method === 'DELETE').map(([, path]) => path), obsolete);
         const firstDelete = requests.findIndex(([method]) => method === 'DELETE');
         assert.ok(firstDelete > requests.findIndex(([method, path]) => method === 'PUT' && path.endsWith('/info.json')));
@@ -251,7 +256,7 @@ test('publishing cleans actual SHA directories, recovers orphans, and verifies d
         const resumed = await run();
         assert.equal(resumed.code, 0, resumed.output);
         assert.ok(requests.some(([method, path]) => method === 'DELETE' && path.endsWith('/deadbeef')));
-        assert.deepEqual(directories.sort(), commits.slice(-9).map(commit => commit.slice(0, 8)).sort());
+        assert.deepEqual(directories.sort(), commits.slice(-1).map(commit => commit.slice(0, 8)).sort());
         for (const failure of ['read-failure', 'inventory-failure', 'upload-failure', 'delete-failure', 'false-success']) {
             mode = failure;
             requests.length = 0;

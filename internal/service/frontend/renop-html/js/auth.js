@@ -19,7 +19,8 @@ import {LoginRequest, LogoutResponse, SessionDetails} from './proto/index.js';
 import {passkeyErrorMessage, requestPasskeyAssertion} from './fido-utils.js';
 import {showMFALogin} from './mfa-login.js';
 import {clearUserProfileCache, getUserProfile, profileDisplayName, renderProfileAvatar} from './user-profiles.js';
-import {responseErrorMessage} from './response-errors.js';
+import {LocalizedResponseError, responseErrorMessage} from './response-errors.js';
+import {acquireCaptchaProof} from './captcha.js';
 import {runButtonAction} from './components/button.js';
 import {requestProtectedRouteExit} from './protected-route.js';
 
@@ -496,10 +497,14 @@ export async function fidoLogin() {
 
     try {
         if (!(await ensureLegalConsent('login')) || controller.signal.aborted) return;
+        const proof = await acquireCaptchaProof('password_login', controller.signal);
+        controller.signal.throwIfAborted();
+        const headers = {'Content-Type': 'application/json'};
+        if (proof) headers['X-Renop-Captcha'] = proof;
         const beginRes = await fetch('/api/auth/fido/login/begin', {
             method: 'POST',
             signal: controller.signal,
-            headers: {'Content-Type': 'application/json'},
+            headers,
             body: JSON.stringify({username: name})
         });
         controller.signal.throwIfAborted();
@@ -557,7 +562,7 @@ export async function fidoLogin() {
         }
     } catch (error) {
         if (controller.signal.aborted) return;
-        loginError.textContent = passkeyErrorMessage(error);
+        loginError.textContent = error instanceof LocalizedResponseError ? error.message : passkeyErrorMessage(error);
         loginError.style.display = 'block';
     } finally {
         if (fidoLoginAbort === controller) fidoLoginAbort = undefined;

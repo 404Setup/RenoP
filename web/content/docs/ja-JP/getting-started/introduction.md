@@ -2,49 +2,49 @@
 title: はじめに
 order: 1
 category: はじめに
-description: 統合型セルフホスト package publication platform としての RenoP
+description: 統合型セルフホスト型パッケージ配布プラットフォームとしての RenoP
 ---
 
 # RenoP について
 
-RenoP は統合型のセルフホスト package publication/distribution server です。Maven 専用 repository ではなく
-private Central に近いモデルで、1 つの Go process に管理 UI、identity、team、verification、catalog、mirror、
-storage、audit、update を統合します。
+RenoP は統合型のセルフホスト型パッケージ配布・配信サーバーです。Maven 専用リポジトリではなく
+Maven Central に近いプライベートモデルで、1 つの Go プロセスに管理 UI、識別情報、チーム、検証、カタログ、ミラー、
+ストレージ、監査、更新管理を統合します。
 
 ## 対応プロトコル
 
-- **Maven / Gradle**: 検証済み global domain、modern catalog、classic layout 互換、Maven 2 path、mirror、
+- **Maven / Gradle**: 検証済みグローバルドメイン、モダンカタログ、クラシックレイアウト互換、Maven 2 パス、ミラー、
   Javadoc、OpenPGP 分離署名。
-- **Cargo**: Sparse Index、明示的所有権、publication、search、yank/unyank、mirror、Cargodoc。
-- **npm**: 明示的なパッケージ予約、不変バージョン、scoped private package、dist-tag、team、mirror。
-- **Docker / OCI**: Distribution v2、image 予約、private team、chunked blob、cross-repository mount、multi-arch、mirror。
-- **Files**: mirror と上書きを備え、Maven metadata や署名 workflow を生成しない非構造化 storage。
+- **Cargo**: Sparse Index、明示的所有権、公開、検索、yank/unyank、ミラー、Cargodoc。
+- **npm**: 明示的なパッケージ予約、不変バージョン、スコープ付きプライベートパッケージ、配布タグ、チーム、ミラー。
+- **Docker / OCI**: Distribution v2、イメージ予約、プライベートチーム、分割ブロブ転送、クロスリポジトリマウント、マルチアーキテクチャ、ミラー。
+- **Files**: ミラーと上書きを備え、Maven メタデータや署名ワークフローを生成しない非構造化ストレージ。
 
 ## ストレージとデータベース
 
-- **Storage**: streaming local Disk または repository 固有 S3-compatible object storage。
-- **Database**: 既定の組み込み SQLite、外部 MySQL、PostgreSQL。
-- **Consistency**: repository gate が upload、delete、mirror commit、GPG、engine/storage 変更を調整し、巨大 object
-  全体を memory に読みません。
+- **ストレージ**: ストリーミング型ローカルディスク、またはリポジトリ固有の S3 互換オブジェクトストレージ。
+- **データベース**: 既定の組み込み SQLite、外部 MySQL、PostgreSQL。
+- **整合性**: リポジトリゲートがアップロード、削除、ミラーコミット、GPG、エンジン/ストレージ変更を調整し、大きなオブジェクト
+  全体をメモリに読み込みません。
 
 ## 主な機能
 
-| 機能                | 説明                                                                   |
-|:--------------------|:-----------------------------------------------------------------------|
-| **単一サービス**    | 別 application runtime なしで frontend と protocol API を内蔵          |
-| **Global identity** | username 公開 profile と不変 internal user ID                          |
-| **細粒度アクセス**  | repository permission、L0-L4 team、対象/期限付き API Token             |
-| **検証済み公開**    | Maven domain 所有権、上流名競合、任意 OpenPGP quarantine               |
-| **運用**            | native service、scheduled task、durable audit/message、in-place update |
-| **防御**            | bounded streaming、rate limit、ban、trusted proxy、sandboxed viewer    |
+| 機能               | 説明                                                                               |
+|:-------------------|:-----------------------------------------------------------------------------------|
+| **単一サービス**   | 別のアプリケーション実行環境なしでフロントエンドとプロトコル API を内蔵            |
+| **グローバル識別** | ユーザー名の公開プロフィールと不変の内部ユーザー ID                                |
+| **細粒度アクセス** | リポジトリ権限、L0-L4 チーム、対象・期限付き API トークン                          |
+| **検証済み公開**   | Maven ドメイン所有権、上流名競合、任意 OpenPGP 隔離                                |
+| **運用**           | ネイティブサービス、定期タスク、永続監査・メッセージ、インプレース更新             |
+| **防御**           | 上限付きストリーミング、レート制限、アクセス停止、信頼プロキシ、サンドボックス表示 |
 
 ## ドキュメント案内
 
-- [インストール](./install.md) — release package、platform、source build
-- [クイックスタート](./quickstart.md) — 初回起動、管理者、repository 作成
-- [アーキテクチャ](./architecture.md) — module、認可、storage、task
+- [インストール](./install.md) — リリースパッケージ、プラットフォーム、ソースビルド
+- [クイックスタート](./quickstart.md) — 初回起動、管理者、リポジトリ作成
+- [アーキテクチャ](./architecture.md) — モジュール、認可、ストレージ、タスク
 - [設定](../configuration/overview.md) — 検証済み設定と環境変数
-- [Maven / Gradle](../guides/maven-client.md) — 検証 domain と JVM client
-- [Cargo](../guides/cargo-registry.md) — Sparse registry と crate lifecycle
-- [Docker / OCI](../guides/docker-registry.md) — image 予約、login、push、pull
-- [npm Registry](../guides/npm-registry.md) — package 予約、client 設定、publication、team
+- [Maven / Gradle](../guides/maven-client.md) — 検証ドメインと JVM クライアント
+- [Cargo](../guides/cargo-registry.md) — Sparse レジストリと crate ライフサイクル
+- [Docker / OCI](../guides/docker-registry.md) — イメージ予約、ログイン、push、pull
+- [npm Registry](../guides/npm-registry.md) — パッケージ予約、クライアント設定、公開、チーム

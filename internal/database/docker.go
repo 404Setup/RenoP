@@ -458,7 +458,7 @@ func (db *DB) UpdateDockerImageDescription(repository, imageName, description st
 		return core.ErrDatabaseUnavailable
 	}
 	repository, imageName = sanitizeDockerKey(repository, imageName)
-	description = strings.TrimSpace(SanitizeInputString(description, 4000))
+	description = strings.TrimSpace(SanitizeInputString(description, 60))
 	now := time.Now().UnixMilli()
 	tx, err := db.Begin()
 	if err != nil {

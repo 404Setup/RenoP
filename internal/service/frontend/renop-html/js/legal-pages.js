@@ -10,7 +10,7 @@
 
 import {el} from '@renop/ui/dom';
 import {handleBackClick} from './back-navigation.js';
-import {t} from './i18n.js';
+import {getLanguage, t} from './i18n.js';
 import {setSafeMarkdown} from './markdown.js';
 import {LEGAL_DOCUMENTS, legalPageFromPath} from './legal-consent.js';
 import {readLegalTextResponse} from './legal-response.js';
@@ -22,33 +22,44 @@ const documentFetchedAt = new Map();
 const inflightFetches = new Map();
 let cacheEpoch = 0;
 
+function activeLanguageTag() {
+    try {
+        return getLanguage()?.current || '';
+    } catch {
+        return '';
+    }
+}
+
 /** Fetch and cache one legal document, coalescing concurrent reads. */
 async function fetchLegalDocument(documentName, signal) {
-    if (documentCache.has(documentName) && Date.now() - documentFetchedAt.get(documentName) < 60000) {
-        return documentCache.get(documentName);
+    const lang = activeLanguageTag();
+    const cacheKey = `${documentName}:${lang || 'default'}`;
+    if (documentCache.has(cacheKey) && Date.now() - documentFetchedAt.get(cacheKey) < 60000) {
+        return documentCache.get(cacheKey);
     }
-    if (inflightFetches.has(documentName)) {
-        return inflightFetches.get(documentName);
+    if (inflightFetches.has(cacheKey)) {
+        return inflightFetches.get(cacheKey);
     }
     const cacheVersion = cacheEpoch;
     const promise = (async () => {
         try {
-            const response = await fetch('/api/legal/' + documentName, {
+            const url = '/api/legal/' + documentName + (lang ? `?lang=${encodeURIComponent(lang)}` : '');
+            const response = await fetch(url, {
                 credentials: 'omit',
                 cache: 'default',
                 signal: signal || AbortSignal.timeout(15000),
             });
             const content = await readLegalTextResponse(response);
             if (cacheVersion === cacheEpoch) {
-                documentCache.set(documentName, content);
-                documentFetchedAt.set(documentName, Date.now());
+                documentCache.set(cacheKey, content);
+                documentFetchedAt.set(cacheKey, Date.now());
             }
             return content;
         } finally {
-            if (cacheVersion === cacheEpoch) inflightFetches.delete(documentName);
+            if (cacheVersion === cacheEpoch) inflightFetches.delete(cacheKey);
         }
     })();
-    inflightFetches.set(documentName, promise);
+    inflightFetches.set(cacheKey, promise);
     return promise;
 }
 
@@ -67,7 +78,9 @@ export async function updateLegalPage(active) {
     showing = true;
     const title = t(LEGAL_DOCUMENTS[documentName]);
     document.title = title + ' · ' + siteTitle;
-    const cached = documentCache.get(documentName);
+    const lang = activeLanguageTag();
+    const cacheKey = `${documentName}:${lang || 'default'}`;
+    const cached = documentCache.get(cacheKey);
     const body = el('article', {class: 'legal-document markdown-body', 'aria-busy': cached ? 'false' : 'true'});
     if (cached) {
         setSafeMarkdown(body, cached);
@@ -107,6 +120,13 @@ export function initializeLegalPages() {
         cacheEpoch++;
         documentCache.clear();
         documentFetchedAt.clear();
+        inflightFetches.clear();
+        if (showing) void updateLegalPage(true);
+    });
+
+    window.addEventListener('languageChanged', () => {
+        // Clear in-flight fetches so the next updateLegalPage creates a fresh request
+        // instead of awaiting a promise that may already be aborting due to the language switch.
         inflightFetches.clear();
         if (showing) void updateLegalPage(true);
     });

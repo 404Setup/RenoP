@@ -14,9 +14,9 @@ reCAPTCHA v2 invisible, reCAPTCHA v3, Cloudflare Turnstile, hCaptcha, and Friend
 and secret/API key from the provider.
 
 Choose password login, registration, manual email, global-team creation, publishing-domain creation, and package
-creation independently. Passkey and provider login do not use the password-login switch. A registration email request
-uses manual-mail verification when enabled, otherwise registration verification. Completing registration is a separate
-protected action.
+creation independently. When security verification is enabled, initiating third-party login or Passkey login requires
+completing verification and providing a valid proof. A registration email request uses manual-mail verification when
+enabled, otherwise registration verification. Completing registration is a separate protected action.
 
 Only interactive browser/anonymous actions require challenges. Valid API-token and protocol-password credentials remain
 exempt; this is determined by verified server-side credentials, never User-Agent. Maven browser uploads and
@@ -61,8 +61,8 @@ failures, email submission uncertainty, and other errors do not trigger automati
 `POST /api/captcha/verify` accepts JSON fields `scope`, `provider`, `site_key`, and `response`; responses are limited to
 16 KiB and the JSON request to 32 KiB. Successful verification returns a single-use `proof`, valid for 120 seconds.
 
-Send the proof in `X-Renop-Captcha` with the same browser cookies when retrying the protected operation. It is bound to
-the scope, browser session, and current provider configuration. Missing verification returns `428` with
+Send the proof in `X-Renop-Captcha` or via query parameter (`captcha` or `proof`) with the same browser cookies when retrying
+the protected operation. It is bound to the scope, browser session, and current provider configuration. Missing verification returns `428` with
 `X-Renop-Error-Code: captcha_required` and `X-Renop-Captcha-Scope`; invalid/replayed proofs return `400`. Provider
 failures return `503`.
 

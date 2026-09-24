@@ -678,7 +678,20 @@ func TestDockerRESTAPIs(t *testing.T) {
 		t.Fatalf("expected updated description in details, got %+v", detailsWithDesc.Image)
 	}
 
-	oversizedReadme := `{"description":"` + strings.Repeat("x", maxDockerReadmeBytes+1) + `"}`
+	oversizedDesc := `{"description":"` + strings.Repeat("x", maxDockerDescriptionBytes+1) + `"}`
+	oversizedDescReq := httptest.NewRequest(http.MethodPut, "/api/docker/repositories/docker-pub/images/web/backend", strings.NewReader(oversizedDesc))
+	oversizedDescReq.Header.Set("Content-Type", "application/json")
+	oversizedDescReq.Header.Set("Authorization", "Bearer admin-test-token")
+	oversizedDescResp, err := app.Test(oversizedDescReq)
+	if err != nil || oversizedDescResp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("oversized Docker description response: %v (status: %d)", err, oversizedDescResp.StatusCode)
+	}
+	if code := oversizedDescResp.Header.Get(dockerAPIErrorCodeHeader); code != "description_too_large" {
+		t.Fatalf("oversized Docker description error code = %q", code)
+	}
+	_ = oversizedDescResp.Body.Close()
+
+	oversizedReadme := `{"readme":"` + strings.Repeat("x", maxDockerReadmeBytes+1) + `"}`
 	oversizedReadmeReq := httptest.NewRequest(http.MethodPut, "/api/docker/repositories/docker-pub/images/web/backend", strings.NewReader(oversizedReadme))
 	oversizedReadmeReq.Header.Set("Content-Type", "application/json")
 	oversizedReadmeReq.Header.Set("Authorization", "Bearer admin-test-token")

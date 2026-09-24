@@ -32,5 +32,8 @@ export default Object.freeze({
     "legal.necessaryOnly": "Только необходимые",
     "legal.acceptAll": "Принять все",
     "legal.cookiePreferences": "Настройки cookie",
-    "legal.savePreferences": "Сохранить настройки"
+    "legal.savePreferences": "Сохранить настройки",
+    "legal.language": "Язык документа",
+    "legal.defaultLanguage": "Английский (По умолчанию)",
+    "legal.translationNotice": "Выберите версию языка для редактирования. По умолчанию экземпляр предоставляет только английский язык."
 });

@@ -18,6 +18,7 @@ import {attachPasswordStrength, confirmWeakPasswordIfNeeded, getPasswordLengthEr
 import {getUserProfile, invalidateUserProfiles} from '../user-profiles.js';
 import {writeClipboardText} from '../clipboard.js';
 import {responseErrorMessage} from '../response-errors.js';
+import {morphElementHeight} from '@renop/ui/height-anim';
 import {
     cancelUserPermissionLoad,
     populateUserPermissions,
@@ -341,39 +342,49 @@ export async function openUserModal(account = null) {
         const prevBtn = document.getElementById('user-editor-prev');
         const nextBtn = document.getElementById('user-editor-next');
         const submitBtn = document.getElementById(userEditorIds.submit);
+        const modalContent = document.getElementById(userEditorIds.modal)?.querySelector('.modal-content')
+            || document.querySelector(`#${userEditorIds.modal} .modal-content`);
 
-        if (currentModalStep === 1) {
-            step2.style.display = 'none';
-            step1.style.display = 'block';
-            step1.classList.remove('step-slide-forward', 'step-slide-backward');
-            void step1.offsetWidth;
-            step1.classList.add('step-slide-backward');
+        const mutate = () => {
+            if (currentModalStep === 1) {
+                step2.style.display = 'none';
+                step1.style.display = 'block';
+                step1.classList.remove('step-slide-forward', 'step-slide-backward');
+                void step1.offsetWidth;
+                step1.classList.add('step-slide-backward');
 
-            step1Tab.classList.add('active');
-            step1Tab.setAttribute('aria-current', 'step');
-            step2Tab.classList.remove('active');
-            step2Tab.removeAttribute('aria-current');
+                step1Tab.classList.add('active');
+                step1Tab.setAttribute('aria-current', 'step');
+                step2Tab.classList.remove('active');
+                step2Tab.removeAttribute('aria-current');
 
-            if (cancelBtn) cancelBtn.style.display = '';
-            if (prevBtn) prevBtn.style.display = 'none';
-            if (nextBtn) nextBtn.style.display = '';
-            if (submitBtn) submitBtn.style.display = 'none';
+                if (cancelBtn) cancelBtn.style.display = '';
+                if (prevBtn) prevBtn.style.display = 'none';
+                if (nextBtn) nextBtn.style.display = '';
+                if (submitBtn) submitBtn.style.display = 'none';
+            } else {
+                step1.style.display = 'none';
+                step2.style.display = 'block';
+                step2.classList.remove('step-slide-forward', 'step-slide-backward');
+                void step2.offsetWidth;
+                step2.classList.add('step-slide-forward');
+
+                step2Tab.classList.add('active');
+                step2Tab.setAttribute('aria-current', 'step');
+                step1Tab.classList.remove('active');
+                step1Tab.removeAttribute('aria-current');
+
+                if (cancelBtn) cancelBtn.style.display = 'none';
+                if (prevBtn) prevBtn.style.display = '';
+                if (nextBtn) nextBtn.style.display = 'none';
+                if (submitBtn) submitBtn.style.display = '';
+            }
+        };
+
+        if (modalContent) {
+            void morphElementHeight(modalContent, mutate, {duration: 260});
         } else {
-            step1.style.display = 'none';
-            step2.style.display = 'block';
-            step2.classList.remove('step-slide-forward', 'step-slide-backward');
-            void step2.offsetWidth;
-            step2.classList.add('step-slide-forward');
-
-            step2Tab.classList.add('active');
-            step2Tab.setAttribute('aria-current', 'step');
-            step1Tab.classList.remove('active');
-            step1Tab.removeAttribute('aria-current');
-
-            if (cancelBtn) cancelBtn.style.display = 'none';
-            if (prevBtn) prevBtn.style.display = '';
-            if (nextBtn) nextBtn.style.display = 'none';
-            if (submitBtn) submitBtn.style.display = '';
+            mutate();
         }
     }
 

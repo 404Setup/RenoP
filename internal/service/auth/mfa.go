@@ -229,7 +229,7 @@ func prepareBrowserLogin(c fiber.Ctx, state *core.AppState, username, method, ex
 		}
 		return mfa.Snapshot, nil
 	}
-	if method == "fido" {
+	if method == "fido" || method == "github" || strings.HasPrefix(method, "oauth:") {
 		return mfa.Snapshot, nil
 	}
 	if !mfa.Enabled() {

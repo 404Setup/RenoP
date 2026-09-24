@@ -2,38 +2,38 @@
 title: セキュリティと権限
 order: 1
 category: セキュリティ
-description: Credential boundary、repository permission、package team、defense in depth
+description: 認証境界、リポジトリ権限、パッケージチーム、多層防御の設計
 ---
 
 # セキュリティと権限
 
-RenoP は credential type、API Token capability、account role、repository visibility、対象 team を組み合わせて
-認可します。所有 account が失った権限を credential が保持することはありません。
+RenoP は認証情報の種類、API トークン権限、アカウントの役割、リポジトリ公開範囲、対象チーム権限を組み合わせて
+認可を判定します。所有アカウントが失った権限をトークン等の認証情報が保持し続けることはありません。
 
-## Account / system role
+## アカウントとシステム権限
 
-| Role または permission                 | 効果                                                                      |
+| 役割または権限                         | 効果                                                                      |
 |:---------------------------------------|:--------------------------------------------------------------------------|
-| Anonymous                              | `PUBLIC` と `HIDDEN` の既知 exact path を読む                             |
-| `base`                                 | 暗黙 repository write のない認証 account                                  |
-| `canview:{repo}` / `canview:*`         | 指定または全 repository を private 含め read                              |
-| `canmoderate:{repo}` / `canmoderate:*` | 指定または全 repository の保留中 content を審査                           |
-| `canupdate:{repo}` / `canupdate:*`     | package/domain policy の範囲で publish                                    |
+| Anonymous（未認証）                    | `PUBLIC` および `HIDDEN` の正確なパスを読み取る                           |
+| `base`                                 | リポジトリへの暗黙の書き込み権限を持たない認証済みアカウント              |
+| `canview:{repo}` / `canview:*`         | 指定または全リポジトリを非公開含め読み取る                                |
+| `canmoderate:{repo}` / `canmoderate:*` | 指定または全リポジトリの審査待ち成果物を審査する                          |
+| `canupdate:{repo}` / `canupdate:*`     | パッケージやドメイン方針の範囲内で公開する                                |
 | `showing`                              | 旧バージョンとの互換用権限。非表示リポジトリを一覧に表示する              |
-| `allview` / `proview`                  | legacy global private-read alias                                          |
-| `manager` / `admin`                    | user、repository、settings、audit、update、全 team の super administrator |
+| `allview` / `proview`                  | 従来の全体非公開読み取り権限（互換用別名）                                |
+| `manager` / `admin`                    | ユーザー、リポジトリ、システム設定、監査ログ、更新、全チームを管理するスーパー管理者 |
 
-system admin は global です。package team L0-L4 は通常 collaboration の権限として分離します。admin operation
-は audit され、表示 team member を暗黙作成しません。
-moderator permission は審査に必要な private visibility を含みますが、publish、user 管理、repository 設定、
-system settings の変更は許可しません。
+システム管理者はインスタンス全体に適用されます。パッケージチームの L0-L4 は日常の開発共同作業の権限として分離されています。管理者の
+操作はすべて監査ログに記録され、表示上のチームメンバーを暗黙に作成することはありません。
+審査者権限には審査に必要な非公開リポジトリの閲覧権限が含まれますが、パッケージの公開、ユーザー管理、リポジトリ設定、
+システム設定の変更権限は含まれません。
 
-管理者とモデレーターは、その権限を持つ間は利用停止にできません。利用停止にする前に、管理者とモデレーターの権限をすべて解除してください。利用停止中のアカウントにこれらの権限を付与するには、先に利用停止を解除する必要があります。データベースは権限変更や名前変更を含め、アカウントのトランザクション内で両方の操作を検証します。競合時は
+管理者と審査者は、その権限を持つ間は利用停止にできません。利用停止にする前に、管理者と審査者の権限をすべて解除してください。利用停止中のアカウントにこれらの権限を付与するには、先に利用停止を解除する必要があります。データベースは権限変更や名前変更を含め、アカウントのトランザクション内で両方の操作を検証します。競合時は
 `409` と `ACCOUNT_BAN_PROTECTED` を返し、利用停止が拒否された場合は既存のセッションを維持します。
 
 ## アカウントと IP の利用停止
 
-システム管理者はユーザーページで理由、有効期限（任意）を指定し、「記録済みのログイン IP
+システム管理者はユーザー管理画面で理由、有効期限（任意）を指定し、「記録済みのログイン IP
 もブロック」を選択してアカウントを利用停止にできます。サーバーは保持中のセッション（最終活動時刻が新しい64件）と過去30日間の直近256件のログイン成功記録から、最大64個の正規化したアドレスを収集します。有効な
 IP 制限に含まれるアドレスも保持します。ブラウザーから任意のアドレスを指定することはできません。利用できるアドレスがない場合、操作全体が
 `409 ACCOUNT_BAN_IP_UNKNOWN` で失敗します。オプションを外すとアカウントのみ利用停止にできます。
@@ -55,35 +55,35 @@ API はシステム管理者の権限を必要とし、非公開でキャッシ�
 | PUT      | `/api/tokens/:name/ban` | `{reason,expires_at,ban_ip}`。有効期限は null 可 |
 | DELETE   | `/api/tokens/:name/ban` | アカウントの利用停止と IP 制限を解除。`204`      |
 
-## Repository / team layer
+## リポジトリとチーム階層
 
 - 可視性による発見と読み取りの境界は `PUBLIC`、権限に応じて表示する `HIDDEN`、認証が必要な `PRIVATE` です。
-- repository permission は npm/Cargo/Docker package 作成や Maven domain 検証を自動で行いません。
-- npm/Cargo/Docker team は L0 read、L1 publish、L2 lifecycle/metadata、L3 member、L4 owner です。
-- Maven team は検証済み global domain に属し、全 Maven repository で有効です。
-- private Docker image は public L0 を暗黙付与せず、blob も読める image に制限します。
-- private npm package は scoped 名が必須で、明示 member または administrator を要求します。
+- リポジトリ権限があっても、npm/Cargo/Docker のパッケージ作成や Maven ドメインの所有権検証は自動的には行われません。
+- npm/Cargo/Docker チーム権限は、L0（閲覧）、L1（公開）、L2（ライフサイクル/メタデータ）、L3（メンバー管理）、L4（所有者）に分かれます。
+- Maven チーム権限は検証済みグローバルドメインに属し、すべての Maven リポジトリで有効です。
+- 非公開 Docker イメージは閲覧権限（L0）を暗黙付与せず、ブロブの取得権限も所属イメージに限定されます。
+- 非公開 npm パッケージはスコープ付き名が必須で、明示的なメンバー権限または管理者権限を要求します。
 
-## Credential transport
+## 認証情報の伝達方式
 
-- **Browser session**: HttpOnly `renop_session`。private security と Token management に必要。
-- **Basic**: username + password/API Token。標準 package protocol 専用。
-- **Bearer API Token**: API/package automation の capability と exact target policy。
-- **Docker Bearer**: source credential と image が許可した action だけの短期 token。
+- **ブラウザーセッション**: HttpOnly な Cookie `renop_session`。アカウントセキュリティやトークン管理に必要。
+- **Basic 認証**: ユーザー名 + パスワードまたは API トークン。標準パッケージプロトコル専用。
+- **Bearer API トークン**: API や自動化処理用の操作権限と対象制限ポリシー。
+- **Docker Bearer トークン**: 元の認証情報と対象イメージで許可された操作のみを付与した短期トークン。
 
-`Authorization: Session`、URL session secret、query credential は拒否します。Token scope/target は現在の
-account authorization と常に交差します。
+`Authorization: Session`、URL 内のセッション値、クエリパラメータによる認証情報は拒否します。トークンのスコープや
+対象制限は、現在のアカウント認可と常に突き合わせて判定されます。
 
 セッション復元時に `403` を受け取ってもブラウザーからログアウトしません。有効なセッションにも IP や権限の制限が適用される場合があります。
 `401` の場合は再ログインが必要です。
 
-## Defense in depth
+## 多層防御（Defense in Depth）
 
-- password/recovery code は salted one-way verification、API Token plaintext は非永続です。
-- session は idle expiry と device revoke に対応し、recovery は既存 session を atomic に失効します。
-- rate limit、progressive ban、active bound、trusted proxy validation が network を保護します。
-- upload、archive、mirror、update は bounded streaming、path validation、hash、temp storage を使います。
-- audit と durable message は security result を記録し、neutral notification では operator を公開しません。
+- パスワードや復旧コードはソルト付きの一方向ハッシュで検証し、API トークンの平文は保存されません。
+- セッションは無操作タイムアウトや端末ごとの取り消しに対応し、アカウント復旧時は既存セッションを不可分（アトミック）に失効させます。
+- レート制限、段階的なアクセス遮断、同時実行数制限、信頼済みプロキシ検証によってネットワークを保護します。
+- アップロード、アーカイブ展開、ミラー取得、自動更新は、上限付きストリーミング、パス検証、ハッシュ確認、一時ストレージを用いて安全に処理されます。
+- 監査ログと永続メッセージによりセキュリティ操作の結果を記録し、一般通知では操作者の詳細を公開しません。
 
 リポジトリの GET/HEAD は、メタデータ、Range、ミラー読み取りを含め、クライアントネットワークごとに毎秒 20 件、バースト 240
 件の枠を共有します。認証済みのダウンロードも対象です。IPv4 マップアドレスは正規化され、IPv6 一時アドレスは /64
@@ -91,7 +91,7 @@ account authorization と常に交差します。
 
 ## プロフィールの公開範囲
 
-プロフィール設定で非公開プロフィールを有効にできます。本人、システム管理者、いずれかのリポジトリのモデレーター（
+プロフィール設定で非公開プロフィールを有効にできます。本人、システム管理者、いずれかのリポジトリの審査者（
 `canmoderate:<repository>` または `canmoderate:*`
 ）のみがプロフィール、アバター、所属一覧を閲覧できます。一般ユーザーの招待候補から非公開アカウントを除外しますが、完全なユーザー名による招待は可能です。アバターのハッシュが変わらなくても公開範囲を確認します。
 

@@ -14,9 +14,9 @@ invisible, reCAPTCHA v3, Cloudflare Turnstile, hCaptcha et Friendly Captcha v2. 
 secrètes/API correspondantes.
 
 Activez séparément connexion par mot de passe, inscription, courriel manuel, création d’équipe globale, de domaine et de
-paquet. Passkey et connexion externe ne sont pas concernés par le contrôle du mot de passe. Pour le courriel
-d’inscription, le contrôle manuel est prioritaire, sinon celui d’inscription. Terminer l’inscription est une action
-distincte.
+paquet. Lorsque la vérification de sécurité est activée, lancer une connexion externe ou par Passkey exige de réussir la
+vérification et de fournir une preuve valide. Pour le courriel d’inscription, le contrôle manuel est prioritaire, sinon
+celui d’inscription. Terminer l’inscription est une action distincte.
 
 Les contrôles concernent les actions interactives ou anonymes. Les jetons API et mots de passe de protocole validés
 restent exemptés selon les identifiants vérifiés, jamais le User-Agent. Les envois Maven du navigateur et leur
@@ -62,7 +62,7 @@ réseau, résultats inconnus d’envoi de courriel et autres échecs ne déclenc
 accepte les champs JSON `scope`, `provider`, `site_key` et `response`, avec une réponse CAPTCHA limitée à 16 KiB et un
 corps JSON à 32 KiB. Le succès renvoie un `proof` à usage unique valable 120 secondes.
 
-Envoyez ce justificatif dans `X-Renop-Captcha` avec les mêmes cookies. Il est lié à l’action, à la session et à la
+Envoyez ce justificatif dans `X-Renop-Captcha` ou par paramètre de requête (`captcha` ou `proof`) avec les mêmes cookies. Il est lié à l’action, à la session et à la
 configuration. Une preuve absente donne `428`, `X-Renop-Error-Code: captcha_required` et `X-Renop-Captcha-Scope` ; une
 preuve invalide ou réutilisée donne `400`. Les pannes du fournisseur donnent `503`.
 

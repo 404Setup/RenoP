@@ -187,7 +187,8 @@ func RevokeOtherSessions(c fiber.Ctx, state *core.AppState) error {
 }
 
 type banIPRequest struct {
-	IP string `json:"ip"`
+	IP       string `json:"ip"`
+	Username string `json:"username"`
 }
 
 func ListAccountIPBans(c fiber.Ctx, state *core.AppState) error {
@@ -196,11 +197,15 @@ func ListAccountIPBans(c fiber.Ctx, state *core.AppState) error {
 		return c.Status(fiber.StatusUnauthorized).SendString("Unauthorized")
 	}
 	user := userInt.(*config.User)
+	username := user.Username
+	if target := strings.TrimSpace(c.Query("username")); target != "" && user.IsManager() {
+		username = target
+	}
 	db := state.GetDB()
 	if db == nil {
 		return c.Status(fiber.StatusInternalServerError).SendString("Database unavailable")
 	}
-	ips, err := db.ListAccountBannedIPs(user.Username)
+	ips, err := db.ListAccountBannedIPs(username)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString("Failed to list banned IPs")
 	}
@@ -218,16 +223,20 @@ func BanAccountIP(c fiber.Ctx, state *core.AppState) error {
 	if err := utils.ReadJSONLimited(c, &req, 1024); err != nil || strings.TrimSpace(req.IP) == "" {
 		return c.Status(fiber.StatusBadRequest).SendString("Invalid IP address")
 	}
+	username := user.Username
+	if target := strings.TrimSpace(req.Username); target != "" && user.IsManager() {
+		username = target
+	}
 	db := state.GetDB()
 	if db == nil {
 		return c.Status(fiber.StatusInternalServerError).SendString("Database unavailable")
 	}
-	if err := db.BanAccountIP(user.Username, strings.TrimSpace(req.IP)); err != nil {
+	if err := db.BanAccountIP(username, strings.TrimSpace(req.IP)); err != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString("Failed to ban IP")
 	}
 	_, op, authMethod, sID, ip := audit.ExtractAuthDetails(c, state)
 	audit.Log(state, &core.AuditLogEntry{
-		Username:   user.Username,
+		Username:   username,
 		Operator:   op,
 		Action:     audit.ActionUserBan,
 		Details:    "Blocked IP " + req.IP + " for account",
@@ -249,16 +258,20 @@ func UnbanAccountIP(c fiber.Ctx, state *core.AppState) error {
 	if targetIP == "" {
 		return c.Status(fiber.StatusBadRequest).SendString("Invalid IP address")
 	}
+	username := user.Username
+	if target := strings.TrimSpace(c.Query("username")); target != "" && user.IsManager() {
+		username = target
+	}
 	db := state.GetDB()
 	if db == nil {
 		return c.Status(fiber.StatusInternalServerError).SendString("Database unavailable")
 	}
-	if err := db.UnbanAccountIP(user.Username, targetIP); err != nil {
+	if err := db.UnbanAccountIP(username, targetIP); err != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString("Failed to unban IP")
 	}
 	_, op, authMethod, sID, ip := audit.ExtractAuthDetails(c, state)
 	audit.Log(state, &core.AuditLogEntry{
-		Username:   user.Username,
+		Username:   username,
 		Operator:   op,
 		Action:     audit.ActionUserUnban,
 		Details:    "Unblocked IP " + targetIP + " for account",

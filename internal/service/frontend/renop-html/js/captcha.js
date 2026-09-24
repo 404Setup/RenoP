@@ -278,3 +278,19 @@ export async function captchaFetch(url, options = {}) {
     for (const [key, value] of Object.entries(approval)) headers.set(key, value);
     return fetch(url, {...options, headers});
 }
+
+/** Acquire a single-use CAPTCHA proof token before an action, or empty string if disabled. */
+export async function acquireCaptchaProof(scope, signal) {
+    if (!scopes.has(scope)) return '';
+    if (pending >= 8) throw new LocalizedResponseError(t('captcha.unavailable'));
+    const epoch = generation;
+    pending++;
+    const task = queue.then(() => challenge(scope, signal, epoch)).finally(() => {
+        pending--;
+    });
+    queue = task.catch(() => {
+    });
+    const proof = await task;
+    if (epoch !== generation || signal?.aborted) throw new LocalizedResponseError(t('captcha.cancelled'));
+    return proof || '';
+}

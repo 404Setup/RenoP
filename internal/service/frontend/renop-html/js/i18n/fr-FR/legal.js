@@ -32,5 +32,8 @@ export default Object.freeze({
     "legal.necessaryOnly": "Nécessaires uniquement",
     "legal.acceptAll": "Tout accepter",
     "legal.cookiePreferences": "Préférences de cookies",
-    "legal.savePreferences": "Enregistrer les préférences"
+    "legal.savePreferences": "Enregistrer les préférences",
+    "legal.language": "Langue du document",
+    "legal.defaultLanguage": "Anglais (Par défaut)",
+    "legal.translationNotice": "Sélectionnez la version linguistique à modifier. L'instance ne fournit par défaut que l'anglais."
 });

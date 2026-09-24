@@ -2,35 +2,35 @@
 title: インストールとビルド
 order: 2
 category: はじめに
-description: Brotli package、CPU tier、検証、source build
+description: Brotli パッケージ、CPU ティア、検証、ソースビルド
 ---
 
 # インストールとビルド
 
 ## ビルド済みバイナリ
 
-[ダウンロードセンター](/download)または公式 channel から raw Brotli package を取得します。
+[ダウンロードセンター](/download)または公式チャネルから Brotli パッケージを取得します。
 
-- **Stable**: production 推奨 — `https://mvnc.pkg.one/update/renop/stable/`
-- **Nightly**: 最新変更を含む daily build — `https://mvnc.pkg.one/update/renop/nightly/`
+- **Stable**: 本番環境推奨 — `https://mvnc.pkg.one/update/renop/stable/`
+- **Nightly**: 最新変更を含む日次ビルド — `https://mvnc.pkg.one/update/renop/nightly/`
 
-新形式は RFC 7932 の `.br` stream です。ダウンロードセンターは browser 内で legacy ZIP に変換できます。
+新形式は RFC 7932 の `.br` ストリームです。ダウンロードセンターはブラウザー内で従来の ZIP に変換できます。
 
 ## x86-64 tier
 
-| Tier                   | Instruction                     | 推奨用途                                     |
-|:-----------------------|:--------------------------------|:---------------------------------------------|
-| **x86-64-v1**          | baseline x86-64                 | 旧 server と generic VM                      |
-| **x86-64-v2**          | SSE3, SSSE3, SSE4.1/4.2, POPCNT | 2008 年以降の一般 Intel/AMD                  |
-| **x86-64-v3** *(推奨)* | AVX, AVX2, BMI1/2, FMA3         | Intel Haswell、AMD Zen 2 以降                |
-| **x86-64-v4**          | AVX-512 foundation              | AVX-512 を確認済みの high-performance server |
-| **ARM64**              | NEON, Crypto                    | Apple Silicon、Graviton、ARM64 Linux         |
+| Tier                   | Instruction                     | 推奨用途                             |
+|:-----------------------|:--------------------------------|:-------------------------------------|
+| **x86-64-v1**          | baseline x86-64                 | 旧サーバーと汎用 VM                  |
+| **x86-64-v2**          | SSE3, SSSE3, SSE4.1/4.2, POPCNT | 2008 年以降の一般 Intel/AMD          |
+| **x86-64-v3** *(推奨)* | AVX, AVX2, BMI1/2, FMA3         | Intel Haswell、AMD Zen 2 以降        |
+| **x86-64-v4**          | AVX-512 foundation              | AVX-512 を確認済みの高性能サーバー   |
+| **ARM64**              | NEON, Crypto                    | Apple Silicon、Graviton、ARM64 Linux |
 
-CPU が実際に対応する tier を選びます。v3/v4 binary は古い CPU へ動的に fall back しません。
+CPU が実際に対応するティアを選びます。v3/v4 バイナリは古い CPU へ動的にフォールバックしません。
 
 ## 検証と実行
 
-channel の `info.json` は各 target の SHA-256 を含みます。展開前に `.br` を検証します。
+チャネルの `info.json` は各ターゲットの SHA-256 を含みます。展開前に `.br` を検証します。
 
 ```bash
 # Linux
@@ -40,7 +40,7 @@ sha256sum -c SHA256SUMS --ignore-missing
 Get-FileHash -Algorithm SHA256 .\renop-windows-amd64v3.br
 ```
 
-raw stream を `renop` または `renop.exe` へ展開し、必要なら executable permission を付けて実行します。
+ストリームを `renop` または `renop.exe` へ展開し、必要なら実行権限を付けて実行します。
 
 - **Linux / macOS**: `./renop`
 - **Windows**: `.\renop.exe`
@@ -60,9 +60,9 @@ raw stream を `renop` または `renop.exe` へ展開し、必要なら executa
 Windows SCM、systemd、OpenRC、LaunchDaemons、rc.d に対応します。
 [サービス管理](../deployment/daemon.md)を参照してください。
 
-## source build
+## ソースビルド
 
-必要な toolchain:
+必要なツールチェーン:
 
 - **Go**: [404Setup/go](https://github.com/404Setup/go/releases) fork、Go 1.28+
 - **Frontend**: Node.js 24+ と pnpm
@@ -87,8 +87,8 @@ pwsh ./build.ps1 s       # Mainstream platforms (Linux/Windows amd64/amd64v4/arm
 pwsh ./build.ps1         # Full cross-compilation matrix
 ```
 
-script は Brotli encoder CLI を自動 install します。compile は最大 4 task で、target 完了ごとに compression を
-開始し、独立した最大 8 worker で並列処理します。
+スクリプトは Brotli エンコーダー CLI を自動インストールします。コンパイルは最大 4 タスクで、ターゲット完了ごとに圧縮を
+開始し、独立した最大 8 ワーカーで並列処理します。
 
 両方の HTML 入口はメタ情報とアプリのマウント先だけを保持します。`js/shell.js` は共有 DOM ヘルパーと `js/views/`
 のコンポーネントでナビゲーション、ページ、ダイアログを作成します。フロントエンドの `js/bootstrap.js`

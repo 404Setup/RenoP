@@ -135,25 +135,22 @@ func (d *decoder) Read(p []byte) (n int, err error) {
 	}
 
 	// Read a chunk.
-	nn := max((len(p)+4)/5*8, 8)
-	if nn > len(d.buf) {
-		nn = len(d.buf)
-	}
+	nn := min(max((len(p)+4)/5*8, 8), len(d.buf))
 
 	// Minimum amount of bytes that needs to be read each cycle
-	var min int
+	var minValue int
 	var expectsPadding bool
 	if d.enc.padChar == NoPadding {
-		min = 1
+		minValue = 1
 		expectsPadding = false
 	} else {
-		min = 8 - d.nbuf
+		minValue = 8 - d.nbuf
 		expectsPadding = true
 	}
 
-	nn, d.err = readEncodedData(d.r, d.buf[d.nbuf:nn], min, expectsPadding)
+	nn, d.err = readEncodedData(d.r, d.buf[d.nbuf:nn], minValue, expectsPadding)
 	d.nbuf += nn
-	if d.nbuf < min {
+	if d.nbuf < minValue {
 		return 0, d.err
 	}
 	if nn > 0 && d.end {

@@ -1,42 +1,44 @@
 ---
-title: Token と GPG 署名
+title: トークンと GPG 署名
 order: 2
 category: セキュリティ
-description: 細粒度 machine credential、recovery material、OpenPGP publication verification
+description: 詳細な自動化用認証情報、復旧コード、OpenPGP による公開検証
 ---
 
-# Token と GPG 署名
+# トークンと GPG 署名
 
-RenoP は browser session、API Token、password、recovery material、artifact signing key を分離し、それぞれ異なる
-storage、transport、revocation rule を適用します。
+RenoP はブラウザーセッション、API トークン、パスワード、復旧情報、成果物の署名鍵を明確に分離し、それぞれ異なる
+保存方式、通信経路、失効規則を適用します。
 
 [2段階認証](../security/two-step-verification.md)では、認証アプリの設定、追加認証用 Passkey、保留中のログイン応答、復旧について説明します。追加認証用
 Passkey は最初のログイン方法にはなりません。オフライン復旧は認証アプリを削除し、Passkey
 の追加認証を無効にします。メールによるパスワード再設定は両方を維持します。
 
-## API Token と recovery material
+## API トークンと復旧用コード
 
-API Token は 256 random bits と `rnp_pat_` prefix を使います。secret は一度だけ表示し、SHA-256 lookup digest
-だけを保存します。private label、scope、任意の exact repository/package/team/domain target、任意 expiry を持ちます。
-account は最大 50 Token、Token は最大 128 target です。
+API トークンは 256 ビットの乱数と接頭辞 `rnp_pat_` で構成されます。シークレット値は生成時に一度だけ表示され、
+データベースには照合用の SHA-256 ダイジェスト値のみが保存されます。プライベート識別名、スコープ、対象の制限（リポジトリ、
+パッケージ、チーム、ドメイン）、有効期限を設定できます。1 つのアカウントにつき最大 50 個のトークンを保持でき、各トークンには
+最大 128 個の対象制限を設定できます。
 
-least privilege と短い lifetime を使います。Token policy と account の現在の system/repository/domain/team
-permission の両方が必要です。revocation は auth cache を即時 clear します。legacy plaintext は hashed
-compatibility credential に移行します。
+最小権限の原則と短い有効期限の運用を推奨します。実際の操作にはトークン自体のポリシーと、アカウントに現在付与されている
+システム/リポジトリ/ドメイン/チーム権限の両方が必要です。トークンの失効時は認証キャッシュが即座に消去されます。
+旧バージョンの平文認証情報はハッシュ化された互換認証情報へと移行されます。
 
-browser session は cookie-only、Basic は package-protocol-only、automation は
-`Authorization: Bearer <token>` です。query credential は無視または拒否します。
+ブラウザーセッションは Cookie のみを使用し、Basic 認証はパッケージプロトコル専用、自動化（CI/CD）には
+`Authorization: Bearer <token>` を使用します。クエリパラメータによる認証情報は無視または拒否されます。
 
-recovery code は API Token と別です。12 個の one-time code を生成し、Argon2id verifier を保存します。異なる
-未使用 4 code が password を atomic reset し、code 消費、session revoke、password login 再有効化を行います。
-offline 保存し、使用後または漏えい疑い時は再生成してください。
+復旧コードは API トークンとは独立した仕組みです。12 個の使い捨てコードが生成され、サーバーには Argon2id ハッシュ検証情報のみが
+保存されます。異なる 4 つの未使用コードを入力することで、パスワードを不可分（アトミック）に再設定し、使用済みコードの消費、
+全セッションの失効、パスワードログインの再有効化を同時に行います。オフラインで安全に保管し、使用後や漏洩の疑いがある場合は
+速やかに再生成してください。
 
 ---
 
 ## OpenPGP 分離署名検証
 
-Maven repository は artifact 公開前に有効な `.asc` を必須にできます。user は public key を登録し、private
-key を RenoP に渡しません。
+Maven リポジトリでは、成果物の公開前に有効な `.asc` 署名ファイルを必須に設定できます。ユーザーは公開鍵を登録するだけでよく、
+秘密鍵を RenoP に渡す必要はありません。
 
 ### 検証の有効化
 
@@ -48,13 +50,13 @@ repositories:
     require_gpg_signature: true
 ```
 
-### Publication flow
+### 公開フロー
 
-1. artifact を `.renop.tmp.gpg` へ stream し、bounded pending release を作成します。
-2. 対応 `.asc` は deadline 内なら artifact 前後どちらでも受理します。
-3. unambiguous registered fingerprint を解決し、signature、uploader、repository/domain policy を gate 内で再確認します。
-4. 有効 pair を atomic commit し、verified metadata を UI 用に保存します。
-5. invalid/missing/expired/deleted/unauthorized release は stable reason で失敗します。
+1. 成果物を `.renop.tmp.gpg` へストリーミング転送し、上限付きの審査待ちリリースを作成します。
+2. 対応する `.asc` ファイルは、制限時間内であれば成果物の前後のどちらでアップロードされても受理されます。
+3. 登録済み公開鍵の一意なフィンガープリントを解決し、署名、アップロード実行者、リポジトリ/ドメイン方針をリポジトリゲート内で再確認します。
+4. 有効なペアを不可分（アトミック）にコミットし、検証済みメタデータを画面表示用に保存します。
+5. 無効、欠落、期限切れ、削除済み、認可されていないリリースは、安定したエラー理由コードとともに安全に失敗します。
 
-key server は `server.gpg.key_servers` の HTTPS URL です。request は proxy policy と bounded client を使い、
-private key を送信しません。
+公開鍵サーバーには `server.gpg.key_servers` で指定された HTTPS URL を使用します。通信にはプロキシ方針と制限付きクライアントが
+適用され、秘密情報が送信されることはありません。

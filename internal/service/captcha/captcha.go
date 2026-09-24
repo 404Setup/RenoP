@@ -84,6 +84,12 @@ func Require(c fiber.Ctx, state *core.AppState, scopes ...string) error {
 		return nil
 	}
 	raw := c.Get(ProofHeader)
+	if raw == "" {
+		raw = c.Query("captcha")
+	}
+	if raw == "" {
+		raw = c.Query("proof")
+	}
 	if raw == "" || len(raw) > 128 {
 		return failure(c, 428, "captcha_required", scope)
 	}

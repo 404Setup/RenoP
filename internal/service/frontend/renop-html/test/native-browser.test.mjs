@@ -129,7 +129,7 @@ function fixture(request) {
         localStorage: {getItem: () => ''},
     });
     const source = readFileSync(new URL('../js/browser/native.js', import.meta.url), 'utf8')
-        .replace(/^import .*? from '[^']+';\r?\n/gm, '').replaceAll('export ', '');
+        .replace(/^import [\s\S]*? from '[^']+';\r?\n/gm, '').replaceAll('export ', '');
     vm.runInContext(source, context);
     return {context, root, listeners};
 }

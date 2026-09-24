@@ -49,17 +49,41 @@
     text-align: left;
     overflow-wrap: anywhere;
     cursor: pointer;
+    transition: background-color 0.22s cubic-bezier(0.2, 0, 0, 1),
+                border-color 0.22s cubic-bezier(0.2, 0, 0, 1),
+                color 0.22s cubic-bezier(0.2, 0, 0, 1),
+                transform 0.22s cubic-bezier(0.2, 0, 0, 1),
+                box-shadow 0.22s cubic-bezier(0.2, 0, 0, 1);
+    position: relative;
 }
 
-.settings-nav-item:hover,
-.settings-nav-item[aria-current="page"] {
+.settings-nav-item:hover {
     color: var(--link-hover-color);
     background: color-mix(in srgb, var(--accent-color) 10%, var(--card-bg));
 }
 
 .settings-nav-item[aria-current="page"] {
+    color: var(--link-hover-color);
+    background: color-mix(in srgb, var(--accent-color) 12%, var(--card-bg));
     font-weight: 650;
     border-color: color-mix(in srgb, var(--accent-color) 24%, transparent);
+    transform: translateX(4px);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.settings-nav-item:active {
+    transform: scale(0.98);
+}
+
+.settings-nav-item[aria-current="page"]:active {
+    transform: translateX(4px) scale(0.98);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .settings-nav-item {
+        transition: none;
+        transform: none !important;
+    }
 }
 
 .settings-nav-item:focus-visible {

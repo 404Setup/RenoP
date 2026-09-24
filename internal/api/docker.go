@@ -34,8 +34,9 @@ import (
 )
 
 const (
-	dockerAPIErrorCodeHeader = "X-Renop-Error-Code"
-	maxDockerReadmeBytes     = 512 << 10
+	dockerAPIErrorCodeHeader  = "X-Renop-Error-Code"
+	maxDockerReadmeBytes      = 512 << 10
+	maxDockerDescriptionBytes = 60
 )
 
 func dockerAPIError(c fiber.Ctx, status int, code, message string) error {
@@ -447,8 +448,8 @@ func UpdateDockerImageDescriptionAPI(c fiber.Ctx, state *core.AppState) error {
 
 	res := fiber.Map{"status": "updated"}
 	if req.Description != nil {
-		if len(*req.Description) > maxDockerReadmeBytes {
-			return dockerAPIError(c, fiber.StatusRequestEntityTooLarge, "readme_too_large", "README exceeds the size limit")
+		if len(*req.Description) > maxDockerDescriptionBytes {
+			return dockerAPIError(c, fiber.StatusBadRequest, "description_too_large", "Description exceeds the 60-byte limit")
 		}
 		if err := db.UpdateDockerImageDescription(repoName, imageName, *req.Description); err != nil {
 			if errors.Is(err, core.ErrDockerImageNotFound) {

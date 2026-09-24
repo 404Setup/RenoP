@@ -52,7 +52,7 @@ export default Object.freeze({
     "cargo.runtimeDependencies": "実行時依存関係",
     "cargo.devDependencies": "開発用依存関係",
     "cargo.buildDependencies": "ビルド用依存関係",
-    "cargo.optional": "オプション",
+    "cargo.optional": "任意",
     "cargo.features": "機能 (Features)",
     "cargo.noDependencies": "このバージョンには依存関係がありません。",
     "cargo.noFeatures": "このバージョンには機能が定義されていません。",

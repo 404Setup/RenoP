@@ -2,15 +2,15 @@
 title: Docker / OCI Registry
 order: 3
 category: ガイド
-description: Image 作成と Docker、Podman、containerd、nerdctl の利用
+description: イメージ作成と Docker、Podman、containerd、nerdctl の利用手順
 ---
 
 # Docker / OCI Registry ガイド
 
-format `docker` の repository を作成し、push 前に対象 image も作成します。例は repository `containers` と
-image `team/service` を使い、registry name は `containers/team/service` です。
+形式 `docker` のリポジトリを作成し、push 前に対象イメージを予約・作成します。例としてリポジトリ名 `containers`、
+イメージ名 `team/service` を使用した場合、レジストリ上の完全名は `containers/team/service` となります。
 
-## Login と transport
+## ログインと通信設定
 
 ```bash
 docker login localhost:3000
@@ -18,11 +18,12 @@ docker login localhost:3000
 # Password: <your_password_or_API_token>
 ```
 
-専用 API Token を使います。pull は `repository:read`、push は `repository:publish`、remote delete は
-`repository:delete`、管理 API での予約は `package:create`、team は `team:manage` です。短期 Docker Token は
-scope/target と現在の image L0-L4 の両方が許可した action だけを持ちます。
+専用の API トークンを使用します。pull には `repository:read`、push には `repository:publish`、リモート削除には
+`repository:delete`、管理画面での事前予約には `package:create`、チーム管理には `team:manage` 権限が必要です。
+発行される短期 Docker 認証トークンは、トークンのスコープ・対象制限と、現在のイメージの L0-L4 権限の両方で許可された
+操作のみを実行できます。
 
-本番は HTTPS を使います。local HTTP test の場合だけ明示設定します。
+本番環境では HTTPS を使用してください。ローカルの HTTP 検証時のみ明示的に設定します。
 
 ```json
 {
@@ -30,51 +31,52 @@ scope/target と現在の image L0-L4 の両方が許可した action だけを�
 }
 ```
 
-`daemon.json` 変更後は Docker daemon を再起動します。Podman/containerd にも同等の trust 設定があります。
+`daemon.json` 変更後は Docker デーモンを再起動します。Podman や containerd にも同等の信頼設定があります。
 
-## 作成、tag、push
+## イメージの作成、タグ付け、push
 
-`containers` を開いて `team/service` を作成し、public/private を選びます。private image は暗黙 L0 を付与
-しないため、team から reader/collaborator を追加します。名前 component は小文字です。
+リポジトリ `containers` を開き、イメージ名 `team/service` を作成して公開範囲（公開/非公開）を選択します。
+非公開イメージには暗黙の閲覧権限（L0）が付与されないため、チーム設定から閲覧者や共同作業者を追加してください。
+名前を構成する文字はすべて小文字にします。
 
-ローカルまたは適用 upstream に同名があれば作成を拒否します。上流確認が確定しない場合も予約しません。
-mirror-discovered image は pull-only です。
+ローカルまたは適用ミラーに同名が存在する場合は作成を拒否します。上流の確認が完了しない場合も予約されません。
+ミラー由来のイメージは pull 専用（読み取り専用）となります。
 
 ```bash
-# Tag local image
+# ローカルイメージへのタグ付け
 docker tag service:latest localhost:3000/containers/team/service:1.0.0
 
-# Push image to RenoP
+# RenoP への push
 docker push localhost:3000/containers/team/service:1.0.0
 ```
 
-image 作成前は push grant、blob upload start、manifest publication を拒否します。管理要求失敗後も retry は
-有効で、login や browser dialog を開き直す必要はありません。
+イメージの作成前は push 権限の付与、ブロブのアップロード開始、マニフェストの公開が拒否されます。管理操作が失敗した場合でも
+再試行可能であり、ログインやダイアログの操作を最初からやり直す必要はありません。
 
-どちらの審査方針でも image 作成は `202 Accepted` を返し、承認まで名前を予約しません。`new_packages` では
-後続 push は通常どおり実行されます。`every_version` では各 manifest push も審査 ID と受理応答を返し、承認まで
-pull、tag-list、catalog に表示されません。承認時は publisher と参照 blob を再確認して tag を原子的に公開します。
-拒否時に破棄されるのは virtual manifest だけで、共有 blob と既存 tag は維持されます。
+どちらの審査方針でもイメージ作成は `202 Accepted` を返し、承認されるまで名前は予約されません。`new_packages` では
+承認後の push は通常どおり実行されます。`every_version` では各マニフェストの push ごとに審査 ID と受理応答を返し、
+承認されるまで pull、タグ一覧、カタログには表示されません。承認時は公開者と参照ブロブを再確認し、タグを不可分（アトミック）に
+公開します。却下時に破棄されるのは仮想マニフェストのみであり、共有ブロブと既存のタグは維持されます。
 
-## Pull と実行
+## pull とコンテナ実行
 
 ```bash
-# Pull image
+# イメージの pull
 docker pull localhost:3000/containers/team/service:1.0.0
 
-# Run container
+# コンテナの起動
 docker run -d -p 8080:8080 localhost:3000/containers/team/service:1.0.0
 ```
 
-public image は匿名で読めます。private image は L0-L4 member または管理者が必要です。blob は image-scoped
-で、別 image の digest を知っていてもアクセス権になりません。
+公開イメージは未認証で pull できます。非公開イメージには L0-L4 チームメンバーまたは管理者権限が必要です。
+ブロブはイメージスコープで管理され、別のイメージのダイジェスト値を知っていても不正にアクセスすることはできません。
 
-## OCI 動作
+## OCI の動作仕様
 
-- **Multi-architecture**: Manifest list と OCI index は amd64、arm64 などを参照できます。
-- **Chunked upload**: POST/PATCH/PUT の resume と bounded temp storage。
-- **Cross-repository mount**: source read と事前作成 destination write が必要です。
-- **Delete**: Token capability と image/repository authorization の両方が必要です。
-- **Mirror**: upstream origin を付けて stream/catalog 化し、mirror image への push は禁止します。
+- **マルチアーキテクチャ**: マニフェストリストや OCI インデックスにより、amd64、arm64 等の複数アーキテクチャを参照できます。
+- **分割アップロード**: POST/PATCH/PUT による中断・再開と、上限付きの一時ストレージをサポートします。
+- **クロスリポジトリマウント**: 取得元の読み取り権限と、作成済み配布先への書き込み権限が必要です。
+- **削除**: トークンの操作権限と、イメージ/リポジトリの双方に対する認可が必要です。
+- **ミラー**: 上流の取得元を付与してストリーミング転送およびカタログ化を行い、ミラーイメージへの push は禁止します。
 
-イメージページには翻訳された公開ロック理由を表示します。スタッフはイメージ全体または不変のマニフェストダイジェストをロックでき、タグ別名や参照先のマルチアーキテクチャ内容も対象です。書き込みロックは変更を禁止し、読み取りロックはスタッフと協力者向けのメタデータのみを残して、全員のダウンロードとマウントを禁止します。システムや継承されたロックは元のリソースで解除します。ロック変更後の再読み込み中に別のページへ移動した場合、古い結果は破棄します。
+イメージ詳細画面には翻訳された公開ロック理由を表示します。管理者はイメージ全体または不変のマニフェストダイジェストをロックでき、タグ別名や参照先のマルチアーキテクチャ内容も対象となります。書き込みロックは変更を禁止し、読み取りロックは管理者や共同作業者向けのメタデータのみを残して、全員のダウンロードとマウントを禁止します。システムや継承されたロックは元のリソースで解除します。ロック変更後の再読み込み中に別の画面へ移動した場合、古い結果は安全に破棄されます。

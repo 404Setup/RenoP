@@ -37,6 +37,7 @@ test('OAuth controls preserve intent, enforce last-login state, and discard priv
     const publicChoices = [{id: 'demo', name: '<Example>'}];
     const context = vm.createContext({
         ensureLegalConsent: async () => true,
+        acquireCaptchaProof: async () => '',
         el: node, t: translate, URL, URLSearchParams, AbortSignal,
         document: {getElementById: element}, createIcon: () => node('icon'),
         window: {
@@ -91,6 +92,12 @@ test('OAuth controls preserve intent, enforce last-login state, and discard priv
         assert.equal(url.searchParams.get('intent'), intent);
         assert.equal(url.searchParams.get('return_to'), '/packages');
     }
+    context.acquireCaptchaProof = async () => 'test-captcha-token';
+    const captchaButton = buttons(element('oauth-login-providers'))[0];
+    await captchaButton.onclick();
+    const urlWithCaptcha = new URL(destinations.at(-1), 'https://renop.example');
+    assert.equal(urlWithCaptcha.searchParams.get('captcha'), 'test-captcha-token');
+    context.acquireCaptchaProof = async () => '';
     publicChoices.push({id: 'github', name: 'GitHub'});
     await events.oauthProvidersChanged();
     assert.equal(buttons(element('oauth-login-providers')).length, 2);

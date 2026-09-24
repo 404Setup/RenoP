@@ -141,13 +141,15 @@ func TestLegalDocumentsPersistAndRejectInvalidContent(t *testing.T) {
 	response := send(&pb.LegalSettings{PrivacyPolicy: "# Privacy", TermsOfService: "# Terms", LegalNotice: "# Notice"})
 	require.Equal(t, http.StatusOK, response.StatusCode)
 	require.Equal(t, protohttp.ContentType, response.Header.Get(fiber.HeaderContentType))
-	require.Equal(t, "# Privacy", state.Inner.Config.Load().Legal.PrivacyPolicy)
+	require.Contains(t, state.Inner.Config.Load().Legal.PrivacyPolicy, "# Privacy")
+	require.Contains(t, state.Inner.Config.Load().Legal.PrivacyPolicy, "Last updated: ")
 	require.False(t, state.Inner.Config.Load().Legal.CookieBanner)
 	stored, err := configstore.Read(configstore.Path())
 	require.NoError(t, err)
 	var restored config.Config
 	require.NoError(t, yaml.Unmarshal(stored, &restored))
-	require.Equal(t, "# Privacy", restored.Legal.PrivacyPolicy)
+	require.Contains(t, restored.Legal.PrivacyPolicy, "# Privacy")
+	require.Contains(t, restored.Legal.PrivacyPolicy, "Last updated: ")
 	require.False(t, restored.Legal.CookieBanner)
 	revision := state.Inner.Config.Load().Legal.Revision()
 	for _, body := range []string{"bad\x00text", strings.Repeat("x", config.MaxLegalDocumentBytes+1)} {

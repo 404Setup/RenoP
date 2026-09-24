@@ -25,6 +25,7 @@ import (
 	"renop/internal/config"
 	"renop/internal/core"
 	"renop/internal/service/audit"
+	"renop/internal/service/captcha"
 	"renop/internal/service/legal"
 	"renop/internal/utils/protohttp"
 	"renop/pkg/pb"
@@ -118,6 +119,15 @@ func startOAuth(c fiber.Ctx, state *core.AppState) error {
 	}
 	if intent == "login" || intent == "register" {
 		if err := legal.RequireConsent(c, state); err != nil {
+			return err
+		}
+	}
+	if intent == "login" {
+		if err := captcha.Require(c, state, config.CaptchaPasswordLogin); err != nil {
+			return err
+		}
+	} else if intent == "register" {
+		if err := captcha.Require(c, state, config.CaptchaRegistration); err != nil {
 			return err
 		}
 	}

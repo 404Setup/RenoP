@@ -31,6 +31,7 @@ import (
 	"renop/internal/config"
 	"renop/internal/core"
 	"renop/internal/service/audit"
+	"renop/internal/service/captcha"
 	"renop/internal/service/legal"
 	"renop/internal/service/token"
 	"renop/internal/utils"
@@ -571,6 +572,9 @@ func DeleteUserFidoDevice(c fiber.Ctx, state *core.AppState) error {
 }
 
 func PostFidoLoginBegin(c fiber.Ctx, state *core.AppState) error {
+	if err := captcha.Require(c, state, config.CaptchaPasswordLogin); err != nil {
+		return err
+	}
 	var req FidoLoginBeginRequest
 	if err := utils.ReadJSONLimited(c, &req, utils.MaxJSONBodySize); err != nil {
 		if errors.Is(err, fiber.ErrRequestEntityTooLarge) {

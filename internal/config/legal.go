@@ -150,18 +150,12 @@ This repository hosts software packages, source code, and container images autho
 `
 
 // UpdateLastUpdated updates or injects the Last updated line in a legal document.
-func UpdateLastUpdated(content string, t time.Time, lang string) string {
+func UpdateLastUpdated(content string, t time.Time, _ string) string {
 	content = strings.TrimSpace(content)
 	if content == "" {
 		return content
 	}
-	var prefix string
-	lowerLang := strings.ToLower(lang)
-	if strings.HasPrefix(lowerLang, "zh") {
-		prefix = "最后更新: " + t.Format("2006年1月2日")
-	} else {
-		prefix = "Last updated: " + t.Format("January 2, 2006")
-	}
+	prefix := "Last updated: " + t.Format("January 2, 2006")
 
 	if strings.Contains(content, "{{last_updated}}") {
 		return strings.ReplaceAll(content, "{{last_updated}}", prefix)
@@ -171,7 +165,7 @@ func UpdateLastUpdated(content string, t time.Time, lang string) string {
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		lower := strings.ToLower(trimmed)
-		if strings.HasPrefix(lower, "last updated:") || strings.HasPrefix(lower, "最后更新:") || strings.HasPrefix(lower, "最后更新：") {
+		if strings.HasPrefix(lower, "last updated:") {
 			lines[i] = prefix
 			return strings.Join(lines, "\n")
 		}
@@ -180,7 +174,7 @@ func UpdateLastUpdated(content string, t time.Time, lang string) string {
 		}
 	}
 
-	return content
+	return prefix + "\n\n" + content
 }
 
 // DefaultLegalConfig supplies preset legal documents and cookie notice defaults.

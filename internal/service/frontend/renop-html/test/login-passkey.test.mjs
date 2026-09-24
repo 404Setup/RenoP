@@ -214,6 +214,8 @@ test('primary Passkey login never submits timed-out credentials or completes aft
     let failure = new DOMException('', 'TimeoutError');
     const context = vm.createContext({
         ensureLegalConsent: async () => true,
+        acquireCaptchaProof: async () => '',
+        LocalizedResponseError: class extends Error {},
         AbortController, DOMException,
         window: {PublicKeyCredential: true, addEventListener: (type, callback) => listeners.set(type, callback)},
         document: {getElementById: () => ({value: 'alice'})},
@@ -269,4 +271,10 @@ test('primary Passkey login never submits timed-out credentials or completes aft
     delayedFinish = false;
     await context.fidoLogin();
     assert.equal(completions.length, 1);
+    requests.length = 0;
+    completions.length = 0;
+    context.acquireCaptchaProof = async () => 'test-fido-captcha-proof';
+    await context.fidoLogin();
+    assert.equal(completions.length, 1);
+    assert.equal(requests[0].options.headers['X-Renop-Captcha'], 'test-fido-captcha-proof');
 });

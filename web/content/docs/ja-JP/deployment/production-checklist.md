@@ -8,36 +8,36 @@ description: 公開前に確認するセキュリティ、永続化、プロキ�
 # 本番デプロイチェックリスト
 
 初回起動に成功した後、パッケージクライアントや信頼できないネットワークへ公開する前に確認してください。
-ヘルスチェックの成功は必要ですが、認証、データベース、ストレージ、ミラー、公開ポリシーの一連の動作までは
+稼働確認（ヘルスチェック）の成功は必要ですが、認証、データベース、ストレージ、ミラー、公開方針の一連の動作までは
 保証しません。
 
 ## サービス境界を定義する
 
-公開ホスト名、待受アドレス、リバースプロキシ、データベース、ストレージバックエンド、各リポジトリの責任者を
+公開ホスト名、待受アドレス、リバースプロキシ、データベース、ストレージバックエンド、各リポジトリの運用責任者を
 記録します。RenoP は一つの協調されたサービスとして扱ってください。外部データベースや S3 互換ストレージは
-ローカル要素を置き換えますが、それだけで安全な active-active 協調を実現するものではありません。
+ローカル要素を置き換えますが、それだけで安全な active-active 構成を実現するものではありません。
 
-- 運用責任者とセキュリティ連絡先を一名ずつ決めます。
-- RenoP のバージョン、設定パス、サービスアカウント、作業ディレクトリ、更新チャネルを記録します。
-- クライアント設定を配布する前に、各リポジトリを公開、非表示、非公開のどれにするか決めます。
-- すべての公開 origin でプロキシと Cookie の挙動を検証していない場合、管理 UI とパッケージ endpoint は
-  同じ正規 HTTPS origin に置きます。
+- 運用責任者とセキュリティ連絡先を一名ずつ定めます。
+- RenoP のバージョン、設定パス、サービス実行アカウント、作業ディレクトリ、更新チャネルを記録します。
+- クライアント設定を配布する前に、各リポジトリを公開、非表示、非公開のどれにするか決定します。
+- すべての公開元でプロキシと Cookie の挙動を検証していない場合、管理画面とパッケージエンドポイントは
+  同一の正規 HTTPS オリジンに配置します。
 
 ## 初期化とアカウント復旧を保護する
 
-`RENOP_DEFAULT_ADMIN_PASSWORD` は `admin` アカウントを初めて作成するときだけ使用されます。自動生成された
+`RENOP_DEFAULT_ADMIN_PASSWORD` は `admin` アカウントを初めて作成するときのみ使用されます。自動生成された
 場合は初回起動ログから取得し、直ちに変更してください。
 
-- 日常運用では共有 `admin` ではなく、担当者ごとの管理者アカウントを使用します。
+- 日常の運用では共有の `admin` ではなく、担当者ごとの個別管理者アカウントを使用します。
 - パスワードログインを無効化する前に、Passkey または別の検証済みログイン方法を登録します。
-- 復旧コードを生成してオフライン保管し、アカウントのメールアドレスを確認します。
-- CI ジョブごとに有効期限付き API トークンを発行し、必要な scope とリポジトリだけを許可します。
-- データベース、S3、OAuth、SMTP、署名、proxy の秘密情報は secret manager または保護された環境に置きます。
+- 復旧コードを生成してオフラインで安全に保管し、アカウントのメールアドレスを確認します。
+- CI ジョブごとに有効期限付き API トークンを発行し、必要な権限（スコープ）とリポジトリのみを許可します。
+- データベース、S3、OAuth、SMTP、署名、プロキシの秘密情報は機密管理ツールまたは保護された環境変数で管理します。
 
 ## HTTPS で公開する
 
-リバースプロキシで TLS を終端する場合、RenoP は loopback または private address に bind します。公開ホスト名と、
-client IP header を送信してよい proxy address だけを設定してください。
+リバースプロキシで TLS を終端する場合、RenoP はループバックまたはプライベートネットワークのアドレスにバインドします。公開ホスト名と、
+クライアント IP ヘッダーの送信を許可するプロキシアドレスのみを設定してください。
 
 ```yaml
 server:
@@ -50,73 +50,72 @@ server:
   cdn_ip_header: "X-Forwarded-For"
 ```
 
-Proxy は `Host`、元の scheme、client address chain を保持する必要があります。大きな upload では request buffering
-を無効にし、意図しない body size 上限を外し、image layer や大きな artifact に十分な read/write timeout を設定します。
-任意の client から送られた forwarding header を信頼しないでください。[リバースプロキシ](./reverse-proxy.md)も参照してください。
+プロキシは `Host` ヘッダー、元のスキーム（HTTPS）、クライアントアドレスの経路情報を保持する必要があります。大容量のアップロードに備えて
+リクエストバッファリングを無効化し、意図しないリクエスト本文サイズの上限を解除し、コンテナイメージや大きな成果物に十分な
+読み書きタイムアウトを設定してください。任意のクライアントから送られた転送ヘッダーを信頼してはいけません。[リバースプロキシ](./reverse-proxy.md)も参照してください。
 
-## データベースとアーティファクトストレージを保護する
+## データベースと成果物ストレージを保護する
 
-用途に適したデータベースを選び、実際の認証済み書き込みで検証します。SQLite は永続的なローカルストレージに置き、
-service account がファイルと親ディレクトリを所有するようにします。外部データベースでは、対応していれば通信を暗号化し、
-RenoP 以外からのネットワークアクセスを制限します。
+用途に適したデータベースを選び、実際の認証済み書き込みで動作を検証します。SQLite は永続的なローカルストレージに配置し、
+サービス実行アカウントがファイルと親ディレクトリの所有権を持つようにします。外部データベースを使用する場合は通信を暗号化し、
+RenoP サーバー以外からのネットワークアクセスを制限します。
 
-各リポジトリについて、local または S3 互換 backend、bucket または directory、prefix、credential、download mode を
-確認します。Presigned redirect は client network から到達でき、信頼できる必要があります。Proxy streaming は bucket を
-private に保てますが、artifact traffic は RenoP を経由します。
+各リポジトリについて、ローカルまたは S3 互換ストレージ、バケットまたはディレクトリ、接頭辞、認証情報、ダウンロード方式を
+確認します。署名付き URL へのリダイレクト方式では、クライアント環境からストレージへ直接到達できる必要があります。プロキシストリーミング方式は
+バケットを完全に非公開に保てますが、成果物のトラフィックは RenoP サーバーを経由します。
 
-設定、リポジトリ定義、データベース、再構築できない artifact data を一つの復旧単位として保存し、実際に restore を
-演習してください。[バックアップ、復元、移行](./backup-and-recovery.md)を参照してください。
+設定、リポジトリ定義、データベース、再構築できない成果物データを一つの復旧単位として保存し、実際に復元手順を
+検証してください。[バックアップ、復元、移行](./backup-and-recovery.md)を参照してください。
 
-## リポジトリと公開ポリシーを定義する
+## リポジトリと公開方針を定義する
 
-- 各リポジトリに正しい format を設定します。Client protocol は相互交換できません。
-- Visibility、read/publish permission、team、namespace ownership、quota、review policy を確認します。
-- Mirror は明示的に設定し、upstream に応じた timeout、cache lifetime、negative cache、allowlist を使用します。
-- 公開 URL を案内する前に Maven domain を確認し、必要な npm package と Docker image を予約し、Cargo name を確認します。
-- Publication review と ownership transfer を処理できる担当者を決めます。
+- 各リポジトリに正しいパッケージ形式を設定します。クライアントプロトコルに互換性はありません。
+- 公開範囲、読み取り/公開権限、チーム、名前空間の所有権、容量制限、審査方針を確認します。
+- 上流ミラーを明示的に設定し、上流に応じたタイムアウト、キャッシュ有効期間、ネガティブキャッシュ、許可リストを構成します。
+- 公開 URL を案内する前に Maven ドメインの所有権を確認し、必要な npm パッケージや Docker イメージ名を予約し、Cargo パッケージ名の重複を確認します。
+- 公開審査や所有権移管の申請を処理できる管理担当者を定めます。
 
 ## ネイティブクライアントで検証する
 
-実際に利用者へ配布する hostname、credential、repository name、proxy path を使います。有効な各 format で少なくとも
-一回の read と authorized write を実施します。Lifecycle 操作を許可する場合は、使い捨て package で delete、yank、archive、
-tag change も確認します。
+実際に利用者に配布するホスト名、認証情報、リポジトリ名、プロキシ経路を使用します。有効な各形式について、少なくとも
+1 回の読み取りと認証付き書き込みを実施してください。ライフサイクル操作を許可する場合は、検証用パッケージを用いて
+削除、取り下げ（yank）、アーカイブ、タグ変更の動作も確認します。
 
 ```bash
 curl --fail-with-body https://packages.example.com/api/status/health
 ```
 
-期待する response body は `"UP"` です。
+期待される応答本文は `"UP"` です。
 
-匿名 request が private repository を読めないこと、scope 不足の token が拒否されること、hidden repository が discovery に
-現れないこと、policy 違反の publication が visible な partial state を残さず失敗することも確認します。
+未認証のリクエストが非公開リポジトリを閲覧できないこと、権限不足のトークンが拒否されること、非表示リポジトリが一覧に
+現れないこと、方針に違反する公開処理が不完全なファイルを残さずに失敗することを確認してください。
 
-## 運用と監視を確立する
+## 運用と監視体制を確立する
 
-- Process availability、storage capacity、database health、certificate expiry、upstream latency、認証や公開の連続失敗を監視します。
-- Service log は application working directory の外に保存し、機密情報を含み得るデータとして保護します。
-- Audit log と in-app message を定期確認します。ただし外部 alerting の代わりにはなりません。
-- Stable または nightly update は非本番で検証してから自動化します。
-- Maintenance window と、session、token、侵害された package ownership を revoke できる担当者を記録します。
+- プロセスの稼働状況、ストレージ空き容量、データベース状態、SSL/TLS 証明書の有効期限、上流レイテンシ、認証や公開の連続失敗を監視します。
+- サービスログはアプリケーションの作業ディレクトリ外に保存し、機密情報を含み得るデータとして適切に保護します。
+- 監査ログとアプリ内通知を定期的に確認します。ただしこれらは外部アラート通知の代わりにはなりません。
+- 正式版または開発版（Nightly）の自動更新は、まず検証環境で確認してから有効化します。
+- メンテナンス時間枠と、セッション、トークン、漏洩したパッケージ所有権を失効できる担当者を定めます。
 
 ## 公開前チェックリスト
 
-- [ ] 必要なすべての client network から正規 HTTPS hostname を解決して接続できる。
-- [ ] 大きな upload で proxy の body limit、buffering、timeout、forwarded header を検証した。
-- [ ] 管理者の復旧方法と offline recovery code を利用できる。
-- [ ] CI は個人 password ではなく、scope と期限を設定した token を使う。
-- [ ] Database とすべての artifact backend で write/read/delete を確認した。
-- [ ] Repository visibility、ownership、quota、mirror、review policy を確認した。
-- [ ] Private repository は direct URL と proxy URL の両方で private のままである。
-- [ ] Backup は別の failure domain にあり、restore rehearsal に成功した。
-- [ ] Capacity と certificate alert の受信者が決まっている。
-- [ ] 現在の binary、configuration、rollback 手順を記録した。
+- [ ] 必要なすべてのクライアント環境から正規の HTTPS ホスト名を名前解決でき、接続できる。
+- [ ] 大容量アップロード時のプロキシ本文制限、バッファリング、タイムアウト、転送ヘッダーを検証した。
+- [ ] 管理者アカウントの復旧手段とオフライン復旧コードを確認・保管した。
+- [ ] CI/CD は個人のパスワードではなく、権限範囲と有効期限を設定した API トークンを使用している。
+- [ ] データベースおよびすべての成果物ストレージで、読み取り・書き込み・削除を確認した。
+- [ ] リポジトリの公開範囲、所有権、容量上限、上流ミラー、公開審査方針を確認した。
+- [ ] 非公開リポジトリが、直接接続とプロキシ経由の双方で非公開のままであることを確認した。
+- [ ] バックアップが独立した障害ドメインに保存され、復元訓練に成功した。
+- [ ] 容量不足および証明書期限切れのアラート通知先が決定している。
+- [ ] 現在稼働中のバイナリ、設定、ロールバック手順書を記録した。
 
-## 本番変更前にロールバックを準備する
+## 本番変更前のロールバック準備
 
-新しい version が client validation を通過するまで、以前の binary、configuration、database/storage backup を保持します。
-Rollback では相互に compatible な application version と data snapshot を復元してください。新しい release が変更した
-database を
-古い binary が必ず利用できるとは限りません。理由、時刻、影響した repository を記録します。
+新しいバージョンがクライアント検証を通過するまで、以前のバイナリ、設定ファイル、データベースおよびストレージのバックアップを保持します。
+ロールバックを行う際は、互換性のあるアプリケーションバージョンとデータスナップショットを組み合わせて復元してください。新しいリリースで変更された
+データベースを、古いバイナリがそのまま読み取れるとは限りません。変更理由、実施日時、影響を受けたリポジトリを記録してください。
 
-Protocol ごとの確認は [Maven](../guides/maven-client.md)、[Cargo](../guides/cargo-registry.md)、
+プロトコルごとの詳細な設定方法は、[Maven](../guides/maven-client.md)、[Cargo](../guides/cargo-registry.md)、
 [npm](../guides/npm-registry.md)、[Docker/OCI](../guides/docker-registry.md) を参照してください。

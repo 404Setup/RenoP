@@ -112,8 +112,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Module download failed.' }
           go build -o "$env:RUNNER_TEMP/renop-brotli" ./cmd/renop-brotli
           if ($LASTEXITCODE -ne 0) { throw 'Brotli tool build failed.' }
-          go build -o "$env:RUNNER_TEMP/renop-release-index" ./cmd/renop-release-index
-          if ($LASTEXITCODE -ne 0) { throw 'Release inventory tool build failed.' }
+          go build -o "$env:RUNNER_TEMP/renop-actions" ./cmd/renop-actions
+          if ($LASTEXITCODE -ne 0) { throw 'Actions automation tool build failed.' }
           tar -cf "$env:RUNNER_TEMP/prepared-inputs.tar" pkg/pb/api.pb.go pkg/pb/session.pb.go internal/mail/data internal/service/frontend/renop-html/dist
           if ($LASTEXITCODE -ne 0) { throw 'Shared input archive failed.' }
       - name: Upload prepared sources
@@ -132,11 +132,11 @@ jobs:
           compression-level: 0
           if-no-files-found: error
           retention-days: 1
-      - name: Upload release inventory tool
+      - name: Upload actions automation tool
         uses: actions/upload-artifact@v7
         with:
-          name: release-index-tool
-          path: ${{ runner.temp }}/renop-release-index
+          name: actions-tool
+          path: ${{ runner.temp }}/renop-actions
           compression-level: 0
           if-no-files-found: error
           retention-days: 1
@@ -241,6 +241,13 @@ jobs:
           pattern: package-*
           path: release-packages
           merge-multiple: true
+      - name: Download actions automation tool
+        uses: actions/download-artifact@v8
+        with:
+          name: actions-tool
+          path: tools
+      - name: Restore actions tool permissions
+        run: chmod +x tools/renop-actions
       - name: Assemble the release manifest
         shell: pwsh
         env:
@@ -249,8 +256,8 @@ jobs:
           RENOP_COMMIT: ${{ needs.metadata.outputs.commit }}
           RENOP_PREVIOUS_COMMIT: ${{ needs.metadata.outputs.previous_commit }}
         run: |
-          ./.github/scripts/assemble-matrix.ps1 -PackageDir ./release-packages -DistDir ./dist -Version $env:RENOP_VERSION -Development $env:RENOP_DEVELOPMENT -Commit $env:RENOP_COMMIT -PreviousCommit $env:RENOP_PREVIOUS_COMMIT
-          ./.github/scripts/test-release-payload.ps1 -DistDir ./dist
+          ./tools/renop-actions -step assemble -PackageDir ./release-packages -DistDir ./dist -Version $env:RENOP_VERSION -Development $env:RENOP_DEVELOPMENT -Commit $env:RENOP_COMMIT -PreviousCommit $env:RENOP_PREVIOUS_COMMIT
+          ./tools/renop-actions -step validate-payload -DistDir ./dist
       - name: Upload complete release artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -277,16 +284,16 @@ jobs:
         with:
           name: dist-artifacts
           path: dist
-      - name: Download release inventory tool
+      - name: Download actions automation tool
         uses: actions/download-artifact@v8
         with:
-          name: release-index-tool
+          name: actions-tool
           path: tools
-      - name: Restore inventory tool permissions
-        run: chmod +x tools/renop-release-index
+      - name: Restore actions tool permissions
+        run: chmod +x tools/renop-actions
       - name: Validate update payload boundary
         shell: pwsh
-        run: pwsh -NoProfile -File ./.github/scripts/test-release-payload.ps1 -DistDir ./dist
+        run: ./tools/renop-actions -step validate-payload -DistDir ./dist
       - name: Generate changelog
         id: changelog
         shell: pwsh
@@ -294,9 +301,7 @@ jobs:
           COMMIT: ${{ needs.metadata.outputs.commit }}
         run: |
           $out = Join-Path $env:RUNNER_TEMP 'changelog.md'
-          pwsh -NoProfile -File ./.github/scripts/generate-changelog.ps1 `
-              -Commit $env:COMMIT `
-              -OutFile $out
+          ./tools/renop-actions -step changelog -Commit $env:COMMIT -OutFile $out
           "path=$out" >> $env:GITHUB_OUTPUT
       - name: Publish packages
         shell: pwsh
@@ -313,7 +318,7 @@ jobs:
           $channel = if ($env:IS_RELEASE -eq 'true') { 'stable' } else { 'nightly' }
           pwsh -NoProfile -File ./.github/scripts/publish-update.ps1 `
               -Channel $channel `
-              -IndexTool ./tools/renop-release-index `
+              -IndexTool ./tools/renop-actions `
               -DistDir ./dist `
               -Version $env:VERSION `
               -Commit $env:COMMIT `
@@ -335,6 +340,13 @@ jobs:
         with:
           name: dist-artifacts
           path: dist
+      - name: Download actions automation tool
+        uses: actions/download-artifact@v8
+        with:
+          name: actions-tool
+          path: tools
+      - name: Restore actions tool permissions
+        run: chmod +x tools/renop-actions
       - name: Build changelog from commits
         id: changelog
         shell: pwsh
@@ -343,10 +355,7 @@ jobs:
         run: |
           $out = Join-Path $env:RUNNER_TEMP 'release-notes.md'
           $footer = 'Downloads: https://mvnc.pkg.one/update/renop/stable'
-          pwsh -NoProfile -File ./.github/scripts/generate-changelog.ps1 `
-              -Commit $env:COMMIT `
-              -OutFile $out `
-              -Footer $footer
+          ./tools/renop-actions -step changelog -Commit $env:COMMIT -OutFile $out -Footer $footer
           "path=$out" >> $env:GITHUB_OUTPUT
           Write-Host "----- release notes -----"
           Get-Content -LiteralPath $out -Raw

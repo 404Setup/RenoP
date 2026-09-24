@@ -167,9 +167,12 @@ export function makeCustomSelect(options, current, onChange) {
      */
     function positionDropdown() {
         const rect = btn.getBoundingClientRect();
+        const dropW = Math.max(rect.width, 160);
+        const maxLeft = Math.max(0, window.innerWidth - dropW - 6);
+        const left = Math.min(rect.left, maxLeft);
         $(dropdown).css({
-            left: `${rect.left}px`,
-            width: `${Math.max(rect.width, 160)}px`,
+            left: `${left}px`,
+            width: `${dropW}px`,
             display: 'block',
             visibility: 'hidden',
         });

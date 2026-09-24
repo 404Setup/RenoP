@@ -12,8 +12,7 @@ description: 配置 CAPTCHA 服务商和网页验证范围
 在安全验证设置页配置 CAPTCHA。支持关闭、reCAPTCHA v2 选择框、reCAPTCHA v2 隐形验证、reCAPTCHA v3、Cloudflare
 Turnstile、hCaptcha 和 Friendly Captcha v2，请使用对应服务商的站点密钥与私钥/API 密钥。
 
-密码登录、注册、手动邮件、创建全局团队、创建发布域和创建包可分别开启。密码登录开关不影响 Passkey
-与第三方登录。注册验证码发件启用手动邮件验证时优先使用该范围，否则使用注册验证。完成注册是另一个受保护操作。
+密码登录、注册、手动邮件、创建全局团队、创建发布域和创建包可分别开启。若启用了安全验证，启动第三方登录或 Passkey 登录前必须完成安全验证并携带有效凭证。注册验证码发件启用手动邮件验证时优先使用该范围，否则使用注册验证。完成注册是另一个受保护操作。
 
 验证面向网页交互和匿名操作。已验证的 API 令牌、协议密码凭据豁免，服务端按真实凭据判断，不依赖 User-Agent。Maven
 网页上传和分片初始化会检查是否创建新的目录包。已有包和授权自动发布继续遵守原有权限。
@@ -51,7 +50,7 @@ captcha:
 `GET /api/captcha` 返回公开设置并写入必要的 HttpOnly 随机值 Cookie。`POST /api/captcha/verify` 接收 JSON 字段 `scope`、
 `provider`、`site_key` 和 `response`。验证响应值最多 16 KiB，JSON 请求体最多 32 KiB。成功返回一次性 `proof`，有效期为 120 秒。
 
-重试受保护操作时，在 `X-Renop-Captcha` 中提供证明并携带同一浏览器 Cookie。证明绑定范围、浏览器会话和当前服务商配置。缺少证明返回
+重试受保护操作时，在 `X-Renop-Captcha` 请求头或通过 query 参数（`captcha` / `proof`）中提供证明并携带同一浏览器 Cookie。证明绑定范围、浏览器会话和当前服务商配置。缺少证明返回
 `428`，附带 `X-Renop-Error-Code: captcha_required` 和 `X-Renop-Captcha-Scope`。无效或重复使用返回 `400`。服务商故障返回
 `503`。
 

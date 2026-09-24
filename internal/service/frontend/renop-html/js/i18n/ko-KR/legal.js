@@ -32,5 +32,8 @@ export default Object.freeze({
     "legal.necessaryOnly": "필수만 허용",
     "legal.acceptAll": "모두 허용",
     "legal.cookiePreferences": "쿠키 환경설정",
-    "legal.savePreferences": "환경설정 저장"
+    "legal.savePreferences": "환경설정 저장",
+    "legal.language": "문서 언어",
+    "legal.defaultLanguage": "영어(기본값)",
+    "legal.translationNotice": "편집할 언어 버전을 선택하세요. 인스턴스는 기본적으로 영문만 제공합니다。"
 });

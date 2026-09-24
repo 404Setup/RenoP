@@ -32,5 +32,8 @@ export default Object.freeze({
     "legal.necessaryOnly": "必要なもののみ",
     "legal.acceptAll": "すべて許可",
     "legal.cookiePreferences": "Cookie 設定",
-    "legal.savePreferences": "設定を保存"
+    "legal.savePreferences": "設定を保存",
+    "legal.language": "ドキュメント言語",
+    "legal.defaultLanguage": "英語（既定）",
+    "legal.translationNotice": "編集する言語版を選択してください。インスタンスは既定で英語のみを提供します。"
 });

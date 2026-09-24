@@ -40,7 +40,7 @@ export function renderHTML(file) {
         if (['br', 'hr', 'img', 'input', 'link', 'meta'].includes(node.tag)) return open;
         return open + node.children.map(serialize).join('') + `</${node.tag}>`;
     };
-    return readFileSync(entry, 'utf8').replace(/<div id="app"[^>]*><\/div>/,
+    return readFileSync(entry, 'utf8').replace(/<div\b[^>]*?\bid="app"[^>]*><\/div>/s,
         () => context.renderShell(config).map(serialize).join(''));
 }
 

@@ -17,6 +17,7 @@ import {showAlert} from './alert.js';
 import {createIcon, runButtonAction} from './components.js';
 import {loginReturnTo} from './login-route.js';
 import {refreshAccountSecurity} from './account-security.js';
+import {acquireCaptchaProof} from './captcha.js';
 import {LocalizedResponseError, responseErrorMessage} from './response-errors.js';
 import {getUserProfile, invalidateUserProfiles, syncUserProfile} from './user-profiles.js';
 
@@ -26,10 +27,23 @@ let publicProviders = [], privateProviders = [], profileUsername = '', profileRe
 async function startOAuth(provider, intent) {
     if (['login', 'register'].includes(intent) && !(await ensureLegalConsent(intent === 'register' ? 'registration' : 'login'))) return;
     const returnTo = ['login', 'register'].includes(intent) ? loginReturnTo() : window.location.pathname;
-    window.location.assign('/api/auth/oauth/' + encodeURIComponent(provider) + '/start?' + new URLSearchParams({
+    const params = new URLSearchParams({
         intent,
         return_to: returnTo
-    }));
+    });
+    if (['login', 'register'].includes(intent)) {
+        const captchaScope = intent === 'register' ? 'registration' : 'password_login';
+        let proof = '';
+        try {
+            proof = await acquireCaptchaProof(captchaScope);
+        } catch {
+            return;
+        }
+        if (proof) {
+            params.set('captcha', proof);
+        }
+    }
+    window.location.assign('/api/auth/oauth/' + encodeURIComponent(provider) + '/start?' + params);
 }
 
 export function getProviderIconName(provider) {

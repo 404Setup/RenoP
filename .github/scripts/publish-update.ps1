@@ -34,7 +34,7 @@
     Update host origin (default https://mvnc.pkg.one)
 
 .PARAMETER IndexTool
-    Native renop-release-index executable built from the current protobuf schema
+    Native renop-actions executable built from the current protobuf schema
 #>
 [CmdletBinding()]
 param(
@@ -61,7 +61,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$nightlyPackageRetention = 9
+$nightlyPackageRetention = 1
 
 $token = $env:RENOP_PUBLISH_TOKEN
 if ([string]::IsNullOrWhiteSpace($token)) {
@@ -82,10 +82,9 @@ if ([string]::IsNullOrWhiteSpace($Changelog) -and -not [string]::IsNullOrWhiteSp
     $Changelog = Get-Content -LiteralPath $ChangelogFile -Raw -Encoding utf8
 }
 if ([string]::IsNullOrWhiteSpace($Changelog)) {
-    $genScript = Join-Path $PSScriptRoot 'generate-changelog.ps1'
-    if (Test-Path -LiteralPath $genScript) {
+    if ($IndexTool -and (Test-Path -LiteralPath $IndexTool)) {
         try {
-            $Changelog = & pwsh -NoProfile -File $genScript -Commit (if ($Commit) { $Commit } else { 'HEAD' })
+            $Changelog = & $IndexTool -step changelog -Commit (if ($Commit) { $Commit } else { 'HEAD' })
         } catch {
             Write-Warning "Could not auto-generate changelog: $($_.Exception.Message)"
         }

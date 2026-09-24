@@ -8,7 +8,6 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
-// Command renop-release-index reads the update host's protobuf directory inventory.
 package main
 
 import (
@@ -23,30 +22,33 @@ import (
 	"strings"
 	"time"
 
-	"renop/pkg/pb"
-
 	"github.com/goccy/go-json"
 	"google.golang.org/protobuf/proto"
+
+	"renop/pkg/pb"
 )
 
-func main() {
-	url := flag.String("url", "", "Repository directory API URL")
-	flag.Parse()
+func runReleaseIndex(args []string) error {
+	fs := flag.NewFlagSet("release-index", flag.ContinueOnError)
+	url := fs.String("url", "", "Repository directory API URL")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
 	token := os.Getenv("RENOP_PUBLISH_TOKEN")
 	if token == "" {
 		token = os.Getenv("MVNC_TOKEN")
 	}
+
 	client := &http.Client{Timeout: 30 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error {
 		return errors.New("release inventory redirects are not permitted")
 	}}
+
 	directories, err := readDirectories(context.Background(), client, *url, token)
 	if err == nil {
 		err = json.NewEncoder(os.Stdout).Encode(directories)
 	}
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+	return err
 }
 
 func readDirectories(ctx context.Context, client *http.Client, url, token string) ([]string, error) {
@@ -98,7 +100,7 @@ func readDirectories(ctx context.Context, client *http.Client, url, token string
 		}
 		directories = append(directories, name)
 		if len(directories) > 4096 {
-			return nil, errors.New("release inventory exceeds 4096 directories")
+			return nil, errors.New("release inventory exceeds 4096 entries")
 		}
 	}
 	sort.Strings(directories)

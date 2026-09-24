@@ -28,8 +28,10 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 
+	"renop/internal/config"
 	"renop/internal/core"
 	"renop/internal/service/audit"
+	"renop/internal/service/captcha"
 	"renop/internal/service/legal"
 	"renop/internal/service/token"
 )
@@ -143,11 +145,28 @@ func startGitHubOAuth(c fiber.Ctx, state *core.AppState, provider githubOAuthPro
 	if c.Query("intent") == "register" && !cfg.Registration.Enabled {
 		return registrationError(c, core.ErrRegistrationDisabled)
 	}
-	if c.Query("intent") == "login" || c.Query("intent") == "register" {
+	intent := c.Query("intent")
+	if intent == "" {
+		if profile == nil {
+			intent = "login"
+		} else {
+			intent = "link"
+		}
+	}
+	if intent == "login" || intent == "register" {
 		profile = nil
 	}
-	if profile == nil && c.Query("intent") != "email" {
+	if profile == nil && intent != "email" {
 		if err := legal.RequireConsent(c, state); err != nil {
+			return err
+		}
+	}
+	if intent == "login" {
+		if err := captcha.Require(c, state, config.CaptchaPasswordLogin); err != nil {
+			return err
+		}
+	} else if intent == "register" {
+		if err := captcha.Require(c, state, config.CaptchaRegistration); err != nil {
 			return err
 		}
 	}

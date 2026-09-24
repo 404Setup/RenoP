@@ -296,7 +296,7 @@ function openReadmeEditor(repoName, imageName, currentReadme, onSaved) {
  */
 function openDescriptionEditor(repoName, imageName, currentDescription, onSaved) {
     const textarea = el('textarea', {
-        maxlength: '4000', rows: '6', placeholder: t('docker.descriptionPlaceholder')
+        maxlength: '60', rows: '4', placeholder: t('docker.descriptionPlaceholder')
     }, currentDescription || '');
 
     const editorWrap = el('div', {class: 'docker-readme-editor'}, textarea);
@@ -319,6 +319,10 @@ function openDescriptionEditor(repoName, imageName, currentDescription, onSaved)
                 onClick: async (e, dlg) => {
                     await runButtonAction(e.currentTarget, async () => {
                         const newDescription = textarea.value.trim();
+                        if (new TextEncoder().encode(newDescription).length > 60) {
+                            showAlert(t('docker.descriptionTooLarge'), 'error');
+                            return;
+                        }
                         try {
                             const resp = await apiRequest(`/api/docker/repositories/${encodeURIComponent(repoName)}/images?image=${encodeURIComponent(imageName)}`, {
                                 method: 'PUT',

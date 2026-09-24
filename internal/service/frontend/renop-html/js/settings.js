@@ -94,6 +94,7 @@ let accountGeneration = 0;
 let settingsOwner = '';
 let saving = false;
 let containerManaged = false;
+let buttonsBound = false;
 
 /** @param {string} domain - Domain key. @returns {string} Localized page name. */
 function domainLabel(domain) {
@@ -153,21 +154,56 @@ function renderDomainNavigation() {
     const openGroup = group => {
         if (group && group.id !== active?.id) void loadDomainSettings(group.domains[0], true);
     };
-    nav.replaceChildren(...groups.map(group => el('button', {
-        type: 'button', class: 'settings-nav-item', 'data-settings-group': group.id,
-        'aria-current': group.id === active?.id ? 'page' : null,
-        onclick: () => openGroup(group)
-    }, el('span', {}, t(group.label)), el('span', {class: 'settings-draft-dot', 'aria-hidden': 'true'}))));
+    const existingButtons = Array.from(nav.querySelectorAll?.(':scope > .settings-nav-item') || []);
+    const isMatching = existingButtons.length === groups.length &&
+        existingButtons.every((btn, i) => btn.dataset?.settingsGroup === groups[i].id);
+    if (isMatching) {
+        existingButtons.forEach((btn, i) => {
+            const group = groups[i];
+            if (group.id === active?.id) {
+                btn.setAttribute('aria-current', 'page');
+            } else {
+                btn.removeAttribute('aria-current');
+            }
+            btn.onclick = () => openGroup(group);
+        });
+    } else {
+        nav.replaceChildren(...groups.map(group => el('button', {
+            type: 'button', class: 'settings-nav-item', 'data-settings-group': group.id,
+            'aria-current': group.id === active?.id ? 'page' : null,
+            onclick: () => openGroup(group)
+        }, el('span', {}, t(group.label)), el('span', {class: 'settings-draft-dot', 'aria-hidden': 'true'}))));
+    }
     const subnav = document.getElementById('settings-subnav');
     if (subnav) {
         subnav.hidden = !active || active.domains.length < 2;
-        subnav.replaceChildren(...(active?.domains || []).map(domain => el('button', {
-            type: 'button', class: 'settings-nav-item', 'data-settings-domain': domain,
-            'aria-current': domain === currentDomain ? 'page' : null,
-            onclick: () => {
-                if (domain !== currentDomain) void loadDomainSettings(domain, true);
-            }
-        }, el('span', {}, domainLabel(domain)), el('span', {class: 'settings-draft-dot', 'aria-hidden': 'true'}))));
+        const activeDomains = active?.domains || [];
+        const existingSub = Array.from(subnav.querySelectorAll?.(':scope > .settings-nav-item') || []);
+        // Only reuse subnav buttons when the active group hasn't changed; a group
+        // switch means the domain closures captured in onclick are from a different
+        // group and must be rebuilt.
+        const sameGroup = existingSub.length === activeDomains.length &&
+            existingSub.every((btn, i) => btn.dataset?.settingsDomain === activeDomains[i]);
+        if (sameGroup) {
+            existingSub.forEach((btn, i) => {
+                const domain = activeDomains[i];
+                if (domain === currentDomain) {
+                    btn.setAttribute('aria-current', 'page');
+                } else {
+                    btn.removeAttribute('aria-current');
+                }
+                // Keep onclick fresh for the same reason as the main nav above.
+                btn.onclick = () => { if (domain !== currentDomain) void loadDomainSettings(domain, true); };
+            });
+        } else {
+            subnav.replaceChildren(...activeDomains.map(domain => el('button', {
+                type: 'button', class: 'settings-nav-item', 'data-settings-domain': domain,
+                'aria-current': domain === currentDomain ? 'page' : null,
+                onclick: () => {
+                    if (domain !== currentDomain) void loadDomainSettings(domain, true);
+                }
+            }, el('span', {}, domainLabel(domain)), el('span', {class: 'settings-draft-dot', 'aria-hidden': 'true'}))));
+        }
     }
     const picker = document.getElementById('settings-page-picker');
     if (picker) {
@@ -208,6 +244,20 @@ function settingsLoadState(message, retry) {
 /** Discover permitted pages; each page loads only its own configuration. */
 export async function initSettings() {
     if (saving) return;
+    if (!buttonsBound) {
+        buttonsBound = true;
+        document.getElementById('settings-save-btn')?.addEventListener('click', saveDomainSettings);
+        document.getElementById('settings-reset-btn')?.addEventListener('click', async () => {
+            const domain = currentDomain;
+            if (saving || !dirtyDraft(drafts.get(domain)) || !await showConfirm(t('settings.discardConfirm'))) return;
+            if (domain !== currentDomain || saving) return;
+            drafts.delete(domain);
+            await loadDomainSettings(domain);
+        });
+        document.getElementById('settings-restart-btn')?.addEventListener('click', async () => {
+            if (!saving && await showConfirm(t('settings.confirmRestart'))) await restartApp();
+        });
+    }
     const requestId = ++discoveryId;
     try {
         const [{response, data}, updater] = await Promise.all([
@@ -1477,17 +1527,6 @@ export async function saveDomainSettings() {
     }
 }
 
-document.getElementById('settings-save-btn')?.addEventListener('click', saveDomainSettings);
-document.getElementById('settings-reset-btn')?.addEventListener('click', async () => {
-    const domain = currentDomain;
-    if (saving || !dirtyDraft(drafts.get(domain)) || !await showConfirm(t('settings.discardConfirm'))) return;
-    if (domain !== currentDomain || saving) return;
-    drafts.delete(domain);
-    await loadDomainSettings(domain);
-});
-document.getElementById('settings-restart-btn')?.addEventListener('click', async () => {
-    if (!saving && await showConfirm(t('settings.confirmRestart'))) await restartApp();
-});
 window.addEventListener('beforeunload', event => {
     if ([...drafts.values()].some(dirtyDraft)) {
         event.preventDefault();

@@ -2,45 +2,44 @@
 title: バックアップ、復元、移行
 order: 5
 category: デプロイ
-description: 整合したバックアップ、復元演習、バックエンド移行、災害復旧の検証
+description: 整合したバックアップ、復元手順、バックエンド移行、災害復旧の検証
 ---
 
 # バックアップ、復元、移行
 
-設定、リポジトリポリシー、データベース状態、再構築できないアーティファクトを一緒に復元できて初めて、RenoP の
-バックアップは完全です。`index.json` または S3 bucket だけのコピーでは不十分です。
+設定、リポジトリ方針、データベース状態、再構築できない成果物をまとめて復元できて初めて、RenoP の
+バックアップは完全と言えます。`index.json` や S3 バケット単体の複製だけでは不十分です。
 
 リポジトリ定義はデータベースのバックアップに含まれます。旧 YAML はデータベースにリポジトリ設定がない場合のみ
 インポートされ、既存の設定を上書きしません。古い RenoP へのロールバックが必要な場合に備え、
 移行元の保管ファイルを別途保存してください。
 
-## データを分類する
+## データの分類
 
-| データ            | 代表的な場所                                   | 復旧時の役割                                                      |
-|:------------------|:-----------------------------------------------|:------------------------------------------------------------------|
-| メイン設定        | `renop-settings.db` または `RENOP_SETTINGS_DB` | Listener、database、proxy、security、preview、updater             |
-| リポジトリ定義    | データベース                                   | Format、visibility、mirror、storage backend、policy               |
-| データベース      | `renop.db` または外部 DSN                      | Account、permission、session、token、team、review、audit、message |
-| ローカルデータ    | `storage_path`                                 | Published package、upload、upstream cache                         |
-| S3 互換データ     | Bucket と repository prefix                    | S3-backed repository の package と cache                          |
-| ファイル索引      | `index.json` または `RENOP_INDEX`              | Performance snapshot。保持を推奨するが再構築可能                  |
-| TLS・連携秘密情報 | Proxy または secret manager                    | 同じ公開 service と integration の復旧                            |
+| データ            | 代表的な保存場所                               | 復旧時の役割                                                       |
+|:------------------|:-----------------------------------------------|:-------------------------------------------------------------------|
+| メイン設定        | `renop-settings.db` または `RENOP_SETTINGS_DB` | 待受設定、データベース、プロキシ、セキュリティ、事前確認、自動更新 |
+| リポジトリ定義    | データベース                                   | 形式、公開範囲、ミラー、ストレージ構成、各種方針                   |
+| データベース      | `renop.db` または外部 DSN                      | アカウント、権限、セッション、トークン、チーム、審査、監査、通知   |
+| ローカルデータ    | `storage_path`                                 | 公開済みパッケージ、アップロード、上流キャッシュ                   |
+| S3 互換データ     | バケットとリポジトリ接頭辞                     | S3 リポジトリのパッケージとキャッシュ                              |
+| ファイル索引      | `index.json` または `RENOP_INDEX`              | 性能維持用スナップショット。保持を推奨（ストレージから再構築可能） |
+| TLS・連携秘密情報 | プロキシまたは機密管理ツール                   | 同じ公開サービスと外部連携の復旧                                   |
 
-生成済み website、frontend dependency、build cache は再生成できます。運用 secret の唯一のコピーにしないでください。
+生成済み Web サイト、フロントエンドの依存関係、ビルドキャッシュは再生成できます。運用機密情報の唯一のコピーにはしないでください。
 
-## 整合点を決める
+## 整合点（リカバリポイント）の決定
 
-一般に最も安全なのは cold backup です。新規 traffic を止め、RenoP を正常終了し、database と artifact backend を snapshot し、
-configuration をコピーしてから再起動します。Database record と別時点の object が組み合わされることを防げます。
+一般に最も安全なのはコールドバックアップ（停止状態での取得）です。新規トラフィックを遮断し、RenoP
+を正常終了させ、データベースと成果物ストレージのスナップショットを取得し、設定をコピーしてから再起動します。データベースの記録と異なる時点のオブジェクトが組み合わされる不整合を防げます。
 
-停止できない場合は、共通 recovery point を記録した transaction-consistent database backup と storage snapshot を使用します。
-WAL に commit 済み data が残る可能性があるため、稼働中の SQLite main file だけをコピーするのは安全ではありません。
-近い時刻に開始した provider snapshot が自動的に相互整合するわけでもありません。
+サービスを停止できない場合は、共通の復旧時点を記録したトランザクション整合データベースバックアップと、ストレージスナップショットを使用します。WAL
+にコミット済みデータが残っている可能性があるため、稼働中の SQLite
+メインファイルだけをコピーするのは安全ではありません。近い時刻に開始したクラウドプロバイダーのスナップショットが自動的に整合するわけでもありません。
 
-## ローカル SQLite をバックアップする
+## ローカル SQLite のバックアップ
 
-起動に使用している service manager で RenoP を停止します。Process 終了後に、閉じた database、configuration、repository file、
-index snapshot、local storage tree をコピーします。
+起動に使用しているサービス管理ツールで RenoP を停止します。プロセス終了後に、整合したデータベース、設定ファイル、索引スナップショット、ローカルストレージをコピーします。
 
 ```bash
 install -d /backup/renop
@@ -48,79 +47,69 @@ cp renop-settings.db renop.db index.json /backup/renop/
 rsync -a storage/ /backup/renop/storage/
 ```
 
-実際の path は `RENOP_SETTINGS_DB`、`RENOP_INDEX`、database DSN、`storage_path` に従います。
-所有者、permission、必要な extended attribute を保持し、temporary upload 用の空き容量も確保します。
+実際のパスは `RENOP_SETTINGS_DB`、`RENOP_INDEX`、データベース DSN、`storage_path` に従います。
+所有者、アクセス権限、必要な拡張属性を保持し、一時アップロード用の空き容量も確保してください。
 
-## 外部データベースをバックアップする
+## 外部データベースのバックアップ
 
-Vendor がサポートする logical dump、physical backup、managed snapshot を使います。すべての RenoP table と migration
-metadata を
-含め、転送と保存先を暗号化し、RenoP と database engine の version を記録して、公式 restore tool で検証します。
+ベンダーがサポートする論理ダンプ、物理バックアップ、マネージドスナップショットを使用します。すべての RenoP
+テーブルとマイグレーションメタデータを含め、転送経路と保存先を暗号化し、RenoP とデータベースエンジンのバージョンを記録して、公式復元ツールで検証します。
 
-MySQL または PostgreSQL では全 table を同じ transaction/recovery point で取得します。ClickHouse は構成した deployment の
-運用要件に従い、RenoP transaction journal の復旧に必要な data を保持します。Database を失った後に UI だけで account や
-team を
-再構成しようとしないでください。
+MySQL または PostgreSQL では全テーブルを同一トランザクション（同一復旧時点）で取得します。ClickHouse
+は構成したデプロイ環境の運用要件に従い、RenoP トランザクションジャーナルの復旧に必要なデータを保持します。データベースを失った後に管理画面だけでアカウントやチームを再構成しようとしないでください。
 
-## ローカルおよび S3 アーティファクトをバックアップする
+## ローカルおよび S3 成果物のバックアップ
 
-Local storage は設定した root 全体をコピーします。Extension で選別しないでください。Metadata、manifest、package
-index、signature、
-upload state は main archive と同様に重要です。
+ローカルストレージは設定したルートディレクトリ全体をコピーします。拡張子で選別しないでください。メタデータ、マニフェスト、パッケージ索引、電子署名、アップロード状態はメインアーカイブと同様に重要です。
 
-S3 互換 storage では次を確認します。
+S3 互換ストレージでは次を確認します。
 
-- 各 repository の bucket と `key_prefix` を保護する。
-- 対応していれば versioning または replication を有効にし、object restore を実際に試す。
-- Backup credential と RenoP の credential を分離する。
-- Object metadata を保持し、lifecycle rule が唯一の copy を早期削除しないことを確認する。
-- Presigned download の設計上必要な場合を除き bucket を private にする。
+- 各リポジトリのバケットと `key_prefix` を保護する。
+- 対応していればバージョニングまたはレプリケーションを有効にし、オブジェクト復元を実際に試す。
+- バックアップ用認証情報と RenoP の運用認証情報を分離する。
+- オブジェクトメタデータを保持し、ライフサイクルルールによって唯一のコピーが早期削除されないことを確認する。
+- 署名付き URL による直接ダウンロードの設計上必要な場合を除き、バケットを非公開（プライベート）にする。
 
-Mirror cache は再取得できる場合がありますが、local publication は置き換えられない可能性があります。両者を確実に
-区別できる場合だけ retention を分けてください。
+上流ミラーキャッシュは再取得できる場合がありますが、ローカルで公開された成果物は再取得できません。両者を確実に区別できる場合のみ保持期間を分けてください。
 
-## 隔離環境で復元する
+## 隔離環境での復元手順
 
-まず隔離した host または network に復元します。Backup を作成した RenoP version で動作確認し、必要な upgrade は別工程にします。
+本番に適用する前に、まず隔離したホストまたはネットワーク環境で復元します。バックアップを取得した RenoP
+バージョンで動作確認を行い、バージョンアップは別工程として実施します。
 
-1. `renop-settings.db`、certificate、integration secret を厳しい permission で復元する。
-2. Database を復元し、hostname、credential、TLS setting を確認する。
-3. Local storage を復元するか、同じ S3 bucket と prefix に接続する。
-4. `index.json` があれば復元し、なければ authoritative storage から再構築させる。
-5. Public traffic を入れずに RenoP を起動し、startup error を確認する。
-6. Sign in して repository list と代表的な package read を確認する。
-7. 最小 scope token で disposable package を publish して削除する。
-8. Authorization、mirror、review、quota、preview、audit を確認してから traffic を戻す。
+1. `renop-settings.db`、証明書、外部連携シークレットを適切なアクセス権限で復元する。
+2. データベースを復元し、ホスト名、認証情報、TLS 設定を確認する。
+3. ローカルストレージを復元するか、同一の S3 バケット・接頭辞に接続する。
+4. `index.json` があれば復元し、なければ実ストレージから自動再構築させる。
+5. 外部トラフィックを受け入れずに RenoP を起動し、起動ログにエラーがないか確認する。
+6. サインインしてリポジトリ一覧の表示と、代表的なパッケージの読み取りを確認する。
+7. 最小権限のトークンを用いてテストパッケージを公開し、削除できることを確認する。
+8. 認可、ミラー、審査、容量制限（クォータ）、事前確認、監査ログを確認してから本番トラフィックを戻す。
 
-Security incident 後は、復元された session や token をそのまま有効にしない方が安全な場合があります。範囲に応じて revoke し、
-database、storage、OAuth、SMTP、proxy、signing credential を rotate してください。
+セキュリティ障害の発生後は、復元されたセッションやトークンをそのまま有効化しない方が安全な場合があります。影響範囲に応じて取り消し（失効）を行い、データベース、ストレージ、OAuth、SMTP、プロキシ、署名鍵の認証情報を更新（ローテーション）してください。
 
-## リポジトリバックエンドを移行する
+## リポジトリバックエンドの移行
 
-RenoP の repository management migration を使い、backend change と active operation を直列化します。稼働中に physical
-directory を
-直接編集したり、RenoP の背後で object をコピーしたり、検証前に configuration を切り替えたりしないでください。
+RenoP のリポジトリ管理画面の移行機能を使い、バックエンド変更と稼働中の操作を直列化します。稼働中に物理ディレクトリを直接編集したり、RenoP
+の背後でオブジェクトを手動コピーしたり、検証前に設定を切り替えたりしないでください。
 
-移行前に package/version count、total bytes、policy、source/destination setting、free capacity を記録します。移行後は listing
-と
-代表 hash を比較し、native client で read/write を確認し、acceptance window が終わるまで source を read-only rollback copy
-として保持します。
+移行前にパッケージ数・バージョン数、総バイト数、各種方針、移行元/移行先設定、空き容量を記録します。移行後は一覧と代表ハッシュ値を比較し、ネイティブクライアントでの読み書きを確認し、受け入れ検証が完了するまで移行元を読み取り専用のロールバック用コピーとして保持します。
 
-## 復旧訓練を実施する
+## 復旧訓練の実施
 
-Database だけでなく complete service の RPO と RTO を定義します。定期的に最新 backup を空の環境へ restore し、次を記録します。
+データベース単体だけでなく、サービス全体としての目標復旧時点（RPO）と目標復旧時間（RTO）を定義します。定期的に最新バックアップを検証環境へ復元し、次を記録してください。
 
-- Backup の開始・完了時刻。
-- RenoP、database、storage service の version。
-- Restore duration と manual step。
-- 有効なすべての format での package read/write 結果。
-- Missing object、permission error、古い DNS/certificate、follow-up action。
+- バックアップの開始・完了時刻。
+- RenoP、データベース、ストレージサービスのバージョン。
+- 復元所要時間と手動作業手順。
+- 有効なすべての形式におけるパッケージ読み書き結果。
+- オブジェクトの欠落、権限エラー、古い DNS/証明書、および後続の是正対応。
 
-Restore したことのない backup は未検証の仮定です。最終 runbook を
-[本番デプロイチェックリスト](./production-checklist.md)から参照できるようにし、offline copy も保持してください。
+実際に復元を試したことのないバックアップは、正常に動作するか未確認の状態です。手順書を[本番デプロイチェックリスト](./production-checklist.md)
+から参照できるようにし、オフライン環境でも閲覧できる控えを保持してください。
 
 S3 の共有データは非公開の `.renop-content-v1`
-名前空間に保存します。バックアップにはリポジトリのオブジェクトとこの名前空間を含め、再起動後のメタデータ読み取りを減らすため非公開のインデックスも保持してください。インデックスはバージョン付き
+名前空間に保存されます。バックアップにはリポジトリのオブジェクトとこの名前空間を含め、再起動後のメタデータ読み取りを減らすため非公開の索引も保持してください。索引はバージョン付き
 JSON
 レコードストリームを使用し、旧スナップショットも読み取れます。重複排除と復元については[リポジトリ設定](/docs/configuration/repositories)
 を参照してください。

@@ -879,3 +879,45 @@ html.dark .dashboard-section-badge {
     border-radius: 0.5rem;
     background: color-mix(in srgb, var(--card-bg) 80%, transparent);
 }
+
+.banned-ips-list-host {
+    min-height: 8rem;
+    position: relative;
+}
+
+.sessions-view-enter-forward {
+    animation: sessionsViewForward 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.sessions-view-enter-backward {
+    animation: sessionsViewBackward 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes sessionsViewForward {
+    from {
+        opacity: 0;
+        transform: translateX(18px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes sessionsViewBackward {
+    from {
+        opacity: 0;
+        transform: translateX(-18px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sessions-view-enter-forward,
+    .sessions-view-enter-backward {
+        animation: none !important;
+    }
+}
