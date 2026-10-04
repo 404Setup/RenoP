@@ -10,7 +10,6 @@
 
 import {el} from './dom.js';
 import {morphElementHeight} from './height-anim.js';
-import {$} from './jquery.js';
 
 /**
  * Clamp a zero-based page to a bounded collection.
@@ -55,8 +54,8 @@ function createCollectionPager({
         type: 'button', class: 'renop-pagination-btn', disabled: page >= pages - 1,
         'aria-label': nextLabel,
     }, nextLabel);
-    $(previous).on('click', () => onPageChange(page - 1));
-    $(next).on('click', () => onPageChange(page + 1));
+    previous.addEventListener('click', () => onPageChange(page - 1));
+    next.addEventListener('click', () => onPageChange(page + 1));
     const status = summary({page: page + 1, pages, total: totalItems});
     return el('nav', {class: 'renop-pagination', 'aria-label': status},
         previous,
@@ -84,17 +83,10 @@ function createCollectionPager({
  *   Collection controller.
  */
 export function createPaginatedCollection({
-                                              list,
-                                              pager,
-                                              items,
-                                              pageSize = 8,
-                                              initialPage = 0,
-                                              renderItem,
-                                              renderEmpty,
-                                              previousLabel,
-                                              nextLabel,
-                                              summary,
-                                              onPageChanged,
+                                              list, pager, items, pageSize = 8,
+                                              initialPage = 0, renderItem, renderEmpty,
+                                              previousLabel, nextLabel,
+                                              summary, onPageChanged,
                                           }) {
     let collection = Array.isArray(items) ? items.slice() : [];
     const boundedPageSize = Math.max(1, Math.min(100, Math.trunc(Number(pageSize) || 8)));
@@ -109,10 +101,10 @@ export function createPaginatedCollection({
             if (empty) nodes.push(empty);
         }
         list.replaceChildren(...nodes);
-        $(list).removeClass('renop-page-enter');
+        list.classList.remove('renop-page-enter');
         void list.offsetWidth;
-        $(list).addClass('renop-page-enter');
-        $(pager).empty();
+        list.classList.add('renop-page-enter');
+        pager.replaceChildren();
         const control = createCollectionPager({
             page: currentPage,
             totalItems: collection.length,
@@ -122,7 +114,7 @@ export function createPaginatedCollection({
             summary,
             onPageChange: page => void setPage(page),
         });
-        if (control) $(pager).append(control);
+        if (control) pager.append(control);
     };
 
     const render = animate => animate

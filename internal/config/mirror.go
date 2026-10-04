@@ -247,7 +247,9 @@ func (m *Mirror) IsArtifactAllowedFor(format, path string) (bool, string) {
 		return true, ""
 	}
 
-	if strings.EqualFold(strings.TrimSpace(format), RepositoryFormatFiles) {
+	if strings.EqualFold(strings.TrimSpace(format), RepositoryFormatFiles) ||
+		strings.EqualFold(strings.TrimSpace(format), RepositoryFormatGithub) ||
+		strings.EqualFold(strings.TrimSpace(format), RepositoryFormatGitLab) {
 		match := func(pattern string) bool {
 			pattern = strings.Trim(strings.TrimSpace(pattern), "/")
 			if pattern == "" {
@@ -262,10 +264,10 @@ func (m *Mirror) IsArtifactAllowedFor(format, path string) (bool, string) {
 			if slices.ContainsFunc(m.AllowArtifacts, match) {
 				return true, ""
 			}
-			return false, "File blocked: Not in mirror allow list (" + clean + ")"
+			return false, "Artifact blocked: Not in mirror allow list (" + clean + ")"
 		}
 		if slices.ContainsFunc(m.DenyArtifacts, match) {
-			return false, "File blocked: In mirror deny list (" + clean + ")"
+			return false, "Artifact blocked: In mirror deny list (" + clean + ")"
 		}
 		return true, ""
 	}
@@ -390,26 +392,26 @@ func (m *Mirror) setDefaults() {
 func (m *Mirror) UnmarshalJSON(data []byte) error {
 	m.setDefaults()
 	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(data, &fields); err != nil {
+	if err := json.UnmarshalOf(data, &fields); err != nil {
 		return err
 	}
 	proxyRaw, hasProxy := fields["proxy"]
 	delete(fields, "proxy")
 	type alias Mirror
 	aux := (*alias)(m)
-	clean, err := json.Marshal(fields)
+	clean, err := json.MarshalOf(fields)
 	if err != nil {
 		return err
 	}
-	if err := json.Unmarshal(clean, aux); err != nil {
+	if err := json.UnmarshalOf(clean, aux); err != nil {
 		return err
 	}
 	m.ProxyMode = ""
 	m.Proxy = nil
 	if hasProxy && len(proxyRaw) > 0 && string(proxyRaw) != "null" {
-		if err := json.Unmarshal(proxyRaw, &m.ProxyMode); err != nil {
+		if err := json.UnmarshalOf(proxyRaw, &m.ProxyMode); err != nil {
 			var legacy MirrorProxy
-			if legacyErr := json.Unmarshal(proxyRaw, &legacy); legacyErr != nil {
+			if legacyErr := json.UnmarshalOf(proxyRaw, &legacy); legacyErr != nil {
 				return err
 			}
 			m.Proxy = &legacy
@@ -521,7 +523,7 @@ func (m *MirrorCredentials) UnmarshalJSON(data []byte) error {
 	m.setDefaults()
 	type alias MirrorCredentials
 	aux := (*alias)(m)
-	return json.Unmarshal(data, aux)
+	return json.UnmarshalOf(data, aux)
 }
 
 func (m *MirrorCredentials) UnmarshalYAML(value *yaml.Node) error {

@@ -1,0 +1,151 @@
+/*
+ * Copyright (c) 2026 404Setup. All rights reserved.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
+ *
+ * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
+ */
+
+.traffic-quota-panel {
+    display: grid;
+    gap: 1rem;
+    padding: 1.1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    background: var(--card-bg);
+    min-width: 0;
+}
+
+.traffic-quota-header,
+.traffic-quota-header-actions,
+.traffic-quota-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .8rem;
+}
+
+.traffic-quota-header h3,
+.traffic-quota-header p {
+    margin: 0;
+}
+
+.traffic-quota-header h3 {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    font-size: 1rem;
+}
+
+.traffic-quota-header p,
+.traffic-quota-toggle-row small,
+.traffic-quota-meta {
+    color: var(--muted);
+}
+
+.traffic-quota-header p {
+    margin-top: .25rem;
+    font-size: .82rem;
+}
+
+.traffic-quota-badge {
+    padding: .3rem .65rem;
+    border-radius: 999px;
+    background: var(--item-hover-bg);
+    color: var(--muted);
+    font-size: .76rem;
+    white-space: nowrap;
+}
+
+.traffic-quota-badge.is-unlimited {
+    color: var(--success-color);
+}
+
+.traffic-quota-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .75rem;
+}
+
+.traffic-quota-metric {
+    display: grid;
+    gap: .35rem;
+    min-width: 0;
+}
+
+.traffic-quota-metric-label {
+    color: var(--muted);
+    font-size: .78rem;
+}
+
+.traffic-quota-metric strong {
+    overflow-wrap: anywhere;
+    font-size: .88rem;
+}
+
+.traffic-quota-track {
+    height: 4px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--item-hover-bg);
+}
+
+.traffic-quota-track > span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: #0ea5e9;
+}
+
+.traffic-quota-unlimited {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    color: var(--success-color);
+    font-size: .9rem;
+}
+
+.traffic-quota-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: .5rem;
+    padding-top: .5rem;
+    border-top: 1px solid var(--border-color);
+    font-size: .78rem;
+    color: var(--muted);
+}
+
+.traffic-quota-form,
+.traffic-quota-form-fields {
+    display: grid;
+    gap: .9rem;
+}
+
+.traffic-quota-form-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.traffic-quota-form-fields > label,
+.traffic-quota-toggle-row > span {
+    display: grid;
+    gap: .35rem;
+    font-size: .82rem;
+}
+
+.traffic-quota-toggle-row {
+    padding: .85rem 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    background: var(--card-bg);
+}
+
+@media (max-width: 640px) {
+    .traffic-quota-grid,
+    .traffic-quota-form-fields {
+        grid-template-columns: 1fr;
+    }
+}

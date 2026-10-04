@@ -8,38 +8,16 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
-import {el} from '@renop/ui/dom';
+import {SubHeader, createSubHeader as createSubHeaderBase} from '@renop/ui/sub-header';
 import {createIcon} from './icon.js';
+import {el} from '@renop/ui/dom';
 
 /**
  * Subsection header with icon, title, and optional action slot.
  */
-export class RenopSubHeader extends HTMLElement {
+export class RenopSubHeader extends SubHeader {
     /**
-     * @returns {string[]}
-     */
-    static get observedAttributes() {
-        return ['icon', 'title'];
-    }
-
-    /**
-     * Render when inserted into the DOM.
-     * @returns {void}
-     */
-    connectedCallback() {
-        this.render();
-    }
-
-    /**
-     * Re-render when observed attributes change.
-     * @returns {void}
-     */
-    attributeChangedCallback() {
-        this.render();
-    }
-
-    /**
-     * Rebuild header left content while preserving non-left children.
+     * Rebuild header left content with cfg-prefixed classes.
      * @returns {void}
      */
     render() {
@@ -72,16 +50,13 @@ if (!customElements.get('renop-sub-header')) {
 }
 
 /**
- * Create a subsection header element.
+ * Create a subsection header element with icon rendering.
  * @param {string} icon - Icon name.
  * @param {string} titleText - Header title text.
  * @param {HTMLElement|null} [actionEl=null] - Optional action element appended as a child.
  * @returns {HTMLElement}
  */
 export function createSubHeader(icon, titleText, actionEl = null) {
-    const subHeader = document.createElement('renop-sub-header');
-    if (icon) subHeader.setAttribute('icon', icon);
-    if (titleText) subHeader.setAttribute('title', titleText);
-    if (actionEl) subHeader.appendChild(actionEl);
-    return subHeader;
+    const iconNode = icon ? createIcon(icon, {width: '16', height: '16'}) : null;
+    return createSubHeaderBase(iconNode, titleText, actionEl);
 }

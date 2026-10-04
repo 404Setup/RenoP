@@ -36,7 +36,7 @@ function localDateTimeValue(timestamp) {
 export async function openUserBanDialog(account, refresh) {
     let status;
     try {
-        const response = await apiRequest(`/api/tokens/${encodeURIComponent(account.name)}/ban`);
+        const response = await apiRequest(`/api/users/${encodeURIComponent(account.name)}/ban`);
         if (!response.ok) {
             showAlert(await responseErrorMessage(response, 'users.banFailed'), 'error');
             return;
@@ -148,7 +148,7 @@ export async function openUserBanDialog(account, refresh) {
         }
         const button = document.getElementById('user-ban-save');
         await runButtonAction(button, async () => {
-            const response = await apiRequest(`/api/tokens/${encodeURIComponent(account.name)}/ban`, {
+            const response = await apiRequest(`/api/users/${encodeURIComponent(account.name)}/ban`, {
                 method: 'PUT', headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
                     reason: normalizedReason,
@@ -175,7 +175,7 @@ export async function openUserBanDialog(account, refresh) {
             text: t('users.unban'), className: 'action-btn danger-btn',
             onClick: async (event, dialog) => {
                 await runButtonAction(event.currentTarget, async () => {
-                    const response = await apiRequest(`/api/tokens/${encodeURIComponent(account.name)}/ban`, {
+                    const response = await apiRequest(`/api/users/${encodeURIComponent(account.name)}/ban`, {
                         method: 'DELETE'
                     });
                     if (!response.ok) {

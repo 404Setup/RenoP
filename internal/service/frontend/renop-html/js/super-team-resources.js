@@ -10,6 +10,7 @@
 
 import {el} from '@renop/ui/dom';
 import {morphElementHeight} from '@renop/ui/height-anim';
+import {createLoadingState} from '@renop/ui/loading';
 import {apiRequest} from './api.js';
 import {createIcon} from './components.js';
 import {t} from './i18n.js';
@@ -138,10 +139,7 @@ export function createSuperTeamResourcesSection(prefix) {
                 el('h3', {}, t(titleKey))
             ),
             el('div', {class: 'super-team-resource-list'},
-                el('div', {class: 'super-team-state'},
-                    el('div', {class: 'sessions-loading-spinner', 'aria-hidden': 'true'}),
-                    el('span', {}, t('common.loading'))
-                )
+                createLoadingState(t('common.loading'), 'super-team-state')
             ),
             el('nav', {class: 'renop-pagination super-team-resource-pager'})
         );

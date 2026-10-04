@@ -21,12 +21,17 @@ import conda_nativeEngine from './repository-engines/conda-native.js';
 import apkEngine from './repository-engines/apk.js';
 import aptEngine from './repository-engines/apt.js';
 import rpmEngine from './repository-engines/rpm.js';
+import githubEngine from './repository-engines/github.js';
+import gitlabEngine from './repository-engines/gitlab.js';
 
 const FORMAT_CATALOG = Object.freeze(Object.fromEntries(
-    [mavenEngine, maven_classicEngine, filesEngine, cargoEngine, dockerEngine, npmEngine, conanEngine, condaEngine, conda_nativeEngine, apkEngine, aptEngine, rpmEngine].flatMap(engine => [engine.id, ...(engine.aliases || [])].map(id => [id, engine]))
+    [mavenEngine, maven_classicEngine, filesEngine, cargoEngine, dockerEngine, npmEngine, conanEngine, condaEngine, conda_nativeEngine, apkEngine, aptEngine, rpmEngine, githubEngine, gitlabEngine].flatMap(engine => [engine.id, ...(engine.aliases || [])].map(id => [id, engine]))
 ));
 
-const RESERVED_REPOSITORY_NAMES = new Set(['api', 'assets', 'css', 'js', 'svg', 'javadoc', 'javadocs', 'cargodoc', 'cargodocs', 'cratedoc', 'cratedocs', 'v2']);
+const RESERVED_REPOSITORY_NAMES = new Set([
+    'api', 'assets', 'css', 'js', 'svg', 'javadoc', 'javadocs', 'cargodoc', 'cargodocs', 'cratedoc', 'cratedocs', 'v2',
+    'dashboard', 'users', 'repositories', 'settings', 'account', 'user', 'domain', 'team'
+]);
 
 /**
  * Return the canonical descriptor for a repository format.
@@ -57,14 +62,27 @@ export function createRepositoryDraft(name, format) {
     const repository = {
         name,
         format: descriptor.id,
-        visibility: 'PUBLIC',
-        mirrors: []
+        visibility: 'PUBLIC'
     };
+    if (descriptor.supportsMirrors !== false) {
+        repository.mirrors = [];
+    }
     if (descriptor.id === 'maven') {
         repository.allow_redeployment = false;
         repository.require_gpg_signature = false;
     } else if (descriptor.id === 'files') {
         repository.allow_redeployment = true;
+    } else if (descriptor.protocol === 'github' || descriptor.protocol === 'gitlab') {
+        repository.git_repo = {
+            mode: 'lax',
+            max_version_size_bytes: 300 * 1024 * 1024,
+            max_daily_traffic_bytes: 25 * 1024 * 1024 * 1024,
+            retain_latest_workflow_runs: true,
+            retain_latest_releases: true,
+            quota_request_cooldown_hours: 72,
+            owner: '',
+            registered_repos: []
+        };
     }
     return repository;
 }

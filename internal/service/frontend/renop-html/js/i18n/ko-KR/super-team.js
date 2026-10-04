@@ -15,7 +15,7 @@ export default Object.freeze({
     "superTeam.edit": "팀 편집",
     "superTeam.back": "팀 목록으로",
     "superTeam.empty": "글로벌 팀이 없습니다",
-    "superTeam.emptyHint": "팀을 만들어 npm과 Docker에서 공유할 네임스페이스를 예약하세요.",
+    "superTeam.emptyHint": "팀을 만들어 패키지 저장소 간에 공유할 네임스페이스를 예약하세요.",
     "superTeam.prefix": "변경할 수 없는 접두사",
     "superTeam.prefixHint": "소문자, 숫자, 하이픈, 밑줄 2~64자를 사용하세요. 생성 후 변경할 수 없습니다.",
     "superTeam.name": "팀 이름",

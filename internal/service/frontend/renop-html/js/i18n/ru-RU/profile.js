@@ -337,4 +337,8 @@ export default Object.freeze({
     "profile.apiTokenEditDesc": "Обновить имя и разрешения API-токена без изменения секрета.",
     "profile.apiTokenEdited": "API-токен обновлен",
     "profile.apiTokenEditFailed": "Не удалось обновить API-токен",
+    "profile.trafficQuotaTitle": "Квота трафика на скачивание",
+    "profile.trafficQuotaDesc": "Просмотр лимитов трафика на скачивание, остатка квоты и скорости восстановления.",
+    "profile.trafficQuotaLoading": "Загрузка квоты трафика…",
+    "profile.trafficQuotaLoadFailed": "Не удалось загрузить квоту трафика.",
 });

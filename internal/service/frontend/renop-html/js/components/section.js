@@ -8,20 +8,14 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
-import {el} from '@renop/ui/dom';
+import {Section} from '@renop/ui/section';
 import {createIcon, ICONS} from './icon.js';
+import {el} from '@renop/ui/dom';
 
 /**
  * Settings section with icon header and a fields container.
  */
-export class RenopSection extends HTMLElement {
-    /**
-     * @returns {string[]}
-     */
-    static get observedAttributes() {
-        return ['icon', 'title', 'subtitle'];
-    }
-
+export class RenopSection extends Section {
     /**
      * The fields container element (or the host if missing).
      * @returns {Element}
@@ -31,15 +25,7 @@ export class RenopSection extends HTMLElement {
     }
 
     /**
-     * Render when inserted into the DOM.
-     * @returns {void}
-     */
-    connectedCallback() {
-        this.render();
-    }
-
-    /**
-     * Rebuild section header and empty fields container.
+     * Rebuild section header with icon rendering and cfg-prefixed classes.
      * @returns {void}
      */
     render() {

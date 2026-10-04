@@ -337,4 +337,8 @@ export default Object.freeze({
     "profile.apiTokenEditDesc": "シークレットを変更せずに、API トークンの名前と権限を更新します。",
     "profile.apiTokenEdited": "API トークンを更新しました",
     "profile.apiTokenEditFailed": "API トークンの更新に失敗しました",
+    "profile.trafficQuotaTitle": "ダウンロードトラフィック枠",
+    "profile.trafficQuotaDesc": "ダウンロードトラフィック制限、残りの割り当て、ローリング回復率を表示します。",
+    "profile.trafficQuotaLoading": "トラフィック枠を読み込み中…",
+    "profile.trafficQuotaLoadFailed": "トラフィック枠の読み込みに失敗しました。",
 });

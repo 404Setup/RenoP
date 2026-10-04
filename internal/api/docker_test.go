@@ -23,10 +23,11 @@ import (
 
 	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
+
+	"renop/pkg/id"
 
 	"renop/pkg/pb"
 
@@ -47,7 +48,7 @@ func saveDockerAPITestAccount(t *testing.T, db core.StateDB, name, secret string
 		t.Fatalf("save Docker API test account %s: %v", name, err)
 	}
 	if err := db.CreateAPIToken(name, &core.APIToken{
-		ID: uuid.NewString(), Name: "Docker API test token", Scopes: scopes,
+		ID: id.New(), Name: "Docker API test token", Scopes: scopes,
 		CreatedAt: time.Now().UnixMilli(),
 	}, core.HashAPITokenSecret(secret)); err != nil {
 		t.Fatalf("create Docker API test token for %s: %v", name, err)
@@ -420,7 +421,7 @@ func TestDockerImageCreationApprovalRechecksUpstreamName(t *testing.T) {
 		strings.NewReader(`{"image":"raced-image"}`))
 	request.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
 	request.Header.Set(fiber.HeaderAuthorization, "Bearer admin-test-token")
-	response, err := app.Test(request)
+	response, err := app.Test(request, fiber.TestConfig{Timeout: 10 * time.Second})
 	require.NoError(t, err)
 	require.Equal(t, http.StatusAccepted, response.StatusCode)
 	var queued struct {
@@ -875,7 +876,7 @@ func TestDockerRESTAPIs(t *testing.T) {
 func TestDockerRESTAPIValidationErrors(t *testing.T) {
 	app, _ := setupTestAPIDockerApp(t)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/docker/repositories/%2e%2e/images", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/docker/repositories/trailing./images", nil)
 	resp, _ := app.Test(req)
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("expected 400 Bad Request for invalid repo name, got %d", resp.StatusCode)

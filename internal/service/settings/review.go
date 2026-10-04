@@ -20,6 +20,8 @@ import (
 	"renop/internal/service/audit"
 	"renop/internal/service/repositorygate"
 	"renop/internal/utils"
+	"renop/internal/utils/protohttp"
+	"renop/pkg/pb"
 )
 
 type publicationReviewRequest struct {
@@ -36,7 +38,7 @@ func getRepositoryPublicationReviews(c fiber.Ctx, state *core.AppState) error {
 		result[name] = repository.PublicationReviewPolicy()
 	}
 	c.Set(fiber.HeaderCacheControl, "no-store")
-	return c.JSON(fiber.Map{"repositories": result})
+	return protohttp.Write(c, pb.FromRepositoryPublicationReviews(result))
 }
 
 func putRepositoryPublicationReview(c fiber.Ctx, state *core.AppState) error {
@@ -47,11 +49,21 @@ func putRepositoryPublicationReview(c fiber.Ctx, state *core.AppState) error {
 	if !utils.IsValidRepositoryName(repository) || len(c.Body()) > 1024 {
 		return c.Status(fiber.StatusBadRequest).SendString("Bad Request")
 	}
-	var request publicationReviewRequest
-	if err := c.Bind().Body(&request); err != nil {
-		return c.Status(fiber.StatusBadRequest).SendString("Bad Request")
+	var rawPolicy string
+	if strings.Contains(c.Get(fiber.HeaderContentType), "application/json") {
+		var request publicationReviewRequest
+		if err := c.Bind().Body(&request); err != nil {
+			return c.Status(fiber.StatusBadRequest).SendString("Bad Request")
+		}
+		rawPolicy = request.Policy
+	} else {
+		var request pb.UpdateRepositoryPublicationReviewRequest
+		if err := protohttp.Read(c, &request); err != nil {
+			return c.Status(fiber.StatusBadRequest).SendString("Bad Request")
+		}
+		rawPolicy = request.Policy
 	}
-	policy, valid := config.NormalizePublicationReviewPolicy(request.Policy)
+	policy, valid := config.NormalizePublicationReviewPolicy(rawPolicy)
 	if !valid {
 		return c.Status(fiber.StatusBadRequest).SendString("Invalid publication review policy")
 	}
@@ -98,5 +110,5 @@ func putRepositoryPublicationReview(c fiber.Ctx, state *core.AppState) error {
 		Details: "Updated publication review for (" + repository + ")", AuthMethod: authMethod,
 		SessionID: sessionID, IP: ip,
 	})
-	return c.JSON(fiber.Map{"repository": repository, "policy": policy})
+	return protohttp.Write(c, &pb.RepositoryPublicationReviewEntry{Repository: repository, Policy: policy})
 }

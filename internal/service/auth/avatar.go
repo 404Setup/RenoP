@@ -285,6 +285,9 @@ func storeAvatar(c fiber.Ctx, state *core.AppState, username, source string, ava
 func putOwnAvatar(c fiber.Ctx, state *core.AppState) error {
 	user := GetUser(c)
 	if user == nil || user.Username == "" || strings.EqualFold(user.Username, "guest") {
+		if utils.HasUploadBody(c) {
+			utils.RejectUploadEarly(c)
+		}
 		return avatarAPIError(c, fiber.StatusUnauthorized, "authentication_required")
 	}
 	limit := avatarSizeLimit(state)

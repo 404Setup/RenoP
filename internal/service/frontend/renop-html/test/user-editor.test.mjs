@@ -14,6 +14,7 @@ import {readdirSync, readFileSync} from 'node:fs';
 import {dirname, join, resolve} from 'node:path';
 import test from 'node:test';
 import {fileURLToPath, pathToFileURL} from 'node:url';
+import vm from 'node:vm';
 
 const frontendRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -86,3 +87,101 @@ test('user management locales describe account passwords rather than security to
         }
     }
 });
+
+test('role chips initialize and reflect checked and value attributes correctly', () => {
+    const roleChipSource = readFileSync(join(frontendRoot, 'js/components/role-chip.js'), 'utf8')
+        .replace(/^import .*;\r?\n/gm, '')
+        .replaceAll('export ', '');
+
+    class FakeHTMLElement {
+        constructor() {
+            this._attrs = {};
+            this.className = '';
+            this.classList = {
+                toggle: (cls, force) => {
+                    const classes = new Set(this.className.split(' ').filter(Boolean));
+                    if (force === undefined ? !classes.has(cls) : force) classes.add(cls);
+                    else classes.delete(cls);
+                    this.className = [...classes].join(' ');
+                },
+                contains: cls => this.className.split(' ').includes(cls),
+            };
+            this.children = [];
+        }
+        getAttribute(k) { return Object.hasOwn(this._attrs, k) ? this._attrs[k] : null; }
+        setAttribute(k, v) { this._attrs[k] = String(v); }
+        removeAttribute(k) { delete this._attrs[k]; }
+        hasAttribute(k) { return Object.hasOwn(this._attrs, k); }
+        querySelector(sel) {
+            if (sel === 'input[type="checkbox"]') {
+                return this.children.find(c => c.tag === 'input');
+            }
+            return null;
+        }
+        appendChild(child) {
+            this.children.push(child);
+            return child;
+        }
+        dispatchEvent() {}
+    }
+
+    const customRegistry = new Map();
+    const dom = {
+        HTMLElement: FakeHTMLElement,
+        customElements: {
+            get: name => customRegistry.get(name),
+            define: (name, cls) => customRegistry.set(name, cls),
+        },
+        createIcon: () => ({tag: 'svg'}),
+        el: (tag, attrs = {}, ...children) => {
+            const cls = customRegistry.get(tag);
+            const node = cls ? new cls() : new FakeHTMLElement();
+            node.tag = tag;
+            for (const [k, v] of Object.entries(attrs || {})) {
+                if (v == null || v === false) continue;
+                if (k in node || k === 'value' || k === 'checked') {
+                    node[k] = v;
+                } else {
+                    node.setAttribute(k, v === true ? '' : String(v));
+                }
+            }
+            for (const child of children.flat(Infinity)) {
+                if (child) node.appendChild(child);
+            }
+            return node;
+        },
+    };
+
+    const context = vm.createContext(dom);
+    vm.runInContext(roleChipSource, context);
+
+    const checkedChip = context.createRoleChip('admin', {
+        title: 'Administrator',
+        desc: 'Full administrative access',
+        tone: 'admin',
+        checked: true,
+    });
+    assert.equal(checkedChip.value, 'admin');
+    assert.equal(checkedChip.getAttribute('value'), 'admin');
+    assert.equal(checkedChip.checked, true);
+    assert.equal(checkedChip.hasAttribute('checked'), true);
+
+    const uncheckedChip = context.createRoleChip('showing', {
+        title: 'Showing',
+        checked: false,
+    });
+    assert.equal(uncheckedChip.value, 'showing');
+    assert.equal(uncheckedChip.getAttribute('value'), 'showing');
+    assert.equal(uncheckedChip.checked, false);
+    assert.equal(uncheckedChip.hasAttribute('checked'), false);
+
+    // Toggling dynamically
+    uncheckedChip.checked = true;
+    assert.equal(uncheckedChip.checked, true);
+    assert.equal(uncheckedChip.hasAttribute('checked'), true);
+
+    checkedChip.checked = false;
+    assert.equal(checkedChip.checked, false);
+    assert.equal(checkedChip.hasAttribute('checked'), false);
+});
+

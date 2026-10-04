@@ -13,8 +13,10 @@ import {hideDockerRepositoryView, renderDockerRepository} from './docker.js';
 import {hideMavenRepositoryView, renderMavenRepository} from './maven.js';
 import {hideNPMRepositoryView, renderNPMRepository} from './npm.js';
 import {hideNativeRepositoryView, renderNativeRepository} from './native.js';
+import {hideGitRepoRepositoryView, renderGitRepoRepository} from './git-repo.js';
 
 const nativeView = Object.freeze({render: renderNativeRepository, hide: hideNativeRepositoryView});
+const gitRepoView = Object.freeze({render: renderGitRepoRepository, hide: hideGitRepoRepositoryView});
 
 // View lifecycle is separate from the pure format catalog so settings and icons
 // do not load page controllers or create DOM listeners.
@@ -23,6 +25,8 @@ const views = Object.freeze({
     cargo: Object.freeze({render: renderCargoRepository, hide: hideCargoRepositoryView}),
     docker: Object.freeze({render: renderDockerRepository, hide: hideDockerRepositoryView}),
     npm: Object.freeze({render: renderNPMRepository, hide: hideNPMRepositoryView}),
+    github: gitRepoView,
+    gitlab: gitRepoView,
     conan: nativeView, conda: nativeView, 'conda-native': nativeView,
     apk: nativeView, apt: nativeView, rpm: nativeView, yum: nativeView,
 });

@@ -32,6 +32,7 @@ export default Object.freeze({
     "captcha.scope.super_team_create": "Globale Teams erstellen",
     "captcha.scope.domain_create": "Veröffentlichungsdomains erstellen",
     "captcha.scope.package_create": "Pakete erstellen",
+    "captcha.scope.anti_abuse": "Missbrauchsschutz & Ratenbegrenzung",
     "captcha.loading": "Prüfung wird geladen…",
     "captcha.complete": "Sicherheitsprüfung abschließen, um fortzufahren.",
     "captcha.consent": "Drittanbieterprüfung in den Cookie-Einstellungen erlauben.",

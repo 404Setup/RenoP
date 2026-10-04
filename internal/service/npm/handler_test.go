@@ -116,7 +116,7 @@ func (staged *memoryStagedFile) Discard() error {
 
 func npmTestTarball(t *testing.T, packageName, version string) []byte {
 	t.Helper()
-	manifest, err := json.Marshal(map[string]any{
+	manifest, err := json.MarshalOf(map[string]any{
 		"name": packageName, "version": version, "description": "Test package",
 	})
 	require.NoError(t, err)
@@ -191,7 +191,7 @@ func TestNPMPermanentDeprecationKeepsTarballAndBlocksMutations(t *testing.T) {
 				"data": base64.StdEncoding.EncodeToString(tarball),
 			}},
 		}
-		body, err := json.Marshal(document)
+		body, err := json.MarshalOf(document)
 		require.NoError(t, err)
 		request := httptest.NewRequest(http.MethodPut, "http://registry.example/npm/demo", bytes.NewReader(body))
 		request.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
@@ -363,7 +363,7 @@ func TestNPMPackageCreationPolicyRequiresReviewBeforeReservation(t *testing.T) {
 			"length": len(tarball), "data": base64.StdEncoding.EncodeToString(tarball),
 		}},
 	}
-	body, err := json.Marshal(document)
+	body, err := json.MarshalOf(document)
 	require.NoError(t, err)
 	request = httptest.NewRequest(http.MethodPut,
 		"http://registry.example/npm/reviewed-package", bytes.NewReader(body))
@@ -389,7 +389,7 @@ func TestNPMRegistryPublishInstallTagsAndDeprecation(t *testing.T) {
 			"data": base64.StdEncoding.EncodeToString(tarball),
 		}},
 	}
-	body, err := json.Marshal(document)
+	body, err := json.MarshalOf(document)
 	require.NoError(t, err)
 	request := httptest.NewRequest(http.MethodPut, "http://registry.example/npm/demo", bytes.NewReader(body))
 	request.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
@@ -439,7 +439,7 @@ func TestNPMRegistryPublishInstallTagsAndDeprecation(t *testing.T) {
 	fullVersions := full["versions"].(map[string]any)
 	fullVersion := fullVersions["1.0.0"].(map[string]any)
 	fullVersion["deprecated"] = "Use 2.x"
-	updateBody, err := json.Marshal(full)
+	updateBody, err := json.MarshalOf(full)
 	require.NoError(t, err)
 	request = httptest.NewRequest(http.MethodPut, "http://registry.example/npm/demo", bytes.NewReader(updateBody))
 	request.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
@@ -484,7 +484,7 @@ func TestNPMPublishEnforcesPublicationQuotaBeforeStorageCommit(t *testing.T) {
 			"length": len(tarball), "data": base64.StdEncoding.EncodeToString(tarball),
 		}},
 	}
-	body, err := json.Marshal(document)
+	body, err := json.MarshalOf(document)
 	require.NoError(t, err)
 	request := httptest.NewRequest(http.MethodPut, "http://registry.example/npm/demo", bytes.NewReader(body))
 	request.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
@@ -515,7 +515,7 @@ func TestNPMPublicationReviewDefersVersionsAndNewPackagePolicy(t *testing.T) {
 				"data": base64.StdEncoding.EncodeToString(tarball),
 			}},
 		}
-		body, err := json.Marshal(document)
+		body, err := json.MarshalOf(document)
 		require.NoError(t, err)
 		request := httptest.NewRequest(http.MethodPut, "http://registry.example/npm/demo", bytes.NewReader(body))
 		request.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
@@ -584,7 +584,7 @@ func TestNPMTarballValidationRejectsUnsafeAndMismatchedArchives(t *testing.T) {
 			"length": len(tarball), "data": base64.StdEncoding.EncodeToString(tarball),
 		}},
 	}
-	body, err := json.Marshal(document)
+	body, err := json.MarshalOf(document)
 	require.NoError(t, err)
 	request := httptest.NewRequest(http.MethodPut, "http://registry.example/npm/demo", bytes.NewReader(body))
 	request.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
@@ -617,7 +617,7 @@ func TestNPMRegistryPublishesEncodedScopedPackage(t *testing.T) {
 			"data":         base64.StdEncoding.EncodeToString(tarball),
 		}},
 	}
-	body, err := json.Marshal(document)
+	body, err := json.MarshalOf(document)
 	require.NoError(t, err)
 	request := httptest.NewRequest(http.MethodPut,
 		"http://registry.example/npm/@r3%2frenop-test-core", bytes.NewReader(body))

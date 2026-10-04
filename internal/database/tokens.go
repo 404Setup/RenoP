@@ -19,9 +19,9 @@ import (
 	"time"
 
 	"github.com/goccy/go-json"
-	"github.com/google/uuid"
 
 	"renop/internal/core"
+	"renop/pkg/id"
 )
 
 const (
@@ -38,7 +38,7 @@ func parseTokenRow(name, tokenType string, typeValue int32, encryptedSecret, pas
 ) (*core.AccessToken, error) {
 	var tokList []string
 	if tokensJSON != "" {
-		if err := json.Unmarshal([]byte(tokensJSON), &tokList); err != nil {
+		if err := json.UnmarshalOf([]byte(tokensJSON), &tokList); err != nil {
 			return nil, fmt.Errorf("decode token secrets for %q: %w", name, err)
 		}
 	}
@@ -48,7 +48,7 @@ func parseTokenRow(name, tokenType string, typeValue int32, encryptedSecret, pas
 
 	var permList []string
 	if permissionsJSON != "" {
-		if err := json.Unmarshal([]byte(permissionsJSON), &permList); err != nil {
+		if err := json.UnmarshalOf([]byte(permissionsJSON), &permList); err != nil {
 			return nil, fmt.Errorf("decode token permissions for %q: %w", name, err)
 		}
 	}
@@ -145,11 +145,11 @@ func (db *DB) saveTokenInTx(tx *Tx, name string, token *core.AccessToken) error 
 		}
 		token.Tokens = []string{}
 	}
-	tokensJSON, err := json.Marshal(token.Tokens)
+	tokensJSON, err := json.MarshalOf(token.Tokens)
 	if err != nil {
 		return fmt.Errorf("encode token secrets: %w", err)
 	}
-	permissionsJSON, err := json.Marshal(token.Permissions)
+	permissionsJSON, err := json.MarshalOf(token.Permissions)
 	if err != nil {
 		return fmt.Errorf("encode token permissions: %w", err)
 	}
@@ -285,7 +285,7 @@ func (db *DB) SaveToken(token *core.AccessToken) error {
 	var userID string
 	err = tx.QueryRow(`SELECT user_id FROM user_profiles WHERE username = ?`, name).Scan(&userID)
 	if errors.Is(err, sql.ErrNoRows) {
-		userID = uuid.NewString()
+		userID = id.New()
 		if _, err := tx.Exec(`INSERT INTO user_profiles
 			(user_id, username, nickname, rename_window_started_at, rename_count, updated_at)
 			VALUES (?, ?, '', 0, 0, ?)`, userID, name, time.Now().UnixMilli()); err != nil {
@@ -394,11 +394,11 @@ func createTokenTx(tx *Tx, token *core.AccessToken, nickname string, changedAt i
 	if len(legacySecrets) > 0 {
 		persistedTokens = []string{}
 	}
-	tokensJSON, err := json.Marshal(persistedTokens)
+	tokensJSON, err := json.MarshalOf(persistedTokens)
 	if err != nil {
 		return fmt.Errorf("encode token secrets: %w", err)
 	}
-	permissionsJSON, err := json.Marshal(token.Permissions)
+	permissionsJSON, err := json.MarshalOf(token.Permissions)
 	if err != nil {
 		return fmt.Errorf("encode token permissions: %w", err)
 	}
@@ -428,7 +428,7 @@ func createTokenTx(tx *Tx, token *core.AccessToken, nickname string, changedAt i
 	if changedAt <= 0 {
 		changedAt = time.Now().UnixMilli()
 	}
-	userID := uuid.NewString()
+	userID := id.New()
 	if _, err := tx.Exec(`INSERT INTO user_profiles
 		(user_id, username, nickname, rename_window_started_at, rename_count, updated_at)
 		VALUES (?, ?, ?, 0, 0, ?)`, userID, name, nickname, changedAt); err != nil {
@@ -810,11 +810,11 @@ func (db *DB) renameTokenInTx(tx *Tx, oldName, newName string, token *core.Acces
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("inspect target username %s: %w", newName, err)
 	}
-	tokensJSON, err := json.Marshal(token.Tokens)
+	tokensJSON, err := json.MarshalOf(token.Tokens)
 	if err != nil {
 		return fmt.Errorf("encode token secrets: %w", err)
 	}
-	permissionsJSON, err := json.Marshal(token.Permissions)
+	permissionsJSON, err := json.MarshalOf(token.Permissions)
 	if err != nil {
 		return fmt.Errorf("encode token permissions: %w", err)
 	}
@@ -956,6 +956,9 @@ func (db *DB) finishTokenUpdate(name string, token *core.AccessToken) {
 	})
 	if db.profileCache != nil {
 		db.profileCache.Delete(name)
+	}
+	if db.apiTokenCache != nil {
+		db.apiTokenCache.Clear()
 	}
 }
 

@@ -21,7 +21,6 @@ import (
 
 	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
-	"github.com/google/uuid"
 
 	"renop/internal/config"
 	"renop/internal/core"
@@ -30,6 +29,7 @@ import (
 	"renop/internal/service/captcha"
 	"renop/internal/service/repositorygate"
 	"renop/internal/utils"
+	"renop/pkg/id"
 )
 
 const npmAPIErrorCodeHeader = "X-Renop-Error-Code"
@@ -573,8 +573,8 @@ func inviteMembersAPI(c fiber.Ctx, state *core.AppState) error {
 		if strings.EqualFold(recipient, user.Username) {
 			return npmAPIError(c, fiber.StatusBadRequest, "cannot_invite_self", "Cannot invite yourself")
 		}
-		id := uuid.NewString()
-		payload, _ := json.Marshal(fiber.Map{
+		id := id.New()
+		payload, _ := json.MarshalOf(fiber.Map{
 			"repository": repo.Name, "package": packageName, "inviter": user.Username, "level": request.Level,
 		})
 		invitations = append(invitations, &core.NPMInvitation{
@@ -606,7 +606,7 @@ type levelRequest struct {
 
 func resolveMemberReference(db core.StateDB, reference string) (string, error) {
 	reference = strings.TrimSpace(reference)
-	if _, err := uuid.Parse(reference); err != nil {
+	if id.Validate(reference) != nil {
 		return reference, nil
 	}
 	profile, err := db.GetUserProfileByID(reference)

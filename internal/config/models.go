@@ -73,6 +73,7 @@ type Config struct {
 	PublicationQuota      PublicationQuotaConfig `json:"publication_quota" yaml:"publication_quota"`
 	Cache                 CacheConfig            `json:"cache" yaml:"cache"`
 	Mail                  mail.Config            `json:"mail" yaml:"mail"`
+	TrafficLimit          TrafficLimitConfig     `json:"traffic_limit" yaml:"traffic_limit"`
 	// GPG is retained as a source-compatibility alias for integrations that
 	// still access the old top-level field. It is never serialized; Server.GPG
 	// is the canonical configuration location.
@@ -128,6 +129,7 @@ func (c *Config) setDefaults() {
 	c.AuditLog.setDefaults()
 	c.SuperTeams.setDefaults()
 	c.PublicationQuota.setDefaults()
+	c.TrafficLimit.setDefaults()
 	c.Cache.Normalize()
 	c.Mail.Normalize()
 	c.Server.GPG.setDefaults()
@@ -142,18 +144,18 @@ type legacyConfigGPGWrapper struct {
 func (c *Config) UnmarshalJSON(data []byte) error {
 	c.setDefaults()
 	var legacy legacyConfigGPGWrapper
-	if err := json.Unmarshal(data, &legacy); err != nil {
+	if err := json.UnmarshalOf(data, &legacy); err != nil {
 		return err
 	}
 	type alias Config
 	aux := (*alias)(c)
-	if err := json.Unmarshal(data, aux); err != nil {
+	if err := json.UnmarshalOf(data, aux); err != nil {
 		return err
 	}
 	if legacy.GPG != nil {
 		var serverFields map[string]json.RawMessage
 		if len(legacy.Server) > 0 {
-			if err := json.Unmarshal(legacy.Server, &serverFields); err != nil {
+			if err := json.UnmarshalOf(legacy.Server, &serverFields); err != nil {
 				return fmt.Errorf("decode legacy server configuration: %w", err)
 			}
 		}
@@ -167,6 +169,7 @@ func (c *Config) UnmarshalJSON(data []byte) error {
 	c.AuditLog.setDefaults()
 	c.SuperTeams.setDefaults()
 	c.PublicationQuota.setDefaults()
+	c.TrafficLimit.setDefaults()
 	c.Cache.Normalize()
 	c.Server.GPG.setDefaults()
 	c.Mail.Normalize()
@@ -245,32 +248,32 @@ type SettingsUpdate struct {
 }
 
 func (su *SettingsUpdate) UnmarshalJSON(data []byte) error {
-	var obj map[string]any
-	if err := json.Unmarshal(data, &obj); err != nil {
+	var obj map[string]json.RawMessage
+	if err := json.UnmarshalOf(data, &obj); err != nil {
 		return err
 	}
 
 	if _, ok := obj["host"]; ok {
 		s := DefaultServerConfig()
-		if err := json.Unmarshal(data, &s); err == nil {
+		if err := json.UnmarshalOf(data, &s); err == nil {
 			su.Server = &s
 			return nil
 		}
 	} else if _, ok := obj["repositories"]; ok {
 		m := DefaultMavenSettings()
-		if err := json.Unmarshal(data, &m); err == nil {
+		if err := json.UnmarshalOf(data, &m); err == nil {
 			su.Maven = &m
 			return nil
 		}
 	} else if _, ok := obj["retention_days"]; ok {
 		a := DefaultAuditLogConfig()
-		if err := json.Unmarshal(data, &a); err == nil {
+		if err := json.UnmarshalOf(data, &a); err == nil {
 			su.AuditLog = &a
 			return nil
 		}
 	} else {
 		f := DefaultFrontendConfig()
-		if err := json.Unmarshal(data, &f); err == nil {
+		if err := json.UnmarshalOf(data, &f); err == nil {
 			su.Frontend = &f
 			return nil
 		}
@@ -309,5 +312,6 @@ func (c *Config) DeepCopy() *Config {
 		MavenDomains:          c.MavenDomains,
 		GPG:                   c.Server.GPG.DeepCopy(),
 		Proxy:                 c.Proxy.DeepCopy(),
+		TrafficLimit:          c.TrafficLimit.DeepCopy(),
 	}
 }

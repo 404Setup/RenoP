@@ -45,7 +45,7 @@ func beginGitHubRegistration(c fiber.Ctx, state *core.AppState, record core.Tran
 	if value, ok := core.NormalizeNickname(identity.Name); ok {
 		profile.Nickname = value
 	}
-	payload, err := json.Marshal(profile)
+	payload, err := json.MarshalOf(profile)
 	if err != nil {
 		return oauthResultRedirect(c, record.ReturnTo, "identity_failed")
 	}

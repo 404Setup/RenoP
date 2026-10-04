@@ -107,7 +107,7 @@ func TestOAuthRegistrationRequiresUnverifiedEmail(t *testing.T) {
 	require.NoError(t, mailCfg.EnsureKey())
 	now := time.Now().UnixMilli()
 	identity := core.OAuthIdentity{ProviderID: "stackexchange", Subject: "42", Authority: strings.Repeat("a", 64)}
-	payload, err := json.Marshal(core.RegistrationProfile{OAuth: &identity})
+	payload, err := json.MarshalOf(core.RegistrationProfile{OAuth: &identity})
 	require.NoError(t, err)
 	p := &core.PendingRegistration{IDHash: strings.Repeat("b", 64), IPHash: strings.Repeat("c", 64),
 		ProviderKey: identity.ProviderID + ":" + identity.Key(), ProfileJSON: string(payload),

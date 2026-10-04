@@ -54,7 +54,7 @@ export default Object.freeze({
     "prompt.copied": "클립보드에 복사되었습니다",
     "footer.organization": "조직",
     "footer.privacyPolicy": "개인정보 처리방침",
-    "footer.legalNotice": "법적 고지",
+    "footer.legalNotice": "DMCA 및 법적 고지",
     "footer.allRights": "모든 권리 보유.",
     "footer.licenseNotice": "소스 코드는 Mozilla Public License 2.0에 따라 공개됩니다.",
     "modal.close": "모달 닫기",

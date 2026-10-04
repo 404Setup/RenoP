@@ -24,7 +24,7 @@ import (
 
 	"renop/internal/config"
 	"renop/internal/core"
-	"renop/internal/service/ticketnotify"
+	"renop/internal/service/ticket/notify"
 )
 
 type npmPublicationReviewPayload struct {
@@ -70,7 +70,7 @@ func npmCreationReviewPayload(state *core.AppState,
 		return nil, nil, err
 	}
 	var payload npmPackageCreationReviewPayload
-	if err := json.Unmarshal(raw, &payload); err != nil {
+	if err := json.UnmarshalOf(raw, &payload); err != nil {
 		return nil, nil, core.ErrReviewInvalidRequest
 	}
 	packageName, valid := NormalizePackageName(payload.PackageName)
@@ -102,7 +102,7 @@ func QueuePackageCreationReview(state *core.AppState, repo *config.Repository, p
 	if state == nil || state.GetDB() == nil || repo == nil || createdAt <= 0 {
 		return nil, core.ErrDatabaseUnavailable
 	}
-	payload, err := json.Marshal(&npmPackageCreationReviewPayload{
+	payload, err := json.MarshalOf(&npmPackageCreationReviewPayload{
 		Repository: repo.Name, PackageName: packageName, SuperTeamPrefix: superTeamPrefix,
 		Private: private, CreatedAt: createdAt,
 	})
@@ -195,7 +195,7 @@ func npmReviewPayload(state *core.AppState, task *core.ReviewTask) (*npmPublicat
 		return nil, err
 	}
 	var payload npmPublicationReviewPayload
-	if err := json.Unmarshal(raw, &payload); err != nil {
+	if err := json.UnmarshalOf(raw, &payload); err != nil {
 		return nil, core.ErrReviewInvalidRequest
 	}
 	if err := validateNPMReviewPayload(task, &payload); err != nil {
@@ -211,7 +211,7 @@ func QueuePublicationReview(state *core.AppState, repo *config.Repository, pkg *
 	if state == nil || state.GetDB() == nil || repo == nil || pkg == nil || version == nil {
 		return nil, core.ErrDatabaseUnavailable
 	}
-	payload, err := json.Marshal(&npmPublicationReviewPayload{
+	payload, err := json.MarshalOf(&npmPublicationReviewPayload{
 		Repository: repo.Name, PackageName: pkg.Name, Description: pkg.Description,
 		Version: version.Version, ManifestJSON: version.ManifestJSON, Publisher: version.Publisher,
 		TarballPath: version.TarballPath, Shasum: version.Shasum, Integrity: version.Integrity,

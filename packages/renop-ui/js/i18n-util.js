@@ -8,7 +8,6 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
-import {$} from './jquery.js';
 
 /**
  * Match a raw language tag against a registry of known keys.
@@ -135,16 +134,16 @@ export function translateKey(key, params = {}, {current = {}, fallback = {}} = {
 export function animateLangButtonLabel({nameEl, btn, newName}) {
     if (!nameEl) return;
 
-    const oldName = $(nameEl).text().trim();
+    const oldName = nameEl.textContent.trim();
     if (oldName && oldName !== newName && btn && document.readyState !== 'loading') {
         const startWidth = btn.getBoundingClientRect().width;
 
         btn.style.width = `${startWidth}px`;
-        $(btn).addClass('is-animating');
-        $(nameEl).addClass('lang-name-changing');
+        btn.classList.add('is-animating');
+        nameEl.classList.add('lang-name-changing');
 
         setTimeout(() => {
-            $(nameEl).text(newName);
+            nameEl.textContent = newName;
 
             btn.style.width = 'auto';
             const targetWidth = btn.getBoundingClientRect().width;
@@ -153,16 +152,17 @@ export function animateLangButtonLabel({nameEl, btn, newName}) {
             void btn.offsetWidth;
 
             btn.style.width = `${targetWidth}px`;
-            $(nameEl).removeClass('lang-name-changing').addClass('lang-name-changed');
+            nameEl.classList.remove('lang-name-changing');
+            nameEl.classList.add('lang-name-changed');
 
             setTimeout(() => {
                 btn.style.width = '';
-                $(btn).removeClass('is-animating');
-                $(nameEl).removeClass('lang-name-changed');
+                btn.classList.remove('is-animating');
+                nameEl.classList.remove('lang-name-changed');
             }, 300);
         }, 120);
     } else {
-        $(nameEl).text(newName);
+        nameEl.textContent = newName;
     }
 }
 
@@ -174,8 +174,7 @@ export function animateLangButtonLabel({nameEl, btn, newName}) {
  */
 export function syncLangCardsActive(grid, currentLang) {
     if (!grid) return;
-    $(grid).find('.lang-card').each((index, card) => {
-        const lKey = $(card).attr('data-lang');
-        $(card).toggleClass('active', lKey === currentLang);
+    grid.querySelectorAll('.lang-card').forEach((card) => {
+        card.classList.toggle('active', card.getAttribute('data-lang') === currentLang);
     });
 }

@@ -54,7 +54,7 @@ export default Object.freeze({
     "prompt.copied": "Скопировано в буфер обмена",
     "footer.organization": "Организация",
     "footer.privacyPolicy": "Политика конфиденциальности",
-    "footer.legalNotice": "Правовая информация",
+    "footer.legalNotice": "DMCA и правовая информация",
     "footer.allRights": "Все права защищены.",
     "footer.licenseNotice": "Исходный код доступен по лицензии Mozilla Public License 2.0.",
     "modal.close": "Закрыть окно",

@@ -15,7 +15,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/google/uuid"
+	"renop/pkg/id"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -75,7 +76,7 @@ func TestCargoOwnershipInvitationAndAdministratorLocks(t *testing.T) {
 	}, "bob")
 	require.ErrorIs(t, err, core.ErrCargoPermissionDenied)
 
-	id := uuid.NewString()
+	id := id.New()
 	message := &core.UserMessage{
 		ID: id, Recipient: "bob", Sender: "alice", Kind: "cargo_package_invite", Severity: "info",
 		Title: "Cargo package invitation", Body: "Join demo", Payload: []byte(`{"repository":"cargo","package":"demo","level":2}`),
@@ -186,9 +187,9 @@ func TestExpiredCargoInvitationCanBeReissued(t *testing.T) {
 		}})
 	}
 
-	firstID := uuid.NewString()
+	firstID := id.New()
 	require.NoError(t, createInvitation(firstID, now, now+10))
-	secondID := uuid.NewString()
+	secondID := id.New()
 	require.NoError(t, createInvitation(secondID, now+11, now+100))
 	require.NoError(t, db.RespondCargoInvitation(secondID, "bob", "cargo", true, now+12))
 

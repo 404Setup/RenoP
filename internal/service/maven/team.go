@@ -17,10 +17,10 @@ import (
 
 	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
-	"github.com/google/uuid"
 
 	"renop/internal/core"
 	"renop/internal/service/audit"
+	"renop/pkg/id"
 )
 
 type memberRequest struct {
@@ -83,19 +83,19 @@ func inviteMembers(c fiber.Ctx, state *core.AppState) error {
 		if state.GetTokenByName(recipient) == nil {
 			return apiError(c, core.ErrUserProfileNotFound)
 		}
-		id := uuid.NewString()
-		payload, err := json.Marshal(map[string]any{
+		idVal := id.New()
+		payload, err := json.MarshalOf(map[string]any{
 			"domain": details.Domain.Domain, "inviter": user.Username, "level": request.Level,
 		})
 		if err != nil {
 			return apiError(c, err)
 		}
 		invitations = append(invitations, &core.MavenInvitation{
-			ID: id, Domain: details.Domain.Domain, Inviter: user.Username,
+			ID: idVal, Domain: details.Domain.Domain, Inviter: user.Username,
 			Recipient: recipient, Level: request.Level, CreatedAt: now,
 		})
 		messages = append(messages, &core.UserMessage{
-			ID: id, Recipient: recipient, Sender: user.Username, Kind: "maven_domain_invite", Severity: "info",
+			ID: idVal, Recipient: recipient, Sender: user.Username, Kind: "maven_domain_invite", Severity: "info",
 			Title:   "Maven domain invitation",
 			Body:    fmt.Sprintf("%s invited you to Maven domain %s with L%d permission.", user.Username, details.Domain.Domain, request.Level),
 			Payload: payload, ActionKind: "maven_domain_invite", ActionStatus: core.MessageActionPending,
@@ -115,12 +115,12 @@ func inviteMembers(c fiber.Ctx, state *core.AppState) error {
 }
 
 func resolveMemberReference(state *core.AppState, reference string) (string, error) {
-	reference = strings.ToLower(strings.TrimSpace(reference))
+	reference = strings.TrimSpace(reference)
 	if reference == "" {
 		return "", core.ErrMavenDomainNotFound
 	}
-	if _, err := uuid.Parse(reference); err != nil {
-		return reference, nil
+	if id.Validate(reference) != nil {
+		return strings.ToLower(reference), nil
 	}
 	profile, err := state.GetDB().GetUserProfileByID(reference)
 	if err != nil {
@@ -190,13 +190,13 @@ func respondInvitation(c fiber.Ctx, state *core.AppState) error {
 	if decision != "accept" && decision != "reject" {
 		return c.Status(fiber.StatusBadRequest).SendString("Invalid Maven invitation decision")
 	}
-	id := strings.TrimSpace(c.Params("id"))
-	if uuid.Validate(id) != nil {
+	invitationID := strings.TrimSpace(c.Params("id"))
+	if id.Validate(invitationID) != nil {
 		return c.Status(fiber.StatusBadRequest).SendString("Invalid Maven invitation ID")
 	}
-	if err := state.GetDB().RespondMavenInvitation(id, user.Username, decision == "accept", time.Now().UnixMilli()); err != nil {
+	if err := state.GetDB().RespondMavenInvitation(invitationID, user.Username, decision == "accept", time.Now().UnixMilli()); err != nil {
 		return apiError(c, err)
 	}
-	logAudit(c, state, audit.ActionMavenTeamInvitation, fmt.Sprintf("Invitation: %s, decision: %s", id, decision))
+	logAudit(c, state, audit.ActionMavenTeamInvitation, fmt.Sprintf("Invitation: %s, decision: %s", invitationID, decision))
 	return c.JSON(fiber.Map{"ok": true})
 }

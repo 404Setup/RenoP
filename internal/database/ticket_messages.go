@@ -17,9 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-
 	"renop/internal/core"
+	"renop/pkg/id"
 )
 
 // AddTicketMessage commits a bounded comment with live session and ticket authority.
@@ -31,7 +30,7 @@ func (db *DB) AddTicketMessage(msg *core.TicketMessage, actor, session string) e
 		return core.ErrReviewInvalidRequest
 	}
 	if msg.ID == "" {
-		msg.ID = uuid.New().String()
+		msg.ID = id.New()
 	}
 	body, valid := normalizeTicketText(msg.Body, 16384)
 	if !valid {

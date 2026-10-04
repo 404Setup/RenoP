@@ -10,7 +10,7 @@
 
 package npm
 
-import "renop/internal/service/packagestore"
+import "renop/internal/service/storage/packagestore"
 
 // Store is the shared streaming package persistence contract.
 type Store = packagestore.Store

@@ -43,6 +43,13 @@ type AccountTokenChanges struct {
 	Permissions bool
 }
 
+type accountRawMap struct {
+	EncryptedSecret *string `yaml:"encryptedsecret"`
+	PasswordHash    *string `yaml:"passwordhash"`
+	CreatedAt       *string `yaml:"createdat"`
+	ExpiresAt       *int64  `yaml:"expiresat"`
+}
+
 func (t *AccessToken) UnmarshalYAML(value *yaml.Node) error {
 	type alias AccessToken
 	var aux alias
@@ -50,31 +57,19 @@ func (t *AccessToken) UnmarshalYAML(value *yaml.Node) error {
 		return err
 	}
 	*t = AccessToken(aux)
-
-	var rawMap map[string]any
+	var rawMap accountRawMap
 	if err := value.Decode(&rawMap); err == nil {
-		if val, ok := rawMap["encryptedsecret"]; ok {
-			if s, ok := val.(string); ok {
-				t.EncryptedSecret = s
-			}
+		if rawMap.EncryptedSecret != nil {
+			t.EncryptedSecret = *rawMap.EncryptedSecret
 		}
-		if val, ok := rawMap["passwordhash"]; ok {
-			if s, ok := val.(string); ok {
-				t.PasswordHash = s
-			}
+		if rawMap.PasswordHash != nil {
+			t.PasswordHash = *rawMap.PasswordHash
 		}
-		if val, ok := rawMap["createdat"]; ok {
-			if s, ok := val.(string); ok {
-				t.CreatedAt = s
-			}
+		if rawMap.CreatedAt != nil {
+			t.CreatedAt = *rawMap.CreatedAt
 		}
-		if val, ok := rawMap["expiresat"]; ok {
-			if i, ok := val.(int64); ok {
-				t.ExpiresAt = &i
-			} else if i, ok := val.(int); ok {
-				i64 := int64(i)
-				t.ExpiresAt = &i64
-			}
+		if rawMap.ExpiresAt != nil {
+			t.ExpiresAt = rawMap.ExpiresAt
 		}
 	}
 	return nil

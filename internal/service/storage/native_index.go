@@ -24,7 +24,7 @@ import (
 	"renop/internal/config"
 	"renop/internal/core"
 	"renop/internal/service/index"
-	"renop/internal/service/nativesign"
+	"renop/internal/service/nativepkg/nativesign"
 
 	"github.com/gofiber/fiber/v3"
 )

@@ -403,7 +403,7 @@ func (s *ServerConfig) ParseTrustedProxies() {
 
 func (s *ServerConfig) UnmarshalJSON(data []byte) error {
 	var w serverConfigWire
-	if err := json.Unmarshal(data, &w); err != nil {
+	if err := json.UnmarshalOf(data, &w); err != nil {
 		return err
 	}
 	s.applyWire(&w)

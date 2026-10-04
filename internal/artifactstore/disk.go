@@ -22,8 +22,7 @@ import (
 	"sync"
 
 	"renop/internal/utils"
-
-	"github.com/google/uuid"
+	"renop/pkg/id"
 )
 
 const candidatesPerShard = 256
@@ -123,7 +122,7 @@ func (d *Disk) ReuseExisting(ctx context.Context, target string) (bool, error) {
 		if err == nil && os.SameFile(targetInfo, candidateInfo) {
 			return false, nil
 		}
-		linked := target + ".tmp.dedup." + uuid.NewString()
+		linked := target + ".tmp.dedup." + id.New()
 		if err := os.Link(candidate, linked); err == nil {
 			defer os.Remove(linked)
 			actual, err := fingerprintContext(ctx, linked)
@@ -164,7 +163,7 @@ func (d *Disk) Commit(staged, target string) error {
 		shard.paths = make(map[contentKey]string)
 	}
 	if candidate := shard.paths[key]; candidate != "" {
-		linked := target + ".tmp.dedup." + uuid.NewString()
+		linked := target + ".tmp.dedup." + id.New()
 		if err := os.Link(candidate, linked); err == nil {
 			// Verify the linked inode, not the mutable candidate pathname. A stale
 			// hint after replacement or an external edit must never change bytes.
@@ -197,7 +196,7 @@ func (d *Disk) WriteFile(path string, data []byte, mode os.FileMode) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err
 	}
-	staged := path + ".tmp.content." + uuid.NewString()
+	staged := path + ".tmp.content." + id.New()
 	defer os.Remove(staged)
 	f, err := os.OpenFile(staged, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
 	if err != nil {

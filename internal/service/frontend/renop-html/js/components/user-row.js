@@ -103,6 +103,7 @@ if (!customElements.get('renop-user-row')) {
  * @property {(token: object) => void} [onDelete] - Delete action handler
  * @property {(token: object) => void} [onSessions] - Sessions action handler
  * @property {(token: object) => void} [onQuota] - Publication quota action handler
+ * @property {(token: object) => void} [onTrafficQuota] - Download traffic quota action handler
  * @property {(token: object) => void} [onBan] - Account suspension action handler
  * @property {(token: object) => void} [onRetention] - Retired-account retention handler
  */
@@ -172,6 +173,15 @@ export function openUserActionsDialog(token, options = {}) {
             desc: t('publicationQuota.adminUserHint'),
             handler: options.onQuota
         },
+        ...(options.onTrafficQuota ? [{
+            id: 'traffic-quota',
+            icon: 'download',
+            iconColor: '#0ea5e9',
+            iconBg: 'rgba(14, 165, 233, 0.1)',
+            title: t('trafficQuota.title') || 'Traffic Quota',
+            desc: t('trafficQuota.adminUserHint') || 'View remaining quota and customize limits',
+            handler: options.onTrafficQuota
+        }] : []),
         ...(options.onBan ? [{
             id: 'ban',
             icon: 'warning',
@@ -304,8 +314,7 @@ export function openUserActionsDialog(token, options = {}) {
  * @returns {HTMLTableRowElement}
  */
 export function createUserRow(token, options = {}) {
-    const row = document.createElement('tr');
-    row.dataset.userName = token.name;
+    const row = el('tr', {'data-user-name': token.name});
     if (token.ban) row.classList.add('is-banned');
     if (Number(token.deleted_at) > 0) row.classList.add('is-retired');
 

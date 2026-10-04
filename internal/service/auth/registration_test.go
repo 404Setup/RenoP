@@ -63,7 +63,7 @@ func registrationRequest(t *testing.T, app *fiber.App, path string, body map[str
 	var reader io.Reader
 	method := "GET"
 	if body != nil {
-		data, err := json.Marshal(body)
+		data, err := json.MarshalOf(body)
 		require.NoError(t, err)
 		reader = bytes.NewReader(data)
 		method = "POST"

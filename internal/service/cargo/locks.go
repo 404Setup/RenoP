@@ -166,12 +166,7 @@ func (h Handler) setResourceLock(c fiber.Ctx, state *core.AppState, repo *config
 		session == "" || c.Cookies("renop_session") != session {
 		return cargoError(c, core.ErrCargoPermissionDenied)
 	}
-	var request struct {
-		Version    string `json:"version"`
-		Mode       string `json:"mode"`
-		Reason     string `json:"reason"`
-		ReasonText string `json:"reason_text"`
-	}
+	var request core.ResourceLockRequest
 	if decodeJSON(c, &request) != nil || validateCrateName(name) != nil ||
 		(request.Version != "" && validatePackage(name, request.Version) != nil) {
 		return errorResponse(c, fiber.StatusBadRequest, "Invalid resource lock")
@@ -265,7 +260,7 @@ func (h Handler) HandleReadLocks(c fiber.Ctx, state *core.AppState, repo *config
 	var output bytes.Buffer
 	err = scanIndex(reader, func(line []byte) error {
 		var entry cargoIndexValidationEntry
-		if err := json.Unmarshal(line, &entry); err != nil {
+		if err := json.UnmarshalOf(line, &entry); err != nil {
 			return err
 		}
 		if !hidden[core.ResourceLockVersionKey("cargo", entry.Version)] {

@@ -34,6 +34,11 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
+type verifyAccountEmailCodeRequest struct {
+	Email string `json:"email"`
+	Code  string `json:"code"`
+}
+
 func newEmailVerificationCode() (string, error) {
 	value, err := rand.Int(rand.Reader, big.NewInt(100000000))
 	if err != nil {
@@ -157,10 +162,7 @@ func confirmProfileEmailVerification(c fiber.Ctx, state *core.AppState) error {
 	if !cfg.Mail.Enabled {
 		return passwordResetError(c, 404, "mail_disabled")
 	}
-	var request struct {
-		Email string `json:"email"`
-		Code  string `json:"code"`
-	}
+	var request verifyAccountEmailCodeRequest
 	if err := readMFARequest(c, &request); err != nil {
 		return err
 	}

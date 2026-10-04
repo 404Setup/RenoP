@@ -9,7 +9,6 @@
  */
 
 import {collapseElement, expandElement} from './height-anim.js';
-import {$} from './jquery.js';
 
 const animatedDisclosures = new WeakSet();
 
@@ -33,15 +32,15 @@ export function bindAnimatedDetails(details, {
         animatedDisclosures.has(details)) {
         return null;
     }
-    const summary = $(details).children('summary').get(0);
+    const summary = Array.from(details.children).find((child) => child.localName === 'summary');
     if (!(summary instanceof HTMLElement)) return null;
     animatedDisclosures.add(details);
     let desiredOpen = details.open;
     let operation = 0;
-    $(summary).attr('aria-expanded', String(desiredOpen));
+    summary.setAttribute('aria-expanded', String(desiredOpen));
     if (desiredOpen) {
         content.hidden = false;
-        $(content).addClass('is-visible');
+        content.classList.add('is-visible');
     } else {
         content.hidden = true;
     }
@@ -50,7 +49,7 @@ export function bindAnimatedDetails(details, {
         event.preventDefault();
         desiredOpen = !desiredOpen;
         const currentOperation = ++operation;
-        $(summary).attr('aria-expanded', String(desiredOpen));
+        summary.setAttribute('aria-expanded', String(desiredOpen));
         if (desiredOpen) {
             details.open = true;
             void expandElement(content, {
@@ -66,11 +65,11 @@ export function bindAnimatedDetails(details, {
             if (currentOperation === operation && !desiredOpen) details.open = false;
         });
     };
-    $(summary).on('click.renopDisclosure', handleToggle);
+    summary.addEventListener('click', handleToggle);
     return {
         destroy() {
             operation += 1;
-            $(summary).off('.renopDisclosure');
+            summary.removeEventListener('click', handleToggle);
             animatedDisclosures.delete(details);
         },
     };

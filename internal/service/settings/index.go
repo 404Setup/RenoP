@@ -17,7 +17,7 @@ import (
 
 	"renop/internal/core"
 	"renop/internal/service/index"
-	"renop/internal/service/javadocs"
+	"renop/internal/service/maven/javadocs"
 	"renop/internal/utils/protohttp"
 	"renop/pkg/pb"
 )

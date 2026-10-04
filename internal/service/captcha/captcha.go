@@ -24,12 +24,16 @@ import (
 
 	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
-	"github.com/google/uuid"
 
 	"renop/internal/config"
 	"renop/internal/core"
-	"renop/internal/service/outboundproxy"
+	"renop/internal/service/proxy/outbound"
 	"renop/internal/utils"
+	"renop/internal/utils/ratelimit"
+	"renop/pkg/id"
+	"sync"
+
+	"golang.org/x/time/rate"
 )
 
 const (
@@ -40,9 +44,79 @@ const (
 	approvalLifetime = 2 * time.Minute
 )
 
+type captchaVerifyInput struct {
+	Scope    string `json:"scope"`
+	Provider string `json:"provider"`
+	SiteKey  string `json:"site_key"`
+	Response string `json:"response"`
+}
+
+type captchaChallengeData struct {
+	Origin string `json:"origin"`
+}
+
+type captchaDataPayload struct {
+	Challenge captchaChallengeData `json:"challenge"`
+}
+
+type captchaVerifyResult struct {
+	Success  bool               `json:"success"`
+	Hostname string             `json:"hostname"`
+	Action   string             `json:"action"`
+	Score    *float64           `json:"score"`
+	Data     captchaDataPayload `json:"data"`
+}
+
 var verifySlots = make(chan struct{}, 16)
 var errInvalid = errors.New("invalid CAPTCHA response")
 var errUnavailable = errors.New("CAPTCHA provider unavailable")
+
+type verifyFailureRecord struct {
+	count    int
+	lastFail time.Time
+}
+
+var (
+	verifyGate        = ratelimit.New(rate.Limit(5), 30, 10_000)
+	verifyFailuresMu  sync.Mutex
+	verifyFailuresMap = make(map[string]verifyFailureRecord)
+)
+
+func isVerifyRateLimited(key string) bool {
+	if verifyGate.Allow(key) > 0 {
+		return true
+	}
+	verifyFailuresMu.Lock()
+	defer verifyFailuresMu.Unlock()
+	if rec, exists := verifyFailuresMap[key]; exists {
+		if time.Since(rec.lastFail) > 5*time.Minute {
+			delete(verifyFailuresMap, key)
+			return false
+		}
+		if rec.count >= 5 {
+			return true
+		}
+	}
+	return false
+}
+
+func recordVerifyFailure(key string) {
+	verifyFailuresMu.Lock()
+	defer verifyFailuresMu.Unlock()
+	rec := verifyFailuresMap[key]
+	if time.Since(rec.lastFail) > 5*time.Minute {
+		rec.count = 0
+	}
+	rec.count++
+	rec.lastFail = time.Now()
+	verifyFailuresMap[key] = rec
+}
+
+func recordVerifySuccess(key string) {
+	verifyFailuresMu.Lock()
+	defer verifyFailuresMu.Unlock()
+	delete(verifyFailuresMap, key)
+}
 
 // IsPublicPath keeps challenge metadata and verification available without a valid login.
 func IsPublicPath(path string) bool {
@@ -59,7 +133,7 @@ func failure(c fiber.Ctx, status int, code, scope string) error {
 
 func browserBinding(c fiber.Ctx) string {
 	nonce := c.Cookies(nonceCookie)
-	if uuid.Validate(nonce) != nil {
+	if id.Validate(nonce) != nil {
 		return ""
 	}
 	digest := sha256.Sum256([]byte(nonce + "\x00" + c.Cookies("renop_session")))
@@ -107,8 +181,8 @@ func Require(c fiber.Ctx, state *core.AppState, scopes ...string) error {
 func SetupRoutes(router fiber.Router, state *core.AppState) {
 	router.Get("/captcha", func(c fiber.Ctx) error {
 		value := state.Inner.Config.Load().Captcha
-		if value.Provider != "disabled" && uuid.Validate(c.Cookies(nonceCookie)) != nil {
-			c.Cookie(&fiber.Cookie{Name: nonceCookie, Value: uuid.NewString(), Path: "/", MaxAge: 600,
+		if value.Provider != "disabled" && id.Validate(c.Cookies(nonceCookie)) != nil {
+			c.Cookie(&fiber.Cookie{Name: nonceCookie, Value: id.New(), Path: "/", MaxAge: 600,
 				HTTPOnly: true, Secure: utils.IsHTTPSRequest(c), SameSite: "Lax"})
 		}
 		c.Set(fiber.HeaderCacheControl, "no-store")
@@ -121,12 +195,7 @@ func SetupRoutes(router fiber.Router, state *core.AppState) {
 
 func verifyBrowser(c fiber.Ctx, state *core.AppState, client *http.Client) error {
 	c.Set(fiber.HeaderCacheControl, "no-store")
-	var input struct {
-		Scope    string `json:"scope"`
-		Provider string `json:"provider"`
-		SiteKey  string `json:"site_key"`
-		Response string `json:"response"`
-	}
+	var input captchaVerifyInput
 	if !c.Is("json") {
 		return failure(c, 415, "captcha_invalid", "")
 	}
@@ -142,40 +211,47 @@ func verifyBrowser(c fiber.Ctx, state *core.AppState, client *http.Client) error
 	if binding == "" {
 		return failure(c, 400, "captcha_cookies_required", "")
 	}
+	ip := utils.ExtractIP(c, &cfg.Server)
+	netKey := ratelimit.NetworkKey(ip)
+	if isVerifyRateLimited(netKey) {
+		return failure(c, fiber.StatusTooManyRequests, "captcha_rate_limited", "")
+	}
 	select {
 	case verifySlots <- struct{}{}:
 		defer func() { <-verifySlots }()
 	default:
-		return failure(c, 503, "captcha_unavailable", "")
+		return failure(c, fiber.StatusServiceUnavailable, "captcha_unavailable", "")
 	}
 	if client == nil {
 		selected, err := outboundproxy.Selected(cfg.Proxy)
 		if err != nil {
-			return failure(c, 503, "captcha_unavailable", "")
+			return failure(c, fiber.StatusServiceUnavailable, "captcha_unavailable", "")
 		}
 		transport := utils.DefaultTransport.Clone()
 		if err := outboundproxy.ConfigureTransport(transport, selected); err != nil {
-			return failure(c, 503, "captcha_unavailable", "")
+			return failure(c, fiber.StatusServiceUnavailable, "captcha_unavailable", "")
 		}
 		client = &http.Client{Transport: transport, Timeout: 10 * time.Second,
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 		defer client.CloseIdleConnections()
 	}
-	err := verifyToken(c.Context(), client, policy, cfg.Server.Domains, input.Scope, input.Response, utils.ExtractIP(c, &cfg.Server))
+	err := verifyToken(c.Context(), client, policy, cfg.Server.Domains, input.Scope, input.Response, ip)
 	if err != nil {
 		if errors.Is(err, errInvalid) {
-			return failure(c, 400, "captcha_invalid", "")
+			recordVerifyFailure(netKey)
+			return failure(c, fiber.StatusBadRequest, "captcha_invalid", "")
 		}
-		return failure(c, 503, "captcha_unavailable", "")
+		return failure(c, fiber.StatusServiceUnavailable, "captcha_unavailable", "")
 	}
+	recordVerifySuccess(netKey)
 	if state.Inner.Config.Load().Captcha.PolicyHash() != policy.PolicyHash() {
 		return failure(c, 409, "captcha_changed", "")
 	}
-	proof := uuid.NewString()
+	proof := id.New()
 	now := time.Now().UnixMilli()
 	if !state.Inner.CaptchaApprovals.Put(proof, core.TransientAuthState{Provider: input.Scope,
 		SessionHash: binding, ConfigHash: policy.PolicyHash(), ExpiresAt: now + approvalLifetime.Milliseconds()}, now) {
-		return failure(c, 503, "captcha_unavailable", "")
+		return failure(c, fiber.StatusServiceUnavailable, "captcha_unavailable", "")
 	}
 	return c.JSON(fiber.Map{"proof": proof, "expires_in": int(approvalLifetime.Seconds())})
 }
@@ -219,18 +295,8 @@ func verifyToken(ctx context.Context, client *http.Client, cfg config.CaptchaCon
 	if err != nil {
 		return errUnavailable
 	}
-	var result struct {
-		Success  bool     `json:"success"`
-		Hostname string   `json:"hostname"`
-		Action   string   `json:"action"`
-		Score    *float64 `json:"score"`
-		Data     struct {
-			Challenge struct {
-				Origin string `json:"origin"`
-			} `json:"challenge"`
-		} `json:"data"`
-	}
-	if json.Unmarshal(data, &result) != nil {
+	var result captchaVerifyResult
+	if json.UnmarshalOf(data, &result) != nil {
 		return errUnavailable
 	}
 	if !result.Success {

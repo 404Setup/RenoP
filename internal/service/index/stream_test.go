@@ -62,7 +62,7 @@ func TestIndexStreamBoundsAndPrivateContentRoundTrip(t *testing.T) {
 	if got := loaded.ContentGarbage("scope", 16, 20); len(got) != 1 {
 		t.Fatalf("lost collection queue: %v", got)
 	}
-	public, err := json.Marshal(idx)
+	public, err := json.MarshalOf(idx)
 	if err != nil {
 		t.Fatal(err)
 	}

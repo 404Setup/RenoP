@@ -20,12 +20,12 @@ import (
 	"time"
 
 	"github.com/goccy/go-json"
-	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 
 	"renop/internal/config"
 	"renop/internal/core"
 	"renop/internal/mail"
+	"renop/pkg/id"
 )
 
 // DriverCheckResult records one completed database contract phase.
@@ -34,15 +34,15 @@ type DriverCheckResult struct {
 	Duration time.Duration `json:"duration"`
 }
 
-func claimDriverTicket(db *DB, id, actor string) error {
+func claimDriverTicket(db *DB, ticketID, actor string) error {
 	now := time.Now().UnixMilli()
-	secret := "driver-ticket-" + uuid.NewString()
+	secret := "driver-ticket-" + id.New()
 	session := &core.Session{PublicID: secret, Username: actor, CreatedAt: now}
 	session.LastActive.Store(now)
 	if err := db.SaveSession(session, secret); err != nil {
 		return err
 	}
-	_, claimErr := db.TransitionTicket(id, actor, secret, core.TicketAction{Action: "claim"}, now)
+	_, claimErr := db.TransitionTicket(ticketID, actor, secret, core.TicketAction{Action: "claim"}, now)
 	return errors.Join(claimErr, db.DeleteSession(secret))
 }
 
@@ -52,7 +52,7 @@ func RunDriverCheck(ctx context.Context, db *DB) ([]DriverCheckResult, error) {
 	if db == nil || db.Dialect == nil {
 		return nil, core.ErrDatabaseUnavailable
 	}
-	suffix := uuid.NewString()[:8]
+	suffix := strings.ToLower(id.New()[:8])
 	username := "dbcheck-" + suffix
 	now := time.Now().UnixMilli()
 	results := make([]DriverCheckResult, 0, 22)
@@ -281,7 +281,7 @@ func RunDriverCheck(ctx context.Context, db *DB) ([]DriverCheckResult, error) {
 		rollbackUsername := username + "-rollback"
 		if _, err := tx.Exec(`INSERT INTO user_profiles
 			(user_id, username, nickname, rename_window_started_at, rename_count, updated_at)
-			VALUES (?, ?, '', 0, 0, 0)`, uuid.NewString(), rollbackUsername); err != nil {
+			VALUES (?, ?, '', 0, 0, 0)`, id.New(), rollbackUsername); err != nil {
 			return err
 		}
 		if err := tx.Rollback(); err != nil {
@@ -332,7 +332,7 @@ func RunDriverCheck(ctx context.Context, db *DB) ([]DriverCheckResult, error) {
 	}
 	if err := run("message deduplication", func() error {
 		message := &core.UserMessage{
-			ID: uuid.NewString(), Recipient: username, Sender: "system", Kind: "driver_check", Severity: "info",
+			ID: id.New(), Recipient: username, Sender: "system", Kind: "driver_check", Severity: "info",
 			Title: "Driver check", Body: "Database message", DedupeKey: "driver-check-" + suffix, CreatedAt: now,
 		}
 		inserted, err := db.SaveMessageIfAbsent(message)
@@ -375,7 +375,7 @@ func RunDriverCheck(ctx context.Context, db *DB) ([]DriverCheckResult, error) {
 		if err != nil || total != 1 || len(teams) != 1 || teams[0].Prefix != team.Prefix {
 			return errorsOrMissing(err, "global team listing")
 		}
-		invitationID := uuid.NewString()
+		invitationID := id.New()
 		expiresAt := now + int64(time.Hour/time.Millisecond)
 		invitation := &core.SuperTeamInvitation{
 			ID: invitationID, TeamPrefix: team.Prefix, Inviter: username, Recipient: memberUsername,
@@ -1391,7 +1391,7 @@ func RunDriverCheck(ctx context.Context, db *DB) ([]DriverCheckResult, error) {
 		hash := func(value string) string { return fmt.Sprintf("%x", sha256.Sum256([]byte(value+suffix))) }
 		identity := core.OAuthIdentity{ProviderID: "gitlab", Subject: "subject-" + suffix, Authority: hash("authority"), Login: "external",
 			Namespaces: []string{"external", "owned-group"}}
-		profile, err := json.Marshal(core.RegistrationProfile{OAuth: &identity})
+		profile, err := json.MarshalOf(core.RegistrationProfile{OAuth: &identity})
 		if err != nil {
 			return err
 		}

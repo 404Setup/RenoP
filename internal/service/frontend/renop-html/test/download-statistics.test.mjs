@@ -19,10 +19,10 @@ const frontendRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 test('repository settings expose localized download-statistics controls', () => {
     const source = readFileSync(join(frontendRoot, 'js/repositories.js'), 'utf8');
     for (const required of [
-        "apiRequest('/api/settings/repositories/download-statistics')",
+        "fetchProto('/api/settings/repositories/download-statistics', RepositoryDownloadStatisticsResponse)",
         'buildDownloadStatisticsControls(repoKey, repo)',
         '/download-statistics',
-        "method: 'PUT'",
+        'UpdateRepositoryDownloadStatisticsRequest',
         "{method: 'DELETE'}",
         'repos.resetDownloadStatisticsConfirm',
         'responseErrorMessage',
@@ -31,11 +31,12 @@ test('repository settings expose localized download-statistics controls', () => 
     }
 });
 
-test('Maven, npm, Cargo, and Docker settings expose publication review without extending the legacy protobuf', () => {
+test('Maven, npm, Cargo, and Docker settings expose publication review with dedicated protobuf messages', () => {
     const source = readFileSync(join(frontendRoot, 'js/repositories.js'), 'utf8');
     for (const required of [
-        "apiRequest('/api/settings/repositories/publication-reviews')",
+        "fetchProto('/api/settings/repositories/publication-reviews', RepositoryPublicationReviewsResponse)",
         '/publication-review',
+        'UpdateRepositoryPublicationReviewRequest',
         "value: 'new_packages'",
         "value: 'every_version'",
         "format.protocol === 'cargo' || format.protocol === 'docker'",

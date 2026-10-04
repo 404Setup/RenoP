@@ -54,7 +54,7 @@ export default Object.freeze({
     "prompt.copied": "In die Zwischenablage kopiert",
     "footer.organization": "Organisation",
     "footer.privacyPolicy": "Datenschutzerklärung",
-    "footer.legalNotice": "Impressum",
+    "footer.legalNotice": "DMCA & Impressum",
     "footer.allRights": "Alle Rechte vorbehalten.",
     "footer.licenseNotice": "Der Quellcode steht unter der Mozilla Public License 2.0.",
     "modal.close": "Dialog schließen",

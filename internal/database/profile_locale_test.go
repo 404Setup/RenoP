@@ -49,7 +49,7 @@ func TestUserLocalePersistsWithoutChangingCredentials(t *testing.T) {
 	profile, err := db.GetUserProfile("alice")
 	require.NoError(t, err)
 	require.Equal(t, "fr-FR", profile.Locale)
-	public, err := json.Marshal(profile)
+	public, err := json.MarshalOf(profile)
 	require.NoError(t, err)
 	require.NotContains(t, string(public), "locale")
 	code, err := db.GetEmailLocale("ALICE@example.com")

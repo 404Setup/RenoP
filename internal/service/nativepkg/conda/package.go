@@ -62,23 +62,23 @@ func ReadPackage(reader io.ReaderAt, size int64, filename string) (*Package, err
 		return nil, fmt.Errorf("%w: %v", ErrInvalidPackage, err)
 	}
 	var record map[string]json.RawMessage
-	if err := json.Unmarshal(data, &record); err != nil || len(record) == 0 {
+	if err := json.UnmarshalOf(data, &record); err != nil || len(record) == 0 {
 		return nil, ErrInvalidPackage
 	}
 	for _, field := range []string{"name", "version", "build"} {
 		var value string
-		if json.Unmarshal(record[field], &value) != nil || value == "" || len(value) > 1024 || strings.ContainsAny(value, "\x00\r\n/\\") {
+		if json.UnmarshalOf(record[field], &value) != nil || value == "" || len(value) > 1024 || strings.ContainsAny(value, "\x00\r\n/\\") {
 			return nil, ErrInvalidPackage
 		}
 	}
 	var buildNumber int64
-	if json.Unmarshal(record["build_number"], &buildNumber) != nil || buildNumber < 0 {
+	if json.UnmarshalOf(record["build_number"], &buildNumber) != nil || buildNumber < 0 {
 		return nil, ErrInvalidPackage
 	}
 	for _, field := range []string{"depends", "constrains"} {
 		if raw, ok := record[field]; ok {
 			var values []string
-			if json.Unmarshal(raw, &values) != nil || len(values) > 4096 {
+			if json.UnmarshalOf(raw, &values) != nil || len(values) > 4096 {
 				return nil, ErrInvalidPackage
 			}
 		}
@@ -95,7 +95,7 @@ func ReadPackage(reader io.ReaderAt, size int64, filename string) (*Package, err
 }
 
 func setRecordField(record map[string]json.RawMessage, field string, value any) {
-	record[field], _ = json.Marshal(value)
+	record[field], _ = json.MarshalOf(value)
 }
 
 func readCondaIndex(reader io.ReaderAt, size int64) ([]byte, error) {

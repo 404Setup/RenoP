@@ -11,6 +11,7 @@
 import {getUserProfile, navigateToUserProfile, profileDisplayName} from '../user-profiles.js';
 import {t} from '../i18n.js';
 import {createUserAvatar} from './user-avatar.js';
+import {el} from '@renop/ui/dom';
 
 /**
  * Nickname-first linked identity with shared profile loading and truncation.
@@ -50,17 +51,20 @@ export class RenopUserIdentity extends HTMLElement {
         this.className = 'user-identity';
         this.replaceChildren();
         if (!username) return;
-        const label = document.createElement('span');
-        label.className = 'user-identity-name is-loading';
-        label.textContent = '…';
-        const link = document.createElement('a');
-        link.className = 'user-identity-link';
-        link.href = `/user/${encodeURIComponent(username)}`;
-        link.addEventListener('click', event => {
-            if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
-            event.preventDefault();
-            navigateToUserProfile(username);
+        const label = el('span', {
+            class: 'user-identity-name is-loading'
+        }, '…');
+
+        const link = el('a', {
+            class: 'user-identity-link',
+            href: `/user/${encodeURIComponent(username)}`,
+            onClick: event => {
+                if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+                event.preventDefault();
+                navigateToUserProfile(username);
+            }
         });
+
         if (this.hasAttribute('avatar')) link.appendChild(createUserAvatar('?'));
         link.appendChild(label);
         this.appendChild(link);
@@ -134,9 +138,8 @@ window.addEventListener('userProfilesInvalidated', event => {
  * @returns {HTMLElement} User identity element.
  */
 export function createUserIdentity(username, {avatar = false, template = ''} = {}) {
-    const identity = document.createElement('renop-user-identity');
-    identity.setAttribute('username', username || '');
-    if (avatar) identity.setAttribute('avatar', '');
-    if (template) identity.setAttribute('template', template);
-    return identity;
+    const attrs = {username: username || ''};
+    if (avatar) attrs.avatar = '';
+    if (template) attrs.template = template;
+    return el('renop-user-identity', attrs);
 }

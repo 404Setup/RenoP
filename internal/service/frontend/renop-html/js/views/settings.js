@@ -31,10 +31,16 @@ export function renderSettings() {
             el("div", {"class": "settings-main"},
                 el("div", {"id": "settings-page-picker"}),
                 el("nav", {
-                    "id": "settings-subnav",
-                    "data-i18n-aria-label": "settings.sections",
-                    "aria-label": "Settings sections"
-                }),
+                        "id": "settings-subnav",
+                        "data-i18n-aria-label": "settings.sections",
+                        "aria-label": "Settings sections",
+                        "aria-hidden": "true",
+                        "data-open": "false"
+                    },
+                    el("div", {"class": "settings-subnav-track"},
+                        el("div", {"class": "settings-subnav-list"})
+                    )
+                ),
                 el("div", {"class": "settings-page-header"},
                     el("div", {"class": "settings-page-heading"},
                         el("h3", {"id": "settings-page-title", "tabindex": "-1"}),

@@ -337,4 +337,8 @@ export default Object.freeze({
     "profile.apiTokenEditDesc": "更新 API 權杖名稱同權限，唔會改動佢嘅密鑰。",
     "profile.apiTokenEdited": "API 權杖已更新",
     "profile.apiTokenEditFailed": "更新 API 權杖失敗",
+    "profile.trafficQuotaTitle": "下載流量配額",
+    "profile.trafficQuotaDesc": "睇你嘅下載流量限制、剩低配額同滾動恢復速率。",
+    "profile.trafficQuotaLoading": "載入緊流量配額…",
+    "profile.trafficQuotaLoadFailed": "載入流量配額失敗。",
 });

@@ -8,7 +8,7 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
-import {el} from '@renop/ui/dom';
+import {byId, el} from '@renop/ui/dom';
 import {makeCustomSelect} from '@renop/ui/custom-select';
 import {openModalWithAnim} from '@renop/ui/modal';
 import {createToggle} from '@renop/ui/toggle';
@@ -32,6 +32,26 @@ let recipientSuggestionVersion = 0;
 let sending = false;
 let completionTimer = 0;
 let open = false;
+let recipientInputEl = null;
+let recipientSuggestionsEl = null;
+
+/**
+ * Resolve the composer recipient input, caching it while it stays connected.
+ * @returns {HTMLInputElement|null}
+ */
+function recipientInput() {
+    if (!recipientInputEl?.isConnected) recipientInputEl = byId('message-compose-recipients');
+    return recipientInputEl;
+}
+
+/**
+ * Resolve the recipient suggestion dropdown, caching it while it stays connected.
+ * @returns {HTMLElement|null}
+ */
+function recipientSuggestionsList() {
+    if (!recipientSuggestionsEl?.isConnected) recipientSuggestionsEl = byId('message-recipient-suggestions');
+    return recipientSuggestionsEl;
+}
 
 /**
  * Initialize the independent administrator notification composer once.
@@ -40,21 +60,21 @@ let open = false;
 export function initNotificationComposer() {
     if (initialized) return;
     initialized = true;
-    document.getElementById('message-compose-close')?.addEventListener('click', closeNotificationComposer);
-    document.getElementById('message-compose-backdrop')?.addEventListener('click', closeNotificationComposer);
-    document.getElementById('message-compose-cancel')?.addEventListener('click', closeNotificationComposer);
-    document.getElementById('message-compose-form')?.addEventListener('submit', submitNotification);
-    document.getElementById('message-compose-recipients')?.addEventListener('input', handleRecipientInput);
-    document.getElementById('message-compose-recipients')?.addEventListener('keydown', handleRecipientKeydown);
-    document.getElementById('message-compose-recipients')?.addEventListener('blur', handleRecipientBlur);
-    document.getElementById('message-recipient-suggestions')?.addEventListener('click', handleRecipientSuggestionClick);
+    byId('message-compose-close')?.addEventListener('click', closeNotificationComposer);
+    byId('message-compose-backdrop')?.addEventListener('click', closeNotificationComposer);
+    byId('message-compose-cancel')?.addEventListener('click', closeNotificationComposer);
+    byId('message-compose-form')?.addEventListener('submit', submitNotification);
+    recipientInput()?.addEventListener('input', handleRecipientInput);
+    recipientInput()?.addEventListener('keydown', handleRecipientKeydown);
+    recipientInput()?.addEventListener('blur', handleRecipientBlur);
+    recipientSuggestionsList()?.addEventListener('click', handleRecipientSuggestionClick);
     document.addEventListener('click', handleRecipientDocumentClick);
     window.addEventListener('authChanged', updateComposerVisibility);
     window.addEventListener('languageChanged', handleLanguageChanged);
     initializeSeveritySelect();
     initializeBroadcastToggle();
-    sessionTarget = createNotificationSessions(document.getElementById('message-compose-session-field'),
-        document.getElementById('message-compose-session'), document.getElementById('message-compose-session-status'));
+    sessionTarget = createNotificationSessions(byId('message-compose-session-field'),
+        byId('message-compose-session'), byId('message-compose-session-status'));
 }
 
 /**
@@ -63,12 +83,12 @@ export function initNotificationComposer() {
  */
 export function openNotificationComposer() {
     if (!cachedIsManager || sending) return;
-    const modal = document.getElementById('message-compose-modal');
+    const modal = byId('message-compose-modal');
     if (!modal) return;
     open = true;
     setSubmitState('idle');
     openModalWithAnim(modal);
-    window.requestAnimationFrame(() => document.getElementById('message-compose-recipients')?.focus());
+    window.requestAnimationFrame(() => recipientInput()?.focus());
 }
 
 /**
@@ -84,9 +104,9 @@ function closeNotificationComposer(event) {
         completionTimer = 0;
     }
     hideRecipientSuggestions();
-    const modal = document.getElementById('message-compose-modal');
+    const modal = byId('message-compose-modal');
     if (modal) closeModalWithAnim(modal);
-    document.getElementById('message-compose-form')?.reset();
+    byId('message-compose-form')?.reset();
     severitySelect?.setValue('info');
     if (broadcastToggle) broadcastToggle.checked = false;
     handleBroadcastChange();
@@ -98,7 +118,7 @@ function closeNotificationComposer(event) {
  * @returns {void}
  */
 function initializeSeveritySelect() {
-    const host = document.getElementById('message-compose-severity');
+    const host = byId('message-compose-severity');
     if (!host || severitySelect) return;
     severitySelect = makeCustomSelect(severityOptions(), 'info');
     host.replaceChildren(severitySelect);
@@ -122,7 +142,7 @@ function severityOptions() {
  * @returns {void}
  */
 function initializeBroadcastToggle() {
-    const host = document.getElementById('message-compose-all');
+    const host = byId('message-compose-all');
     if (!host || broadcastToggle) return;
     broadcastToggle = createToggle(false, handleBroadcastToggleChange);
     broadcastToggle.classList.add('message-compose-all-control');
@@ -171,7 +191,7 @@ function updateComposerVisibility() {
  * @returns {void}
  */
 function handleBroadcastChange() {
-    const recipients = document.getElementById('message-compose-recipients');
+    const recipients = recipientInput();
     if (!recipients) return;
     recipients.disabled = Boolean(broadcastToggle?.checked);
     if (recipients.disabled) hideRecipientSuggestions();
@@ -180,7 +200,7 @@ function handleBroadcastChange() {
 
 /** Synchronize the session selector with the current recipient and broadcast mode. */
 function updateSessionTarget() {
-    sessionTarget?.update(parseRecipientNames(document.getElementById('message-compose-recipients')?.value || ''),
+    sessionTarget?.update(parseRecipientNames(recipientInput()?.value || ''),
         open && !broadcastToggle?.checked);
 }
 
@@ -191,7 +211,7 @@ function updateSessionTarget() {
 function handleRecipientInput() {
     hideRecipientSuggestions();
     updateSessionTarget();
-    const input = document.getElementById('message-compose-recipients');
+    const input = recipientInput();
     if (!cachedIsManager || !input || input.disabled || !currentRecipientQuery(input)) return;
     recipientSuggestionTimer = window.setTimeout(fetchRecipientSuggestions, 160);
 }
@@ -223,7 +243,7 @@ function isRecipientSeparator(character) {
  */
 async function fetchRecipientSuggestions() {
     recipientSuggestionTimer = 0;
-    const input = document.getElementById('message-compose-recipients');
+    const input = recipientInput();
     const query = input ? currentRecipientQuery(input) : '';
     if (!cachedIsManager || !input || input.disabled || !query) return;
     const version = recipientSuggestionVersion;
@@ -246,8 +266,8 @@ async function fetchRecipientSuggestions() {
  * @returns {void}
  */
 function renderRecipientSuggestions(users) {
-    const dropdown = document.getElementById('message-recipient-suggestions');
-    const input = document.getElementById('message-compose-recipients');
+    const dropdown = recipientSuggestionsList();
+    const input = recipientInput();
     if (!dropdown || !input) return;
     recipientSuggestions = [];
     dropdown.innerHTML = '';
@@ -272,7 +292,7 @@ function renderRecipientSuggestions(users) {
  * @returns {void}
  */
 function handleRecipientKeydown(event) {
-    const dropdown = document.getElementById('message-recipient-suggestions');
+    const dropdown = recipientSuggestionsList();
     if (!dropdown || dropdown.style.display !== 'block' || recipientSuggestions.length === 0) return;
     if (event.key === 'ArrowDown') {
         event.preventDefault();
@@ -324,7 +344,7 @@ function handleRecipientSuggestionClick(event) {
  * @returns {void}
  */
 function insertRecipientSuggestion(username) {
-    const input = document.getElementById('message-compose-recipients');
+    const input = recipientInput();
     if (!input || !username) return;
     const caret = Number.isInteger(input.selectionStart) ? input.selectionStart : input.value.length;
     let start = caret;
@@ -368,8 +388,8 @@ function hideRecipientSuggestions() {
     recipientSuggestionVersion++;
     recipientSuggestions = [];
     activeRecipientSuggestion = -1;
-    const dropdown = document.getElementById('message-recipient-suggestions');
-    const input = document.getElementById('message-compose-recipients');
+    const dropdown = recipientSuggestionsList();
+    const input = recipientInput();
     if (dropdown) {
         dropdown.style.display = 'none';
         dropdown.innerHTML = '';
@@ -392,12 +412,12 @@ function parseRecipientNames(value) {
  * @returns {void}
  */
 function setSubmitState(state) {
-    const submit = document.getElementById('message-compose-submit');
-    const cancel = document.getElementById('message-compose-cancel');
-    const close = document.getElementById('message-compose-close');
-    const form = document.getElementById('message-compose-form');
+    const submit = byId('message-compose-submit');
+    const cancel = byId('message-compose-cancel');
+    const close = byId('message-compose-close');
+    const form = byId('message-compose-form');
     const isSending = state === 'sending';
-    document.getElementById('message-compose-region')?.toggleAttribute('inert', isSending);
+    byId('message-compose-region')?.toggleAttribute('inert', isSending);
     if (submit) {
         submit.disabled = isSending;
         submit.classList.toggle('is-sending', isSending);
@@ -428,10 +448,10 @@ async function submitNotification(event) {
     event.preventDefault();
     if (!cachedIsManager || sending) return;
     const all = Boolean(broadcastToggle?.checked);
-    const recipients = parseRecipientNames(document.getElementById('message-compose-recipients')?.value || '');
+    const recipients = parseRecipientNames(recipientInput()?.value || '');
     const severity = severitySelect?.getValue() || 'info';
-    const title = document.getElementById('message-compose-title')?.value.trim() || '';
-    const body = document.getElementById('message-compose-body')?.value.trim() || '';
+    const title = byId('message-compose-title')?.value.trim() || '';
+    const body = byId('message-compose-body')?.value.trim() || '';
     const session_id = all ? '' : sessionTarget?.value(recipients) || '';
     if ((!all && recipients.length === 0) || !title || !body) {
         showAlert(t('messages.invalidNotification'), 'error');

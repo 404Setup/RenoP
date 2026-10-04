@@ -162,7 +162,7 @@ func TestRegistrationBoundaries(t *testing.T) {
 	t.Run("provider timeout and cooldown survive without account privileges", func(t *testing.T) {
 		r := request("github_user")
 		r.IDHash = hash("github_registration")
-		payload, err := json.Marshal(core.RegistrationProfile{Username: "suggested", Nickname: "GitHub", GitHubID: 42, GitHubLogin: "external",
+		payload, err := json.MarshalOf(core.RegistrationProfile{Username: "suggested", Nickname: "GitHub", GitHubID: 42, GitHubLogin: "external",
 			Principals: []core.GitHubPrincipal{{Type: core.GitHubPrincipalUser, GitHubID: 42, Login: "external"}}})
 		require.NoError(t, err)
 		p := &core.PendingRegistration{IDHash: r.IDHash, IPHash: r.IPHash, ProviderKey: "github:42", Email: r.Email,

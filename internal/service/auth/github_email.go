@@ -30,16 +30,18 @@ func fetchGitHubVerifiedEmail(ctx context.Context, client *http.Client, provider
 	return primary, err
 }
 
+type gitHubEmailAddress struct {
+	Email    string `json:"email"`
+	Verified bool   `json:"verified"`
+	Primary  bool   `json:"primary"`
+}
+
 func fetchGitHubEmailAddresses(ctx context.Context, client *http.Client, provider githubOAuthProvider, accessToken string) (string, []core.ProviderEmail, error) {
 	primary, fallback := "", ""
 	emails := []core.ProviderEmail{}
 	seen := make(map[string]bool)
 	for page := 1; page <= 10; page++ {
-		var addresses []struct {
-			Email    string `json:"email"`
-			Verified bool   `json:"verified"`
-			Primary  bool   `json:"primary"`
-		}
+		var addresses []gitHubEmailAddress
 		link, err := getGitHubAPI(ctx, client, strings.TrimRight(provider.APIURL, "/")+
 			"/user/emails?per_page=100&page="+strconv.Itoa(page), accessToken, &addresses)
 		if err != nil {

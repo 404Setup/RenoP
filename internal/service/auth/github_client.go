@@ -28,7 +28,7 @@ import (
 
 	"renop/internal/config"
 	"renop/internal/core"
-	"renop/internal/service/outboundproxy"
+	"renop/internal/service/proxy/outbound"
 	"renop/internal/utils"
 )
 
@@ -37,6 +37,12 @@ const (
 	githubOAuthOrgPageSize  = 100
 	githubOAuthMaxOrgPages  = 10
 )
+
+type githubOAuthErrorResponse struct {
+	Error            string `json:"error"`
+	ErrorDescription string `json:"error_description"`
+	Message          string `json:"message"`
+}
 
 type githubOAuthProvider struct {
 	AuthorizeURL string
@@ -101,7 +107,7 @@ func oauthHTTPClient(cfg *config.Config) (*http.Client, error) {
 	}, nil
 }
 
-func decodeOAuthResponse(response *http.Response, destination any) error {
+func decodeOAuthResponse[T any](response *http.Response, destination *T) error {
 	if response == nil {
 		return errors.New("OAuth response is missing")
 	}
@@ -117,12 +123,8 @@ func decodeOAuthResponse(response *http.Response, destination any) error {
 		return errors.New("OAuth response exceeds the size limit")
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		var oauthErr struct {
-			Error            string `json:"error"`
-			ErrorDescription string `json:"error_description"`
-			Message          string `json:"message"`
-		}
-		if len(body) > 0 && json.Unmarshal(body, &oauthErr) == nil {
+		var oauthErr githubOAuthErrorResponse
+		if len(body) > 0 && json.UnmarshalOf(body, &oauthErr) == nil {
 			desc := oauthErr.ErrorDescription
 			if desc == "" {
 				desc = oauthErr.Message
@@ -143,7 +145,7 @@ func decodeOAuthResponse(response *http.Response, destination any) error {
 		}
 		return fmt.Errorf("OAuth provider returned HTTP %d", response.StatusCode)
 	}
-	return json.Unmarshal(body, destination)
+	return json.UnmarshalOf(body, destination)
 }
 
 func exchangeGitHubCode(ctx context.Context, client *http.Client, provider githubOAuthProvider,
@@ -201,8 +203,8 @@ func unicodeSpace(character rune) bool {
 	}
 }
 
-func getGitHubAPI(ctx context.Context, client *http.Client, endpoint, accessToken string,
-	destination any) (string, error) {
+func getGitHubAPI[T any](ctx context.Context, client *http.Client, endpoint, accessToken string,
+	destination *T) (string, error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return "", err

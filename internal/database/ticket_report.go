@@ -20,10 +20,10 @@ import (
 	"time"
 
 	"github.com/goccy/go-json"
-	"github.com/google/uuid"
 
 	"renop/internal/config"
 	"renop/internal/core"
+	"renop/pkg/id"
 )
 
 // CreateTicket stores a bounded support request and its immutable report recipients together.
@@ -48,7 +48,7 @@ func (db *DB) CreateTicket(request core.TicketRequest, actor, session string, at
 	if err != nil {
 		return nil, core.ErrReviewPermissionDenied
 	}
-	task := &core.ReviewTask{ID: uuid.NewString(), Kind: request.Kind, ResourceType: "support",
+	task := &core.ReviewTask{ID: id.New(), Kind: request.Kind, ResourceType: "support",
 		Repository: strings.ToLower(strings.TrimSpace(request.Repository)), ResourceName: title,
 		RequestedByID: account.UserID, RequestedBy: strings.ToLower(actor), Status: core.ReviewStatusPending,
 		CreatedAt: at, UpdatedAt: at, TicketState: core.TicketState{Status: core.TicketUnprocessed, Title: title, Body: body}}
@@ -59,7 +59,7 @@ func (db *DB) CreateTicket(request core.TicketRequest, actor, session string, at
 		}
 		task.Repository, task.ResourceType, task.ResourceName = target.Repository, target.Format, target.Name
 		task.ResourceKey, task.ResourceVersion = target.Name, target.Version
-		encoded, err := json.Marshal(recipients)
+		encoded, err := json.MarshalOf(recipients)
 		if err != nil {
 			return nil, err
 		}
@@ -86,13 +86,13 @@ func (db *DB) CreateTicket(request core.TicketRequest, actor, session string, at
 	if total >= maxPendingPublicationReviews || pending >= 16 || recent >= 24 || burst >= 6 {
 		return nil, core.ErrReviewFileLimit
 	}
-	var activeKey any
+	var activeKey *string
 	if task.Kind == core.TicketKindReport {
 		digest := sha256.Sum256([]byte(strings.Join([]string{task.Kind, task.RequestedByID, task.Repository, task.ResourceType, storedKey}, "\x00")))
 		task.ActiveKey = hex.EncodeToString(digest[:])
-		activeKey = task.ActiveKey
+		activeKey = &task.ActiveKey
 		var existing string
-		if err := tx.QueryRow(`SELECT id FROM review_tasks WHERE active_key = ?`, activeKey).Scan(&existing); err == nil {
+		if err := tx.QueryRow(`SELECT id FROM review_tasks WHERE active_key = ?`, *activeKey).Scan(&existing); err == nil {
 			return nil, core.ErrReviewTaskExists
 		} else if !errors.Is(err, sql.ErrNoRows) {
 			return nil, err

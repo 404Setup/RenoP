@@ -18,8 +18,7 @@ import {renderAccountEmailAliases} from './account-emails.js';
 import {writeClipboardText} from './clipboard.js';
 import {t} from './i18n.js';
 import {formatTimestamp} from './time.js';
-import {el} from '@renop/ui/dom';
-import {$} from '@renop/ui/jquery';
+import {byId, el, on, setText} from '@renop/ui/dom';
 
 let accountSecuritySequence = 0;
 let currentSecurity = null;
@@ -69,44 +68,44 @@ function renderAccountSecurity(security) {
         passkeyMFA.disabled = locked || !passkeyMFA.checked && (!(Number(security.fido_device_count) > 0) ||
             !(security.github_linked || Number(security.oauth_identity_count) > 0 || (security.password_configured && security.password_login_enabled)));
     }
-    $('#profile-mfa-totp-status').text(t(security.totp_enabled ? 'mfa.enabled' : 'mfa.disabled'));
-    $('#profile-mfa-totp').text(t(security.totp_enabled ? 'mfa.remove' : 'mfa.setup'));
-    const section = $('#profile-account-security-section').get(0);
-    const emailInput = $('#profile-private-email').get(0);
-    const toggle = $('#profile-password-login-toggle').get(0);
-    const passwordHint = $('#profile-password-login-hint').get(0);
-    const recoveryStatus = $('#profile-recovery-code-status').get(0);
-    const recoveryButton = $('#btn-profile-recovery-codes').get(0);
+    setText(byId('profile-mfa-totp-status'), t(security.totp_enabled ? 'mfa.enabled' : 'mfa.disabled'));
+    setText(byId('profile-mfa-totp'), t(security.totp_enabled ? 'mfa.remove' : 'mfa.setup'));
+    const section = byId('profile-account-security-section');
+    const emailInput = byId('profile-private-email');
+    const toggle = byId('profile-password-login-toggle');
+    const passwordHint = byId('profile-password-login-hint');
+    const recoveryStatus = byId('profile-recovery-code-status');
+    const recoveryButton = byId('btn-profile-recovery-codes');
     if (!section || !emailInput || !toggle || !passwordHint || !recoveryStatus || !recoveryButton) return;
-    $(section).prop('hidden', false);
-    $(emailInput).val(security.email || '');
+    section.hidden = false;
+    emailInput.value = security.email || '';
     renderAccountEmailAliases(security, renderAccountSecurity, showMFASettingsError);
-    $('#profile-private-email-hint').text(t(security.email_verification_required
+    setText(byId('profile-private-email-hint'), t(security.email_verification_required
         ? 'profile.privateEmailVerificationHint' : 'profile.privateEmailHint'));
-    $(toggle).prop('checked', security.password_login_enabled === true);
-    $(toggle).prop('disabled', toggle.checked
+    toggle.checked = security.password_login_enabled === true;
+    toggle.disabled = toggle.checked
         ? security.can_disable_password_login !== true
-        : security.password_configured !== true);
+        : security.password_configured !== true;
     if (!security.password_configured) {
-        $(passwordHint).text(t('profile.passwordLoginNotConfigured'));
+        passwordHint.textContent = t('profile.passwordLoginNotConfigured');
     } else if (toggle.checked && !security.can_disable_password_login) {
-        $(passwordHint).text(t(security.passkey_second_factor ? 'mfa.primaryMethodHint' : 'profile.passwordLoginNeedsAlternative'));
+        passwordHint.textContent = t(security.passkey_second_factor ? 'mfa.primaryMethodHint' : 'profile.passwordLoginNeedsAlternative');
     } else if (toggle.checked) {
-        $(passwordHint).text(t('profile.passwordLoginEnabled'));
+        passwordHint.textContent = t('profile.passwordLoginEnabled');
     } else {
-        $(passwordHint).text(t('profile.passwordLoginDisabled'));
+        passwordHint.textContent = t('profile.passwordLoginDisabled');
     }
     const remaining = Number(security.recovery_codes_remaining) || 0;
     const total = Number(security.recovery_code_count) || 0;
     if (total > 0) {
-        $(recoveryStatus).text(t('profile.recoveryCodesStatus', {
+        recoveryStatus.textContent = t('profile.recoveryCodesStatus', {
             remaining,
             date: formatTimestamp(security.recovery_generated_at, {fallback: t('common.unknown')}),
-        }));
-        $(recoveryButton).text(t('profile.regenerateRecoveryCodes'));
+        });
+        recoveryButton.textContent = t('profile.regenerateRecoveryCodes');
     } else {
-        $(recoveryStatus).text(t('profile.recoveryCodesNone'));
-        $(recoveryButton).text(t('profile.generateRecoveryCodes'));
+        recoveryStatus.textContent = t('profile.recoveryCodesNone');
+        recoveryButton.textContent = t('profile.generateRecoveryCodes');
     }
     window.dispatchEvent(new CustomEvent('accountSecurityUpdated', {detail: {...security}}));
 }
@@ -164,9 +163,9 @@ function showRecoveryCodes(codes) {
  */
 export async function refreshAccountSecurity() {
     const sequence = ++accountSecuritySequence;
-    const section = $('#profile-account-security-section').get(0);
+    const section = byId('profile-account-security-section');
     if (!section) return;
-    $(section).prop('hidden', false);
+    section.hidden = false;
     try {
         const response = await apiRequest('/api/auth/profile/security');
         if (!response.ok) throw new Error('Account security request failed');
@@ -179,7 +178,7 @@ export async function refreshAccountSecurity() {
     }
 }
 
-$(window).on('languageChanged', () => {
+window.addEventListener('languageChanged', () => {
     if (currentSecurity) renderAccountSecurity(currentSecurity);
 });
 
@@ -204,7 +203,7 @@ async function saveMFASettings(body) {
     showAlert(t('mfa.saved'), 'success');
 }
 
-$('#profile-mfa-passkey').on('change', async event => {
+on(byId('profile-mfa-passkey'), 'change', async event => {
     const toggle = event.currentTarget;
     toggle.disabled = true;
     try {
@@ -273,7 +272,7 @@ async function showTOTPSetup(setup) {
     });
 }
 
-$('#profile-mfa-totp').on('click', event => void runButtonAction(event.currentTarget, async () => {
+on(byId('profile-mfa-totp'), 'click', event => void runButtonAction(event.currentTarget, async () => {
     try {
         if (currentSecurity?.totp_enabled) {
             if (await window.showConfirm(t('mfa.removeConfirm'))) await saveMFASettings({totp_enabled: false});
@@ -292,11 +291,11 @@ $('#profile-mfa-totp').on('click', event => void runButtonAction(event.currentTa
     }
 }).finally(applySecurityHold));
 
-$('#profile-private-email-form').on('submit', async event => {
+on(byId('profile-private-email-form'), 'submit', async event => {
     event.preventDefault();
     const form = event.currentTarget;
-    const input = $('#profile-private-email').get(0);
-    const button = $(form).find('button[type="submit"]').get(0);
+    const input = byId('profile-private-email');
+    const button = form.querySelector('button[type="submit"]');
     if (!input || !button) return;
     const email = input.value.trim();
     if (!email || !input.checkValidity()) {
@@ -305,7 +304,7 @@ $('#profile-private-email-form').on('submit', async event => {
         input.reportValidity();
         return;
     }
-    $(button).prop('disabled', true);
+    button.disabled = true;
     const route = window.location.pathname;
     try {
         const response = await apiRequest('/api/auth/profile/email', {
@@ -327,14 +326,14 @@ $('#profile-private-email-form').on('submit', async event => {
         console.error('Failed to save private email', error);
         showAlert(t('profile.privateEmailSaveFailed'), 'error');
     } finally {
-        $(button).prop('disabled', false);
+        button.disabled = false;
     }
 });
 
-$('#profile-password-login-toggle').on('change', async event => {
+on(byId('profile-password-login-toggle'), 'change', async event => {
     const toggle = event.currentTarget;
     const previous = !toggle.checked;
-    $(toggle).prop('disabled', true);
+    toggle.disabled = true;
     try {
         const response = await apiRequest('/api/auth/profile/password-login', {
             method: 'PUT',
@@ -362,13 +361,13 @@ $('#profile-password-login-toggle').on('change', async event => {
     }
 });
 
-$('#btn-profile-recovery-codes').on('click', async event => {
+on(byId('btn-profile-recovery-codes'), 'click', async event => {
     const button = event.currentTarget;
     if ((Number(currentSecurity?.recovery_code_count) || 0) > 0 &&
         !(await window.showConfirm(t('profile.recoveryCodesRegenerateConfirm')))) {
         return;
     }
-    $(button).prop('disabled', true);
+    button.disabled = true;
     try {
         const response = await apiRequest('/api/auth/profile/recovery-codes', {method: 'POST'});
         if (!response.ok) {
@@ -385,7 +384,7 @@ $('#btn-profile-recovery-codes').on('click', async event => {
         console.error('Failed to generate recovery codes', error);
         showAlert(t('profile.recoveryCodesGenerateFailed'), 'error');
     } finally {
-        $(button).prop('disabled', securityChangesLocked() && Number(currentSecurity?.recovery_code_count) > 0);
+        button.disabled = securityChangesLocked() && Number(currentSecurity?.recovery_code_count) > 0;
     }
 });
 

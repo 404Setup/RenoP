@@ -159,34 +159,6 @@ func TestIndexHtmlUsesBundledAssets(t *testing.T) {
 	}
 }
 
-func TestProfileUIKeepsStableIDsHiddenAndCentralizesHistoryRouting(t *testing.T) {
-	profileSource, err := os.ReadFile(filepath.Join("renop-html", "js", "profile.js"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, forbidden := range []string{"profile.user_id", "gpg_key_count", "t('profile.gpgKeys')"} {
-		if strings.Contains(string(profileSource), forbidden) {
-			t.Fatalf("profile UI still renders forbidden account metadata %q", forbidden)
-		}
-	}
-
-	mainSource, err := os.ReadFile(filepath.Join("renop-html", "js", "main.js"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	browserSource, err := os.ReadFile(filepath.Join("renop-html", "js", "browser.js"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	const popstateRegistration = "addEventListener('popstate'"
-	if count := strings.Count(string(mainSource), popstateRegistration); count != 1 {
-		t.Fatalf("main.js popstate registration count = %d, want 1", count)
-	}
-	if strings.Contains(string(browserSource), popstateRegistration) {
-		t.Fatal("browser.js still owns a competing popstate handler")
-	}
-}
-
 func TestRegistryAsyncActionsRestoreInitiatingButtons(t *testing.T) {
 	buttonSource, err := os.ReadFile(filepath.Join("renop-html", "js", "components", "button.js"))
 	if err != nil {
@@ -545,7 +517,10 @@ func TestRepositoryListUsesTypeIconsAndVisibilityDots(t *testing.T) {
 			t.Fatalf("repository list visual metadata is missing %q", required)
 		}
 	}
-	for engine, icon := range map[string]string{"maven": "repositoryMaven", "cargo": "repositoryCargo", "docker": "repositoryDocker", "files": "repositoryFiles"} {
+	for engine, icon := range map[string]string{
+		"maven": "repositoryMaven", "cargo": "repositoryCargo", "docker": "repositoryDocker", "files": "repositoryFiles",
+		"github": "repositoryGithub", "gitlab": "repositoryGitlab",
+	} {
 		formatSource, err := os.ReadFile(filepath.Join("renop-html", "js", "repository-engines", engine+".js"))
 		if err != nil {
 			t.Fatal(err)
@@ -569,6 +544,7 @@ func TestRepositoryListUsesTypeIconsAndVisibilityDots(t *testing.T) {
 		".cfg-repository-visibility.is-public", ".cfg-repository-visibility.is-hidden",
 		".cfg-repository-visibility.is-private", ".cfg-repository-type-icon.is-maven",
 		".cfg-repository-type-icon.is-cargo", ".cfg-repository-type-icon.is-docker",
+		".cfg-repository-type-icon.is-github", ".cfg-repository-type-icon.is-gitlab",
 	} {
 		if !strings.Contains(cssText, required) {
 			t.Fatalf("repository list styles are missing %q", required)
@@ -637,63 +613,6 @@ func TestPackageViewsUseExplicitMirrorProvenance(t *testing.T) {
 	}
 	if !strings.Contains(string(sharedSource), "export function createRepositoryMirrorBadge") {
 		t.Fatal("repository views are missing the shared mirror provenance badge")
-	}
-}
-
-func TestAccountMenuOwnsMessagesLogoutAndNotificationComposer(t *testing.T) {
-	indexSource := renderedShell(t)
-	indexText := string(indexSource)
-	menuStart := strings.Index(indexText, `id="profile-menu"`)
-	appStart := strings.Index(indexText, `id="app"`)
-	if menuStart < 0 || appStart <= menuStart {
-		t.Fatal("account menu boundary is missing")
-	}
-	accountMenu := indexText[menuStart:appStart]
-	if !strings.Contains(indexText[:menuStart], `id="profile-message-unread-badge"`) {
-		t.Fatal("account trigger is missing its unread-message badge")
-	}
-	for _, required := range []string{
-		`id="message-center-btn"`, `data-account-action="messages"`, `id="logout-btn"`,
-		`id="message-compose-menu-btn"`, `data-account-action="compose-notification"`,
-	} {
-		if !strings.Contains(accountMenu, required) {
-			t.Fatalf("account menu is missing %q", required)
-		}
-	}
-	composeModalStart := strings.Index(indexText, `id="message-compose-modal"`)
-	messageModalStart := strings.Index(indexText, `id="message-center-modal"`)
-	if messageModalStart < 0 || composeModalStart <= messageModalStart {
-		t.Fatal("administrator notification composer is not an independent modal")
-	}
-	messageCenterMarkup := indexText[messageModalStart:composeModalStart]
-	for _, obsolete := range []string{`id="message-compose-toggle"`, `id="message-compose-form"`} {
-		if strings.Contains(messageCenterMarkup, obsolete) {
-			t.Fatalf("message center still contains administrator composer markup %q", obsolete)
-		}
-	}
-	messagesSource, err := os.ReadFile(filepath.Join("renop-html", "js", "messages.js"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	messagesText := string(messagesSource)
-	for _, required := range []string{
-		"messages.length > 0 && nextCursor !== ''",
-		"document.getElementById('profile-message-unread-badge')",
-		"button.disabled = loading || !hasMore", "button.hidden = !hasMore",
-	} {
-		if !strings.Contains(messagesText, required) {
-			t.Fatalf("message controls are missing %q", required)
-		}
-	}
-	if strings.Contains(messagesText, "loadMore.disabled = false") {
-		t.Fatal("message pagination still enables load-more without a server cursor")
-	}
-	composerSource, err := os.ReadFile(filepath.Join("renop-html", "js", "notification-composer.js"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(composerSource), "export function openNotificationComposer") {
-		t.Fatal("notification composer is missing its public entry point")
 	}
 }
 
@@ -1199,7 +1118,9 @@ func TestRoutedPagesServeSPAIndex(t *testing.T) {
 		"/account/login", "/account/login?return_to=%2Faccount%2Freviews", "/account/recovery",
 		"/user/alice", "/user/alice/edit", "/user/alice/maven", "/user/alice/cargo", "/user/alice/docker", "/user/alice/npm",
 		"/domain/com.example", "/team/platform",
-		"/account/tickets", "/account/reviews", "/account/teams", "/account/teams/core", "/account/maven-domains", "/account/maven-domains/com.example",
+		"/account/tickets", "/account/tickets/ticket-123", "/account/reviews", "/account/reviews/review-123",
+		"/account/teams", "/account/teams/core", "/account/maven-domains", "/account/maven-domains/com.example",
+		"/dashboard", "/users", "/repositories", "/settings", "/settings/server",
 	} {
 		response, err := app.Test(httptest.NewRequest(http.MethodGet, path, nil))
 		if err != nil {

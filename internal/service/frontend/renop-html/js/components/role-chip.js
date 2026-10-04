@@ -8,8 +8,8 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
-import {el} from '@renop/ui/dom';
 import {createIcon} from './icon.js';
+import {el} from '@renop/ui/dom';
 
 /**
  * Selectable role/permission chip with checkbox semantics.
@@ -23,6 +23,23 @@ export class RenopRoleChip extends HTMLElement {
     }
 
     /**
+     * Value / permission code of the chip.
+     * @returns {string}
+     */
+    get value() {
+        return this.getAttribute('value') || '';
+    }
+
+    /**
+     * Set the chip value.
+     * @param {string|null} val - Chip value.
+     */
+    set value(val) {
+        if (val != null) this.setAttribute('value', String(val));
+        else this.removeAttribute('value');
+    }
+
+    /**
      * Whether the chip checkbox is checked.
      * @returns {boolean}
      */
@@ -33,12 +50,13 @@ export class RenopRoleChip extends HTMLElement {
 
     /**
      * Set the chip checked state.
-     * @param {boolean} val - Checked state.
+     * @param {boolean|string} val - Checked state.
      */
     set checked(val) {
-        if (val) this.setAttribute('checked', '');
+        const isChecked = val === '' || Boolean(val);
+        if (isChecked) this.setAttribute('checked', '');
         else this.removeAttribute('checked');
-        this.syncCheckedState(!!val);
+        this.syncCheckedState(isChecked);
     }
 
     /**
@@ -112,7 +130,7 @@ export class RenopRoleChip extends HTMLElement {
                 this.removeAttribute('checked');
             }
             this.classList.toggle('is-checked', input.checked);
-            this.dispatchEvent(new CustomEvent('change', {bubbles: true, detail: {checked: input.checked, value}}));
+            this.dispatchEvent(new CustomEvent('change', {bubbles: true, detail: {checked: input.checked, value: this.value || value}}));
         });
 
         const check = el('span', {class: 'role-chip-check', 'aria-hidden': 'true'}, createIcon('check', {
@@ -149,6 +167,7 @@ if (!customElements.get('renop-role-chip')) {
  * @param {string} [options.code] - Code text shown under the title.
  * @param {boolean} [options.checked=false] - Initial checked state.
  * @param {boolean} [options.compact=false] - Compact layout.
+ * @param {string} [options.forId] - Optional explicit element id for the input control.
  * @param {function(boolean, string): void} [options.onChange] - Change handler (checked, value).
  * @returns {HTMLElement}
  */
@@ -159,16 +178,19 @@ export function createRoleChip(value, {
     code,
     checked = false,
     compact = false,
+    forId,
     onChange
 } = {}) {
-    const chip = document.createElement('renop-role-chip');
-    chip.setAttribute('value', value);
-    if (tone) chip.setAttribute('tone', tone);
-    if (title) chip.setAttribute('title-text', title);
-    if (code) chip.setAttribute('code-text', code);
-    if (desc) chip.setAttribute('desc-text', desc);
-    if (checked) chip.setAttribute('checked', '');
-    if (compact) chip.setAttribute('compact', '');
+    const attrs = {value};
+    if (tone) attrs.tone = tone;
+    if (title) attrs['title-text'] = title;
+    if (code) attrs['code-text'] = code;
+    if (desc) attrs['desc-text'] = desc;
+    if (checked) attrs.checked = true;
+    if (compact) attrs.compact = '';
+    if (forId) attrs['for-id'] = forId;
+
+    const chip = el('renop-role-chip', attrs);
     if (onChange) {
         chip.addEventListener('change', (e) => onChange(e.detail.checked, e.detail.value));
     }

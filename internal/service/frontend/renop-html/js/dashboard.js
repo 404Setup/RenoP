@@ -9,17 +9,19 @@
  */
 
 import {apiRequest, fetchProto, getAuthHeaders} from './api.js';
+import {el, svg, retriggerClass} from '@renop/ui/dom';
 import {formatBytes} from './browser/utils.js';
 import {t} from './i18n.js';
 import {openAuditLogsDialog} from './audit.js';
 import {logout} from './auth.js';
 import {showAlert} from './alert.js';
-import {InstanceStatus, StatusSnapshotList, UpdateState} from './proto/index.js';
+import {CachePurgeResponse, InstanceStatus, StatusSnapshotList, UpdateState} from './proto/index.js';
 import {formatTimestamp} from './time.js';
 import {refreshMessageUnreadCount} from './messages.js';
 import {updaterErrorMessage} from './updater-errors.js';
 import {responseErrorMessage} from './response-errors.js';
 import {exitProtectedRouteOnDenial} from './protected-route.js';
+import {switchTab} from './main.js';
 
 let refreshInterval = null;
 let snapshotsInterval = null;
@@ -72,7 +74,7 @@ function _calibrateUptime(apiSeconds) {
  * @returns {void}
  */
 function renderDashboardSkeleton() {
-    ['dashboard-version', 'dashboard-uptime', 'dashboard-memory', 'dashboard-disk', 'dashboard-threads', 'dashboard-cores', 'dashboard-os-arch', 'dashboard-failures'].forEach(id => {
+    ['dashboard-version', 'dashboard-uptime', 'dashboard-memory', 'dashboard-disk', 'dashboard-database', 'dashboard-cache', 'dashboard-threads', 'dashboard-cores', 'dashboard-os-arch', 'dashboard-failures'].forEach(id => {
         const el = document.getElementById(id);
         if (el && (!el.textContent || el.textContent.trim() === '' || el.textContent.trim() === '-')) {
             el.classList.add('skeleton-bone');
@@ -85,15 +87,13 @@ function renderDashboardSkeleton() {
  * @returns {void}
  */
 function clearDashboardSkeleton() {
-    ['dashboard-version', 'dashboard-uptime', 'dashboard-memory', 'dashboard-disk', 'dashboard-threads', 'dashboard-cores', 'dashboard-os-arch', 'dashboard-failures'].forEach(id => {
+    ['dashboard-version', 'dashboard-uptime', 'dashboard-memory', 'dashboard-disk', 'dashboard-database', 'dashboard-cache', 'dashboard-threads', 'dashboard-cores', 'dashboard-os-arch', 'dashboard-failures'].forEach(id => {
         const el = document.getElementById(id);
         if (el) {
             const wasSkeleton = el.classList.contains('skeleton-bone');
             el.classList.remove('skeleton-bone');
             if (wasSkeleton) {
-                el.classList.remove('is-content-entering');
-                void el.offsetWidth;
-                el.classList.add('is-content-entering');
+                retriggerClass(el, 'is-content-entering');
             }
         }
     });
@@ -217,9 +217,10 @@ async function downloadMemoryProfile(kind, btn = null) {
         }
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
+        const a = el('a', {
+            href: url,
+            download: filename
+        });
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -275,11 +276,20 @@ export async function fetchInstanceStatus() {
                 memEl.dataset.totalMemory = String(totalBytes);
                 // Backward-compat keys for languageChanged handlers / older markup.
                 memEl.dataset.usedMemory = String(rssBytes);
-                memEl.textContent = t('dashboard.memoryFormat', {
-                    rss: formatBytes(rssBytes),
-                    vss: formatBytes(vssBytes),
-                    total: formatBytes(totalBytes)
-                });
+                if (rssBytes === vssBytes || vssBytes === 0) {
+                    const procBytes = rssBytes || vssBytes;
+                    memEl.textContent = t('dashboard.memoryFormatSimple', {
+                        used: formatBytes(procBytes),
+                        process: formatBytes(procBytes),
+                        total: formatBytes(totalBytes)
+                    });
+                } else {
+                    memEl.textContent = t('dashboard.memoryFormat', {
+                        rss: formatBytes(rssBytes),
+                        vss: formatBytes(vssBytes),
+                        total: formatBytes(totalBytes)
+                    });
+                }
             }
             const diskEl = document.getElementById('dashboard-disk');
             const renopUsedDisk = data.renop_used_disk !== undefined ? data.renop_used_disk : data.renopUsedDisk;
@@ -295,6 +305,71 @@ export async function fetchInstanceStatus() {
                     diskTotal: formatBytes(diskTotal)
                 });
             }
+
+            const dbEl = document.getElementById('dashboard-database');
+            const dbUsed = data.database_used_bytes !== undefined ? data.database_used_bytes : data.databaseUsedBytes;
+            if (dbEl) {
+                if (dbUsed !== undefined && dbUsed !== null) {
+                    dbEl.dataset.dbUsed = String(dbUsed);
+                    dbEl.textContent = formatBytes(Number(dbUsed));
+                } else {
+                    dbEl.textContent = '-';
+                }
+            }
+
+            const cacheEl = document.getElementById('dashboard-cache');
+            const cacheUsed = data.cache_used_bytes !== undefined ? data.cache_used_bytes : data.cacheUsedBytes;
+            if (cacheEl) {
+                if (cacheUsed !== undefined && cacheUsed !== null) {
+                    cacheEl.dataset.cacheUsed = String(cacheUsed);
+                    cacheEl.textContent = formatBytes(Number(cacheUsed));
+                } else {
+                    cacheEl.textContent = '-';
+                }
+            }
+
+            const btnStorage = document.getElementById('btn-goto-storage');
+            if (btnStorage && !btnStorage.dataset.wired) {
+                btnStorage.dataset.wired = 'true';
+                btnStorage.onclick = () => {
+                    window.history.pushState(null, '', '/storage');
+                    void switchTab('storage');
+                };
+            }
+
+            const btnDb = document.getElementById('btn-goto-database');
+            if (btnDb && !btnDb.dataset.wired) {
+                btnDb.dataset.wired = 'true';
+                btnDb.onclick = () => {
+                    window.history.pushState(null, '', '/database');
+                    void switchTab('database');
+                };
+            }
+
+            const btnCache = document.getElementById('btn-purge-cache');
+            if (btnCache && !btnCache.dataset.wired) {
+                btnCache.dataset.wired = 'true';
+                btnCache.onclick = async () => {
+                    const confirmed = await (window.showConfirm ? window.showConfirm(t('dashboard.purgeCache')) : Promise.resolve(confirm(t('dashboard.purgeCache'))));
+                    if (!confirmed) return;
+                    btnCache.disabled = true;
+                    try {
+                        const {response: res, data} = await fetchProto('/api/status/cache/cleanup', CachePurgeResponse, {method: 'POST'});
+                        if (res?.ok) {
+                            const reclaimed = Number(data?.reclaimed_bytes || 0);
+                            showAlert(t('dashboard.cachePurged', {reclaimed: formatBytes(reclaimed)}), 'success');
+                            void fetchInstanceStatus();
+                        } else {
+                            showAlert(await responseErrorMessage(res, 'dashboard.cachePurgeFailed'), 'error');
+                        }
+                    } catch (e) {
+                        showAlert(t('dashboard.cachePurgeFailed', {error: e.message || e}), 'error');
+                    } finally {
+                        btnCache.disabled = false;
+                    }
+                };
+            }
+
             document.getElementById('dashboard-threads').textContent = `${data.used_threads}`;
 
             document.getElementById('dashboard-cores').textContent = `${data.logical_cores} / ${data.physical_cores}`;
@@ -372,77 +447,13 @@ function _snapshotMemoryBytes(point) {
     return {rss, vss};
 }
 
-/**
- * Builds a tooltip for a memory snapshot bar (RSS / VSS / total process occupancy).
- * @param {number} rssBytes
- * @param {number} vssBytes
- * @param {number|string|Date} timestamp
- * @returns {string}
- */
-function _memoryBarTitle(rssBytes, vssBytes, timestamp) {
-    const time = formatTimestamp(timestamp, {timeOnly: true, fallback: t('common.unknown')});
-    const totalBytes = Math.max(rssBytes, vssBytes);
-    return t('dashboard.chartBarTitle', {
-        rss: formatBytes(rssBytes),
-        vss: formatBytes(vssBytes),
-        total: formatBytes(totalBytes),
-        time
-    });
-}
+let _lastSnapshotsData = null;
+let _snapshotsResizeObserver = null;
 
 /**
- * Applies RSS/VSS segment heights on a chart bar group.
- * Full bar height follows process total occupancy (max of RSS/VSS); VSS and RSS
- * are layered inside the same column.
- * @param {HTMLElement} group
- * @param {number} rssBytes
- * @param {number} vssBytes
- * @param {number} maxMemoryBytes
- * @returns {void}
- */
-function _applyMemoryBarHeights(group, rssBytes, vssBytes, maxMemoryBytes) {
-    const totalBytes = Math.max(rssBytes, vssBytes);
-    const totalPct = maxMemoryBytes > 0 ? (totalBytes / maxMemoryBytes) * 100 : 0;
-    const vssPctOfBar = totalBytes > 0 ? (vssBytes / totalBytes) * 100 : 0;
-    const rssPctOfBar = totalBytes > 0 ? (rssBytes / totalBytes) * 100 : 0;
-
-    group.style.height = `${totalPct}%`;
-    group.title = group.dataset.barTitle || '';
-
-    const vssSeg = group.querySelector('.chart-bar-seg--vss');
-    const rssSeg = group.querySelector('.chart-bar-seg--rss');
-    if (vssSeg) vssSeg.style.height = `${vssPctOfBar}%`;
-    if (rssSeg) rssSeg.style.height = `${rssPctOfBar}%`;
-}
-
-/**
- * Creates a single chart column with layered RSS / VSS segments.
- * @param {string} title
- * @returns {HTMLElement}
- */
-function _createMemoryChartBar(title) {
-    const group = document.createElement('div');
-    group.className = 'chart-bar-group';
-    group.dataset.barTitle = title;
-    group.title = title;
-
-    const vssSeg = document.createElement('div');
-    vssSeg.className = 'chart-bar-seg chart-bar-seg--vss';
-    vssSeg.style.height = '0%';
-
-    const rssSeg = document.createElement('div');
-    rssSeg.className = 'chart-bar-seg chart-bar-seg--rss';
-    rssSeg.style.height = '0%';
-
-    group.appendChild(vssSeg);
-    group.appendChild(rssSeg);
-    return group;
-}
-
-/**
- * Renders or updates the memory usage bar chart from status snapshot points.
- * Each column layers RSS and VSS (and thus process total occupancy) in one bar.
- * Reuses existing bars when length matches; otherwise rebuilds the chart and drag handlers.
+ * Renders or updates the memory usage line chart from status snapshot points.
+ * When RSS equals VSS across the dataset, only total memory is displayed (single line & legend).
+ * Otherwise, both RSS and VSS lines are rendered.
  * @param {Array<object>} data - Snapshot points with used_memory/vss_memory and timestamp.
  * @returns {void}
  */
@@ -453,108 +464,310 @@ function drawSnapshotsChart(data) {
 
     if (!Array.isArray(data) || data.length === 0) {
         container.style.display = 'none';
+        chart.innerHTML = '';
+        _lastSnapshotsData = null;
         return;
     }
 
+    _lastSnapshotsData = data;
     container.style.display = '';
 
     const card = chart.parentElement || chart;
+    const legend = document.getElementById('dashboard-chart-legend');
 
-    container.className = 'snapshots-chart-container';
-    chart.className = 'snapshots-chart';
-
-    const maxMemory = Math.max(
-        ...data.map((d) => {
-            const {rss, vss} = _snapshotMemoryBytes(d);
-            return Math.max(rss, vss);
-        }),
-        10 * 1024 * 1024 // floor axis at 10 MiB so tiny samples still render
-    );
-
-    const existingBars = chart.querySelectorAll('.chart-bar-group');
-    const existingLabels = card.querySelectorAll('.chart-y-label');
-
-    if (existingBars.length === data.length) {
-        existingLabels.forEach(el => el.remove());
-        _appendYLabels(card, maxMemory);
-
-        data.forEach((point, i) => {
-            const {rss, vss} = _snapshotMemoryBytes(point);
-            const bar = existingBars[i];
-            bar.dataset.barTitle = _memoryBarTitle(rss, vss, point.timestamp);
-            _applyMemoryBarHeights(bar, rss, vss, maxMemory);
-        });
-    } else {
-        existingLabels.forEach(el => el.remove());
-        chart.innerHTML = '';
-        _appendYLabels(card, maxMemory);
-
-        data.forEach((point) => {
-            const {rss, vss} = _snapshotMemoryBytes(point);
-            const barTitle = _memoryBarTitle(rss, vss, point.timestamp);
-            const bar = _createMemoryChartBar(barTitle);
-            chart.appendChild(bar);
-
-            bar.getBoundingClientRect();
-            _applyMemoryBarHeights(bar, rss, vss, maxMemory);
-        });
-    }
-    if (!chart.dataset.dragInitialized) {
-        chart.dataset.dragInitialized = 'true';
-        let isDown = false;
-        let startX = 0;
-        let startScrollLeft = 0;
-
-        chart.addEventListener('mousedown', (e) => {
-            isDown = true;
-            chart.style.cursor = 'grabbing';
-            startX = e.pageX - chart.offsetLeft;
-            startScrollLeft = chart.scrollLeft;
-        });
-        chart.addEventListener('mouseleave', () => {
-            isDown = false;
-            chart.style.cursor = 'grab';
-        });
-        chart.addEventListener('mouseup', () => {
-            isDown = false;
-            chart.style.cursor = 'grab';
-        });
-        chart.addEventListener('mousemove', (e) => {
-            if (!isDown) return;
-            e.preventDefault();
-            const x = e.pageX - chart.offsetLeft;
-            const walk = (x - startX) * 1.5;
-            chart.scrollLeft = startScrollLeft - walk;
-        });
-        chart.addEventListener('wheel', (e) => {
-            if (e.deltaY !== 0 && Math.abs(e.deltaX) < Math.abs(e.deltaY)) {
-                chart.scrollLeft += e.deltaY;
-                e.preventDefault();
-            }
-        }, {passive: false});
-    }
-
-    requestAnimationFrame(() => {
-        chart.scrollLeft = chart.scrollWidth;
+    const points = data.map((d) => {
+        const {rss, vss} = _snapshotMemoryBytes(d);
+        return {
+            rss,
+            vss,
+            total: Math.max(rss, vss),
+            timestamp: d.timestamp
+        };
     });
+
+    const isSingleLine = points.every(p => p.rss === p.vss || p.vss === 0);
+
+    const peakMemory = Math.max(
+        ...points.map(p => Math.max(p.rss, p.vss)),
+        10 * 1024 * 1024
+    );
+    const maxMemory = Math.ceil(peakMemory * 1.1);
+
+    _appendYLabels(card, maxMemory);
+
+    if (legend) {
+        legend.innerHTML = '';
+        if (isSingleLine) {
+            legend.appendChild(el('div', {class: 'dashboard-chart-legend-item'},
+                el('span', {class: 'dashboard-chart-legend-swatch dashboard-chart-legend-swatch--total'}),
+                el('span', {}, t('dashboard.chartLegendTotal'))
+            ));
+        } else {
+            legend.appendChild(el('div', {class: 'dashboard-chart-legend-item'},
+                el('span', {class: 'dashboard-chart-legend-swatch dashboard-chart-legend-swatch--rss'}),
+                el('span', {}, t('dashboard.chartLegendRss'))
+            ));
+            legend.appendChild(el('div', {class: 'dashboard-chart-legend-item'},
+                el('span', {class: 'dashboard-chart-legend-swatch dashboard-chart-legend-swatch--vss'}),
+                el('span', {}, t('dashboard.chartLegendVss'))
+            ));
+        }
+    }
+
+    const width = Math.max(chart.clientWidth || 800, 320);
+    const height = 220;
+    const padTop = 16;
+    const padBottom = 20;
+    const padLeft = 8;
+    const padRight = 8;
+    const plotWidth = width - padLeft - padRight;
+    const plotHeight = height - padTop - padBottom;
+    const n = points.length;
+
+    const getX = (idx) => n > 1 ? padLeft + (idx / (n - 1)) * plotWidth : padLeft + plotWidth / 2;
+    const getY = (val) => padTop + plotHeight - (Math.min(val, maxMemory) / maxMemory) * plotHeight;
+
+    function buildLineD(valGetter) {
+        return points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${getX(i).toFixed(1)} ${getY(valGetter(p)).toFixed(1)}`).join(' ');
+    }
+
+    function buildAreaD(valGetter) {
+        const lineD = buildLineD(valGetter);
+        const firstX = getX(0).toFixed(1);
+        const lastX = getX(n - 1).toFixed(1);
+        const baseY = (padTop + plotHeight).toFixed(1);
+        return `${lineD} L ${lastX} ${baseY} L ${firstX} ${baseY} Z`;
+    }
+
+    const svgEl = svg('svg', {
+        class: 'snapshots-line-chart',
+        viewBox: `0 0 ${width} ${height}`,
+        preserveAspectRatio: 'none',
+        style: 'width: 100%; height: 100%; display: block;'
+    });
+
+    const defs = svg('defs', {},
+        svg('linearGradient', {id: 'area-grad-total', x1: '0', y1: '0', x2: '0', y2: '1'},
+            svg('stop', {offset: '0%', 'stop-color': '#3b82f6', 'stop-opacity': '0.35'}),
+            svg('stop', {offset: '100%', 'stop-color': '#3b82f6', 'stop-opacity': '0.02'})
+        ),
+        svg('linearGradient', {id: 'area-grad-rss', x1: '0', y1: '0', x2: '0', y2: '1'},
+            svg('stop', {offset: '0%', 'stop-color': '#3b82f6', 'stop-opacity': '0.35'}),
+            svg('stop', {offset: '100%', 'stop-color': '#3b82f6', 'stop-opacity': '0.02'})
+        ),
+        svg('linearGradient', {id: 'area-grad-vss', x1: '0', y1: '0', x2: '0', y2: '1'},
+            svg('stop', {offset: '0%', 'stop-color': '#8b5cf6', 'stop-opacity': '0.22'}),
+            svg('stop', {offset: '100%', 'stop-color': '#8b5cf6', 'stop-opacity': '0.01'})
+        )
+    );
+    svgEl.appendChild(defs);
+
+    [0.25, 0.5, 0.75, 1.0].forEach(ratio => {
+        const gridY = padTop + plotHeight - ratio * plotHeight;
+        svgEl.appendChild(svg('line', {
+            x1: String(padLeft),
+            y1: gridY.toFixed(1),
+            x2: String(padLeft + plotWidth),
+            y2: gridY.toFixed(1),
+            class: 'chart-grid-line'
+        }));
+    });
+
+    if (isSingleLine) {
+        svgEl.appendChild(svg('path', {
+            d: buildAreaD(p => p.total),
+            fill: 'url(#area-grad-total)',
+            class: 'chart-area chart-area--total'
+        }));
+        svgEl.appendChild(svg('path', {
+            d: buildLineD(p => p.total),
+            class: 'chart-line chart-line--total'
+        }));
+    } else {
+        svgEl.appendChild(svg('path', {
+            d: buildAreaD(p => p.vss),
+            fill: 'url(#area-grad-vss)',
+            class: 'chart-area chart-area--vss'
+        }));
+        svgEl.appendChild(svg('path', {
+            d: buildLineD(p => p.vss),
+            class: 'chart-line chart-line--vss'
+        }));
+        svgEl.appendChild(svg('path', {
+            d: buildAreaD(p => p.rss),
+            fill: 'url(#area-grad-rss)',
+            class: 'chart-area chart-area--rss'
+        }));
+        svgEl.appendChild(svg('path', {
+            d: buildLineD(p => p.rss),
+            class: 'chart-line chart-line--rss'
+        }));
+    }
+
+    points.forEach((p, idx) => {
+        const cx = getX(idx).toFixed(1);
+        if (isSingleLine) {
+            svgEl.appendChild(svg('circle', {
+                cx,
+                cy: getY(p.total).toFixed(1),
+                r: '3.5',
+                class: 'chart-point chart-point--total'
+            }));
+        } else {
+            svgEl.appendChild(svg('circle', {
+                cx,
+                cy: getY(p.vss).toFixed(1),
+                r: '3',
+                class: 'chart-point chart-point--vss'
+            }));
+            svgEl.appendChild(svg('circle', {
+                cx,
+                cy: getY(p.rss).toFixed(1),
+                r: '3.5',
+                class: 'chart-point chart-point--rss'
+            }));
+        }
+    });
+
+    const cursorLine = svg('line', {
+        class: 'chart-cursor-line',
+        x1: '0',
+        y1: String(padTop),
+        x2: '0',
+        y2: (padTop + plotHeight).toFixed(1),
+        style: 'display: none;'
+    });
+    svgEl.appendChild(cursorLine);
+
+    let activeDotTotal = null;
+    let activeDotRss = null;
+    let activeDotVss = null;
+    if (isSingleLine) {
+        activeDotTotal = svg('circle', {class: 'chart-point-active chart-point-active--total', r: '5', style: 'display: none;'});
+        svgEl.appendChild(activeDotTotal);
+    } else {
+        activeDotVss = svg('circle', {class: 'chart-point-active chart-point-active--vss', r: '5', style: 'display: none;'});
+        activeDotRss = svg('circle', {class: 'chart-point-active chart-point-active--rss', r: '5', style: 'display: none;'});
+        svgEl.appendChild(activeDotVss);
+        svgEl.appendChild(activeDotRss);
+    }
+
+    chart.innerHTML = '';
+    chart.appendChild(svgEl);
+
+    let tooltip = card.querySelector('.chart-tooltip');
+    if (!tooltip) {
+        tooltip = el('div', {class: 'chart-tooltip', style: 'display: none;'});
+        card.appendChild(tooltip);
+    }
+
+    const handlePointer = (e) => {
+        const rect = svgEl.getBoundingClientRect();
+        if (rect.width <= 0) return;
+        const mouseX = e.clientX - rect.left;
+        const scaleX = width / rect.width;
+        const svgMouseX = mouseX * scaleX;
+        const step = n > 1 ? plotWidth / (n - 1) : plotWidth;
+        const idx = Math.max(0, Math.min(n - 1, Math.round((svgMouseX - padLeft) / step)));
+        const pt = points[idx];
+        const ptSvgX = getX(idx);
+
+        cursorLine.setAttribute('x1', ptSvgX.toFixed(1));
+        cursorLine.setAttribute('x2', ptSvgX.toFixed(1));
+        cursorLine.style.display = '';
+
+        if (isSingleLine && activeDotTotal) {
+            activeDotTotal.setAttribute('cx', ptSvgX.toFixed(1));
+            activeDotTotal.setAttribute('cy', getY(pt.total).toFixed(1));
+            activeDotTotal.style.display = '';
+        } else if (!isSingleLine && activeDotRss && activeDotVss) {
+            activeDotRss.setAttribute('cx', ptSvgX.toFixed(1));
+            activeDotRss.setAttribute('cy', getY(pt.rss).toFixed(1));
+            activeDotRss.style.display = '';
+            activeDotVss.setAttribute('cx', ptSvgX.toFixed(1));
+            activeDotVss.setAttribute('cy', getY(pt.vss).toFixed(1));
+            activeDotVss.style.display = '';
+        }
+
+        const timeStr = formatTimestamp(pt.timestamp, {timeOnly: true, fallback: t('common.unknown')});
+        if (isSingleLine) {
+            tooltip.innerHTML = `
+                <div class="chart-tooltip-time">${timeStr}</div>
+                <div class="chart-tooltip-row">
+                    <span class="chart-tooltip-label" style="color: #3b82f6;">${t('dashboard.chartLegendTotal')}</span>
+                    <span class="chart-tooltip-val">${formatBytes(pt.total)}</span>
+                </div>
+            `;
+        } else {
+            tooltip.innerHTML = `
+                <div class="chart-tooltip-time">${timeStr}</div>
+                <div class="chart-tooltip-row">
+                    <span class="chart-tooltip-label" style="color: #3b82f6;">RSS</span>
+                    <span class="chart-tooltip-val">${formatBytes(pt.rss)}</span>
+                </div>
+                <div class="chart-tooltip-row">
+                    <span class="chart-tooltip-label" style="color: #8b5cf6;">VSS</span>
+                    <span class="chart-tooltip-val">${formatBytes(pt.vss)}</span>
+                </div>
+                <div class="chart-tooltip-row">
+                    <span class="chart-tooltip-label" style="opacity: 0.7;">Total</span>
+                    <span class="chart-tooltip-val">${formatBytes(pt.total)}</span>
+                </div>
+            `;
+        }
+        tooltip.style.display = 'block';
+
+        const pixelX = chart.offsetLeft + (ptSvgX / width) * rect.width;
+        const highestVal = isSingleLine ? pt.total : Math.max(pt.rss, pt.vss);
+        const pixelY = chart.offsetTop + (getY(highestVal) / height) * rect.height;
+        tooltip.style.left = `${pixelX}px`;
+        tooltip.style.top = `${pixelY}px`;
+    };
+
+    const handlePointerLeave = () => {
+        cursorLine.style.display = 'none';
+        if (activeDotTotal) activeDotTotal.style.display = 'none';
+        if (activeDotRss) activeDotRss.style.display = 'none';
+        if (activeDotVss) activeDotVss.style.display = 'none';
+        tooltip.style.display = 'none';
+    };
+
+    svgEl.addEventListener('pointermove', handlePointer);
+    svgEl.addEventListener('pointerleave', handlePointerLeave);
+
+    if (!_snapshotsResizeObserver && window.ResizeObserver) {
+        _snapshotsResizeObserver = new ResizeObserver(() => {
+            if (_lastSnapshotsData) {
+                drawSnapshotsChart(_lastSnapshotsData);
+            }
+        });
+        _snapshotsResizeObserver.observe(chart);
+    }
 }
 
 /**
- * Appends top/bottom Y-axis labels for the snapshots chart based on max memory (bytes).
+ * Appends top/mid/bottom Y-axis labels for the snapshots chart based on max memory (bytes).
  * @param {HTMLElement} card - Chart card element that hosts the Y labels.
  * @param {number} maxMemoryBytes - Maximum used memory in bytes across snapshots.
  * @returns {void}
  */
 function _appendYLabels(card, maxMemoryBytes) {
-    const maxLabel = document.createElement('div');
-    maxLabel.className = 'chart-y-label chart-y-label--top';
-    maxLabel.textContent = formatBytes(maxMemoryBytes, 0);
+    card.querySelectorAll('.chart-y-label').forEach(el => el.remove());
 
-    const minLabel = document.createElement('div');
-    minLabel.className = 'chart-y-label chart-y-label--bottom';
-    minLabel.textContent = '0 B';
+    const maxLabel = el('div', {
+        class: 'chart-y-label chart-y-label--top'
+    }, formatBytes(maxMemoryBytes, 0));
+
+    const midLabel = el('div', {
+        class: 'chart-y-label chart-y-label--mid'
+    }, formatBytes(Math.round(maxMemoryBytes / 2), 0));
+
+    const minLabel = el('div', {
+        class: 'chart-y-label chart-y-label--bottom'
+    }, '0 B');
 
     card.appendChild(maxLabel);
+    card.appendChild(midLabel);
     card.appendChild(minLabel);
 }
 
@@ -587,9 +800,10 @@ export function updateDashboardVersionUI(data) {
     let badge = document.getElementById('dashboard-version-badge');
     if (data.has_update || data.status === 'available') {
         if (!badge) {
-            badge = document.createElement('span');
-            badge.id = 'dashboard-version-badge';
-            badge.className = 'badge badge-warning';
+            badge = el('span', {
+                id: 'dashboard-version-badge',
+                class: 'badge badge-warning'
+            });
             versionEl.parentNode.insertBefore(badge, versionEl.nextSibling);
         } else {
             badge.className = 'badge badge-warning';
@@ -613,9 +827,10 @@ export function updateDashboardVersionUI(data) {
     } else if (data.status === 'ready_to_restart') {
         isLongPressTriggered = false;
         if (!badge) {
-            badge = document.createElement('span');
-            badge.id = 'dashboard-version-badge';
-            badge.className = 'badge badge-success';
+            badge = el('span', {
+                id: 'dashboard-version-badge',
+                class: 'badge badge-success'
+            });
             versionEl.parentNode.insertBefore(badge, versionEl.nextSibling);
         } else {
             badge.className = 'badge badge-success';
@@ -682,6 +897,7 @@ export async function checkAppUpdate(manual = false) {
         const headers = getAuthHeaders();
         const resp = await fetch('/api/updater/check', {method: 'POST', headers});
         if (!resp.ok) {
+            if (manual) showAlert(t('updaterNotice.checkFailedTitle'), 'error');
             return;
         }
 
@@ -690,10 +906,17 @@ export async function checkAppUpdate(manual = false) {
 
         updateDashboardVersionUI(data);
         renderedResult = true;
+        if (manual) {
+            if (data.has_update) {
+                showAlert(t('updaterNotice.availableTitle', {version: data.latest_version || ''}), 'info');
+            } else {
+                showAlert(t('updaterNotice.currentTitle'), 'success');
+            }
+        }
     } catch (e) {
         console.error('Update check error', e);
+        if (manual) showAlert(t('updaterNotice.checkFailedTitle'), 'error');
     } finally {
-        if (manual) await refreshMessageUnreadCount();
         if (manual && updateBtn && !renderedResult) {
             if (currentUpdateData) updateDashboardVersionUI(currentUpdateData);
             else {
@@ -815,11 +1038,24 @@ window.addEventListener('languageChanged', () => {
     if (memoryEl && memoryEl.dataset.totalMemory !== undefined) {
         const rssBytes = Number(memoryEl.dataset.rssMemory ?? memoryEl.dataset.usedMemory ?? 0);
         const vssBytes = Number(memoryEl.dataset.vssMemory ?? 0);
-        memoryEl.textContent = t('dashboard.memoryFormat', {
-            rss: formatBytes(rssBytes),
-            vss: formatBytes(vssBytes),
-            total: formatBytes(Number(memoryEl.dataset.totalMemory))
-        });
+        const totalBytes = Number(memoryEl.dataset.totalMemory);
+        if (rssBytes === vssBytes || vssBytes === 0) {
+            const procBytes = rssBytes || vssBytes;
+            memoryEl.textContent = t('dashboard.memoryFormatSimple', {
+                used: formatBytes(procBytes),
+                process: formatBytes(procBytes),
+                total: formatBytes(totalBytes)
+            });
+        } else {
+            memoryEl.textContent = t('dashboard.memoryFormat', {
+                rss: formatBytes(rssBytes),
+                vss: formatBytes(vssBytes),
+                total: formatBytes(totalBytes)
+            });
+        }
+    }
+    if (_lastSnapshotsData) {
+        drawSnapshotsChart(_lastSnapshotsData);
     }
     const diskEl = document.getElementById('dashboard-disk');
     if (diskEl && diskEl.dataset.renopUsed !== undefined && diskEl.dataset.diskUsed !== undefined && diskEl.dataset.diskTotal !== undefined) {

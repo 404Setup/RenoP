@@ -3,6 +3,8 @@
  *
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
  *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
+ *
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
@@ -165,7 +167,7 @@ func (c *Client) request(ctx context.Context, method, endpoint string, body []by
 	}
 	data := map[string]any{}
 	if len(raw) > 0 {
-		if err = json.Unmarshal(raw, &data); err != nil && resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		if err = json.UnmarshalOf(raw, &data); err != nil && resp.StatusCode >= 200 && resp.StatusCode < 300 {
 			return nil, resp.Header, &SendError{Code: "mail_response_invalid", Uncertain: true}
 		}
 	}
@@ -205,7 +207,7 @@ func (c *Client) jsonRequest(ctx context.Context, method, endpoint string, data 
 	var body []byte
 	var err error
 	if data != nil {
-		body, err = json.Marshal(data)
+		body, err = json.MarshalOf(data)
 		if err != nil {
 			return nil, nil, err
 		}

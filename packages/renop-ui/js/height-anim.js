@@ -91,6 +91,30 @@ export function measureNaturalHeight(el) {
 }
 
 /**
+ * Resolve once finite CSS transitions/animations running on ancestors of `el` have finished.
+ * Measuring inside a column that is still growing yields a width-dependent height that is
+ * far too tall, so callers should wait before measuring an element that is about to appear.
+ * @param {HTMLElement|null|undefined} el
+ * @param {{ timeoutMs?: number }} [options] - Upper bound so a stuck animation cannot block reveal.
+ * @returns {Promise<void>}
+ */
+export async function awaitLayoutSettled(el, {timeoutMs = 600} = {}) {
+    if (!el || typeof document.getAnimations !== 'function') return;
+    // Flush pending style changes so transitions triggered this frame are registered.
+    void document.documentElement.offsetHeight;
+    const running = document.getAnimations().filter((animation) => {
+        const target = animation.effect?.target;
+        if (!(target instanceof Element) || target === el || !target.contains(el)) return false;
+        return Number.isFinite(animation.effect.getComputedTiming().endTime);
+    });
+    if (running.length === 0) return;
+    await Promise.race([
+        Promise.allSettled(running.map((animation) => animation.finished)),
+        new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+    ]);
+}
+
+/**
  * Lock current height so later content swaps don't jump the layout.
  * @param {HTMLElement|null|undefined} el
  * @returns {number}

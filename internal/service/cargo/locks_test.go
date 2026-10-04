@@ -61,7 +61,7 @@ func TestCargoResourceLocksCoverMetadataFilesAndMutations(t *testing.T) {
 	for _, version := range []string{"1.0.0", "2.0.0"} {
 		require.NoError(t, db.RecordCargoPublication(pkg, &core.CargoVersion{Repository: "cargo", Package: "demo",
 			Version: version, Publisher: "owner", CreatedAt: now}, "owner"))
-		entry, err := json.Marshal(IndexEntry{Name: "demo", Version: version})
+		entry, err := json.MarshalOf(IndexEntry{Name: "demo", Version: version})
 		require.NoError(t, err)
 		index := filepath.Join(directory, "cargo", "de", "mo", "demo")
 		store.files[index] = append(store.files[index], append(entry, '\n')...)
@@ -97,7 +97,7 @@ func TestCargoResourceLocksCoverMetadataFilesAndMutations(t *testing.T) {
 	})
 	request := func(user, method, path string, body any) (int, []byte) {
 		t.Helper()
-		encoded, err := json.Marshal(body)
+		encoded, err := json.MarshalOf(body)
 		require.NoError(t, err)
 		req := httptest.NewRequest(method, "/cargo/"+path, bytes.NewReader(encoded))
 		req.Header.Set("X-Test-User", user)

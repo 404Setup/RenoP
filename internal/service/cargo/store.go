@@ -10,7 +10,7 @@
 
 package cargo
 
-import "renop/internal/service/packagestore"
+import "renop/internal/service/storage/packagestore"
 
 // StagedFile is the shared streaming package staging contract.
 type StagedFile = packagestore.StagedFile

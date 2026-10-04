@@ -22,6 +22,8 @@ import (
 	"renop/internal/core"
 	"renop/internal/service/audit"
 	"renop/internal/service/token"
+	"renop/internal/utils/protohttp"
+	"renop/pkg/pb"
 )
 
 type userProfileUpdateRequest struct {
@@ -281,6 +283,57 @@ func visibleUserPackageMemberships(c fiber.Ctx, state *core.AppState, profile *c
 	return visible, nil
 }
 
+func toPBUserProfileLinks(l core.UserProfileLinks) *pb.UserProfileLinks {
+	var providers []*pb.ProviderProfileLink
+	for _, p := range l.Providers {
+		providers = append(providers, &pb.ProviderProfileLink{Name: p.Name, Url: p.URL})
+	}
+	var vis *pb.ProfileLinkVisibility
+	if l.Visibility != nil {
+		vis = &pb.ProfileLinkVisibility{Github: l.Visibility.GitHub, Gitlab: l.Visibility.GitLab}
+	}
+	return &pb.UserProfileLinks{
+		Website:    l.Website,
+		Github:     l.GitHub,
+		Discord:    l.Discord,
+		CustomName: l.CustomName,
+		CustomUrl:  l.CustomURL,
+		Providers:  providers,
+		Visibility: vis,
+	}
+}
+
+func toPBUserProfileDto(r userProfileResponse) *pb.UserProfileDto {
+	return &pb.UserProfileDto{
+		Private:                      r.Private,
+		UserId:                       r.UserID,
+		Username:                     r.Username,
+		Nickname:                     r.Nickname,
+		CreatedAt:                    r.CreatedAt,
+		OwnProfile:                   r.OwnProfile,
+		PrivateDetails:               r.PrivateDetails,
+		AdministratorView:            r.AdministratorView,
+		UsernameChangesRemaining:     int32(r.UsernameChangesRemaining),
+		UsernameChangeWindowResetsAt: r.UsernameChangeWindowResetsAt,
+		MavenDomainCount:             int32(r.MavenDomainCount),
+		CargoPackageCount:            int32(r.CargoPackageCount),
+		DockerImageCount:             int32(r.DockerImageCount),
+		NpmPackageCount:              int32(r.NPMPackageCount),
+		Links:                        toPBUserProfileLinks(r.Links),
+		AvatarUrl:                    r.AvatarURL,
+		AvatarMaxSizeBytes:           r.AvatarMaxSizeBytes,
+		DeletedAt:                    r.DeletedAt,
+	}
+}
+
+func toPBUserProfilesResponse(profiles []userProfileResponse) *pb.UserProfilesResponse {
+	dtos := make([]*pb.UserProfileDto, len(profiles))
+	for i, p := range profiles {
+		dtos[i] = toPBUserProfileDto(p)
+	}
+	return &pb.UserProfilesResponse{Profiles: dtos}
+}
+
 func publicUserProfiles(c fiber.Ctx, state *core.AppState) error {
 	setPrivateResponseHeaders(c)
 	rawNames := strings.TrimSpace(c.Query("names"))
@@ -310,7 +363,7 @@ func publicUserProfiles(c fiber.Ctx, state *core.AppState) error {
 		response = append(response, profileResponse(profile, own, time.Now().UnixMilli()))
 	}
 	c.Set(fiber.HeaderCacheControl, "no-store")
-	return c.JSON(fiber.Map{"profiles": response})
+	return protohttp.Write(c, toPBUserProfilesResponse(response))
 }
 
 func ownUserProfile(c fiber.Ctx, state *core.AppState) error {

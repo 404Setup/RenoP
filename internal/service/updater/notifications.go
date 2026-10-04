@@ -85,7 +85,7 @@ func deliverUpdateNotification(state *core.AppState, recipient, event string, re
 		payload.ReleaseDate = result.ReleaseDate
 		payload.IsRelease = result.IsRelease
 	}
-	payloadBytes, err := json.Marshal(payload)
+	payloadBytes, err := json.MarshalOf(payload)
 	if err != nil {
 		return err
 	}

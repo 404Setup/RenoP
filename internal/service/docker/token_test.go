@@ -22,9 +22,10 @@ import (
 	"github.com/emmansun/base64"
 
 	"github.com/goccy/go-json"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
+
+	"renop/pkg/id"
 
 	"renop/internal/core"
 )
@@ -98,7 +99,7 @@ func TestDockerTokenLifecycle(t *testing.T) {
 	}
 
 	parts := strings.Split(token, ".")
-	fakeClaimsJSON, _ := json.Marshal(TokenClaims{
+	fakeClaimsJSON, _ := json.MarshalOf(TokenClaims{
 		Issuer:    "renop",
 		Subject:   "root-attacker",
 		Audience:  "renop-registry",
@@ -169,7 +170,7 @@ func TestDockerTokenActionsRespectAPITokenScopes(t *testing.T) {
 	secret, err := core.GenerateAPITokenSecret()
 	require.NoError(t, err)
 	require.NoError(t, state.GetDB().CreateAPIToken("admin", &core.APIToken{
-		ID: uuid.NewString(), Name: "Pull only", Scopes: []string{core.APITokenScopeRepositoryRead},
+		ID: id.New(), Name: "Pull only", Scopes: []string{core.APITokenScopeRepositoryRead},
 		CreatedAt: time.Now().UnixMilli(),
 	}, core.HashAPITokenSecret(secret)))
 
@@ -190,7 +191,7 @@ func TestDockerTokenActionsRespectAPITokenScopes(t *testing.T) {
 	restrictedSecret, err := core.GenerateAPITokenSecret()
 	require.NoError(t, err)
 	require.NoError(t, state.GetDB().CreateAPIToken("admin", &core.APIToken{
-		ID: uuid.NewString(), Name: "Other repository only", Scopes: []string{core.APITokenScopeRepositoryRead},
+		ID: id.New(), Name: "Other repository only", Scopes: []string{core.APITokenScopeRepositoryRead},
 		Targets:   map[string][]string{core.APITokenScopeRepositoryRead: {"other"}},
 		CreatedAt: time.Now().UnixMilli(),
 	}, core.HashAPITokenSecret(restrictedSecret)))
@@ -219,7 +220,7 @@ func TestDockerTokenActionsRespectAPITokenScopes(t *testing.T) {
 			tokenSecret, generateErr := core.GenerateAPITokenSecret()
 			require.NoError(t, generateErr)
 			require.NoError(t, state.GetDB().CreateAPIToken("admin", &core.APIToken{
-				ID: uuid.NewString(), Name: test.name, Scopes: []string{test.scope},
+				ID: id.New(), Name: test.name, Scopes: []string{test.scope},
 				CreatedAt: time.Now().UnixMilli(),
 			}, core.HashAPITokenSecret(tokenSecret)))
 			tokenRequest := httptest.NewRequest(http.MethodGet,

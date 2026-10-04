@@ -208,7 +208,7 @@ func enrichNPMProjectMetadata(details *core.NPMPackageDetails) {
 		return
 	}
 	manifest := make(map[string]any)
-	if err := json.Unmarshal([]byte(version.ManifestJSON), &manifest); err != nil {
+	if err := json.UnmarshalOf([]byte(version.ManifestJSON), &manifest); err != nil {
 		return
 	}
 	project := &core.NPMProjectMetadata{

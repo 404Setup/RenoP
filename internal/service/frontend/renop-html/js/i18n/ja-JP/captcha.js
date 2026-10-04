@@ -32,6 +32,7 @@ export default Object.freeze({
     "captcha.scope.super_team_create": "グローバルチーム作成",
     "captcha.scope.domain_create": "公開ドメイン作成",
     "captcha.scope.package_create": "パッケージ作成",
+    "captcha.scope.anti_abuse": "不正アクセス防止とレート制限",
     "captcha.loading": "認証を読み込み中…",
     "captcha.complete": "セキュリティ認証を完了してください。",
     "captcha.consent": "Cookie 設定で外部サービスによる認証を許可してください。",

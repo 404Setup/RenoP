@@ -13,8 +13,9 @@ import {showAlert} from './alert.js';
 import {apiRequest, fetchProto, getAuthHeaders} from './api.js';
 import {createUserRow, createUsersSkeletonRow} from './components.js';
 import {editUser as openEditModal, initUsersModal, setUsersRefreshHandler} from './users/modal.js';
-import {el} from '@renop/ui/dom';
+import {el, retriggerClass} from '@renop/ui/dom';
 import {makeCustomSelect} from '@renop/ui/custom-select';
+import {createLoadingState} from '@renop/ui/loading';
 import {logout} from './auth.js';
 import {AccessTokenList, FidoDeviceList} from './proto/index.js';
 import {openSessionsDialog} from './sessions.js';
@@ -25,6 +26,7 @@ import {formatTimestamp, timestampMilliseconds} from './time.js';
 import {responseErrorMessage} from './response-errors.js';
 import {exitProtectedRouteOnDenial} from './protected-route.js';
 import {openPublicationQuotaDialog} from './publication-quota.js';
+import {openTrafficQuotaDialog} from './traffic-quota.js';
 import {invalidateUserProfiles} from './user-profiles.js';
 import {openUserBanDialog} from './users/ban.js';
 import {openAccountRetentionDialog} from './users/retention.js';
@@ -144,20 +146,22 @@ function setupUsersSortHeaders() {
         th.setAttribute('data-i18n-title', i18nKey);
 
         th.innerHTML = '';
-        const label = document.createElement('span');
-        label.className = 'th-sort-label';
-        label.dataset.i18nKey = i18nKey;
+        const label = el('span', {
+            class: 'th-sort-label',
+            'data-i18n-key': i18nKey
+        });
 
-        const textSpan = document.createElement('span');
-        textSpan.className = 'th-sort-text';
-        textSpan.setAttribute('data-i18n', i18nKey);
-        const translated = t(i18nKey);
-        textSpan.textContent = (translated !== i18nKey) ? translated : initialText;
+        const textSpan = el('span', {
+            class: 'th-sort-text',
+            'data-i18n': i18nKey
+        }, (translatedTitle !== i18nKey) ? translatedTitle : initialText);
+
+        const indicator = el('span', {
+            class: 'th-sort-indicator',
+            'aria-hidden': 'true'
+        });
+
         label.appendChild(textSpan);
-
-        const indicator = document.createElement('span');
-        indicator.className = 'th-sort-indicator';
-        indicator.setAttribute('aria-hidden', 'true');
         label.appendChild(indicator);
         th.appendChild(label);
 
@@ -198,9 +202,7 @@ function updateStatWithPulse(elId, key, newValue) {
     const oldVal = previousStats[key];
     el.textContent = newValue;
     if (oldVal !== -1 && oldVal !== newValue) {
-        el.classList.remove('stat-value-update');
-        void el.offsetWidth;
-        el.classList.add('stat-value-update');
+        retriggerClass(el, 'stat-value-update');
     }
     previousStats[key] = newValue;
 }
@@ -274,10 +276,7 @@ export async function openUserFidoDialog(username) {
         const seq = ++userFidoLoadSeq;
         void morphElementHeight(list, () => {
             list.replaceChildren(
-                el('div', {class: 'sessions-loading'},
-                    el('div', {class: 'sessions-loading-spinner', 'aria-hidden': 'true'}),
-                    el('span', {}, t('fido.loading') || t('common.loading') || 'Loading...')
-                )
+                createLoadingState(t('fido.loading') || t('common.loading') || 'Loading...', 'sessions-loading')
             );
         }, {duration: 300});
 
@@ -319,26 +318,24 @@ export async function openUserFidoDialog(username) {
                 }
 
                 devices.forEach(dev => {
-                    const item = document.createElement('div');
-                    item.className = 'fido-device-item';
-                    item.style.cssText = 'display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0.8rem; border: 1px solid var(--border-color, #e5e7eb); border-radius: 8px; margin-bottom: 0.5rem; background: var(--card-bg, #ffffff);';
+                    const nameEl = el('span', {
+                        style: 'font-weight: 600; font-size: 0.9rem;'
+                    }, dev.name || t('profile.fidoTitle'));
 
-                    const info = document.createElement('div');
-                    info.style.cssText = 'display: flex; flex-direction: column; gap: 2px;';
-                    const nameEl = document.createElement('span');
-                    nameEl.style.cssText = 'font-weight: 600; font-size: 0.9rem;';
-                    nameEl.textContent = dev.name || t('profile.fidoTitle');
-                    const dateEl = document.createElement('span');
-                    dateEl.style.cssText = 'font-size: 0.78rem; opacity: 0.65;';
-                    dateEl.textContent = formatTimestamp(dev.created_at, {fallback: t('common.unknown')});
-                    info.appendChild(nameEl);
-                    info.appendChild(dateEl);
+                    const dateEl = el('span', {
+                        style: 'font-size: 0.78rem; opacity: 0.65;'
+                    }, formatTimestamp(dev.created_at, {fallback: t('common.unknown')}));
 
-                    const delBtn = document.createElement('button');
-                    delBtn.type = 'button';
-                    delBtn.className = 'pill-btn pill-btn--danger';
-                    delBtn.style.cssText = 'padding: 4px 10px; font-size: 0.8rem;';
-                    delBtn.textContent = t('common.delete');
+                    const info = el('div', {
+                        style: 'display: flex; flex-direction: column; gap: 2px;'
+                    }, nameEl, dateEl);
+
+                    const delBtn = el('button', {
+                        type: 'button',
+                        class: 'pill-btn pill-btn--danger',
+                        style: 'padding: 4px 10px; font-size: 0.8rem;'
+                    }, t('common.delete'));
+
                     delBtn.addEventListener('click', async () => {
                         const confirmMsg = t('users.confirmDeleteUserFido', {
                             user: username,
@@ -360,8 +357,11 @@ export async function openUserFidoDialog(username) {
                         }
                     });
 
-                    item.appendChild(info);
-                    item.appendChild(delBtn);
+                    const item = el('div', {
+                        class: 'fido-device-item',
+                        style: 'display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0.8rem; border: 1px solid var(--border-color, #e5e7eb); border-radius: 8px; margin-bottom: 0.5rem; background: var(--card-bg, #ffffff);'
+                    }, info, delBtn);
+
                     list.appendChild(item);
                 });
             }, {duration: 300});
@@ -419,6 +419,7 @@ function createUserRowElement(token) {
         onFido: (tok) => openUserFidoDialog(tok.name),
         onAuditLogs: (tok) => openAuditLogsDialog({mode: 'user', username: tok.name}),
         onQuota: (tok) => openPublicationQuotaDialog({ownerType: 'user', ownerKey: tok.name}),
+        onTrafficQuota: (tok) => openTrafficQuotaDialog({username: tok.name}),
         onRetention: (tok) => openAccountRetentionDialog(tok, fetchTokens),
         onBan: currentUsername.toLowerCase() === String(token.name || '').toLowerCase()
             ? null
@@ -452,13 +453,13 @@ function renderPaginationControls(startIdx, endIdx, totalItems, totalPages) {
     const startNum = totalItems === 0 ? 0 : startIdx + 1;
     const endNum = endIdx;
 
-    const infoSpan = document.createElement('span');
-    infoSpan.className = 'pagination-info-text';
-    infoSpan.textContent = t('users.paginationShowing', {
-        start: startNum,
-        end: endNum,
-        total: totalItems
-    }) || `Showing ${startNum}-${endNum} of ${totalItems}`;
+    const infoSpan = el('span', {class: 'pagination-info-text'},
+        t('users.paginationShowing', {
+            start: startNum,
+            end: endNum,
+            total: totalItems
+        }) || `Showing ${startNum}-${endNum} of ${totalItems}`
+    );
 
     const selectOptions = [5, 10, 20, 30].map(size => ({
         value: size,
@@ -475,19 +476,16 @@ function renderPaginationControls(startIdx, endIdx, totalItems, totalPages) {
     });
     sizeSelectWrapper.classList.add('pagination-size-custom-select');
 
-    const infoWrapper = document.createElement('div');
-    infoWrapper.className = 'pagination-info';
-    infoWrapper.appendChild(infoSpan);
-    infoWrapper.appendChild(sizeSelectWrapper);
+    const infoWrapper = el('div', {class: 'pagination-info'}, infoSpan, sizeSelectWrapper);
 
-    const controlsWrapper = document.createElement('div');
-    controlsWrapper.className = 'pagination-controls';
+    const controlsWrapper = el('div', {class: 'pagination-controls'});
 
-    const prevBtn = document.createElement('button');
-    prevBtn.type = 'button';
-    prevBtn.className = 'pagination-btn';
-    prevBtn.disabled = currentPage <= 1;
-    prevBtn.title = t('users.paginationPrev') || 'Previous';
+    const prevBtn = el('button', {
+        type: 'button',
+        class: 'pagination-btn',
+        disabled: currentPage <= 1,
+        title: t('users.paginationPrev') || 'Previous'
+    });
     prevBtn.innerHTML = `&#8249;`;
     prevBtn.addEventListener('click', () => {
         if (currentPage > 1) {
@@ -521,41 +519,40 @@ function renderPaginationControls(startIdx, endIdx, totalItems, totalPages) {
     const pageNumbers = getPageNumbers(currentPage, totalPages);
     pageNumbers.forEach(p => {
         if (p === '...') {
-            const ellipsis = document.createElement('span');
-            ellipsis.className = 'pagination-ellipsis';
-            ellipsis.textContent = '...';
-            ellipsis.style.padding = '0 0.25rem';
-            ellipsis.style.opacity = '0.5';
-            ellipsis.style.fontSize = '0.82rem';
+            const ellipsis = el('span', {
+                class: 'pagination-ellipsis',
+                style: 'padding: 0 0.25rem; opacity: 0.5; font-size: 0.82rem;'
+            }, '...');
             controlsWrapper.appendChild(ellipsis);
         } else {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = `pagination-btn${p === currentPage ? ' is-active' : ''}`;
-            btn.textContent = String(p);
-            btn.addEventListener('click', () => {
-                if (p !== currentPage) {
-                    const dir = p > currentPage ? 'next' : 'prev';
-                    currentPage = p;
-                    renderUsersPage(dir);
+            const btn = el('button', {
+                type: 'button',
+                class: `pagination-btn${p === currentPage ? ' is-active' : ''}`,
+                onClick: () => {
+                    if (p !== currentPage) {
+                        const dir = p > currentPage ? 'next' : 'prev';
+                        currentPage = p;
+                        renderUsersPage(dir);
+                    }
                 }
-            });
+            }, String(p));
             controlsWrapper.appendChild(btn);
         }
     });
 
-    const nextBtn = document.createElement('button');
-    nextBtn.type = 'button';
-    nextBtn.className = 'pagination-btn';
-    nextBtn.disabled = currentPage >= totalPages;
-    nextBtn.title = t('users.paginationNext') || 'Next';
-    nextBtn.innerHTML = `&#8250;`;
-    nextBtn.addEventListener('click', () => {
-        if (currentPage < totalPages) {
-            currentPage++;
-            renderUsersPage('next');
+    const nextBtn = el('button', {
+        type: 'button',
+        class: 'pagination-btn',
+        disabled: currentPage >= totalPages,
+        title: t('users.paginationNext') || 'Next',
+        onClick: () => {
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderUsersPage('next');
+            }
         }
     });
+    nextBtn.innerHTML = `&#8250;`;
     controlsWrapper.appendChild(nextBtn);
 
     container.appendChild(infoWrapper);
@@ -594,8 +591,12 @@ function renderUsersPage(direction = null) {
 
     tbody.innerHTML = '';
     if (pageTokens.length === 0) {
-        const emptyTr = document.createElement('tr');
-        emptyTr.innerHTML = `<td colspan="4" style="text-align: center; padding: 2rem; opacity: 0.6;">${t('common.none') || 'None'}</td>`;
+        const emptyTr = el('tr', {},
+            el('td', {
+                colspan: '4',
+                style: 'text-align: center; padding: 2rem; opacity: 0.6;'
+            }, t('common.none') || 'None')
+        );
         tbody.appendChild(emptyTr);
     } else {
         pageTokens.forEach(token => {
@@ -623,7 +624,7 @@ function renderUsersPage(direction = null) {
 export async function fetchTokens() {
     renderUsersSkeleton();
     try {
-        const {response, data} = await fetchProto('/api/tokens', AccessTokenList);
+        const {response, data} = await fetchProto('/api/users', AccessTokenList);
         if (response.ok && data) {
             allTokens = data.tokens || [];
 
@@ -669,7 +670,7 @@ export async function deleteToken(name) {
 
     try {
         const headers = getAuthHeaders();
-        const response = await fetch(`/api/tokens/${name}`, {method: 'DELETE', headers});
+        const response = await fetch(`/api/users/${name}`, {method: 'DELETE', headers});
         if (response.ok) {
             invalidateUserProfiles(name);
             setTimeout(() => {

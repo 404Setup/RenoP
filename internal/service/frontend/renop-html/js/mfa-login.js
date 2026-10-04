@@ -9,6 +9,7 @@
  */
 
 import {ensureLegalConsent} from './legal-consent.js';
+import {retriggerClass} from '@renop/ui/dom';
 import {t} from './i18n.js';
 import {responseErrorMessage} from './response-errors.js';
 import {passkeyErrorMessage, requestPasskeyAssertion} from './fido-utils.js';
@@ -61,9 +62,7 @@ export async function showMFALogin({silent = false} = {}) {
         passwordForm.hidden = true;
         form.hidden = false;
         if (form.classList) {
-            form.classList.remove('mfa-login-enter');
-            void form.offsetWidth;
-            form.classList.add('mfa-login-enter');
+            retriggerClass(form, 'mfa-login-enter');
         }
         errorBox.hidden = true;
         form.reset();
@@ -99,9 +98,7 @@ export function resetMFALogin() {
     passkey.disabled = false;
     passwordForm.hidden = false;
     if (passwordForm.classList) {
-        passwordForm.classList.remove('mfa-login-enter');
-        void passwordForm.offsetWidth;
-        passwordForm.classList.add('mfa-login-enter');
+        retriggerClass(passwordForm, 'mfa-login-enter');
     }
     if (hadChallenge) void mfaRequest('', undefined, 'DELETE').catch(() => {
     });

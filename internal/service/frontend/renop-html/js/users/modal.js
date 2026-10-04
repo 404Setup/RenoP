@@ -11,7 +11,7 @@
 import {t} from '../i18n.js';
 import {showAlert} from '../alert.js';
 import {putProto} from '../api.js';
-import {el} from '@renop/ui/dom';
+import {byId, el} from '@renop/ui/dom';
 import {CreateAccessTokenRequest, CreateAccessTokenResponse} from '../proto/index.js';
 import {createIcon, RenopDialog, runButtonAction} from '../components.js';
 import {attachPasswordStrength, confirmWeakPasswordIfNeeded, getPasswordLengthError} from '../password-strength.js';
@@ -129,27 +129,27 @@ async function handleUserSubmit(event, dialog) {
         if (typeof advanceModalStep === 'function') advanceModalStep(2, 'forward');
         return;
     }
-    const originalName = document.getElementById(userEditorIds.originalName)?.value.trim() || '';
-    const username = document.getElementById(userEditorIds.username)?.value.trim() || '';
-    const nickname = document.getElementById(userEditorIds.nickname)?.value.trim() || '';
-    const password = document.getElementById(userEditorIds.password)?.value || '';
+    const originalName = byId(userEditorIds.originalName)?.value.trim() || '';
+    const username = byId(userEditorIds.username)?.value.trim() || '';
+    const nickname = byId(userEditorIds.nickname)?.value.trim() || '';
+    const password = byId(userEditorIds.password)?.value || '';
 
     if ((!originalName || username.toLowerCase() !== originalName.toLowerCase()) &&
         !/^[A-Za-z0-9_]{4,18}$/.test(username)) {
         showAlert(t('profile.usernameHint'), 'error');
-        document.getElementById(userEditorIds.username)?.focus();
+        byId(userEditorIds.username)?.focus();
         return;
     }
     if (Array.from(nickname).length > 36) {
         showAlert(t('profile.nicknameHint'), 'error');
-        document.getElementById(userEditorIds.nickname)?.focus();
+        byId(userEditorIds.nickname)?.focus();
         return;
     }
     if (password) {
         const lengthError = getPasswordLengthError(password);
         if (lengthError) {
             showAlert(lengthError, 'error');
-            document.getElementById(userEditorIds.password)?.focus();
+            byId(userEditorIds.password)?.focus();
             return;
         }
         if (!(await confirmWeakPasswordIfNeeded(password))) return;
@@ -161,12 +161,12 @@ async function handleUserSubmit(event, dialog) {
     if (username !== originalName) payload.new_name = username;
     if (password) payload.secret = password;
 
-    const submitButton = document.getElementById(userEditorIds.submit);
+    const submitButton = byId(userEditorIds.submit);
     await runButtonAction(submitButton, async () => {
         submitButton?.setAttribute('aria-busy', 'true');
         try {
             const {response, data} = await putProto(
-                `/api/tokens/${encodeURIComponent(targetName)}`,
+                `/api/users/${encodeURIComponent(targetName)}`,
                 CreateAccessTokenRequest,
                 payload,
                 CreateAccessTokenResponse
@@ -280,27 +280,27 @@ export async function openUserModal(account = null) {
     }, permissionsSection);
 
     function validateStep1() {
-        const originalName = document.getElementById(userEditorIds.originalName)?.value.trim() || '';
-        const usernameVal = document.getElementById(userEditorIds.username)?.value.trim() || '';
-        const nicknameVal = document.getElementById(userEditorIds.nickname)?.value.trim() || '';
-        const passwordVal = document.getElementById(userEditorIds.password)?.value || '';
+        const originalName = byId(userEditorIds.originalName)?.value.trim() || '';
+        const usernameVal = byId(userEditorIds.username)?.value.trim() || '';
+        const nicknameVal = byId(userEditorIds.nickname)?.value.trim() || '';
+        const passwordVal = byId(userEditorIds.password)?.value || '';
 
         if ((!originalName || usernameVal.toLowerCase() !== originalName.toLowerCase()) &&
             !/^[A-Za-z0-9_]{4,18}$/.test(usernameVal)) {
             showAlert(t('profile.usernameHint'), 'error');
-            document.getElementById(userEditorIds.username)?.focus();
+            byId(userEditorIds.username)?.focus();
             return false;
         }
         if (Array.from(nicknameVal).length > 36) {
             showAlert(t('profile.nicknameHint'), 'error');
-            document.getElementById(userEditorIds.nickname)?.focus();
+            byId(userEditorIds.nickname)?.focus();
             return false;
         }
         if (passwordVal) {
             const lengthError = getPasswordLengthError(passwordVal);
             if (lengthError) {
                 showAlert(lengthError, 'error');
-                document.getElementById(userEditorIds.password)?.focus();
+                byId(userEditorIds.password)?.focus();
                 return false;
             }
         }
@@ -338,11 +338,11 @@ export async function openUserModal(account = null) {
         if (step === 2 && !validateStep1()) return;
 
         currentModalStep = step;
-        const cancelBtn = document.getElementById(userEditorIds.cancel);
-        const prevBtn = document.getElementById('user-editor-prev');
-        const nextBtn = document.getElementById('user-editor-next');
-        const submitBtn = document.getElementById(userEditorIds.submit);
-        const modalContent = document.getElementById(userEditorIds.modal)?.querySelector('.modal-content')
+        const cancelBtn = byId(userEditorIds.cancel);
+        const prevBtn = byId('user-editor-prev');
+        const nextBtn = byId('user-editor-next');
+        const submitBtn = byId(userEditorIds.submit);
+        const modalContent = byId(userEditorIds.modal)?.querySelector('.modal-content')
             || document.querySelector(`#${userEditorIds.modal} .modal-content`);
 
         const mutate = () => {
@@ -530,19 +530,19 @@ function showGeneratedPasswordDialog(generatedPassword) {
  * @returns {void}
  */
 export function initUsersModal() {
-    document.getElementById('btn-create-user')?.addEventListener('click', () => void openUserModal());
+    byId('btn-create-user')?.addEventListener('click', () => void openUserModal());
 }
 
 window.addEventListener('languageChanged', () => {
-    const modal = document.getElementById(userEditorIds.modal);
+    const modal = byId(userEditorIds.modal);
     if (!modal || modal.style.display === 'none' || modal.style.display === '' || modal.dataset.isClosing === 'true') return;
-    const editing = Boolean(document.getElementById(userEditorIds.originalName)?.value);
-    const title = document.getElementById(userEditorIds.title);
+    const editing = Boolean(byId(userEditorIds.originalName)?.value);
+    const title = byId(userEditorIds.title);
     if (title) title.textContent = t(editing ? 'users.editUserTitle' : 'users.createUserTitle');
-    const subtitle = document.getElementById(userEditorIds.subtitle);
+    const subtitle = byId(userEditorIds.subtitle);
     if (subtitle) subtitle.textContent = t(editing ? 'users.accountSectionEditDesc' : 'users.accountSectionCreateDesc');
-    const cancel = document.getElementById(userEditorIds.cancel);
-    const submit = document.getElementById(userEditorIds.submit);
+    const cancel = byId(userEditorIds.cancel);
+    const submit = byId(userEditorIds.submit);
     if (cancel) cancel.textContent = t('users.cancelBtn');
     if (submit) submit.textContent = t('users.saveBtn');
     const selected = selectedUserPermissions();

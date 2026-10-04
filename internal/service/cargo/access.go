@@ -19,6 +19,7 @@ import (
 	"renop/internal/config"
 	"renop/internal/core"
 	"renop/internal/service/auth"
+	"renop/internal/utils"
 )
 
 func authenticatedUser(c fiber.Ctx) (*config.User, error) {
@@ -102,6 +103,9 @@ func authorizePackageMutation(c fiber.Ctx, state *core.AppState, repository, cra
 }
 
 func cargoError(c fiber.Ctx, err error) error {
+	if utils.HasUploadBody(c) {
+		utils.RejectUploadEarly(c)
+	}
 	switch {
 	case errors.Is(err, core.ErrResourceLocked):
 		c.Set("X-Renop-Error-Code", "resource_locked")

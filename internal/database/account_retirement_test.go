@@ -15,10 +15,10 @@ import (
 	"database/sql"
 	"path/filepath"
 	"renop/pkg/hex"
+	"renop/pkg/id"
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -144,11 +144,11 @@ func TestAccountRetirementLocksIdentityAndHonorsRetention(t *testing.T) {
 	_, err = db.UpdateAccountEmail("alice", "alice@example.com", now)
 	require.NoError(t, err)
 	require.NoError(t, db.SaveFidoDevice(&core.FidoDevice{
-		ID: uuid.NewString(), Username: "alice", Name: "Passkey", CredentialID: []byte("credential"),
+		ID: id.New(), Username: "alice", Name: "Passkey", CredentialID: []byte("credential"),
 		PublicKey: []byte("public-key"), CreatedAt: now,
 	}))
 	require.NoError(t, db.CreateAPIToken("alice", &core.APIToken{
-		ID: uuid.NewString(), Name: "automation", Scopes: []string{core.APITokenScopeAccountRead}, CreatedAt: now,
+		ID: id.New(), Name: "automation", Scopes: []string{core.APITokenScopeAccountRead}, CreatedAt: now,
 	}, core.HashAPITokenSecret("secret")))
 	require.NoError(t, db.ReplaceRecoveryCodes("alice", testRecoveryHashes(now)))
 	require.NoError(t, db.StoreGitHubIdentity(profile.UserID, 42, "alice-gh", []core.GitHubPrincipal{{
@@ -164,7 +164,7 @@ func TestAccountRetirementLocksIdentityAndHonorsRetention(t *testing.T) {
 	session.LastActive.Store(now)
 	require.NoError(t, db.SaveSession(session, "session-token"))
 	require.NoError(t, db.SaveMessages([]*core.UserMessage{{
-		ID: uuid.NewString(), Recipient: "alice", Sender: "system", Kind: "notice", Severity: "info",
+		ID: id.New(), Recipient: "alice", Sender: "system", Kind: "notice", Severity: "info",
 		Title: "Notice", Body: "Body", CreatedAt: now,
 	}}))
 	require.NoError(t, db.SaveAuditLog(&core.AuditLogEntry{
@@ -219,14 +219,14 @@ func TestAccountRetirementLocksIdentityAndHonorsRetention(t *testing.T) {
 	assert.ErrorIs(t, db.SaveToken(&core.AccessToken{Name: "alice", EncryptedSecret: "stale-password"}), core.ErrAccountDeleted)
 	assert.ErrorIs(t, db.SaveSession(session, "late-session"), core.ErrAccountDeleted)
 	assert.ErrorIs(t, db.SaveFidoDevice(&core.FidoDevice{
-		ID: uuid.NewString(), Username: "alice", CredentialID: []byte("late-credential"),
+		ID: id.New(), Username: "alice", CredentialID: []byte("late-credential"),
 	}), core.ErrAccountDeleted)
 	assert.ErrorIs(t, db.StoreGitHubIdentity(profile.UserID, 42, "alice-gh", []core.GitHubPrincipal{{
 		Type: core.GitHubPrincipalUser, GitHubID: 42, Login: "alice-gh",
 	}}, retiredAt+1), core.ErrAccountDeleted)
 	_, err = db.UpdateAccountEmail("bob", "alice@example.com", retiredAt+1)
 	assert.ErrorIs(t, err, core.ErrEmailAlreadyExists)
-	lateMessage := &core.UserMessage{ID: uuid.NewString(), Recipient: "alice", Kind: "notice",
+	lateMessage := &core.UserMessage{ID: id.New(), Recipient: "alice", Kind: "notice",
 		Severity: "info", Title: "Late", Body: "Queued before closure", CreatedAt: retiredAt + 1}
 	require.NoError(t, db.SaveMessages([]*core.UserMessage{lateMessage}))
 	inserted, err := db.SaveMessageIfAbsent(lateMessage)

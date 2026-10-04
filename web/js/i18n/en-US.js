@@ -29,6 +29,7 @@ export default {
 
     "footer.copyright": "RenoP is open source under the Mozilla Public License 2.0.",
 
+    "home.timeSinceUpdate": "RenoP hasn't been updated for {time}",
     "home.title": "Self-hosted artifact repository",
     "home.lead": "Run Maven, Cargo, npm, Docker/OCI, and generic file repositories from one service, with optional upstream mirrors and a built-in management UI.",
     "home.download": "Download",

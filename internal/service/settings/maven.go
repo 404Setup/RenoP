@@ -25,7 +25,7 @@ import (
 	"renop/internal/core"
 	"renop/internal/service/audit"
 	mavenservice "renop/internal/service/maven"
-	"renop/internal/service/outboundproxy"
+	"renop/internal/service/proxy/outbound"
 	"renop/internal/service/repositorygate"
 	"renop/internal/service/statistics"
 	"renop/internal/service/storage"
@@ -111,6 +111,19 @@ func PutMavenRepository(c fiber.Ctx, state *core.AppState) error {
 	}
 	if existing != nil {
 		repo.PublicationReview = existing.PublicationReviewPolicy()
+		if repo.GitHubToken == "" {
+			repo.GitHubToken = existing.GitHubToken
+		}
+		if repo.GitLabToken == "" {
+			repo.GitLabToken = existing.GitLabToken
+		}
+		if repo.GitRepo == nil && existing.GitRepo != nil {
+			repo.GitRepo = existing.GitRepo.DeepCopy()
+		} else if repo.GitRepo != nil && existing.GitRepo != nil {
+			if len(repo.GitRepo.RegisteredRepos) == 0 && len(existing.GitRepo.RegisteredRepos) > 0 {
+				repo.GitRepo.RegisteredRepos = append([]string(nil), existing.GitRepo.RegisteredRepos...)
+			}
+		}
 	}
 	requestedFormat := strings.ToLower(strings.TrimSpace(repo.Format))
 	if existing == nil && requestedFormat == "" {
@@ -123,6 +136,15 @@ func PutMavenRepository(c fiber.Ctx, state *core.AppState) error {
 		return c.Status(fiber.StatusBadRequest).SendString("Invalid repository format")
 	}
 	repo.Format = requestedFormat
+	if repo.NormalizedFormat() == config.RepositoryFormatGithub || repo.NormalizedFormat() == config.RepositoryFormatGitLab {
+		if repo.GitRepo == nil {
+			repo.GitRepo = config.DefaultGitRepoPolicy()
+		}
+	} else {
+		repo.GitRepo = nil
+		repo.GitHubToken = ""
+		repo.GitLabToken = ""
+	}
 	if existing != nil && existing.NormalizedFormat() != repo.NormalizedFormat() {
 		return c.Status(fiber.StatusConflict).SendString("Repository format cannot be changed after creation")
 	}
@@ -153,6 +175,11 @@ func PutMavenRepository(c fiber.Ctx, state *core.AppState) error {
 		return c.Status(fiber.StatusBadRequest).SendString("Invalid visibility. Expected PUBLIC, HIDDEN, or PRIVATE")
 	}
 	repo.Visibility = vis
+	if repo.Proxy != "" {
+		if _, err := outboundproxy.ResolveMirrorSelection(repo.Proxy, cfg.Proxy); err != nil {
+			return c.Status(fiber.StatusBadRequest).SendString("Invalid repository proxy selection: " + err.Error())
+		}
+	}
 	for i := range repo.Mirrors {
 		mirror := &repo.Mirrors[i]
 		if _, err := outboundproxy.ResolveMirrorSelection(mirror.ProxyMode, cfg.Proxy); err != nil {

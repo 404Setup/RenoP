@@ -100,15 +100,15 @@ if (!customElements.get('renop-mirror-card')) {
  * @returns {HTMLElement}
  */
 export function createMirrorCard(mirror, includeCacheDetails = false) {
-    const card = document.createElement('renop-mirror-card');
-    if (mirror.name) card.setAttribute('name', mirror.name);
-    if (mirror.url) card.setAttribute('url', mirror.url);
-    card.setAttribute('persist', mirror.persist ? 'true' : 'false');
-    if (mirror.enabled_date) card.setAttribute('enabled-date', mirror.enabled_date);
+    const attrs = {};
+    if (mirror.name) attrs.name = mirror.name;
+    if (mirror.url) attrs.url = mirror.url;
+    attrs.persist = mirror.persist ? 'true' : 'false';
+    if (mirror.enabled_date) attrs['enabled-date'] = mirror.enabled_date;
     if (includeCacheDetails) {
-        card.setAttribute('detailed', '');
-        if (mirror.cache_ttl !== undefined) card.setAttribute('cache-ttl', String(mirror.cache_ttl));
-        card.setAttribute('negative-cache', mirror.negative_cache ? 'true' : 'false');
+        attrs.detailed = '';
+        if (mirror.cache_ttl !== undefined) attrs['cache-ttl'] = String(mirror.cache_ttl);
+        attrs['negative-cache'] = mirror.negative_cache ? 'true' : 'false';
     }
-    return card;
+    return el('renop-mirror-card', attrs);
 }

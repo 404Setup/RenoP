@@ -1265,8 +1265,9 @@ async function renderManagedDomain(container, domainName) {
         if (!locked && !domain.verified && !closed && !claimPending && cachedIsManager) {
             actions.appendChild(el('button', {
                 type: 'button', class: 'pill-btn pill-btn--soft', onclick: async event => {
+                    const btn = event.currentTarget;
                     if (!(await showConfirm(t('maven.forceVerifyConfirm', {domain: domain.domain})))) return;
-                    await runButtonAction(event.currentTarget, async () => {
+                    await runButtonAction(btn, async () => {
                         const verifyResponse = await apiRequest(`/api/maven/domains/${encodeURIComponent(domain.domain)}/verify/force`, {method: 'POST'});
                         if (!verifyResponse.ok) {
                             showAlert(await responseErrorMessage(verifyResponse, 'maven.forceVerifyFailed'), 'error');
@@ -1284,9 +1285,10 @@ async function renderManagedDomain(container, domainName) {
                 actions.appendChild(el('button', {
                         type: 'button', class: approve ? 'pill-btn pill-btn--primary' : 'pill-btn pill-btn--ghost-danger',
                         onclick: async event => {
+                            const btn = event.currentTarget;
                             if (!approve && !(await showConfirm(t('maven.claimRejectConfirm', {domain: domain.domain}),
                                 {danger: true}))) return;
-                            await runButtonAction(event.currentTarget, async () => {
+                            await runButtonAction(btn, async () => {
                                 const reviewResponse = await apiRequest(
                                     `/api/maven/domains/${encodeURIComponent(domain.domain)}/claim`, {
                                         method: 'PUT', headers: {'Content-Type': 'application/json'},

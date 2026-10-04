@@ -22,6 +22,24 @@ import (
 	"github.com/goccy/go-json"
 )
 
+type conanSignatureEntry struct {
+	Method    string            `json:"method"`
+	Artifacts map[string]string `json:"sign_artifacts"`
+}
+
+type conanSignaturesDocument struct {
+	Signatures []conanSignatureEntry `json:"signatures"`
+}
+
+type conanManifestFileEntry struct {
+	File   string `json:"file"`
+	SHA256 string `json:"sha256"`
+}
+
+type conanManifestDocument struct {
+	Files []conanManifestFileEntry `json:"files"`
+}
+
 // VerifyConanPublication implements Conan's signing-extension manifest contract.
 // Missing files are an incomplete upload, not permission to publish unsigned.
 func VerifyConanPublication(publicKey string, artifacts []*core.NativeArtifact,
@@ -51,13 +69,8 @@ func VerifyConanPublication(publicKey string, artifacts []*core.NativeArtifact,
 	if err != nil {
 		return false, err
 	}
-	var signatures struct {
-		Signatures []struct {
-			Method    string            `json:"method"`
-			Artifacts map[string]string `json:"sign_artifacts"`
-		} `json:"signatures"`
-	}
-	if json.Unmarshal(metadata, &signatures) != nil || len(signatures.Signatures) == 0 || len(signatures.Signatures) > 8 {
+	var signatures conanSignaturesDocument
+	if json.UnmarshalOf(metadata, &signatures) != nil || len(signatures.Signatures) == 0 || len(signatures.Signatures) > 8 {
 		return false, core.ErrNativeSignature
 	}
 	matched := false
@@ -81,13 +94,8 @@ func VerifyConanPublication(publicKey string, artifacts []*core.NativeArtifact,
 	if _, err := openpgp.CheckArmoredDetachedSignature(ring, bytes.NewReader(manifest), bytes.NewReader(signature), nil); err != nil {
 		return false, core.ErrNativeSignature
 	}
-	var document struct {
-		Files []struct {
-			File   string `json:"file"`
-			SHA256 string `json:"sha256"`
-		} `json:"files"`
-	}
-	if json.Unmarshal(manifest, &document) != nil || len(document.Files) == 0 || len(document.Files) > 253 {
+	var document conanManifestDocument
+	if json.UnmarshalOf(manifest, &document) != nil || len(document.Files) == 0 || len(document.Files) > 253 {
 		return false, core.ErrNativeSignature
 	}
 	seen := make(map[string]bool, len(document.Files))

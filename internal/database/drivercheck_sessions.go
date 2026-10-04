@@ -15,8 +15,7 @@ import (
 	"strings"
 
 	"renop/internal/core"
-
-	"github.com/google/uuid"
+	"renop/pkg/id"
 )
 
 func checkScopedSessionNotifications(db *DB, username string, now int64) error {
@@ -24,10 +23,10 @@ func checkScopedSessionNotifications(db *DB, username string, now int64) error {
 	if err := db.SaveToken(&core.AccessToken{Name: username, Permissions: []string{"base"}}); err != nil {
 		return err
 	}
-	first := &core.Session{Username: username, PublicID: uuid.NewString(), CreatedAt: now,
+	first := &core.Session{Username: username, PublicID: id.New(), CreatedAt: now,
 		OAuthGrant: &core.SessionOAuthGrant{ProviderID: "driver", Authority: strings.Repeat("a", 64), Subject: username, SessionID: "first", AuthorizedAt: now - 1000, EncryptedTokens: "opaque-ciphertext"}}
 	first.LastActive.Store(now)
-	second := &core.Session{Username: username, PublicID: uuid.NewString(), CreatedAt: now - 1,
+	second := &core.Session{Username: username, PublicID: id.New(), CreatedAt: now - 1,
 		OAuthGrant: &core.SessionOAuthGrant{ProviderID: "driver", Authority: strings.Repeat("a", 64), Subject: username, SessionID: "second", AuthorizedAt: now - 1000, EncryptedTokens: "opaque-ciphertext"}}
 	second.LastActive.Store(now)
 	if err := db.SaveSession(first, first.PublicID); err != nil {
@@ -44,8 +43,8 @@ func checkScopedSessionNotifications(db *DB, username string, now int64) error {
 	if err != nil || len(page) != 1 || page[0].PublicID != second.PublicID {
 		return errorsOrMissing(err, "active session cursor")
 	}
-	private := &core.UserMessage{ID: uuid.NewString(), Recipient: username, SessionID: first.PublicID, Kind: "announcement", Title: "Private", CreatedAt: now}
-	public := &core.UserMessage{ID: uuid.NewString(), Recipient: username, Kind: "announcement", Title: "Public", CreatedAt: now}
+	private := &core.UserMessage{ID: id.New(), Recipient: username, SessionID: first.PublicID, Kind: "announcement", Title: "Private", CreatedAt: now}
+	public := &core.UserMessage{ID: id.New(), Recipient: username, Kind: "announcement", Title: "Public", CreatedAt: now}
 	if err := db.SaveMessages([]*core.UserMessage{private, public}); err != nil {
 		return err
 	}
@@ -61,7 +60,7 @@ func checkScopedSessionNotifications(db *DB, username string, now int64) error {
 	if message, err := db.GetUserMessage(private.ID, username, now, first.PublicID); err != nil || message == nil {
 		return errorsOrMissing(err, "private message preservation")
 	}
-	event := core.OAuthRevocation{EventID: uuid.NewString(), ProviderID: "driver", Authority: first.OAuthGrant.Authority, Subject: username, SessionID: "first", IssuedAt: now}
+	event := core.OAuthRevocation{EventID: id.New(), ProviderID: "driver", Authority: first.OAuthGrant.Authority, Subject: username, SessionID: "first", IssuedAt: now}
 	tokens, err := db.RevokeOAuthSessions(event, now)
 	if err != nil || len(tokens) != 1 || tokens[0] != first.PublicID {
 		return errorsOrMissing(err, "provider session scope")

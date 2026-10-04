@@ -18,7 +18,7 @@ import (
 
 	"renop/internal/config"
 	"renop/internal/core"
-	"renop/internal/service/conda"
+	"renop/internal/service/nativepkg/conda"
 
 	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
@@ -73,13 +73,13 @@ func handleCondaIndex(c fiber.Ctx, state *core.AppState, repo *config.Repository
 			if err != nil {
 				return nil, err
 			}
-			return json.Marshal(pkg)
+			return json.MarshalOf(pkg)
 		},
 		render: func(records [][]byte) ([]byte, error) {
 			packages := make([]*conda.Package, 0, len(records))
 			for _, record := range records {
 				var pkg conda.Package
-				if err := json.Unmarshal(record, &pkg); err != nil {
+				if err := json.UnmarshalOf(record, &pkg); err != nil {
 					return nil, err
 				}
 				packages = append(packages, &pkg)

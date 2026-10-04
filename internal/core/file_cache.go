@@ -318,3 +318,26 @@ func (s *fileCacheShard) compactOrderLocked() {
 		s.order = compacted
 	}
 }
+
+// Clear evicts all entries from memory and releases remote blobs.
+func (c *FileByteCache) Clear() {
+	if c == nil || c.maxBytes <= 0 || len(c.shards) == 0 {
+		return
+	}
+	var blobs []*cache.Blob
+	for i := range c.shards {
+		s := &c.shards[i]
+		s.mu.Lock()
+		for _, e := range s.entries {
+			if e.blob != nil {
+				blobs = append(blobs, e.blob)
+			}
+		}
+		s.entries = make(map[string]fileCacheEntry)
+		s.order = nil
+		s.mu.Unlock()
+	}
+	c.used.Store(0)
+	c.metadata.Store(0)
+	cache.DeleteBlobs(blobs)
+}

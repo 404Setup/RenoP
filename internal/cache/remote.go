@@ -246,6 +246,60 @@ func DeleteBlobs(blobs []*Blob) {
 	}
 }
 
+// Flush safely purges all keys matching "renop:*" across Redis or Valkey,
+// using SCAN to prevent blocking the external cache's single-threaded event loop.
+func (r *Remote) Flush(ctx context.Context) error {
+	if r == nil || r.client == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	iter := r.client.Scan(ctx, 0, "renop:*", 500).Iterator()
+	var keys []string
+	for iter.Next(ctx) {
+		keys = append(keys, iter.Val())
+		if len(keys) >= 200 {
+			if err := r.client.Del(ctx, keys...).Err(); err != nil {
+				return err
+			}
+			keys = keys[:0]
+		}
+	}
+	if err := iter.Err(); err != nil {
+		return err
+	}
+	if len(keys) > 0 {
+		if err := r.client.Del(ctx, keys...).Err(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// MemoryBytes reports Redis/Valkey used_memory from INFO memory.
+func (r *Remote) MemoryBytes(ctx context.Context) (uint64, error) {
+	if r == nil || r.client == nil {
+		return 0, nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	info, err := r.client.Info(ctx, "memory").Result()
+	if err != nil {
+		return 0, err
+	}
+	for line := range strings.SplitSeq(info, "\r\n") {
+		if after, ok := strings.CutPrefix(line, "used_memory:"); ok {
+			valStr := after
+			if b, err := strconv.ParseUint(strings.TrimSpace(valStr), 10, 64); err == nil {
+				return b, nil
+			}
+		}
+	}
+	return 0, nil
+}
+
 // Close releases the external cache connection pool.
 func (r *Remote) Close() error {
 	if r == nil {

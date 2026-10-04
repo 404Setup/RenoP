@@ -8,7 +8,6 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
-import {$} from './jquery.js';
 
 let scrollToTopTimer = null;
 const dragScrollContainers = new WeakSet();
@@ -32,7 +31,7 @@ export function smoothScrollToTop(duration = 350, {
 
     let mainEl = document.body;
     for (const sel of mainSelectors) {
-        const found = $(sel).get(0);
+        const found = document.querySelector(sel);
         if (found) {
             mainEl = found;
             break;
@@ -90,10 +89,9 @@ export function enableDragToScroll(container) {
     let holdTimer = null;
     let dragFrame = null;
     let pendingScrollLeft = 0;
-    const $container = $(container);
 
     const getScrollTarget = () => {
-        const tabsContainer = $container.closest('.tabs-container').get(0);
+        const tabsContainer = container.closest('.tabs-container');
         if (tabsContainer && tabsContainer !== container
             && tabsContainer.scrollWidth > tabsContainer.clientWidth + 1) {
             return tabsContainer;
@@ -121,7 +119,8 @@ export function enableDragToScroll(container) {
                 dragFrame = null;
                 if (isDragging) activeScrollTarget.scrollLeft = pendingScrollLeft;
             }
-            $(activeScrollTarget).css('cursor', '').removeClass('is-dragging');
+            activeScrollTarget.style.cursor = '';
+            activeScrollTarget.classList.remove('is-dragging');
         }
         if (e && activePointerId !== null && container.releasePointerCapture) {
             try {
@@ -191,7 +190,8 @@ export function enableDragToScroll(container) {
             if (window.getSelection) {
                 window.getSelection().removeAllRanges();
             }
-            $(activeScrollTarget).css('cursor', 'grabbing').addClass('is-dragging');
+            activeScrollTarget.style.cursor = 'grabbing';
+            activeScrollTarget.classList.add('is-dragging');
         }
 
         if (isDragging) {

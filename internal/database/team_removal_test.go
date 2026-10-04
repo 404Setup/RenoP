@@ -30,7 +30,7 @@ func requireTeamRemovalMessage(t *testing.T, db *database.DB, recipient, format,
 	message := messages[0]
 	assert.Empty(t, message.Sender)
 	var payload map[string]string
-	require.NoError(t, json.Unmarshal(message.Payload, &payload))
+	require.NoError(t, json.UnmarshalOf(message.Payload, &payload))
 	assert.Equal(t, map[string]string{
 		"format": format, "repository": repository, "package": resource,
 	}, payload)

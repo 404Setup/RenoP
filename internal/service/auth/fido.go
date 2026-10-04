@@ -26,7 +26,6 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
-	"github.com/google/uuid"
 
 	"renop/internal/config"
 	"renop/internal/core"
@@ -36,6 +35,7 @@ import (
 	"renop/internal/service/token"
 	"renop/internal/utils"
 	"renop/internal/utils/protohttp"
+	"renop/pkg/id"
 	"renop/pkg/pb"
 )
 
@@ -375,7 +375,7 @@ func PostFidoRegisterBegin(c fiber.Ctx, state *core.AppState) error {
 		return c.Status(fiber.StatusBadRequest).SendString("Failed to begin registration: " + err.Error())
 	}
 
-	sessionID := uuid.NewString()
+	sessionID := id.New()
 	if !storeFidoSession(sessionID, sessionData, user.Username) {
 		return c.Status(fiber.StatusServiceUnavailable).SendString("FIDO session capacity reached")
 	}
@@ -434,7 +434,7 @@ func PostFidoRegisterFinish(c fiber.Ctx, state *core.AppState) error {
 	}
 
 	device := &core.FidoDevice{
-		ID:              uuid.NewString(),
+		ID:              id.New(),
 		Username:        user.Username,
 		Name:            deviceName,
 		CredentialID:    credential.ID,
@@ -617,7 +617,7 @@ func PostFidoLoginBegin(c fiber.Ctx, state *core.AppState) error {
 		return c.Status(fiber.StatusBadRequest).SendString("Failed to begin FIDO login: " + err.Error())
 	}
 
-	sessionID := uuid.NewString()
+	sessionID := id.New()
 	if !storeFidoSession(sessionID, sessionData, reqUsername) {
 		return c.Status(fiber.StatusServiceUnavailable).SendString("FIDO session capacity reached")
 	}

@@ -91,7 +91,7 @@ func TestAssembleAndValidatePayload(t *testing.T) {
 			Format:           "brotli",
 			Executable:       exe,
 		}
-		descData, err := json.Marshal(desc)
+		descData, err := json.MarshalOf(desc)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -119,7 +119,7 @@ func TestAssembleAndValidatePayload(t *testing.T) {
 		t.Fatalf("failed to read manifest.json: %v", err)
 	}
 	var manifest Manifest
-	if err := json.Unmarshal(manifestData, &manifest); err != nil {
+	if err := json.UnmarshalOf(manifestData, &manifest); err != nil {
 		t.Fatalf("failed to unmarshal manifest.json: %v", err)
 	}
 	if len(manifest.Targets) != len(targets) {

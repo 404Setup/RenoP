@@ -29,9 +29,10 @@ import (
 	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
+
+	"renop/pkg/id"
 
 	"renop/internal/config"
 	"renop/internal/core"
@@ -63,7 +64,7 @@ func saveRevocationSession(t *testing.T, state *core.AppState, p config.OAuthPro
 	t.Helper()
 	profile, err := state.GetDB().GetUserProfile(user)
 	require.NoError(t, err)
-	publicID := uuid.NewString()
+	publicID := id.New()
 	proof := &oauthSessionProof{ProviderID: p.ID, UserID: profile.UserID, Authority: p.Authority(p.Issuer), Issuer: p.Issuer,
 		Subject: user + "-subject", SessionID: sid, AuthorizedAt: authorizedAt, ConfigHash: oauthConfigurationHash(p),
 		Tokens: oauthTokens{AccessToken: "access-" + sid, RefreshToken: "refresh-" + sid}}
@@ -72,7 +73,7 @@ func saveRevocationSession(t *testing.T, state *core.AppState, p config.OAuthPro
 	require.NotContains(t, grant.EncryptedTokens, "access-")
 	session := &core.Session{Username: user, PublicID: publicID, LoginMethod: "oauth:" + p.ID, CreatedAt: time.Now().UnixMilli(), OAuthGrant: grant}
 	session.LastActive.Store(time.Now().UnixMilli())
-	secret := uuid.NewString()
+	secret := id.New()
 	require.NoError(t, state.SaveSession(session, secret))
 	return secret
 }
@@ -141,7 +142,7 @@ func TestSignedProviderRevocationScopesSessionsAndRejectsReplay(t *testing.T) {
 	app := fiber.New()
 	app.Use(AuthMiddleware(state))
 	setupOAuthRoutes(app.Group("/api/auth"), state)
-	event := &pb.ProviderRevocationRequest{EventId: uuid.NewString(), Subject: "alice-subject", SessionId: "target", IssuedAt: now}
+	event := &pb.ProviderRevocationRequest{EventId: id.New(), Subject: "alice-subject", SessionId: "target", IssuedAt: now}
 	send := func(payload *pb.ProviderRevocationRequest, key string) int {
 		t.Helper()
 		body, err := proto.Marshal(payload)
@@ -166,13 +167,13 @@ func TestSignedProviderRevocationScopesSessionsAndRejectsReplay(t *testing.T) {
 	event.IssuedAt = now + 1000
 	require.Equal(t, http.StatusOK, send(event, p.RevocationSecret))
 	require.NotNil(t, state.GetSession(fresh))
-	event.EventId, event.IssuedAt = uuid.NewString(), now-int64(11*time.Minute/time.Millisecond)
+	event.EventId, event.IssuedAt = id.New(), now-int64(11*time.Minute/time.Millisecond)
 	require.Equal(t, http.StatusBadRequest, send(event, p.RevocationSecret))
 	// Durable event history blocks a delayed proof even after process-local state is gone.
 	grant, err := state.GetDB().GetSessionOAuthGrant(fresh)
 	require.NoError(t, err)
 	grant.AuthorizedAt = now - 1000
-	stale := &core.Session{Username: "alice", PublicID: uuid.NewString(), CreatedAt: now, OAuthGrant: grant}
+	stale := &core.Session{Username: "alice", PublicID: id.New(), CreatedAt: now, OAuthGrant: grant}
 	stale.LastActive.Store(now)
 	require.ErrorIs(t, state.GetDB().SaveSession(stale, "delayed-proof"), core.ErrMFAInvalid)
 }
@@ -200,7 +201,7 @@ func TestOIDCBackchannelLogoutValidatesClaimsAndScope(t *testing.T) {
 	app.Use(AuthMiddleware(state))
 	setupOAuthRoutes(app.Group("/api/auth"), state)
 	send := func(change func(jwt.MapClaims)) int {
-		claims := jwt.MapClaims{"iss": provider.URL, "aud": "client", "iat": now, "exp": now + 60, "jti": uuid.NewString(),
+		claims := jwt.MapClaims{"iss": provider.URL, "aud": "client", "iat": now, "exp": now + 60, "jti": id.New(),
 			"sub": "alice-subject", "sid": "target", "events": map[string]any{"http://schemas.openid.net/event/backchannel-logout": map[string]any{}}}
 		change(claims)
 		token := jwt.NewWithClaims(jwt.SigningMethodES256, claims)

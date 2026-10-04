@@ -19,6 +19,11 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
+type accountLocaleRequest struct {
+	UserID string `json:"user_id"`
+	Locale string `json:"locale"`
+}
+
 func accountLocale(c fiber.Ctx, state *core.AppState) error {
 	setPrivateResponseHeaders(c)
 	user, err := requireAccountSession(c)
@@ -36,10 +41,7 @@ func accountLocale(c fiber.Ctx, state *core.AppState) error {
 		}
 		return c.JSON(fiber.Map{"user_id": profile.UserID, "username": profile.Username, "locale": locale.Match(profile.Locale)})
 	}
-	var request struct {
-		UserID string `json:"user_id"`
-		Locale string `json:"locale"`
-	}
+	var request accountLocaleRequest
 	if err := readMFARequest(c, &request); err != nil {
 		return err
 	}

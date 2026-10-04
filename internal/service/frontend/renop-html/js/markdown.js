@@ -9,6 +9,7 @@
  */
 
 import {Marked} from 'marked';
+import {el} from '@renop/ui/dom';
 
 const allowedMarkdownElements = new Set([
     'A', 'B', 'BLOCKQUOTE', 'BR', 'CODE', 'DEL', 'EM', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
@@ -106,7 +107,7 @@ function sanitizeMarkdownFragment(fragment) {
  */
 export function setSafeMarkdown(target, source) {
     if (!(target instanceof HTMLElement)) return;
-    const template = document.createElement('template');
+    const template = el('template');
     template.innerHTML = safeMarkdownParser.parse(String(source || ''));
     sanitizeMarkdownFragment(template.content);
     target.replaceChildren(template.content.cloneNode(true));

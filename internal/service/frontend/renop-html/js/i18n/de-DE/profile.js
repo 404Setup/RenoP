@@ -337,4 +337,8 @@ export default Object.freeze({
     "profile.apiTokenEditDesc": "Name und Berechtigungen des API-Tokens aktualisieren, ohne das Geheimnis zu ändern.",
     "profile.apiTokenEdited": "API-Token aktualisiert",
     "profile.apiTokenEditFailed": "Aktualisieren des API-Tokens fehlgeschlagen",
+    "profile.trafficQuotaTitle": "Download-Traffic-Kontingent",
+    "profile.trafficQuotaDesc": "Anzeigen Ihrer Download-Limits, des verbleibenden Kontingents und der Wiederherstellungsrate.",
+    "profile.trafficQuotaLoading": "Traffic-Kontingent wird geladen…",
+    "profile.trafficQuotaLoadFailed": "Fehler beim Laden des Traffic-Kontingents.",
 });

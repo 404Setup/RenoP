@@ -168,6 +168,7 @@ function searchResultTypeLabel(type) {
     if (normalized === 'DOMAIN') return t('search.domain');
     if (normalized === 'PACKAGE') return t('search.package');
     if (normalized === 'IMAGE') return t('search.image');
+    if (normalized === 'REPOSITORY') return t('search.repository') || t('search.package');
     return t('search.file');
 }
 
@@ -189,7 +190,7 @@ function buildSearchResult(result) {
     if (type === 'DIRECTORY') iconName = 'folder';
     else if (type === 'DOMAIN') iconName = 'network';
     else if (type === 'IMAGE') iconName = dockerRepositoryIcon;
-    else if (type === 'PACKAGE') iconName = activeRepositoryIcon;
+    else if (type === 'PACKAGE' || type === 'REPOSITORY') iconName = activeRepositoryIcon;
     const icon = createIcon(iconName);
     icon.classList.add('repository-search-result-icon');
     const copy = el('span', {class: 'repository-search-result-copy'},
@@ -380,6 +381,7 @@ function getSearchPlaceholder(format) {
     if (format === 'cargo') return t('search.cargoPlaceholder');
     if (format === 'docker') return t('search.dockerPlaceholder') || t('docker.searchPlaceholder');
     if (format === 'npm') return t('search.npmPlaceholder');
+    if (format === 'github' || format === 'gitlab') return t('search.gitPlaceholder');
     if (getRepositoryFormat(format).managedNative) return t('search.nativePlaceholder');
     if (format === 'files') return t('search.filesPlaceholder');
     return t('search.mavenPlaceholder');

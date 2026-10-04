@@ -16,7 +16,7 @@ import {readLegalTextResponse} from './legal-response.js';
 import {LocalizedResponseError} from './response-errors.js';
 import {createIcon} from './components/icon.js';
 
-const scopes = new Set(['password_login', 'registration', 'manual_mail', 'super_team_create', 'domain_create', 'package_create']);
+const scopes = new Set(['password_login', 'registration', 'manual_mail', 'super_team_create', 'domain_create', 'package_create', 'anti_abuse']);
 const providers = new Set(['recaptcha_v2', 'recaptcha_invisible', 'recaptcha_v3', 'turnstile', 'hcaptcha', 'friendlycaptcha']);
 let queue = Promise.resolve(), generation = 0, pending = 0, activeController;
 

@@ -33,6 +33,21 @@ import (
 	"renop/internal/utils"
 )
 
+type registerVerificationCodeRequest struct {
+	Email    string `json:"email"`
+	Provider string `json:"provider"`
+}
+
+type accountRegistrationRequest struct {
+	Provider     string `json:"provider"`
+	Username     string `json:"username"`
+	Nickname     string `json:"nickname"`
+	Email        string `json:"email"`
+	Password     string `json:"password"`
+	Code         string `json:"code"`
+	ImportAvatar bool   `json:"import_avatar"`
+}
+
 const registrationCookie = "renop_registration"
 
 func setupRegistrationRoutes(auth fiber.Router, state *core.AppState) {
@@ -114,7 +129,7 @@ func getRegistrationPending(c fiber.Ctx, state *core.AppState) error {
 		return registrationError(c, err)
 	}
 	profile := core.RegistrationProfile{}
-	if pending.ProfileJSON != "" && json.Unmarshal([]byte(pending.ProfileJSON), &profile) != nil {
+	if pending.ProfileJSON != "" && json.UnmarshalOf([]byte(pending.ProfileJSON), &profile) != nil {
 		return registrationError(c, core.ErrRegistrationInvalid)
 	}
 	available := false
@@ -153,10 +168,7 @@ func requestRegistrationCode(c fiber.Ctx, state *core.AppState) error {
 	if err := captcha.Require(c, state, config.CaptchaManualMail, config.CaptchaRegistration); err != nil {
 		return err
 	}
-	var request struct {
-		Email    string `json:"email"`
-		Provider string `json:"provider"`
-	}
+	var request registerVerificationCodeRequest
 	if err := readPasswordResetRequest(c, &request); err != nil {
 		if errors.Is(err, fiber.ErrRequestEntityTooLarge) || errors.Is(err, fiber.ErrUnsupportedMediaType) {
 			return err
@@ -237,15 +249,7 @@ func postRegistration(c fiber.Ctx, state *core.AppState) error {
 	if err := captcha.Require(c, state, config.CaptchaRegistration); err != nil {
 		return err
 	}
-	var request struct {
-		Provider     string `json:"provider"`
-		Username     string `json:"username"`
-		Nickname     string `json:"nickname"`
-		Email        string `json:"email"`
-		Password     string `json:"password"`
-		Code         string `json:"code"`
-		ImportAvatar bool   `json:"import_avatar"`
-	}
+	var request accountRegistrationRequest
 	if err := readPasswordResetRequest(c, &request); err != nil {
 		if errors.Is(err, fiber.ErrRequestEntityTooLarge) || errors.Is(err, fiber.ErrUnsupportedMediaType) {
 			return err
@@ -289,7 +293,7 @@ func postRegistration(c fiber.Ctx, state *core.AppState) error {
 	if providerConfigured {
 		pending, pendingErr := state.GetDB().GetPendingRegistration(registrationHash(capability), time.Now().UnixMilli())
 		var pendingProfile core.RegistrationProfile
-		if pendingErr != nil || json.Unmarshal([]byte(pending.ProfileJSON), &pendingProfile) != nil ||
+		if pendingErr != nil || json.UnmarshalOf([]byte(pending.ProfileJSON), &pendingProfile) != nil ||
 			pendingProfile.ProviderConfigHash != oauthConfigurationHash(provider) {
 			state.Inner.ConfigWriteLock.Unlock()
 			return registrationError(c, core.ErrRegistrationInvalid)

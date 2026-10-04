@@ -140,7 +140,7 @@ func (s *seedContext) npmPackages() error {
 		}
 		pkg.Description = "A preset JavaScript package for interface and CLI examples."
 		for i, version := range []string{"1.0.0", "1.1.0"} {
-			manifest, err := json.Marshal(map[string]any{"name": name, "version": version, "description": pkg.Description,
+			manifest, err := json.MarshalOf(map[string]any{"name": name, "version": version, "description": pkg.Description,
 				"license": "MIT", "homepage": "https://example.com", "repository": map[string]string{"type": "git", "url": "https://example.com/source"},
 				"readme": "# " + name + "\n\nA demonstration package.\n\n```sh\nnpm install " + name + "\n```", "engines": map[string]string{"node": ">=22"}})
 			if err != nil {
@@ -189,7 +189,7 @@ func (s *seedContext) dockerPackages() error {
 					return err
 				}
 			}
-			body, err := json.Marshal(map[string]any{"schemaVersion": 2, "mediaType": "application/vnd.oci.image.manifest.v1+json",
+			body, err := json.MarshalOf(map[string]any{"schemaVersion": 2, "mediaType": "application/vnd.oci.image.manifest.v1+json",
 				"config": map[string]any{"mediaType": "application/vnd.oci.image.config.v1+json", "digest": configuration, "size": 512},
 				"layers": []any{map[string]any{"mediaType": "application/vnd.oci.image.layer.v1.tar+gzip", "digest": layer, "size": size}}})
 			if err != nil {

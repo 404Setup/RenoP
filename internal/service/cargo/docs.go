@@ -24,7 +24,7 @@ import (
 	"renop/internal/core"
 	"renop/internal/service/audit"
 	"renop/internal/service/auth"
-	"renop/internal/service/cargodocs"
+	"renop/internal/service/cargo/docs"
 	"renop/internal/service/status"
 	"renop/internal/utils"
 )

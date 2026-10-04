@@ -54,7 +54,7 @@ func TestPersistentIndexSignatures(t *testing.T) {
 	if state.Inner.Config.Load().NativeSigningKeys != keys {
 		t.Fatal("restart rotated signing keys")
 	}
-	encoded, err := json.Marshal(reloaded)
+	encoded, err := json.MarshalOf(reloaded)
 	if err != nil {
 		t.Fatal(err)
 	}

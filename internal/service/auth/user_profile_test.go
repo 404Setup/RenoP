@@ -11,6 +11,7 @@
 package auth
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -21,12 +22,14 @@ import (
 	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	"renop/internal/config"
 	"renop/internal/core"
 	"renop/internal/database"
 	"renop/internal/service/token"
 	"renop/internal/testutil"
+	"renop/pkg/pb"
 )
 
 func TestUserProfileRoutesValidateAndRateLimitRenames(t *testing.T) {
@@ -265,14 +268,13 @@ func TestUserProfileRoutesValidateAndRateLimitRenames(t *testing.T) {
 	currentRoles = []string{"base"}
 	response = profileRequest(t, app, http.MethodGet, "/users/profiles?names=alice,bobby,missing", "")
 	require.Equal(t, http.StatusOK, response.StatusCode)
-	var batch struct {
-		Profiles []userProfileResponse `json:"profiles"`
-	}
-	require.NoError(t, json.NewDecoder(response.Body).Decode(&batch))
+	bodyBytes, err := io.ReadAll(response.Body)
+	require.NoError(t, err)
 	require.NoError(t, response.Body.Close())
+	var batch pb.UserProfilesResponse
+	require.NoError(t, proto.Unmarshal(bodyBytes, &batch))
 	require.Len(t, batch.Profiles, 2)
 	for _, profile := range batch.Profiles {
-		require.Nil(t, profile.GitHub)
 		require.False(t, profile.PrivateDetails)
 	}
 

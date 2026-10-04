@@ -21,10 +21,10 @@ import (
 	"sync"
 
 	"github.com/goccy/go-json"
-	"github.com/google/uuid"
 
 	"renop/internal/config"
 	"renop/internal/core"
+	"renop/pkg/id"
 )
 
 const maxReviewResourceKey = 1024
@@ -288,7 +288,7 @@ func reviewUserTx(tx *Tx, userID string) (*config.User, error) {
 func reviewUserFromPermissions(username, encoded string) (*config.User, error) {
 	permissions := make([]string, 0)
 	if encoded != "" {
-		if err := json.Unmarshal([]byte(encoded), &permissions); err != nil {
+		if err := json.UnmarshalOf([]byte(encoded), &permissions); err != nil {
 			return nil, fmt.Errorf("decode review account permissions: %w", err)
 		}
 	}
@@ -392,7 +392,7 @@ func (db *DB) CreateSuperTeamTransferReview(request core.SuperTeamTransferReques
 		return nil, fmt.Errorf("inspect pending transfer review: %w", err)
 	}
 	task := &core.ReviewTask{
-		ID: uuid.NewString(), Kind: core.ReviewKindSuperTeamTransfer,
+		ID: id.New(), Kind: core.ReviewKindSuperTeamTransfer,
 		ResourceType: request.ResourceType, Repository: request.Repository, ResourceKey: request.ResourceKey,
 		ResourceName: resource.name, SourceTeamPrefix: resource.binding, TargetTeamPrefix: target,
 		ReviewTeamPrefix: reviewTeam, RequestedByID: actorID, RequestedBy: actor,
@@ -920,7 +920,8 @@ func (db *DB) DecideReviewTask(id, actor, decision, reason string, decidedAt int
 	if err != nil || changed != 1 {
 		return nil, core.ErrReviewTaskConflict
 	}
-	if task.Kind == core.ReviewKindPublication || task.Kind == core.ReviewKindMavenRestore {
+	if task.Kind == core.ReviewKindPublication || task.Kind == core.ReviewKindMavenRestore ||
+		task.Kind == core.ReviewKindGitRepoRegistration || task.Kind == core.ReviewKindGitRepoQuota {
 		if _, err := tx.Exec(`DELETE FROM review_task_payloads WHERE task_id = ?`, task.ID); err != nil {
 			return nil, fmt.Errorf("delete publication review payload: %w", err)
 		}

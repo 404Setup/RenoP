@@ -19,8 +19,7 @@ import (
 	"time"
 
 	"renop/internal/core"
-
-	"github.com/google/uuid"
+	"renop/pkg/id"
 )
 
 func mfaStateQuery(query func(string, ...any) row, username string) (*core.MFAState, error) {
@@ -116,7 +115,7 @@ func (db *DB) UpdateMFA(username, snapshot, secret string, passkey bool, lastSte
 	if _, err = tx.Exec(`DELETE FROM user_mfa WHERE user_id = ?`, current.UserID); err != nil {
 		return err
 	}
-	if _, err = tx.Exec(`INSERT INTO user_mfa (user_id, secret, revision, passkey_enabled, last_step, window_start, failures) VALUES (?, ?, ?, ?, ?, 0, 0)`, current.UserID, secret, uuid.NewString(), boolInt(passkey), lastStep); err != nil {
+	if _, err = tx.Exec(`INSERT INTO user_mfa (user_id, secret, revision, passkey_enabled, last_step, window_start, failures) VALUES (?, ?, ?, ?, ?, 0, 0)`, current.UserID, secret, id.New(), boolInt(passkey), lastStep); err != nil {
 		return err
 	}
 	if _, err = tx.Exec(`DELETE FROM sessions WHERE username = ? AND session_token <> ?`, username, keepSession); err != nil {

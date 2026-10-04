@@ -8,7 +8,8 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
-import {collapseElement, expandElement, morphElementHeight} from '@renop/ui/height-anim';
+import {awaitLayoutSettled, collapseElement, expandElement, morphElementHeight} from '@renop/ui/height-anim';
+import {el} from '@renop/ui/dom';
 import {formatBytes} from './utils.js';
 import {fetchProto} from '../api.js';
 import {t} from '../i18n.js';
@@ -27,52 +28,35 @@ function ensureMirrorsModal() {
     let modal = document.getElementById('repo-mirrors-modal');
     if (modal) return modal;
 
-    modal = document.createElement('div');
-    modal.id = 'repo-mirrors-modal';
-    modal.className = 'modal';
-    modal.style.display = 'none';
-    modal.setAttribute('role', 'dialog');
-    modal.setAttribute('aria-modal', 'true');
-    modal.setAttribute('aria-labelledby', 'repo-mirrors-modal-title');
+    const close = () => closeModalWithAnim(modal);
 
-    const backdrop = document.createElement('div');
-    backdrop.className = 'modal-backdrop';
+    const closeButton = el('button', {
+        class: 'close-btn',
+        type: 'button',
+        'aria-label': t('details.closeMirrors'),
+        onClick: close
+    }, '\u00d7');
 
-    const content = document.createElement('div');
-    content.className = 'modal-content mirrors-modal-content';
+    const header = el('div', {class: 'modal-header'},
+        el('h3', {id: 'repo-mirrors-modal-title', class: 'modal-title'}, t('details.mirrors')),
+        el('p', {id: 'repo-mirrors-modal-subtitle', class: 'mirrors-modal-subtitle'}, t('details.mirrorsSubtitle'))
+    );
 
-    const closeButton = document.createElement('button');
-    closeButton.className = 'close-btn';
-    closeButton.type = 'button';
-    closeButton.setAttribute('aria-label', t('details.closeMirrors'));
-    closeButton.textContent = '\u00d7';
+    const body = el('div', {id: 'repo-mirrors-modal-content', class: 'modal-body mirrors-modal-body'});
 
-    const header = document.createElement('div');
-    header.className = 'modal-header';
-    const title = document.createElement('h3');
-    title.id = 'repo-mirrors-modal-title';
-    title.className = 'modal-title';
-    title.textContent = t('details.mirrors');
-    const subtitle = document.createElement('p');
-    subtitle.className = 'mirrors-modal-subtitle';
-    subtitle.id = 'repo-mirrors-modal-subtitle';
-    subtitle.textContent = t('details.mirrorsSubtitle');
-    header.append(title, subtitle);
+    const backdrop = el('div', {class: 'modal-backdrop', onClick: close});
+    const content = el('div', {class: 'modal-content mirrors-modal-content'}, closeButton, header, body);
 
-    const body = document.createElement('div');
-    body.id = 'repo-mirrors-modal-content';
-    body.className = 'modal-body mirrors-modal-body';
+    modal = el('div', {
+        id: 'repo-mirrors-modal',
+        class: 'modal',
+        style: 'display: none',
+        role: 'dialog',
+        'aria-modal': 'true',
+        'aria-labelledby': 'repo-mirrors-modal-title'
+    }, backdrop, content);
 
-    content.append(closeButton, header, body);
-    modal.append(backdrop, content);
     document.body.appendChild(modal);
-
-    const close = () => {
-        closeModalWithAnim(modal);
-    };
-    closeButton.addEventListener('click', close);
-    backdrop.addEventListener('click', close);
-
     return modal;
 }
 
@@ -102,19 +86,14 @@ function openMirrorsModal(mirrors) {
  * @returns {HTMLElement}
  */
 function buildStatRow(label, value, options = {}) {
-    const row = document.createElement('div');
-    row.className = 'repo-stat-row' + (options.nested ? ' repo-stat-row--nested' : '') + (options.strong ? ' repo-stat-row--strong' : '');
+    const className = 'repo-stat-row'
+        + (options.nested ? ' repo-stat-row--nested' : '')
+        + (options.strong ? ' repo-stat-row--strong' : '');
 
-    const labelEl = document.createElement('span');
-    labelEl.className = 'repo-stat-label';
-    labelEl.textContent = label;
-
-    const valueEl = document.createElement('span');
-    valueEl.className = 'repo-stat-value';
-    valueEl.textContent = value;
-
-    row.append(labelEl, valueEl);
-    return row;
+    return el('div', {class: className},
+        el('span', {class: 'repo-stat-label'}, label),
+        el('span', {class: 'repo-stat-value'}, value)
+    );
 }
 
 /**
@@ -127,10 +106,9 @@ function renderRepoStatsContent(repoStatsContent, data) {
     const mirrors = Array.isArray(data.mirrors) ? data.mirrors : [];
     repoStatsContent.replaceChildren();
 
-    const statsBlock = document.createElement('div');
-    statsBlock.className = 'repo-stats-block' + (mirrors.length > 0 ? ' repo-stats-block--with-mirrors' : '');
-
-    statsBlock.append(
+    const statsBlock = el('div', {
+        class: 'repo-stats-block' + (mirrors.length > 0 ? ' repo-stats-block--with-mirrors' : '')
+    },
         buildStatRow(t('stats.repoSize'), formatBytes(data.total_size), {strong: true}),
         buildStatRow(t('stats.artifactsSize'), formatBytes(data.artifact_size), {nested: true}),
         buildStatRow(t('stats.metadataSize'), formatBytes(data.metadata_size), {nested: true}),
@@ -147,23 +125,12 @@ function renderRepoStatsContent(repoStatsContent, data) {
     repoStatsContent.appendChild(statsBlock);
 
     if (mirrors.length > 0) {
-        const section = document.createElement('div');
-        section.className = 'repo-mirrors-section';
+        const heading = el('div', {class: 'repo-mirrors-heading'},
+            el('h4', {class: 'repo-mirrors-title'}, t('details.mirrors')),
+            el('span', {class: 'repo-mirrors-count'}, String(mirrors.length))
+        );
 
-        const heading = document.createElement('div');
-        heading.className = 'repo-mirrors-heading';
-        const headingTitle = document.createElement('h4');
-        headingTitle.className = 'repo-mirrors-title';
-        headingTitle.textContent = t('details.mirrors');
-        const count = document.createElement('span');
-        count.className = 'repo-mirrors-count';
-        count.textContent = String(mirrors.length);
-        heading.append(headingTitle, count);
-        section.appendChild(heading);
-
-        const mirrorList = document.createElement('div');
-        mirrorList.className = 'repo-mirrors-list';
-        mirrorList.appendChild(createMirrorCard(mirrors[0]));
+        const mirrorList = el('div', {class: 'repo-mirrors-list'}, createMirrorCard(mirrors[0]));
 
         if (mirrors.length > 1) {
             const expandButton = createButton(t('details.viewAllMirrors', {count: mirrors.length}), {
@@ -175,7 +142,7 @@ function renderRepoStatsContent(repoStatsContent, data) {
             mirrorList.appendChild(expandButton);
         }
 
-        section.appendChild(mirrorList);
+        const section = el('div', {class: 'repo-mirrors-section'}, heading, mirrorList);
         repoStatsContent.appendChild(section);
     }
 }
@@ -255,6 +222,8 @@ export async function updateRepoStats(repoName, detailsPromise) {
             }
         } else {
             renderRepoStatsContent(repoStatsContent, data);
+            // The sidebar column may still be widening; measuring now would overshoot the height.
+            await awaitLayoutSettled(repoStatsCard);
             if (seq !== statsLoadSeq) return;
             await expandElement(repoStatsCard, {
                 duration: 360,

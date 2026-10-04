@@ -129,6 +129,8 @@ message InstanceStatus {
   UpdateState update_state = 17;
   uint64 vss_memory = 18;
   bool debug_mode = 19;
+  uint64 database_used_bytes = 20;
+  uint64 cache_used_bytes = 21;
 }
 
 message StatusSnapshot {
@@ -225,6 +227,19 @@ message S3Config {
   string key_prefix = 9;
 }
 
+message GitRepoPolicy {
+  string mode = 1;
+  int64 max_version_size_bytes = 2;
+  int64 max_daily_traffic_bytes = 3;
+  optional bool retain_latest_workflow_runs = 4;
+  optional bool retain_latest_releases = 5;
+  int32 quota_request_cooldown_hours = 6;
+  string super_team_prefix = 7;
+  string owner = 8;
+  repeated string registered_repos = 9;
+  map<string, GitRepoQuota> repo_quotas = 10;
+}
+
 message Repository {
   string name = 1;
   string visibility = 2;
@@ -236,10 +251,40 @@ message Repository {
   string format = 7;
   // Maximum committed artifact bytes, including mirrors; zero is unlimited.
   optional int64 capacity_limit_bytes = 8;
+  optional string proxy = 9;
+  optional GitRepoPolicy git_repo = 10;
+  optional string github_token = 11;
+  optional string gitlab_token = 12;
 }
 
 message MavenRepositoriesResponse {
   map<string, Repository> repositories = 1;
+}
+
+message RepositoryDownloadStatisticsResponse {
+  map<string, bool> repositories = 1;
+}
+
+message UpdateRepositoryDownloadStatisticsRequest {
+  bool enabled = 1;
+}
+
+message RepositoryDownloadStatisticsEntry {
+  string repository = 1;
+  bool enabled = 2;
+}
+
+message RepositoryPublicationReviewsResponse {
+  map<string, string> repositories = 1;
+}
+
+message UpdateRepositoryPublicationReviewRequest {
+  string policy = 1;
+}
+
+message RepositoryPublicationReviewEntry {
+  string repository = 1;
+  string policy = 2;
 }
 
 message FileDetails {
@@ -713,3 +758,194 @@ message RepositorySearchResponse {
   bool has_more = 4;
 }
 
+message MavenDomainConfig {
+  int32 release_value = 1;
+  string release_unit = 2;
+}
+
+message SuperTeamConfig {
+  int32 create_limit = 1;
+  int32 join_limit = 2;
+}
+
+message PublicationQuotaConfig {
+  int64 file_limit = 1;
+  int64 byte_limit = 2;
+  int64 publication_limit = 3;
+  string period = 4;
+}
+
+message ProfileLinkVisibility {
+  bool github = 1;
+  bool gitlab = 2;
+}
+
+message ProviderProfileLink {
+  string name = 1;
+  string url = 2;
+}
+
+message UserProfileLinks {
+  string website = 1;
+  string github = 2;
+  string discord = 3;
+  string custom_name = 4;
+  string custom_url = 5;
+  repeated ProviderProfileLink providers = 6;
+  optional ProfileLinkVisibility visibility = 7;
+}
+
+message UserProfileDto {
+  bool private = 1;
+  string user_id = 2;
+  string username = 3;
+  string nickname = 4;
+  string created_at = 5;
+  bool own_profile = 6;
+  bool private_details = 7;
+  bool administrator_view = 8;
+  int32 username_changes_remaining = 9;
+  int64 username_change_window_resets_at = 10;
+  int32 maven_domain_count = 11;
+  int32 cargo_package_count = 12;
+  int32 docker_image_count = 13;
+  int32 npm_package_count = 14;
+  UserProfileLinks links = 15;
+  string avatar_url = 16;
+  uint32 avatar_max_size_bytes = 17;
+  int64 deleted_at = 18;
+}
+
+message UserProfilesResponse {
+  repeated UserProfileDto profiles = 1;
+}
+
+message GitRepoQuota {
+  int64 max_version_size_bytes = 1;
+  int64 max_daily_traffic_bytes = 2;
+  optional bool retain_latest_workflow_runs = 3;
+  optional bool retain_latest_releases = 4;
+}
+
+message GitRepoPolicyResponse {
+  string mode = 1;
+  int64 max_version_size_bytes = 2;
+  int64 max_daily_traffic_bytes = 3;
+  bool retain_latest_workflow_runs = 4;
+  bool retain_latest_releases = 5;
+  int32 quota_request_cooldown_hours = 6;
+  string super_team_prefix = 7;
+  string owner = 8;
+  repeated string registered_repos = 9;
+  int64 daily_traffic_today_bytes = 10;
+  string target_repo = 11;
+  bool is_locked = 12;
+}
+
+message TableStat {
+  string name = 1;
+  int64 row_count = 2;
+  int64 size_bytes = 3;
+  bool reclaimable = 4;
+}
+
+message DatabaseStatsResponse {
+  string driver = 1;
+  uint64 total_size_bytes = 2;
+  repeated TableStat tables = 3;
+  int64 reclaimable_rows = 4;
+  uint64 reclaimable_bytes = 5;
+}
+
+message DatabaseCleanupResponse {
+  int64 cleaned_rows = 1;
+  uint64 reclaimed_bytes = 2;
+}
+
+message StorageItem {
+  string category = 1;
+  string name = 2;
+  uint64 size_bytes = 3;
+  int32 count = 4;
+}
+
+message StorageStatsResponse {
+  uint64 renop_used_bytes = 1;
+  uint64 disk_used_bytes = 2;
+  uint64 disk_total_bytes = 3;
+  uint64 disk_free_bytes = 4;
+  int32 temp_files_count = 5;
+  uint64 temp_files_bytes = 6;
+  int32 updater_residuals_count = 7;
+  uint64 updater_residuals_bytes = 8;
+  repeated StorageItem items = 9;
+}
+
+message StorageCleanupResponse {
+  int32 cleaned_files = 1;
+  uint64 reclaimed_bytes = 2;
+}
+
+message CacheStatsResponse {
+  uint64 total_bytes = 1;
+  int32 entries_count = 2;
+  string mode = 3;
+  uint64 file_cache_bytes = 4;
+  uint64 native_index_bytes = 5;
+  int32 db_cache_entries = 6;
+  uint64 db_cache_bytes = 7;
+  uint64 remote_cache_bytes = 8;
+}
+
+message CachePurgeResponse {
+  uint64 reclaimed_bytes = 1;
+  bool success = 2;
+}
+
+message TrafficTierDto {
+  double limit_mb = 1;
+  double remaining_mb = 2;
+  double used_mb = 3;
+  bool enabled = 4;
+}
+
+message TrafficQuotaStatus {
+  string subject_type = 1;
+  string subject_key = 2;
+  bool unlimited = 3;
+  TrafficTierDto hourly = 4;
+  TrafficTierDto daily = 5;
+  TrafficTierDto monthly = 6;
+  double recovery_amount_mb = 7;
+  int64 recovery_interval_s = 8;
+  double multi_thread_multiplier = 9;
+}
+
+message TrafficQuotaUserOverrideRequest {
+  optional double hourly_limit_mb = 1;
+  optional double daily_limit_mb = 2;
+  optional double monthly_limit_mb = 3;
+  optional bool hourly_enabled = 4;
+  optional bool daily_enabled = 5;
+  optional bool monthly_enabled = 6;
+  optional double recovery_amount_mb = 7;
+  optional int64 recovery_interval_s = 8;
+  optional bool unlimited = 9;
+}
+
+message TrafficTierConfig {
+  double hourly_limit_mb = 1;
+  double daily_limit_mb = 2;
+  double monthly_limit_mb = 3;
+  bool hourly_enabled = 4;
+  bool daily_enabled = 5;
+  bool monthly_enabled = 6;
+  double recovery_amount_mb = 7;
+  int64 recovery_interval_s = 8;
+}
+
+message TrafficLimitConfig {
+  TrafficTierConfig unauthenticated = 1;
+  TrafficTierConfig authenticated = 2;
+  double multi_thread_multiplier = 3;
+}

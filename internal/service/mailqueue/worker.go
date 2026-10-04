@@ -31,7 +31,7 @@ import (
 	"renop/internal/core"
 	"renop/internal/mail"
 	"renop/internal/service/audit"
-	"renop/internal/service/outboundproxy"
+	"renop/internal/service/proxy/outbound"
 )
 
 type completion struct {
@@ -121,7 +121,7 @@ func Start(state *core.AppState, configPath string) (func(), error) {
 }
 
 func (w *worker) configureClient(cfg *config.Config) error {
-	encoded, err := json.Marshal(cfg.Proxy)
+	encoded, err := json.MarshalOf(cfg.Proxy)
 	if err != nil {
 		return err
 	}

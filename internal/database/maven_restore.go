@@ -19,9 +19,9 @@ import (
 	"time"
 
 	"github.com/goccy/go-json"
-	"github.com/google/uuid"
 
 	"renop/internal/core"
+	"renop/pkg/id"
 )
 
 type mavenRestoreSnapshot struct {
@@ -132,7 +132,7 @@ func (db *DB) CreateMavenRestoreReview(repository, groupID, artifactID, actor, s
 	if total >= maxPendingPublicationReviews || owned >= maxPendingPublicationPerAccount {
 		return nil, core.ErrReviewFileLimit
 	}
-	task := &core.ReviewTask{ID: uuid.NewString(), Kind: core.ReviewKindMavenRestore,
+	task := &core.ReviewTask{ID: id.New(), Kind: core.ReviewKindMavenRestore,
 		ResourceType: core.ReviewResourceMavenArtifact, Repository: repository, ResourceKey: key, ResourceName: key,
 		SourceTeamPrefix: sourceTeam, TargetTeamPrefix: targetTeam, RequestedByID: account.UserID,
 		RequestedBy: sanitizeMavenUsername(actor), Status: core.ReviewStatusPending, CreatedAt: createdAt, ActiveKey: activeKey}
@@ -145,7 +145,7 @@ func (db *DB) CreateMavenRestoreReview(repository, groupID, artifactID, actor, s
 		task.RequestedBy, task.Status, createdAt, activeKey); err != nil {
 		return nil, err
 	}
-	payload, err := json.Marshal(snapshot)
+	payload, err := json.MarshalOf(snapshot)
 	if err != nil {
 		return nil, err
 	}
@@ -168,7 +168,7 @@ func applyMavenRestoreTx(tx *Tx, task *core.ReviewTask) error {
 		return reviewResourceError(err)
 	}
 	var expected mavenRestoreSnapshot
-	if len(encoded) > 2048 || json.Unmarshal([]byte(encoded), &expected) != nil {
+	if len(encoded) > 2048 || json.UnmarshalOf([]byte(encoded), &expected) != nil {
 		return core.ErrReviewResourceConflict
 	}
 	current, sourceTeam, targetTeam, err := mavenRestoreStateTx(tx, task.Repository, groupID, artifactID, task.RequestedByID)

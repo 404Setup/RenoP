@@ -76,7 +76,7 @@ func beginPasswordPasskey(c fiber.Ctx, state *core.AppState) error {
 	if err != nil {
 		return mfaError(c, err)
 	}
-	encoded, err := json.Marshal(data)
+	encoded, err := json.MarshalOf(data)
 	if err != nil || len(encoded) > 64<<10 {
 		return mfaError(c, core.ErrMFAInvalid)
 	}
@@ -131,7 +131,7 @@ func passwordChangeProof(c fiber.Ctx, state *core.AppState, username, session st
 			return change, core.ErrMFAInvalid
 		}
 		var data webauthn.SessionData
-		if err := json.Unmarshal([]byte(proof.Verifier), &data); err != nil {
+		if err := json.UnmarshalOf([]byte(proof.Verifier), &data); err != nil {
 			return change, core.ErrMFAInvalid
 		}
 		credential, err := validateSecondFactorPasskey(c, state, username, data, request.PasskeyCredential)

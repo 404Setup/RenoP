@@ -29,6 +29,16 @@ import (
 	"renop/internal/utils"
 )
 
+type initiatePasswordResetRequest struct {
+	Email string `json:"email"`
+}
+
+type confirmPasswordResetRequest struct {
+	Email       string `json:"email"`
+	Code        string `json:"code"`
+	NewPassword string `json:"new_password"`
+}
+
 func setupPasswordResetRoutes(auth fiber.Router, state *core.AppState) {
 	auth.Get("/password-reset/status", func(c fiber.Ctx) error {
 		setPrivateResponseHeaders(c)
@@ -43,7 +53,7 @@ func passwordResetError(c fiber.Ctx, status int, code string) error {
 	return c.Status(status).JSON(fiber.Map{"error": code})
 }
 
-func readPasswordResetRequest(c fiber.Ctx, request any) error {
+func readPasswordResetRequest[T any](c fiber.Ctx, request *T) error {
 	contentType, _, err := mime.ParseMediaType(c.Get(fiber.HeaderContentType))
 	if err != nil || contentType != fiber.MIMEApplicationJSON {
 		return fiber.ErrUnsupportedMediaType
@@ -61,9 +71,7 @@ func requestEmailPasswordReset(c fiber.Ctx, state *core.AppState) error {
 	if !cfg.Mail.Enabled {
 		return passwordResetError(c, 404, "mail_disabled")
 	}
-	var request struct {
-		Email string `json:"email"`
-	}
+	var request initiatePasswordResetRequest
 	if err := readPasswordResetRequest(c, &request); err != nil {
 		if errors.Is(err, fiber.ErrRequestEntityTooLarge) || errors.Is(err, fiber.ErrUnsupportedMediaType) {
 			return err
@@ -123,11 +131,7 @@ func confirmEmailPasswordReset(c fiber.Ctx, state *core.AppState) error {
 	if !cfg.Mail.Enabled {
 		return passwordResetError(c, 404, "mail_disabled")
 	}
-	var request struct {
-		Email       string `json:"email"`
-		Code        string `json:"code"`
-		NewPassword string `json:"new_password"`
-	}
+	var request confirmPasswordResetRequest
 	if err := readPasswordResetRequest(c, &request); err != nil {
 		if errors.Is(err, fiber.ErrRequestEntityTooLarge) || errors.Is(err, fiber.ErrUnsupportedMediaType) {
 			return err

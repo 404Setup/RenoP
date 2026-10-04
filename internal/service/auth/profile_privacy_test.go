@@ -85,9 +85,9 @@ func TestPrivateProfilesAndSuggestionsRequireStaffAuthority(t *testing.T) {
 			request("GET", path, name, "", 200)
 		}
 	}
-	require.NotContains(t, request("GET", "/api/users/profiles?names=alice,alina", "bobby", "", 200), `"username":"alice"`)
-	require.Contains(t, request("GET", "/api/users/profiles?names=alice,alina", "globalmod", "", 200), `"username":"alice"`)
-	require.Contains(t, request("GET", "/api/users/profiles?names=alice,alina", "scopedmod", "", 200), `"username":"alice"`)
+	require.NotContains(t, request("GET", "/api/users/profiles?names=alice,alina", "bobby", "", 200), "alice")
+	require.Contains(t, request("GET", "/api/users/profiles?names=alice,alina", "globalmod", "", 200), "alice")
+	require.Contains(t, request("GET", "/api/users/profiles?names=alice,alina", "scopedmod", "", 200), "alice")
 	names, err := db.SearchTokenNames("ali", 1, now, false)
 	require.NoError(t, err)
 	require.Equal(t, []string{"alina"}, names, "privacy filtering must happen before LIMIT")
@@ -104,7 +104,7 @@ func TestPrivateProfilesAndSuggestionsRequireStaffAuthority(t *testing.T) {
 	public := fmt.Sprintf(`{"user_id":%q,"private":false}`, profile.UserID)
 	request("PUT", privacyPath, "alice", public, 200)
 	request("GET", "/api/users/alice/profile", "", "", 200)
-	require.Contains(t, request("GET", "/api/users/profiles?names=alice", "", "", 200), `"username":"alice"`)
+	require.Contains(t, request("GET", "/api/users/profiles?names=alice", "", "", 200), "alice")
 	_, err = state.RevokeSession("alice-session")
 	require.NoError(t, err)
 	request("PUT", privacyPath, "alice", payload, 401)

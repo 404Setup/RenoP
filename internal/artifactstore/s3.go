@@ -24,8 +24,8 @@ import (
 	"time"
 
 	"renop/pkg/hex"
+	"renop/pkg/id"
 
-	"github.com/google/uuid"
 	"github.com/minio/minio-go/v7"
 )
 
@@ -231,7 +231,7 @@ func (s S3) PutStream(ctx context.Context, key string, reader io.Reader, size in
 	if size >= 0 && size < S3DedupMinimumSize {
 		return s.PutRaw(ctx, key, reader, size, contentType)
 	}
-	temporary := strings.TrimSuffix(s.Prefix, "/") + "/staging/" + strconv.FormatInt(time.Now().UnixNano(), 10) + "-" + uuid.NewString()
+	temporary := strings.TrimSuffix(s.Prefix, "/") + "/staging/" + strconv.FormatInt(time.Now().UnixNano(), 10) + "-" + id.New()
 	defer func() {
 		cleanup, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()

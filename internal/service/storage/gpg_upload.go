@@ -22,7 +22,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
+	"renop/pkg/id"
 
 	"renop/internal/config"
 	"renop/internal/core"
@@ -273,7 +273,7 @@ func moveUploadToQuarantine(state *core.AppState, releaseID, part string, upload
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return "", fmt.Errorf("failed to create GPG quarantine: %w", err)
 	}
-	target := filepath.Join(dir, part+"."+uuid.NewString())
+	target := filepath.Join(dir, part+"."+id.New())
 	if err := utils.SafeRename(upload.TempPath, target); err != nil {
 		return "", fmt.Errorf("failed to quarantine GPG upload: %w", err)
 	}
@@ -295,7 +295,7 @@ func newGPGRelease(state *core.AppState, repository, artifactPath, username stri
 	}
 	now := time.Now().UnixMilli()
 	return &core.GPGRelease{
-		ID:           uuid.NewString(),
+		ID:           id.New(),
 		ActiveKey:    gpg.ArtifactKey(repository, artifactPath),
 		Repository:   repository,
 		ArtifactPath: artifactPath,

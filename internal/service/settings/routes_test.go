@@ -13,6 +13,7 @@ package settings
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
@@ -37,7 +38,7 @@ import (
 	"renop/internal/database"
 	"renop/internal/mail"
 	"renop/internal/service/index"
-	"renop/internal/service/javadocs"
+	"renop/internal/service/maven/javadocs"
 	"renop/internal/service/statistics"
 	"renop/internal/testutil"
 	"renop/internal/utils/protohttp"
@@ -289,13 +290,13 @@ func TestMailSettingsWriteOnlySecretsValidationAndQueuedTest(t *testing.T) {
 	require.NotContains(t, string(body), account.APIKey)
 	require.NotContains(t, string(body), cfg.Mail.EncryptionKey)
 	var settings mailSettingsResponse
-	require.NoError(t, json.Unmarshal(body, &settings))
+	require.NoError(t, json.UnmarshalOf(body, &settings))
 	require.Contains(t, settings.SecretsConfigured["primary"], "api_key")
 	settings.UseDisposableBlacklist = true
 	settings.Addresses = []string{".invalid"}
 	put := func(value mailSettingsRequest) *http.Response {
 		t.Helper()
-		raw, err := json.Marshal(value)
+		raw, err := json.MarshalOf(value)
 		require.NoError(t, err)
 		request := httptest.NewRequest("PUT", "/mail", bytes.NewReader(raw))
 		request.Header.Set("Content-Type", "application/json")
@@ -326,7 +327,7 @@ func TestMailSettingsWriteOnlySecretsValidationAndQueuedTest(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 202, response.StatusCode, string(body))
 	var receipt struct{ ID, Ticket, Status string }
-	require.NoError(t, json.Unmarshal(body, &receipt))
+	require.NoError(t, json.UnmarshalOf(body, &receipt))
 	require.NotEmpty(t, receipt.Ticket)
 	require.Equal(t, "queued", receipt.Status)
 	job, err := db.GetMailJob(receipt.ID, cfg.Mail.EncryptionKey)
@@ -1437,25 +1438,22 @@ func TestRepositoryDownloadStatisticsSettingsAndReset(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, db.Close()) })
 	state.Inner.DB = db
 
-	request := httptest.NewRequest(http.MethodGet, "/repositories/download-statistics", nil)
-	response, err := app.Test(request)
-	require.NoError(t, err)
+	var status pb.RepositoryDownloadStatisticsResponse
+	response := protoGET(t, app, "/repositories/download-statistics", &status)
 	require.Equal(t, http.StatusOK, response.StatusCode)
-	var status struct {
-		Repositories map[string]bool `json:"repositories"`
-	}
-	require.NoError(t, json.NewDecoder(response.Body).Decode(&status))
 	require.NoError(t, response.Body.Close())
 	assert.True(t, status.Repositories["releases"])
 	assert.False(t, status.Repositories["files"])
 
-	request = httptest.NewRequest(http.MethodPut, "/repositories/files/download-statistics",
-		strings.NewReader(`{"enabled":true}`))
-	request.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
-	response, err = app.Test(request)
+	putResp := protoPUT(t, app, "/repositories/files/download-statistics", &pb.UpdateRepositoryDownloadStatisticsRequest{Enabled: true})
+	require.Equal(t, http.StatusOK, putResp.StatusCode)
+	var entry pb.RepositoryDownloadStatisticsEntry
+	putBody, err := io.ReadAll(putResp.Body)
 	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, response.StatusCode)
-	require.NoError(t, response.Body.Close())
+	require.NoError(t, putResp.Body.Close())
+	require.NoError(t, proto.Unmarshal(putBody, &entry))
+	assert.Equal(t, "files", entry.Repository)
+	assert.True(t, entry.Enabled)
 	files := state.Inner.Config.Load().Maven.Repositories["files"]
 	require.NotNil(t, files.DownloadStatistics)
 	assert.True(t, files.DownloadStatisticsEnabled())
@@ -1464,14 +1462,40 @@ func TestRepositoryDownloadStatisticsSettingsAndReset(t *testing.T) {
 		Repository: "files", Format: config.RepositoryFormatFiles, Package: "release.zip", Bytes: 128,
 	})
 	require.NoError(t, statistics.GetCounter(state).Flush())
-	request = httptest.NewRequest(http.MethodDelete, "/repositories/files/download-statistics", nil)
-	response, err = app.Test(request)
+	request := httptest.NewRequest(http.MethodDelete, "/repositories/files/download-statistics", nil)
+	deleteResp, err := app.Test(request)
 	require.NoError(t, err)
-	require.Equal(t, http.StatusNoContent, response.StatusCode)
-	require.NoError(t, response.Body.Close())
+	require.Equal(t, http.StatusNoContent, deleteResp.StatusCode)
+	require.NoError(t, deleteResp.Body.Close())
 	var count int
 	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM download_statistics WHERE repository = ?`, "files").Scan(&count))
 	assert.Zero(t, count)
+}
+
+func TestRepositoryDownloadStatisticsManyRepositoriesProtobuf(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.StoragePath = testutil.TempDir(t)
+	cfg.Maven.Repositories = make(map[string]*config.Repository)
+	for i := range 15 {
+		name := fmt.Sprintf("repository-%02d", i)
+		cfg.Maven.Repositories[name] = &config.Repository{
+			Name:       name,
+			Format:     config.RepositoryFormatMaven,
+			Visibility: "PUBLIC",
+		}
+	}
+	app, _ := setupSettingsTestApp(t, cfg)
+
+	var status pb.RepositoryDownloadStatisticsResponse
+	response := protoGET(t, app, "/repositories/download-statistics", &status)
+	require.Equal(t, http.StatusOK, response.StatusCode)
+	require.NoError(t, response.Body.Close())
+
+	assert.Len(t, status.Repositories, 15)
+	for i := range 15 {
+		name := fmt.Sprintf("repository-%02d", i)
+		assert.True(t, status.Repositories[name])
+	}
 }
 
 func TestRepositoryPublicationReviewSettingsSupportPackageEngines(t *testing.T) {
@@ -1488,24 +1512,23 @@ func TestRepositoryPublicationReviewSettingsSupportPackageEngines(t *testing.T) 
 	}
 	app, state := setupSettingsTestApp(t, cfg)
 
-	request := httptest.NewRequest(http.MethodGet, "/repositories/publication-reviews", nil)
-	response, err := app.Test(request)
-	require.NoError(t, err)
+	var policies pb.RepositoryPublicationReviewsResponse
+	response := protoGET(t, app, "/repositories/publication-reviews", &policies)
 	require.Equal(t, http.StatusOK, response.StatusCode)
-	var policies struct {
-		Repositories map[string]string `json:"repositories"`
-	}
-	require.NoError(t, json.NewDecoder(response.Body).Decode(&policies))
 	require.NoError(t, response.Body.Close())
 	assert.Equal(t, config.PublicationReviewOff, policies.Repositories["releases"])
 
-	request = httptest.NewRequest(http.MethodPut, "/repositories/releases/publication-review",
-		strings.NewReader(`{"policy":"every_version"}`))
-	request.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
-	response, err = app.Test(request)
+	putResp := protoPUT(t, app, "/repositories/releases/publication-review", &pb.UpdateRepositoryPublicationReviewRequest{
+		Policy: "every_version",
+	})
+	require.Equal(t, http.StatusOK, putResp.StatusCode)
+	var reviewEntry pb.RepositoryPublicationReviewEntry
+	reviewBody, err := io.ReadAll(putResp.Body)
 	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, response.StatusCode)
-	require.NoError(t, response.Body.Close())
+	require.NoError(t, putResp.Body.Close())
+	require.NoError(t, proto.Unmarshal(reviewBody, &reviewEntry))
+	assert.Equal(t, "releases", reviewEntry.Repository)
+	assert.Equal(t, config.PublicationReviewEveryVersion, reviewEntry.Policy)
 	releases := state.Inner.Config.Load().Maven.Repositories["releases"]
 	assert.Equal(t, config.PublicationReviewEveryVersion, releases.PublicationReviewPolicy())
 	assert.False(t, releases.AllowRedeployment)
@@ -1530,6 +1553,7 @@ func TestRepositoryPublicationReviewSettingsSupportPackageEngines(t *testing.T) 
 	assert.Equal(t, http.StatusConflict, response.StatusCode)
 	assert.Equal(t, "repository_pending_review", response.Header.Get("X-Renop-Error-Code"))
 	require.NoError(t, response.Body.Close())
+	var request *http.Request
 	request = httptest.NewRequest(http.MethodPut, "/repositories/releases/publication-review",
 		strings.NewReader(`{"policy":"off"}`))
 	request.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)

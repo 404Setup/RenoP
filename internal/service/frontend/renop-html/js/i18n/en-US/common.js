@@ -54,7 +54,7 @@ export default Object.freeze({
     "prompt.copied": "Copied to clipboard",
     "footer.organization": "Organization",
     "footer.privacyPolicy": "Privacy Policy",
-    "footer.legalNotice": "Legal Notice",
+    "footer.legalNotice": "DMCA & Legal Notice",
     "footer.allRights": "All rights reserved.",
     "footer.licenseNotice": "Source code is available under the Mozilla Public License 2.0.",
     "modal.close": "Close modal",

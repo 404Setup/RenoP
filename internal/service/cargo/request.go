@@ -33,7 +33,7 @@ func decodeJSON(c fiber.Ctx, destination any) error {
 	if err := decoder.Decode(destination); err != nil {
 		return err
 	}
-	var extra any
+	var extra json.RawMessage
 	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
 		return errors.New("request must contain one JSON value")
 	}

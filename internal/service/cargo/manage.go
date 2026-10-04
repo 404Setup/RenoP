@@ -21,7 +21,7 @@ import (
 	"renop/internal/config"
 	"renop/internal/core"
 	"renop/internal/service/audit"
-	"renop/internal/service/cargodocs"
+	"renop/internal/service/cargo/docs"
 	"renop/internal/utils"
 )
 

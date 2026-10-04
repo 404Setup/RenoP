@@ -9,6 +9,7 @@
  */
 
 import {renderProfileAvatar} from '../user-profiles.js';
+import {el} from '@renop/ui/dom';
 
 /**
  * Initials avatar custom element with deterministic gradient color.
@@ -82,7 +83,5 @@ if (!customElements.get('renop-user-avatar')) {
  * @returns {HTMLElement}
  */
 export function createUserAvatar(name) {
-    const avatar = document.createElement('renop-user-avatar');
-    avatar.setAttribute('name', name || '');
-    return avatar;
+    return el('renop-user-avatar', {name: name || ''});
 }

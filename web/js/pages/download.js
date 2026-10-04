@@ -9,7 +9,7 @@
  */
 
 import {getCurrentLang, t} from '../i18n.js';
-import {clear, el, registerTabContainer, updateTabIndicator} from '@renop/ui';
+import {clear, el, registerTabContainer, retriggerClass, updateTabIndicator} from '@renop/ui';
 import {bindModalChrome, closeModalWithAnim, openModalWithAnim} from '@renop/ui/modal';
 import {
     detectPlatform,
@@ -496,9 +496,7 @@ export async function renderDownload({root}) {
         });
         updateTabIndicator(tabsEl);
 
-        list.classList.remove('is-switching');
-        void list.offsetWidth;
-        list.classList.add('is-switching');
+        retriggerClass(list, 'is-switching');
 
         void fetchAndRender();
     }
@@ -560,9 +558,7 @@ export async function renderDownload({root}) {
     }
 
     function animateAndRenderPage() {
-        list.classList.remove('is-switching');
-        void list.offsetWidth;
-        list.classList.add('is-switching');
+        retriggerClass(list, 'is-switching');
         renderPageContent();
     }
 

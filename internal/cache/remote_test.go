@@ -140,3 +140,14 @@ func TestCacheDefaultsAndBounds(t *testing.T) {
 		}
 	}
 }
+
+func TestRemoteFlushNil(t *testing.T) {
+	var r *Remote
+	if err := r.Flush(context.Background()); err != nil {
+		t.Fatalf("expected nil error on nil Remote.Flush, got: %v", err)
+	}
+	r = &Remote{}
+	if err := r.Flush(context.Background()); err != nil {
+		t.Fatalf("expected nil error on empty Remote.Flush, got: %v", err)
+	}
+}

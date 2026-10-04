@@ -8,17 +8,46 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
-import {readdirSync, readFileSync} from 'node:fs';
+import {existsSync, readdirSync, readFileSync} from 'node:fs';
 import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import vm from 'node:vm';
 
+/**
+ * Locate the shared UI package sources from a consumer root.
+ * @param {string} root - Consumer directory (frontend or website).
+ * @returns {string|null} Absolute path to `packages/renop-ui/js`, or null when absent.
+ */
+function sharedUiDir(root) {
+    let current = root;
+    for (let depth = 0; depth < 8; depth += 1) {
+        const candidate = join(current, 'packages', 'renop-ui', 'js');
+        if (existsSync(candidate)) return candidate;
+        const parent = dirname(current);
+        if (parent === current) break;
+        current = parent;
+    }
+    return null;
+}
+
 /** Render component trees without browser globals for existing markup contract tests. @param {string|URL} file */
 export function renderHTML(file) {
-    const entry = file instanceof URL ? fileURLToPath(file) : file;
+    const entry = resolve(file instanceof URL ? fileURLToPath(file) : file);
     const root = dirname(entry);
     const element = (tag, attrs = {}, ...children) => ({tag, attrs, children: children.flat(Infinity)});
     const context = vm.createContext({el: element, svg: element});
+    // Views call shared element factories, so evaluate the real shared sources
+    // (those that depend only on el/svg) instead of stubbing each one per test.
+    const sharedUi = sharedUiDir(root);
+    if (sharedUi) {
+        for (const name of ['nav-controls.js']) {
+            const file = join(sharedUi, name);
+            if (!existsSync(file)) continue;
+            const source = readFileSync(file, 'utf8')
+                .replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '');
+            vm.runInContext(source, context, {filename: `renop-ui/${name}`});
+        }
+    }
     for (const name of readdirSync(join(root, 'js/views'))) {
         const source = readFileSync(join(root, 'js/views', name), 'utf8')
             .replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '');

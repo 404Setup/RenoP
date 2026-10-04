@@ -195,6 +195,26 @@ func FromRepository(r *config.Repository) *Repository {
 		mirrors = append(mirrors, FromMirror(m))
 	}
 	capacity := r.CapacityLimitBytes
+	var proxy *string
+	if r.Proxy != "" {
+		p := r.Proxy
+		proxy = &p
+	}
+	var gitPolicy *GitRepoPolicy
+	if r.GitRepo != nil {
+		gitPolicy = FromGitRepoPolicy(r.GitRepo)
+	} else if r.NormalizedFormat() == config.RepositoryFormatGithub || r.NormalizedFormat() == config.RepositoryFormatGitLab {
+		gitPolicy = FromGitRepoPolicy(config.DefaultGitRepoPolicy())
+	}
+	var githubToken, gitlabToken *string
+	if r.GitHubToken != "" {
+		t := r.GitHubToken
+		githubToken = &t
+	}
+	if r.GitLabToken != "" {
+		t := r.GitLabToken
+		gitlabToken = &t
+	}
 	return &Repository{
 		Name:                r.Name,
 		CapacityLimitBytes:  &capacity,
@@ -204,6 +224,96 @@ func FromRepository(r *config.Repository) *Repository {
 		AllowRedeployment:   r.AllowRedeployment,
 		RequireGpgSignature: r.RequireGPGSignature,
 		S3:                  FromS3Config(r.S3),
+		Proxy:               proxy,
+		GitRepo:             gitPolicy,
+		GithubToken:         githubToken,
+		GitlabToken:         gitlabToken,
+	}
+}
+
+func FromGitRepoPolicy(p *config.GitRepoPolicy) *GitRepoPolicy {
+	if p == nil {
+		return nil
+	}
+	var retainWorkflows *bool
+	if p.RetainLatestWorkflowRuns != nil {
+		v := *p.RetainLatestWorkflowRuns
+		retainWorkflows = &v
+	}
+	var retainReleases *bool
+	if p.RetainLatestReleases != nil {
+		v := *p.RetainLatestReleases
+		retainReleases = &v
+	}
+	var quotas map[string]*GitRepoQuota
+	if p.RepoQuotas != nil {
+		quotas = make(map[string]*GitRepoQuota, len(p.RepoQuotas))
+		for k, v := range p.RepoQuotas {
+			if v == nil {
+				continue
+			}
+			quotas[k] = &GitRepoQuota{
+				MaxVersionSizeBytes:      v.MaxVersionSizeBytes,
+				MaxDailyTrafficBytes:     v.MaxDailyTrafficBytes,
+				RetainLatestWorkflowRuns: v.RetainLatestWorkflowRuns,
+				RetainLatestReleases:     v.RetainLatestReleases,
+			}
+		}
+	}
+	return &GitRepoPolicy{
+		Mode:                      p.EffectiveMode(),
+		MaxVersionSizeBytes:       p.MaxVersionSizeBytes,
+		MaxDailyTrafficBytes:      p.MaxDailyTrafficBytes,
+		RetainLatestWorkflowRuns:  retainWorkflows,
+		RetainLatestReleases:      retainReleases,
+		QuotaRequestCooldownHours: int32(p.QuotaRequestCooldownHours),
+		SuperTeamPrefix:           p.SuperTeamPrefix,
+		Owner:                     p.Owner,
+		RegisteredRepos:           append([]string(nil), p.RegisteredRepos...),
+		RepoQuotas:                quotas,
+	}
+}
+
+func ToGitRepoPolicy(p *GitRepoPolicy) *config.GitRepoPolicy {
+	if p == nil {
+		return nil
+	}
+	var retainWorkflows *bool
+	if p.RetainLatestWorkflowRuns != nil {
+		v := *p.RetainLatestWorkflowRuns
+		retainWorkflows = &v
+	}
+	var retainReleases *bool
+	if p.RetainLatestReleases != nil {
+		v := *p.RetainLatestReleases
+		retainReleases = &v
+	}
+	var quotas map[string]*config.GitRepoQuota
+	if p.RepoQuotas != nil {
+		quotas = make(map[string]*config.GitRepoQuota, len(p.RepoQuotas))
+		for k, v := range p.RepoQuotas {
+			if v == nil {
+				continue
+			}
+			quotas[k] = &config.GitRepoQuota{
+				MaxVersionSizeBytes:      v.MaxVersionSizeBytes,
+				MaxDailyTrafficBytes:     v.MaxDailyTrafficBytes,
+				RetainLatestWorkflowRuns: v.RetainLatestWorkflowRuns,
+				RetainLatestReleases:     v.RetainLatestReleases,
+			}
+		}
+	}
+	return &config.GitRepoPolicy{
+		Mode:                      strings.TrimSpace(p.Mode),
+		MaxVersionSizeBytes:       p.MaxVersionSizeBytes,
+		MaxDailyTrafficBytes:      p.MaxDailyTrafficBytes,
+		RetainLatestWorkflowRuns:  retainWorkflows,
+		RetainLatestReleases:      retainReleases,
+		QuotaRequestCooldownHours: int(p.QuotaRequestCooldownHours),
+		SuperTeamPrefix:           strings.TrimSpace(p.SuperTeamPrefix),
+		Owner:                     strings.TrimSpace(p.Owner),
+		RegisteredRepos:           append([]string(nil), p.RegisteredRepos...),
+		RepoQuotas:                quotas,
 	}
 }
 
@@ -215,6 +325,14 @@ func FromMavenRepositories(repos map[string]*config.Repository) *MavenRepositori
 		out.Repositories[k] = FromRepository(r)
 	}
 	return out
+}
+
+func FromRepositoryDownloadStatistics(stats map[string]bool) *RepositoryDownloadStatisticsResponse {
+	return &RepositoryDownloadStatisticsResponse{Repositories: stats}
+}
+
+func FromRepositoryPublicationReviews(reviews map[string]string) *RepositoryPublicationReviewsResponse {
+	return &RepositoryPublicationReviewsResponse{Repositories: reviews}
 }
 
 func FromFrontendConfig(f config.FrontendConfig) *FrontendConfig {
@@ -522,6 +640,18 @@ func ToRepository(r *Repository) *config.Repository {
 		}
 		mirrors = append(mirrors, ToMirror(m))
 	}
+	proxy := ""
+	if r.Proxy != nil {
+		proxy = *r.Proxy
+	}
+	githubToken := ""
+	if r.GithubToken != nil {
+		githubToken = *r.GithubToken
+	}
+	gitlabToken := ""
+	if r.GitlabToken != nil {
+		gitlabToken = *r.GitlabToken
+	}
 	return &config.Repository{
 		Name:                r.Name,
 		CapacityLimitBytes:  r.GetCapacityLimitBytes(),
@@ -531,6 +661,10 @@ func ToRepository(r *Repository) *config.Repository {
 		AllowRedeployment:   r.AllowRedeployment,
 		RequireGPGSignature: r.RequireGpgSignature,
 		S3:                  ToS3Config(r.S3),
+		Proxy:               proxy,
+		GitRepo:             ToGitRepoPolicy(r.GitRepo),
+		GitHubToken:         githubToken,
+		GitLabToken:         gitlabToken,
 	}
 }
 
@@ -799,5 +933,154 @@ func FromSendNotification(sent int64) *SendNotificationResponse {
 func FromUserSearch(users []string) *UserSearchResponse {
 	return &UserSearchResponse{
 		Users: append([]string(nil), users...),
+	}
+}
+
+func FromMavenDomainConfig(c config.MavenDomainConfig) *MavenDomainConfig {
+	return &MavenDomainConfig{
+		ReleaseValue: int32(c.ReleaseValue),
+		ReleaseUnit:  c.ReleaseUnit,
+	}
+}
+
+func ToMavenDomainConfig(m *MavenDomainConfig) config.MavenDomainConfig {
+	if m == nil {
+		return config.MavenDomainConfig{}
+	}
+	return config.MavenDomainConfig{
+		ReleaseValue: int(m.ReleaseValue),
+		ReleaseUnit:  m.ReleaseUnit,
+	}
+}
+
+func FromSuperTeamConfig(c config.SuperTeamConfig) *SuperTeamConfig {
+	return &SuperTeamConfig{
+		CreateLimit: int32(c.CreateLimit),
+		JoinLimit:   int32(c.JoinLimit),
+	}
+}
+
+func ToSuperTeamConfig(s *SuperTeamConfig) config.SuperTeamConfig {
+	if s == nil {
+		return config.SuperTeamConfig{}
+	}
+	return config.SuperTeamConfig{
+		CreateLimit: int(s.CreateLimit),
+		JoinLimit:   int(s.JoinLimit),
+	}
+}
+
+func FromPublicationQuotaConfig(c config.PublicationQuotaConfig) *PublicationQuotaConfig {
+	return &PublicationQuotaConfig{
+		FileLimit:        c.FileLimit,
+		ByteLimit:        c.ByteLimit,
+		PublicationLimit: c.PublicationLimit,
+		Period:           c.Period,
+	}
+}
+
+func ToPublicationQuotaConfig(p *PublicationQuotaConfig) config.PublicationQuotaConfig {
+	if p == nil {
+		return config.PublicationQuotaConfig{}
+	}
+	return config.PublicationQuotaConfig{
+		FileLimit:        p.FileLimit,
+		ByteLimit:        p.ByteLimit,
+		PublicationLimit: p.PublicationLimit,
+		Period:           p.Period,
+	}
+}
+
+func FromDatabaseStats(s *core.DatabaseStats) *DatabaseStatsResponse {
+	if s == nil {
+		return &DatabaseStatsResponse{}
+	}
+	tables := make([]*TableStat, 0, len(s.Tables))
+	for _, t := range s.Tables {
+		tables = append(tables, &TableStat{
+			Name:        t.Name,
+			RowCount:    t.RowCount,
+			SizeBytes:   t.SizeBytes,
+			Reclaimable: t.Reclaimable,
+		})
+	}
+	return &DatabaseStatsResponse{
+		Driver:           s.Driver,
+		TotalSizeBytes:   s.TotalSizeBytes,
+		Tables:           tables,
+		ReclaimableRows:  s.ReclaimableRows,
+		ReclaimableBytes: s.ReclaimableBytes,
+	}
+}
+
+func FromDatabaseCleanupResult(r *core.DatabaseCleanupResult) *DatabaseCleanupResponse {
+	if r == nil {
+		return &DatabaseCleanupResponse{}
+	}
+	return &DatabaseCleanupResponse{
+		CleanedRows:    r.CleanedRows,
+		ReclaimedBytes: r.ReclaimedBytes,
+	}
+}
+
+func FromStorageStats(s *core.StorageStats) *StorageStatsResponse {
+	if s == nil {
+		return &StorageStatsResponse{}
+	}
+	items := make([]*StorageItem, 0, len(s.Items))
+	for _, it := range s.Items {
+		items = append(items, &StorageItem{
+			Category:  it.Category,
+			Name:      it.Name,
+			SizeBytes: it.SizeBytes,
+			Count:     int32(it.Count),
+		})
+	}
+	return &StorageStatsResponse{
+		RenopUsedBytes:        s.RenopUsedBytes,
+		DiskUsedBytes:         s.DiskUsedBytes,
+		DiskTotalBytes:        s.DiskTotalBytes,
+		DiskFreeBytes:         s.DiskFreeBytes,
+		TempFilesCount:        int32(s.TempFilesCount),
+		TempFilesBytes:        s.TempFilesBytes,
+		UpdaterResidualsCount: int32(s.UpdaterResidualsCount),
+		UpdaterResidualsBytes: s.UpdaterResidualsBytes,
+		Items:                 items,
+	}
+}
+
+func FromStorageCleanupResult(r *core.StorageCleanupResult) *StorageCleanupResponse {
+	if r == nil {
+		return &StorageCleanupResponse{}
+	}
+	return &StorageCleanupResponse{
+		CleanedFiles:   int32(r.CleanedFiles),
+		ReclaimedBytes: r.ReclaimedBytes,
+	}
+}
+
+func FromCacheStats(s *core.CacheStats) *CacheStatsResponse {
+	if s == nil {
+		return &CacheStatsResponse{}
+	}
+	return &CacheStatsResponse{
+		TotalBytes:       s.TotalBytes,
+		EntriesCount:     int32(s.EntriesCount),
+		Mode:             s.Mode,
+		FileCacheBytes:   s.FileCacheBytes,
+		NativeIndexBytes: s.NativeIndexBytes,
+		DbCacheEntries:   int32(s.DBCacheEntries),
+		DbCacheBytes:     s.DBCacheBytes,
+		RemoteCacheBytes: s.RemoteCacheBytes,
+	}
+}
+
+func FromCacheCleanupResult(r *core.CacheCleanupResult) *CachePurgeResponse {
+	if r == nil {
+		return &CachePurgeResponse{}
+	}
+	return &CachePurgeResponse{
+		ReclaimedBytes: r.ReclaimedBytes,
+		Success:        r.Success,
 	}
 }

@@ -12,7 +12,6 @@ package api
 
 import (
 	"bytes"
-	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -27,6 +26,7 @@ import (
 	"renop/internal/service/index"
 	"renop/internal/testutil"
 
+	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/require"
 )
@@ -54,7 +54,7 @@ func TestNativeResourceAPIRequiresOwnershipAndBrowserSession(t *testing.T) {
 	setupNativeRoutes(app.Group("/api"), state)
 	request := func(method, suffix, user string, payload any) (int, []byte) {
 		t.Helper()
-		data, err := json.Marshal(payload)
+		data, err := json.MarshalOf(payload)
 		require.NoError(t, err)
 		req := httptest.NewRequest(method, "/api/native/repositories/native/resources"+suffix, bytes.NewReader(data))
 		req.Header.Set("Content-Type", "application/json")

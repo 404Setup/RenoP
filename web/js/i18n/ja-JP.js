@@ -29,6 +29,7 @@ export default {
 
     "footer.copyright": "RenoP は Mozilla Public License 2.0 の下で公開されているオープンソースソフトウェアです。",
 
+    "home.timeSinceUpdate": "RenoP は {time} 更新されていません",
     "home.title": "セルフホスト型パッケージリポジトリ",
     "home.lead": "Maven、Cargo、npm、Docker/OCI、汎用ファイルの各リポジトリを、上流ミラーと管理 UI を備えた一つのサービスで運用できます。",
     "home.download": "ダウンロード",

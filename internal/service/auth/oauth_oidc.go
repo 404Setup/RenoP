@@ -44,6 +44,10 @@ type oauthJWK struct {
 	Issuer string `json:"issuer"`
 }
 
+type oauthJWKSDocument struct {
+	Keys []oauthJWK `json:"keys"`
+}
+
 func oauthSigningKey(jwk oauthJWK, algorithm string) (any, error) {
 	invalid := errors.New("OAuth signing key is invalid")
 	if jwk.Use != "" && jwk.Use != "sig" || jwk.Alg != "" && jwk.Alg != algorithm {
@@ -137,9 +141,7 @@ func verifyOAuthIDToken(ctx context.Context, client *http.Client, p config.OAuth
 // parseOAuthJWT verifies the configured signing authority before callers apply token-specific claims.
 func parseOAuthJWT(ctx context.Context, client *http.Client, p config.OAuthProviderConfig, raw string) (jwt.MapClaims, error) {
 	invalid := errors.New("OAuth JWT verification failed")
-	var keys struct {
-		Keys []oauthJWK `json:"keys"`
-	}
+	var keys oauthJWKSDocument
 	if err := getOAuthJSON(ctx, client, p.JWKSURL, "", &keys); err != nil {
 		return nil, err
 	}

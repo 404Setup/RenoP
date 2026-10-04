@@ -25,6 +25,10 @@ import (
 	"renop/internal/core"
 )
 
+type oauthRevokeErrorResponse struct {
+	Error string `json:"error"`
+}
+
 var providerRevocationSlots = make(chan struct{}, 8)
 
 // revokeProviderTokens transmits only server-held credentials to their original configured authority.
@@ -46,7 +50,7 @@ func revokeProviderTokens(ctx context.Context, cfg *config.Config, proof *oauthS
 	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
 	if proof.ProviderID == "github" {
-		payload, _ := json.Marshal(map[string]string{"access_token": proof.Tokens.AccessToken})
+		payload, _ := json.MarshalOf(map[string]string{"access_token": proof.Tokens.AccessToken})
 		req, err := http.NewRequestWithContext(ctx, http.MethodDelete, strings.TrimRight(proof.GitHubAPIURL, "/")+"/applications/"+url.PathEscape(cfg.Server.GitHubOAuth.ClientID)+"/token", bytes.NewReader(payload))
 		if err != nil {
 			return "failed"
@@ -112,10 +116,8 @@ func sendProviderRevocation(client *http.Client, req *http.Request) string {
 		return "revoked"
 	}
 	if response.StatusCode == http.StatusBadRequest && req.URL.Hostname() == "oauth2.googleapis.com" {
-		var result struct {
-			Error string `json:"error"`
-		}
-		if json.Unmarshal(body, &result) == nil && result.Error == "invalid_token" {
+		var result oauthRevokeErrorResponse
+		if json.UnmarshalOf(body, &result) == nil && result.Error == "invalid_token" {
 			return "revoked"
 		}
 	}

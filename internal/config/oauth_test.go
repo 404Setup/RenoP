@@ -98,7 +98,7 @@ func TestOAuthProviderConfiguration(t *testing.T) {
 		require.NoError(t, err)
 		var restored ServerConfig
 		if json.Valid(data) {
-			err = json.Unmarshal(data, &restored)
+			err = json.UnmarshalOf(data, &restored)
 		} else {
 			err = yaml.Unmarshal(data, &restored)
 		}

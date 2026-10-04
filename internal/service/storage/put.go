@@ -30,7 +30,6 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
-	"github.com/google/uuid"
 
 	"renop/internal/artifactstore"
 	"renop/internal/config"
@@ -40,12 +39,13 @@ import (
 	"renop/internal/service/auth"
 	"renop/internal/service/gpg"
 	"renop/internal/service/index"
-	"renop/internal/service/javadocs"
+	"renop/internal/service/maven/javadocs"
 	"renop/internal/service/nativepkg"
 	"renop/internal/service/publicationquota"
 	"renop/internal/service/repositorygate"
 	"renop/internal/service/status"
 	"renop/internal/utils"
+	"renop/pkg/id"
 )
 
 type ArtifactChecksumEntry struct {
@@ -154,7 +154,7 @@ func HandlePut(c fiber.Ctx, state *core.AppState, repo *config.Repository, local
 		return c.Status(fiber.StatusInternalServerError).SendString("Internal Server Error")
 	}
 
-	uniqueID := uuid.New().String()
+	uniqueID := id.New()
 	tmpPath := localFilePath + ".tmp." + uniqueID
 
 	file, err := os.Create(tmpPath)

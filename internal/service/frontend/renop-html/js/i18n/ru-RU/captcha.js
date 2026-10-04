@@ -32,6 +32,7 @@ export default Object.freeze({
     "captcha.scope.super_team_create": "Создание глобальных команд",
     "captcha.scope.domain_create": "Создание доменов публикации",
     "captcha.scope.package_create": "Создание пакетов",
+    "captcha.scope.anti_abuse": "Защита от накрутки и ограничение частоты",
     "captcha.loading": "Загрузка проверки…",
     "captcha.complete": "Пройдите проверку безопасности для продолжения.",
     "captcha.consent": "Разрешите стороннюю проверку в настройках cookie.",

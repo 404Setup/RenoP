@@ -8,7 +8,7 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
-import {el} from '@renop/ui/dom';
+import {byId, el} from '@renop/ui/dom';
 import {morphElementHeight, prefersReducedMotion} from '@renop/ui/height-anim';
 import {openModalWithAnim} from '@renop/ui/modal';
 import {fetchProto, postProto, sendProto} from './api.js';
@@ -83,12 +83,12 @@ export function registerMessageRenderer(kind, renderer) {
 export function initMessageCenter() {
     if (initialized) return;
     initialized = true;
-    document.getElementById('message-center-close')?.addEventListener('click', closeMessageCenter);
-    document.getElementById('message-center-backdrop')?.addEventListener('click', closeMessageCenter);
-    document.getElementById('message-mark-all-read')?.addEventListener('click', markAllRead);
-    document.getElementById('message-clear-all')?.addEventListener('click', clearAllMessages);
-    document.getElementById('message-center-list')?.addEventListener('click', handleMessageListClick);
-    const loadMore = document.getElementById('message-load-more');
+    byId('message-center-close')?.addEventListener('click', closeMessageCenter);
+    byId('message-center-backdrop')?.addEventListener('click', closeMessageCenter);
+    byId('message-mark-all-read')?.addEventListener('click', markAllRead);
+    byId('message-clear-all')?.addEventListener('click', clearAllMessages);
+    byId('message-center-list')?.addEventListener('click', handleMessageListClick);
+    const loadMore = byId('message-load-more');
     bindLoadMoreButton(loadMore);
     syncLoadMoreButton(loadMore);
     window.addEventListener('authChanged', handleAuthChanged);
@@ -103,7 +103,7 @@ export function initMessageCenter() {
  * @returns {Promise<void>}
  */
 export async function openMessageCenter() {
-    const modal = document.getElementById('message-center-modal');
+    const modal = byId('message-center-modal');
     if (!modal || !cachedIsLoggedIn) return;
     openModalWithAnim(modal);
     await fetchMessages(true);
@@ -114,7 +114,7 @@ export async function openMessageCenter() {
  * @returns {void}
  */
 function closeMessageCenter() {
-    const modal = document.getElementById('message-center-modal');
+    const modal = byId('message-center-modal');
     if (modal) closeModalWithAnim(modal);
 }
 
@@ -128,8 +128,8 @@ async function fetchMessages(reset, requestedCursor = '') {
     if (loading) return;
     if (!reset && !requestedCursor) return;
     loading = true;
-    const loadingNode = document.getElementById('message-center-loading');
-    const loadMore = document.getElementById('message-load-more');
+    const loadingNode = byId('message-center-loading');
+    const loadMore = byId('message-load-more');
     if (loadingNode && reset) loadingNode.hidden = false;
     if (loadMore) {
         loadMore.setAttribute('aria-busy', 'true');
@@ -241,10 +241,10 @@ async function loadMoreMessages(cursor) {
  * @returns {void}
  */
 function renderMessages(focusMessageID = '', animateEntries = false, hideLoading = false) {
-    const body = document.getElementById('message-center-body');
-    const list = document.getElementById('message-center-list');
-    const empty = document.getElementById('message-center-empty');
-    const loadMore = document.getElementById('message-load-more');
+    const body = byId('message-center-body');
+    const list = byId('message-center-list');
+    const empty = byId('message-center-empty');
+    const loadMore = byId('message-load-more');
     if (!list || !empty || !loadMore) return;
     let focusedCard = null;
 
@@ -254,7 +254,7 @@ function renderMessages(focusMessageID = '', animateEntries = false, hideLoading
      */
     function mutateMessageDOM() {
         if (hideLoading) {
-            const loadingNode = document.getElementById('message-center-loading');
+            const loadingNode = byId('message-center-loading');
             if (loadingNode) loadingNode.hidden = true;
         }
         empty.hidden = messages.length !== 0;
@@ -521,7 +521,7 @@ async function clearAllMessages() {
  * @returns {void}
  */
 function setClearMessagesBusy(busy) {
-    const button = document.getElementById('message-clear-all');
+    const button = byId('message-clear-all');
     if (!button) return;
     button.classList.toggle('is-loading', busy);
     button.setAttribute('aria-busy', String(busy));
@@ -532,8 +532,8 @@ function setClearMessagesBusy(busy) {
  * @returns {void}
  */
 function updateMessageToolbarState() {
-    const markAll = document.getElementById('message-mark-all-read');
-    const clearAll = document.getElementById('message-clear-all');
+    const markAll = byId('message-mark-all-read');
+    const clearAll = byId('message-clear-all');
     if (markAll) markAll.disabled = loading || unreadCount === 0;
     if (clearAll) clearAll.disabled = clearingMessages || loading || (messages.length === 0 && !nextCursor);
 }
@@ -554,7 +554,7 @@ async function deleteMessage(message) {
         const card = findMessageCard(message.id);
         const showEmpty = remainingMessages.length === 0 && !nextCursor;
         const resizePlan = card ? prepareMessageRemovalDialogResize([card], showEmpty) : null;
-        const empty = document.getElementById('message-center-empty');
+        const empty = byId('message-center-empty');
         const emptyAnimation = showEmpty ? expandMessageEmptyState(empty, 220) : Promise.resolve();
         await Promise.all([
             collapseMessageCard(message.id),
@@ -712,7 +712,7 @@ async function animateDismissibleMessagesOut() {
         const showEmpty = retainedMessages.length === 0;
         const resizePlan = prepareMessageRemovalDialogResize(removableCards, showEmpty);
         const animations = [animateMessageDialogResize(resizePlan, 220)];
-        const empty = document.getElementById('message-center-empty');
+        const empty = byId('message-center-empty');
         if (showEmpty) animations.push(expandMessageEmptyState(empty, 220));
         for (const card of removableCards) {
             card.classList.add('is-leaving');
@@ -731,8 +731,8 @@ async function animateDismissibleMessagesOut() {
  * @returns {void}
  */
 function syncMessageListControls() {
-    const empty = document.getElementById('message-center-empty');
-    const loadMore = document.getElementById('message-load-more');
+    const empty = byId('message-center-empty');
+    const loadMore = byId('message-load-more');
     if (empty) empty.hidden = messages.length !== 0;
     syncLoadMoreButton(loadMore);
     updateMessageToolbarState();
@@ -780,8 +780,8 @@ function beginMessageDialogResize() {
  * @returns {{dialog: HTMLElement, from: number, to: number, generation: number}|null} Resize plan.
  */
 function prepareMessageRemovalDialogResize(cards, showEmpty) {
-    const empty = document.getElementById('message-center-empty');
-    const list = document.getElementById('message-center-list');
+    const empty = byId('message-center-empty');
+    const list = byId('message-center-list');
     const cardSnapshots = [];
     for (const card of cards) {
         cardSnapshots.push({card, hidden: card.hidden, style: card.getAttribute('style')});
@@ -933,8 +933,8 @@ export async function refreshMessageUnreadCount() {
 function setUnreadCount(count) {
     unreadCount = Math.max(0, Number.isFinite(count) ? Math.floor(count) : 0);
     const badges = [
-        document.getElementById('message-unread-badge'),
-        document.getElementById('profile-message-unread-badge'),
+        byId('message-unread-badge'),
+        byId('profile-message-unread-badge'),
     ].filter(Boolean);
     badges.forEach(badge => {
         badge.hidden = unreadCount === 0;

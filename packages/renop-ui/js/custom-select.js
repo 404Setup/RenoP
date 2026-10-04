@@ -8,8 +8,7 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
-import {el} from '@renop/ui/dom';
-import {$} from './jquery.js';
+import {css, el} from '@renop/ui/dom';
 
 let customSelectSequence = 0;
 let closeActiveSelect;
@@ -109,7 +108,9 @@ export function makeCustomSelect(options, current, onChange) {
     btn.appendChild(arrow);
 
     const dropdown = el('div', {class: 'custom-select-dropdown'});
-    const eventNamespace = `.renopCustomSelect${++customSelectSequence}`;
+    customSelectSequence += 1;
+    const listeners = new AbortController();
+    const {signal} = listeners;
     btn.id = `renop-select-${customSelectSequence}`;
     dropdown.id = `${btn.id}-options`;
     btn.setAttribute('aria-haspopup', 'listbox');
@@ -124,7 +125,7 @@ export function makeCustomSelect(options, current, onChange) {
      */
     function renderItems() {
         if (!dropdown.isConnected) return;
-        $(dropdown).empty();
+        dropdown.replaceChildren();
         normalized.forEach((opt) => {
             const isSelected = selectedOpt && opt.value === selectedOpt.value;
             const item = el('div', {
@@ -137,16 +138,16 @@ export function makeCustomSelect(options, current, onChange) {
                 check.appendChild(checkSvg());
                 item.appendChild(check);
             }
-            $(item).on('click', (e) => {
+            item.addEventListener('click', (e) => {
                 e.stopPropagation();
                 selectedOpt = opt;
                 currentVal = opt.value;
-                $(textSpan).text(opt.label);
+                textSpan.textContent = opt.label;
                 closeDropdown();
                 btn.focus({preventScroll: true});
                 if (typeof onChange === 'function') onChange(opt.value);
             });
-            $(dropdown).append(item);
+            dropdown.append(item);
         });
     }
 
@@ -158,7 +159,7 @@ export function makeCustomSelect(options, current, onChange) {
     function applySelection(opt) {
         selectedOpt = opt;
         currentVal = opt ? opt.value : '';
-        $(textSpan).text(opt ? opt.label : '');
+        textSpan.textContent = opt ? opt.label : '';
     }
 
     /**
@@ -170,19 +171,19 @@ export function makeCustomSelect(options, current, onChange) {
         const dropW = Math.max(rect.width, 160);
         const maxLeft = Math.max(0, window.innerWidth - dropW - 6);
         const left = Math.min(rect.left, maxLeft);
-        $(dropdown).css({
+        css(dropdown, {
             left: `${left}px`,
             width: `${dropW}px`,
             display: 'block',
             visibility: 'hidden',
         });
         const dropH = dropdown.offsetHeight;
-        $(dropdown).css('visibility', 'visible');
+        dropdown.style.visibility = 'visible';
 
         if (rect.bottom + dropH + 6 > window.innerHeight && rect.top - dropH - 6 > 0) {
-            $(dropdown).css('top', `${rect.top - dropH - 6}px`);
+            dropdown.style.top = `${rect.top - dropH - 6}px`;
         } else {
-            $(dropdown).css('top', `${rect.bottom + 6}px`);
+            dropdown.style.top = `${rect.bottom + 6}px`;
         }
     }
 
@@ -199,14 +200,16 @@ export function makeCustomSelect(options, current, onChange) {
         wrap.classList.remove('is-open');
         dropdown.inert = true;
         if (closeActiveSelect === closeDropdown) closeActiveSelect = undefined;
-        $(document).off(`click${eventNamespace}`, onDocClick);
+        document.removeEventListener('click', onDocClick);
         window.removeEventListener('scroll', onScroll, true);
-        $(window).off(`resize${eventNamespace}`, onResize);
+        window.removeEventListener('resize', onResize);
         observer?.disconnect();
         if (closeTimeout) clearTimeout(closeTimeout);
         const finish = () => {
             dropdown.remove();
-            $(dropdown).empty().css('display', 'none').removeClass('is-leaving');
+            dropdown.replaceChildren();
+            dropdown.style.display = 'none';
+            dropdown.classList.remove('is-leaving');
             closeTimeout = null;
         };
         if (immediate || !dropdown.isConnected || window.matchMedia('(prefers-reduced-motion: reduce)').matches) finish();
@@ -226,14 +229,15 @@ export function makeCustomSelect(options, current, onChange) {
         document.body.appendChild(dropdown);
         dropdown.inert = false;
         renderItems();
-        $(dropdown).removeClass('is-leaving').css('display', 'block');
+        dropdown.classList.remove('is-leaving');
+        dropdown.style.display = 'block';
         btn.classList.add('is-open');
         wrap.classList.add('is-open');
         positionDropdown();
         btn.setAttribute('aria-expanded', 'true');
-        $(document).on(`click${eventNamespace}`, onDocClick);
+        document.addEventListener('click', onDocClick);
         window.addEventListener('scroll', onScroll, {passive: true, capture: true});
-        $(window).on(`resize${eventNamespace}`, onResize);
+        window.addEventListener('resize', onResize);
         observer ||= new MutationObserver(() => {
             if (!wrap.isConnected || btn.closest('[inert]')) closeDropdown(true);
         });
@@ -241,13 +245,13 @@ export function makeCustomSelect(options, current, onChange) {
         dropdown.querySelector('.is-selected, .custom-select-dropdown-item')?.focus({preventScroll: true});
     }
 
-    $(btn).on('keydown', e => {
+    btn.addEventListener('keydown', e => {
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
             e.preventDefault();
             openDropdown();
         }
-    });
-    $(dropdown).on('keydown', e => {
+    }, {signal});
+    dropdown.addEventListener('keydown', e => {
         if (e.key === 'Escape' || e.key === 'Tab') {
             if (e.key === 'Escape') e.preventDefault();
             e.stopPropagation();
@@ -268,14 +272,14 @@ export function makeCustomSelect(options, current, onChange) {
             items[next].focus({preventScroll: true});
             items[next].scrollIntoView({block: 'nearest'});
         }
-    });
+    }, {signal});
 
-    $(btn).on('click', (e) => {
+    btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const isOpen = dropdown.style.display === 'block' && !$(dropdown).hasClass('is-leaving');
+        const isOpen = dropdown.style.display === 'block' && !dropdown.classList.contains('is-leaving');
         if (isOpen) closeDropdown();
         else openDropdown();
-    });
+    }, {signal});
 
     /** @param {MouseEvent} e */
     const onDocClick = (e) => {
@@ -294,8 +298,7 @@ export function makeCustomSelect(options, current, onChange) {
     function destroy() {
         destroyed = true;
         closeDropdown(true);
-        $(btn).off();
-        $(dropdown).off();
+        listeners.abort();
     }
 
     wrap.appendChild(btn);

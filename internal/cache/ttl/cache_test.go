@@ -382,3 +382,45 @@ func BenchmarkTTLCacheParallelChurn(b *testing.B) {
 		}
 	})
 }
+
+func TestTTLCacheByteSize(t *testing.T) {
+	c := NewTTLCacheWithCapacity[string, int](time.Minute, 100)
+	if size := c.ByteSize(); size != 0 {
+		t.Fatalf("expected empty cache size 0, got %d", size)
+	}
+	c.Set("key1", 100, time.Minute)
+	c.Set("key2", 200, time.Minute)
+	if size := c.ByteSize(); size == 0 {
+		t.Fatal("expected non-zero byte size for non-empty cache")
+	}
+}
+
+func TestTTLCacheClockSecondChanceEviction(t *testing.T) {
+	// A cache with 1 capacity per shard to trigger eviction immediately
+	c := NewTTLCacheWithCapacity[int, int](time.Hour, numShards)
+	// Find two keys that map to the same shard
+	key1 := 1
+	shard1 := c.getShard(key1)
+	var key2 int
+	for k := 2; k < 1000; k++ {
+		if c.getShard(k) == shard1 {
+			key2 = k
+			break
+		}
+	}
+	if key2 == 0 {
+		t.Fatal("failed to find collision key")
+	}
+
+	c.Set(key1, 100, time.Hour)
+	// Access key1 to set its accessed bit
+	if val, ok := c.Get(key1); !ok || val != 100 {
+		t.Fatal("failed to get key1")
+	}
+
+	// Insert key2 into the same shard
+	c.Set(key2, 200, time.Hour)
+	if _, ok := c.Get(key2); !ok {
+		t.Fatal("key2 should exist in cache")
+	}
+}

@@ -54,7 +54,7 @@ export default Object.freeze({
     "prompt.copied": "已复制到剪贴板",
     "footer.organization": "组织",
     "footer.privacyPolicy": "隐私政策",
-    "footer.legalNotice": "法律声明",
+    "footer.legalNotice": "DMCA与法律声明",
     "footer.allRights": "保留所有权利。",
     "footer.licenseNotice": "源代码按 Mozilla Public License 2.0 许可发布。",
     "modal.close": "关闭弹窗",

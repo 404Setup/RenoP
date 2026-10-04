@@ -137,7 +137,7 @@ cors_origins:
 		t.Fatalf("expected cors patterns, got %v", s.CorsOrigins)
 	}
 
-	raw, err := json.Marshal(map[string]any{
+	raw, err := json.MarshalOf(map[string]any{
 		"domains":      []string{"one.test"},
 		"cors_origins": []string{"*"},
 	})
@@ -145,7 +145,7 @@ cors_origins:
 		t.Fatal(err)
 	}
 	var j ServerConfig
-	if err := json.Unmarshal(raw, &j); err != nil {
+	if err := json.UnmarshalOf(raw, &j); err != nil {
 		t.Fatal(err)
 	}
 	if len(j.Domains) != 1 || j.Domains[0] != "one.test" {

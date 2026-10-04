@@ -12,7 +12,9 @@ package utils
 
 import (
 	"errors"
+	"io"
 	"net"
+	"net/http"
 	"slices"
 	"strconv"
 	"strings"
@@ -24,6 +26,46 @@ import (
 
 	"renop/internal/config"
 )
+
+// HasUploadBody returns true if the request contains or declares an upload payload.
+func HasUploadBody(c fiber.Ctx) bool {
+	if c == nil {
+		return false
+	}
+	method := c.Method()
+	if method != fiber.MethodPost && method != fiber.MethodPut && method != fiber.MethodPatch {
+		return false
+	}
+	if c.Request().Header.ContentLength() > 0 {
+		return true
+	}
+	if c.Request().Header.IsHTTP11() && len(c.Request().Header.Peek("Transfer-Encoding")) > 0 {
+		return true
+	}
+	contentType := string(c.Request().Header.ContentType())
+	return strings.HasPrefix(contentType, "multipart/form-data") ||
+		strings.HasPrefix(contentType, "application/octet-stream")
+}
+
+// RejectUploadEarly aborts an unauthorized or forbidden request that carries an upload body,
+// resetting the request body and closing the connection to prevent large files from being
+// read or buffered into memory.
+func RejectUploadEarly(c fiber.Ctx) {
+	if c == nil {
+		return
+	}
+	if reqCtx := c.RequestCtx(); reqCtx != nil {
+		reqCtx.SetConnectionClose()
+	}
+	c.Set(fiber.HeaderConnection, "close")
+	if stream := c.Request().BodyStream(); stream != nil {
+		if closer, ok := stream.(io.Closer); ok {
+			_ = closer.Close()
+		}
+	}
+	c.Request().ResetBody()
+	c.Request().SetBodyStream(http.NoBody, 0)
+}
 
 const MaxJSONBodySize int64 = 1 << 20
 
@@ -57,12 +99,12 @@ func ReadRequestBodyLimited(c fiber.Ctx, maxSize int64) ([]byte, error) {
 
 // ReadJSONLimited decodes a JSON request without allowing an unknown-length
 // stream to grow beyond the endpoint's control-plane body budget.
-func ReadJSONLimited(c fiber.Ctx, dst any, maxSize int64) error {
+func ReadJSONLimited[T any](c fiber.Ctx, dst *T, maxSize int64) error {
 	body, err := ReadRequestBodyLimited(c, maxSize)
 	if err != nil {
 		return err
 	}
-	return json.Unmarshal(body, dst)
+	return json.UnmarshalOf(body, dst)
 }
 
 func ParseRange(rangeStr string, fileSize uint64) (uint64, uint64, bool) {

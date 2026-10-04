@@ -47,6 +47,22 @@ type oauthUserInfo struct {
 	AvatarURL     string
 }
 
+type cloudflareUserData struct {
+	Email     string `json:"email"`
+	Username  string `json:"username"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+}
+
+type cloudflareUserResponse struct {
+	Success bool               `json:"success"`
+	Result  cloudflareUserData `json:"result"`
+}
+
+type gitlabGroupEntry struct {
+	Path string `json:"path"`
+}
+
 func validateOAuthTokens(p config.OAuthProviderConfig, tokens oauthTokens) error {
 	if len(tokens.Error) != 0 && string(tokens.Error) != "null" || tokens.AccessToken == "" || len(tokens.AccessToken) > 16384 ||
 		strings.ContainsAny(tokens.AccessToken+tokens.RefreshToken, "\r\n\x00") || len(tokens.IDToken) > 16384 || len(tokens.RefreshToken) > 16384 ||
@@ -135,7 +151,7 @@ func exchangeOAuthCode(ctx context.Context, client *http.Client, p config.OAuthP
 	return oauthTokens{}, err
 }
 
-func getOAuthJSON(ctx context.Context, client *http.Client, endpoint, accessToken string, destination any) error {
+func getOAuthJSON[T any](ctx context.Context, client *http.Client, endpoint, accessToken string, destination *T) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return errors.New("OAuth identity request is invalid")
@@ -164,13 +180,13 @@ func oauthClaim(value json.RawMessage, path string) json.RawMessage {
 		if value[0] == '[' {
 			index, err := strconv.Atoi(part)
 			var items []json.RawMessage
-			if err != nil || index < 0 || json.Unmarshal(value, &items) != nil || index >= len(items) {
+			if err != nil || index < 0 || json.UnmarshalOf(value, &items) != nil || index >= len(items) {
 				return nil
 			}
 			value = items[index]
 		} else {
 			var fields map[string]json.RawMessage
-			if json.Unmarshal(value, &fields) != nil {
+			if json.UnmarshalOf(value, &fields) != nil {
 				return nil
 			}
 			value = fields[part]
@@ -182,7 +198,7 @@ func oauthClaim(value json.RawMessage, path string) json.RawMessage {
 func oauthString(value json.RawMessage, path string, numeric bool) string {
 	value = oauthClaim(value, path)
 	var text string
-	if json.Unmarshal(value, &text) == nil {
+	if json.UnmarshalOf(value, &text) == nil {
 		return text
 	}
 	if numeric && len(value) > 0 && len(value) <= 255 {
@@ -227,7 +243,7 @@ func fetchOAuthUserInfo(ctx context.Context, client *http.Client, p config.OAuth
 		}
 		issued, _ := claims.GetIssuedAt()
 		authorizedAt = issued.Time.UnixMilli()
-		rawClaims, err := json.Marshal(claims)
+		rawClaims, err := json.MarshalOf(claims)
 		if err != nil {
 			return oauthUserInfo{}, err
 		}
@@ -282,15 +298,7 @@ func fetchOAuthUserInfo(ctx context.Context, client *http.Client, p config.OAuth
 		if p.BaseURL != "" {
 			cfEndpoint = strings.TrimRight(p.BaseURL, "/") + "/client/v4/user"
 		}
-		var cfUser struct {
-			Success bool `json:"success"`
-			Result  struct {
-				Email     string `json:"email"`
-				Username  string `json:"username"`
-				FirstName string `json:"first_name"`
-				LastName  string `json:"last_name"`
-			} `json:"result"`
-		}
+		var cfUser cloudflareUserResponse
 		if err := getOAuthJSON(ctx, client, cfEndpoint, tokens.AccessToken, &cfUser); err == nil && cfUser.Success {
 			if info.Email == "" {
 				if email, valid := core.NormalizeEmail(cfUser.Result.Email); valid && email != "" {
@@ -312,8 +320,31 @@ func fetchOAuthUserInfo(ctx context.Context, client *http.Client, p config.OAuth
 			}
 		}
 	}
-	if p.Type == "gitlab" && p.UserInfoURL == "https://gitlab.com/oauth/userinfo" {
+	if p.Type == "gitlab" {
 		info.Identity.Namespaces = gitlabOwnedNamespaces(raw)
+		if tokens.AccessToken != "" {
+			apiBase := strings.TrimRight(p.BaseURL, "/")
+			if apiBase == "" {
+				apiBase = "https://gitlab.com"
+			}
+			var groups []gitlabGroupEntry
+			if err := getOAuthJSON(ctx, client, apiBase+"/api/v4/groups?min_access_level=50&per_page=100", tokens.AccessToken, &groups); err == nil {
+				seen := make(map[string]bool, len(info.Identity.Namespaces)+len(groups))
+				for _, ns := range info.Identity.Namespaces {
+					seen[strings.ToLower(ns)] = true
+				}
+				for _, g := range groups {
+					groupPath := strings.ToLower(strings.TrimSpace(g.Path))
+					if groupPath != "" && !seen[groupPath] && len(groupPath) <= 63 && !strings.ContainsAny(groupPath, "/.\x00\r\n") {
+						seen[groupPath] = true
+						info.Identity.Namespaces = append(info.Identity.Namespaces, groupPath)
+						if len(info.Identity.Namespaces) == 1001 {
+							break
+						}
+					}
+				}
+			}
+		}
 	}
 	if p.Type == "stackexchange" {
 		info.Name = html.UnescapeString(info.Name)
@@ -336,11 +367,11 @@ func fetchOAuthUserInfo(ctx context.Context, client *http.Client, p config.OAuth
 
 func gitlabOwnedNamespaces(raw json.RawMessage) []string {
 	var claims map[string]json.RawMessage
-	if json.Unmarshal(raw, &claims) != nil {
+	if json.UnmarshalOf(raw, &claims) != nil {
 		return nil
 	}
 	var owned []string
-	_ = json.Unmarshal(claims["https://gitlab.org/claims/groups/owner"], &owned)
+	_ = json.UnmarshalOf(claims["https://gitlab.org/claims/groups/owner"], &owned)
 	namespaces := []string{}
 	seen := map[string]bool{}
 	for _, name := range append([]string{oauthString(raw, "preferred_username", false)}, owned...) {

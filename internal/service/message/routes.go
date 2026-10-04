@@ -24,7 +24,6 @@ import (
 	"github.com/emmansun/base64"
 
 	"github.com/gofiber/fiber/v3"
-	"github.com/google/uuid"
 
 	"renop/internal/config"
 	"renop/internal/core"
@@ -33,6 +32,7 @@ import (
 	"renop/internal/service/captcha"
 	"renop/internal/utils"
 	"renop/internal/utils/protohttp"
+	"renop/pkg/id"
 	"renop/pkg/pb"
 )
 
@@ -76,7 +76,7 @@ func DeliverOnce(state *core.AppState, userMessage *core.UserMessage) (bool, err
 		return false, nil
 	}
 	if userMessage.ID == "" {
-		userMessage.ID = uuid.NewString()
+		userMessage.ID = id.New()
 	}
 	if userMessage.CreatedAt == 0 {
 		userMessage.CreatedAt = time.Now().UnixMilli()
@@ -100,7 +100,7 @@ func DeliverBatch(state *core.AppState, messages []*core.UserMessage) error {
 			return errors.New("message is nil")
 		}
 		if userMessage.ID == "" {
-			userMessage.ID = uuid.NewString()
+			userMessage.ID = id.New()
 		}
 		if userMessage.CreatedAt == 0 {
 			userMessage.CreatedAt = now
@@ -225,20 +225,20 @@ func markRead(c fiber.Ctx, state *core.AppState) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).SendString("Unauthorized")
 	}
-	id := c.Params("id")
-	if uuid.Validate(id) != nil {
+	messageID := c.Params("id")
+	if id.Validate(messageID) != nil {
 		return c.Status(fiber.StatusBadRequest).SendString("Invalid message ID")
 	}
 	db := state.GetDB()
 	if db == nil {
 		return c.Status(fiber.StatusServiceUnavailable).SendString("Message center is unavailable")
 	}
-	changed, err := db.MarkMessageRead(id, username, time.Now().UnixMilli(), currentMessageSession(c, state))
+	changed, err := db.MarkMessageRead(messageID, username, time.Now().UnixMilli(), currentMessageSession(c, state))
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString("Failed to update message")
 	}
 	if !changed {
-		message, lookupErr := db.GetUserMessage(id, username, time.Now().UnixMilli(), currentMessageSession(c, state))
+		message, lookupErr := db.GetUserMessage(messageID, username, time.Now().UnixMilli(), currentMessageSession(c, state))
 		if lookupErr != nil {
 			return c.Status(fiber.StatusInternalServerError).SendString("Failed to update message")
 		}
@@ -286,20 +286,20 @@ func remove(c fiber.Ctx, state *core.AppState) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).SendString("Unauthorized")
 	}
-	id := c.Params("id")
-	if uuid.Validate(id) != nil {
+	messageID := c.Params("id")
+	if id.Validate(messageID) != nil {
 		return c.Status(fiber.StatusBadRequest).SendString("Invalid message ID")
 	}
 	db := state.GetDB()
 	if db == nil {
 		return c.Status(fiber.StatusServiceUnavailable).SendString("Message center is unavailable")
 	}
-	deleted, err := db.DeleteUserMessage(id, username, currentMessageSession(c, state))
+	deleted, err := db.DeleteUserMessage(messageID, username, currentMessageSession(c, state))
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString("Failed to delete message")
 	}
 	if !deleted {
-		if message, lookupErr := db.GetUserMessage(id, username, time.Now().UnixMilli(), currentMessageSession(c, state)); lookupErr != nil {
+		if message, lookupErr := db.GetUserMessage(messageID, username, time.Now().UnixMilli(), currentMessageSession(c, state)); lookupErr != nil {
 			return c.Status(fiber.StatusInternalServerError).SendString("Failed to delete message")
 		} else if message != nil && message.ActionStatus == core.MessageActionPending {
 			return c.Status(fiber.StatusConflict).SendString("Pending action messages cannot be deleted")
@@ -472,13 +472,13 @@ func decodeCursor(cursor string) (int64, string, error) {
 	if err != nil {
 		return 0, "", err
 	}
-	timestampText, id, ok := strings.Cut(string(decoded), ":")
-	if !ok || uuid.Validate(id) != nil {
+	timestampText, messageID, ok := strings.Cut(string(decoded), ":")
+	if !ok || id.Validate(messageID) != nil {
 		return 0, "", errors.New("invalid cursor")
 	}
 	timestamp, err := strconv.ParseInt(timestampText, 10, 64)
 	if err != nil || timestamp <= 0 {
 		return 0, "", errors.New("invalid cursor timestamp")
 	}
-	return timestamp, id, nil
+	return timestamp, messageID, nil
 }

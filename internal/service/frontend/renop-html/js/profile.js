@@ -13,7 +13,8 @@ import {createTicketReportButton} from './ticket-report.js';
 import {createProfileBanAction} from './users/profile-ban.js';
 import {showAlert} from './alert.js';
 import {t, translateKnownError} from './i18n.js';
-import {el} from '@renop/ui/dom';
+import {byId, el} from '@renop/ui/dom';
+import {createLoadingState} from '@renop/ui/loading';
 import {
     createActionButton,
     createFieldRow,
@@ -37,6 +38,7 @@ import './account-retirement.js';
 import {refreshAPITokenSummary} from './api-tokens.js';
 import {createProfileSuperTeamLimits} from './super-teams.js';
 import {createPublicationQuotaPanel, openPublicationQuotaDialog} from './publication-quota.js';
+import {refreshProfileTrafficQuota} from './traffic-quota.js';
 import {createProfileAvatarEditor} from './profile-avatar.js';
 import {
     createPublicProfileLinks,
@@ -92,10 +94,7 @@ function formatGPGDate(value) {
  */
 async function loadProfileGPGKeys(list, count, input, addButton, profile) {
     await morphElementHeight(list, () => {
-        list.replaceChildren(el('div', {class: 'sessions-loading'},
-            el('div', {class: 'sessions-loading-spinner', 'aria-hidden': 'true'}),
-            el('span', {}, t('profile.gpgLoading'))
-        ));
+        list.replaceChildren(createLoadingState(t('profile.gpgLoading'), 'sessions-loading'));
     }, {duration: 280});
     try {
         const target = profile.own_profile ? '' : `?username=${encodeURIComponent(profile.username)}`;
@@ -292,10 +291,7 @@ async function loadProfileGPGReleases(view, showLoading = false) {
     view.loading = true;
     if (showLoading) {
         await morphElementHeight(view.list, () => {
-            view.list.replaceChildren(el('div', {class: 'sessions-loading'},
-                el('div', {class: 'sessions-loading-spinner', 'aria-hidden': 'true'}),
-                el('span', {}, t('profile.gpgReleasesLoading'))
-            ));
+            view.list.replaceChildren(createLoadingState(t('profile.gpgReleasesLoading'), 'sessions-loading'));
         }, {duration: 240});
     }
     try {
@@ -408,16 +404,13 @@ function openProfileGPGReleasesDialog(profile) {
 }
 
 export async function loadProfileFidoDevices() {
-    const listEl = document.getElementById('profile-fido-list');
+    const listEl = byId('profile-fido-list');
     if (!listEl) return;
 
     const seq = ++profileFidoLoadSeq;
     void morphElementHeight(listEl, () => {
         listEl.replaceChildren(
-            el('div', {class: 'sessions-loading'},
-                el('div', {class: 'sessions-loading-spinner', 'aria-hidden': 'true'}),
-                el('span', {}, t('fido.loading') || t('common.loading') || 'Loading...')
-            )
+            createLoadingState(t('fido.loading') || t('common.loading') || 'Loading...', 'sessions-loading')
         );
     }, {duration: 300});
 
@@ -455,29 +448,32 @@ export async function loadProfileFidoDevices() {
             }
 
             devices.forEach(dev => {
-                const item = document.createElement('div');
-                item.className = 'fido-device-item';
-                item.style.cssText = 'display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0.8rem; border: 1px solid var(--border-color, #e5e7eb); border-radius: 8px; margin-bottom: 0.5rem; background: var(--card-bg, #ffffff);';
+                const item = el('div', {
+                    class: 'fido-device-item',
+                    style: 'display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0.8rem; border: 1px solid var(--border-color, #e5e7eb); border-radius: 8px; margin-bottom: 0.5rem; background: var(--card-bg, #ffffff);'
+                });
 
-                const info = document.createElement('div');
-                info.style.cssText = 'display: flex; flex-direction: column; gap: 2px;';
-                const nameEl = document.createElement('span');
-                nameEl.style.cssText = 'font-weight: 600; font-size: 0.9rem;';
-                nameEl.textContent = dev.name || t('profile.fidoTitle');
-                const dateEl = document.createElement('span');
-                dateEl.style.cssText = 'font-size: 0.78rem; opacity: 0.65;';
-                dateEl.textContent = formatTimestamp(dev.created_at, {fallback: t('common.unknown')});
-                info.appendChild(nameEl);
-                info.appendChild(dateEl);
+                const nameEl = el('span', {
+                    style: 'font-weight: 600; font-size: 0.9rem;'
+                }, dev.name || t('profile.fidoTitle'));
 
-                const delBtn = document.createElement('button');
-                delBtn.type = 'button';
-                delBtn.className = 'pill-btn pill-btn--danger';
-                delBtn.style.cssText = 'padding: 4px 10px; font-size: 0.8rem;';
-                delBtn.textContent = t('common.delete');
-                delBtn.dataset.securityMutation = 'true';
-                delBtn.disabled = securityChangesLocked();
-                delBtn.title = delBtn.disabled ? t('profile.securityHold') : '';
+                const dateEl = el('span', {
+                    style: 'font-size: 0.78rem; opacity: 0.65;'
+                }, formatTimestamp(dev.created_at, {fallback: t('common.unknown')}));
+
+                const info = el('div', {
+                    style: 'display: flex; flex-direction: column; gap: 2px;'
+                }, nameEl, dateEl);
+
+                const delBtn = el('button', {
+                    type: 'button',
+                    class: 'pill-btn pill-btn--danger',
+                    style: 'padding: 4px 10px; font-size: 0.8rem;',
+                    disabled: securityChangesLocked(),
+                    title: securityChangesLocked() ? t('profile.securityHold') : '',
+                    'data-security-mutation': 'true'
+                }, t('common.delete'));
+
                 delBtn.addEventListener('click', async () => {
                     const confirmMsg = t('profile.confirmDeleteFido', {name: dev.name});
                     if (await window.showConfirm(confirmMsg)) {
@@ -555,7 +551,7 @@ export async function addFidoDevice() {
         const {session_id, options} = await beginRes.json();
         controller.signal.throwIfAborted();
         const credentialJSON = await requestPasskeyRegistration(options, {
-            signal: controller.signal, button: document.getElementById('btn-add-fido-device'),
+            signal: controller.signal, button: byId('btn-add-fido-device'),
         });
         controller.signal.throwIfAborted();
 
@@ -600,10 +596,10 @@ function formatProfileCreatedAt(value) {
  * @returns {void}
  */
 function updateProfileEditHeading(profile) {
-    const editView = document.getElementById('profile-edit-view');
+    const editView = byId('profile-edit-view');
     if (!editView) return;
-    const avatar = document.getElementById('profile-avatar-initials');
-    const heading = document.getElementById('profile-display-name');
+    const avatar = byId('profile-avatar-initials');
+    const heading = byId('profile-display-name');
     const subtitle = editView.querySelector('.profile-hero-sub');
     renderProfileAvatar(avatar, profile, {length: 1});
     if (heading) heading.textContent = profileDisplayName(profile);
@@ -694,17 +690,14 @@ function profileMembershipRole(format, level) {
  * @returns {Promise<void>}
  */
 async function renderProfileMemberships(profile, format, sequence) {
-    const publicView = document.getElementById('profile-public-view');
+    const publicView = byId('profile-public-view');
     if (!publicView) return;
     const displayName = profileDisplayName(profile);
     const publicAvatar = el('div', {class: 'profile-public-avatar', 'aria-hidden': 'true'});
     renderProfileAvatar(publicAvatar, profile, {length: 1});
     const titleKey = `profile.${format}MembershipsTitle`;
     const list = el('div', {class: 'profile-membership-list'},
-        el('div', {class: 'profile-route-loading'},
-            el('div', {class: 'sessions-loading-spinner', 'aria-hidden': 'true'}),
-            el('span', {}, t('common.loading'))
-        )
+        createLoadingState(t('common.loading'), 'profile-route-loading')
     );
     publicView.replaceChildren(
         el('button', {type: 'button', class: 'profile-route-back', onclick: leaveUserProfileRoute},
@@ -872,10 +865,7 @@ function createProfileSuperTeamSection(profile) {
             )
         ),
         el('div', {class: 'profile-super-team-list'},
-            el('div', {class: 'profile-route-loading'},
-                el('div', {class: 'sessions-loading-spinner', 'aria-hidden': 'true'}),
-                el('span', {}, t('common.loading'))
-            )
+            createLoadingState(t('common.loading'), 'profile-route-loading')
         ),
         el('nav', {class: 'renop-pagination profile-super-team-pager'})
     );
@@ -915,11 +905,16 @@ function profilePrivateActionCard(icon, modifier, titleKey, descriptionKey, butt
  * @returns {void}
  */
 function renderPublicProfile(profile) {
-    const publicView = document.getElementById('profile-public-view');
-    const editView = document.getElementById('profile-edit-view');
+    const publicView = byId('profile-public-view');
+    const editView = byId('profile-edit-view');
     if (!publicView || !editView) return;
+    const wasEditing = !editView.hidden;
     editView.hidden = true;
     publicView.hidden = false;
+    if (wasEditing && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        publicView.classList.add('is-entering');
+        setTimeout(() => publicView.classList.remove('is-entering'), 250);
+    }
     if (Number(profile.deleted_at) > 0) {
         publicView.replaceChildren(
             el('button', {
@@ -1316,23 +1311,42 @@ function buildProfileLinksEditor(profile, identityCard) {
  * @returns {void}
  */
 function showProfileEdit(profile) {
-    const publicView = document.getElementById('profile-public-view');
-    const editView = document.getElementById('profile-edit-view');
+    const publicView = byId('profile-public-view');
+    const editView = byId('profile-edit-view');
     if (!publicView || !editView) return;
-    publicView.hidden = true;
-    editView.hidden = false;
-    updateProfileEditHeading(profile);
-    const identityCard = buildProfileIdentityEditor(profile);
-    buildProfileLinksEditor(profile, identityCard);
-    editView.querySelectorAll('details.profile-collapsible-card').forEach(card => {
-        resetProfileDisclosure(card);
-        wireProfileDisclosure(card);
-    });
-    wireProfileEditActions(profile);
-    void refreshOAuthProfile(profile.username);
-    void refreshAccountSecurity();
-    void refreshAPITokenSummary();
-    window.scrollTo({top: 0, behavior: 'smooth'});
+
+    const backBtn = byId('profile-edit-back-btn');
+    if (backBtn) backBtn.onclick = leaveUserProfileRoute;
+
+    const applyEdit = () => {
+        publicView.hidden = true;
+        publicView.classList.remove('is-leaving');
+        editView.hidden = false;
+        if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            editView.classList.add('is-entering');
+            setTimeout(() => editView.classList.remove('is-entering'), 250);
+        }
+        updateProfileEditHeading(profile);
+        const identityCard = buildProfileIdentityEditor(profile);
+        buildProfileLinksEditor(profile, identityCard);
+        editView.querySelectorAll('details.profile-collapsible-card').forEach(card => {
+            resetProfileDisclosure(card);
+            wireProfileDisclosure(card);
+        });
+        wireProfileEditActions(profile);
+        void refreshOAuthProfile(profile.username);
+        void refreshAccountSecurity();
+        void refreshAPITokenSummary();
+        void refreshProfileTrafficQuota();
+        window.scrollTo({top: 0, behavior: 'smooth'});
+    };
+
+    if (!publicView.hidden && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        publicView.classList.add('is-leaving');
+        setTimeout(applyEdit, 140);
+    } else {
+        applyEdit();
+    }
 }
 
 /**
@@ -1343,16 +1357,13 @@ function showProfileEdit(profile) {
 export async function setupProfile(route = null) {
     const targetRoute = route || profileRouteFromPath(window.location.pathname);
     const targetUsername = String(targetRoute?.username || '').trim().toLowerCase();
-    const publicView = document.getElementById('profile-public-view');
-    const editView = document.getElementById('profile-edit-view');
+    const publicView = byId('profile-public-view');
+    const editView = byId('profile-edit-view');
     if (!publicView || !editView) return;
     editView.hidden = true;
     publicView.hidden = false;
     const sequence = ++profilePageLoadSeq;
-    publicView.replaceChildren(el('div', {class: 'profile-route-loading'},
-        el('div', {class: 'sessions-loading-spinner', 'aria-hidden': 'true'}),
-        el('span', {}, t('common.loading'))
-    ));
+    publicView.replaceChildren(createLoadingState(t('common.loading'), 'profile-route-loading'));
     if (!targetUsername) {
         publicView.replaceChildren(el('div', {class: 'profile-route-error'}, t('profile.notFound')));
         return;
@@ -1392,9 +1403,9 @@ export async function setupProfile(route = null) {
  */
 function wireProfileEditActions(profile) {
     const username = profile?.username || localStorage.getItem('username') || '';
-    const avatarEl = document.getElementById('profile-avatar-initials');
-    const displayNameEl = document.getElementById('profile-display-name');
-    const usernameHiddenEl = document.getElementById('profile-username-hidden');
+    const avatarEl = byId('profile-avatar-initials');
+    const displayNameEl = byId('profile-display-name');
+    const usernameHiddenEl = byId('profile-username-hidden');
     if (usernameHiddenEl) {
         usernameHiddenEl.value = username;
     }
@@ -1405,12 +1416,12 @@ function wireProfileEditActions(profile) {
         displayNameEl.textContent = profileDisplayName(profile);
     }
 
-    const passwordInput = document.getElementById('profile-new-password');
+    const passwordInput = byId('profile-new-password');
     const strengthCtrl = passwordInput ? attachPasswordStrength(passwordInput) : null;
 
-    const btnUpdatePassword = document.getElementById('btn-update-password');
+    const btnUpdatePassword = byId('btn-update-password');
 
-    const passwordForm = document.getElementById('profile-password-form');
+    const passwordForm = byId('profile-password-form');
     if (passwordForm && !passwordForm.dataset.listenerAttached) {
         passwordForm.dataset.listenerAttached = 'true';
         passwordForm.addEventListener('submit', (e) => {
@@ -1425,7 +1436,7 @@ function wireProfileEditActions(profile) {
         btnUpdatePassword.dataset.listenerAttached = 'true';
         btnUpdatePassword.addEventListener('click', async (e) => {
             if (e) e.preventDefault();
-            const input = document.getElementById('profile-new-password');
+            const input = byId('profile-new-password');
             const newPassword = input.value;
             const lengthError = getPasswordLengthError(newPassword);
             if (lengthError) {
@@ -1457,7 +1468,7 @@ function wireProfileEditActions(profile) {
     }
 
 
-    const btnSessions = document.getElementById('btn-profile-sessions');
+    const btnSessions = byId('btn-profile-sessions');
     if (btnSessions && !btnSessions.dataset.listenerAttached) {
         btnSessions.dataset.listenerAttached = 'true';
         btnSessions.addEventListener('click', () => {
@@ -1465,7 +1476,7 @@ function wireProfileEditActions(profile) {
         });
     }
 
-    const btnProfileFido = document.getElementById('btn-profile-fido');
+    const btnProfileFido = byId('btn-profile-fido');
     if (btnProfileFido && !btnProfileFido.dataset.listenerAttached) {
         btnProfileFido.dataset.listenerAttached = 'true';
         btnProfileFido.addEventListener('click', () => {
@@ -1473,7 +1484,7 @@ function wireProfileEditActions(profile) {
         });
     }
 
-    const btnAddFido = document.getElementById('btn-add-fido-device');
+    const btnAddFido = byId('btn-add-fido-device');
     if (btnAddFido && !btnAddFido.dataset.listenerAttached) {
         btnAddFido.dataset.listenerAttached = 'true';
         btnAddFido.addEventListener('click', () => {
@@ -1481,7 +1492,7 @@ function wireProfileEditActions(profile) {
         });
     }
 
-    const btnAuditLogs = document.getElementById('btn-profile-audit-logs');
+    const btnAuditLogs = byId('btn-profile-audit-logs');
     if (btnAuditLogs && !btnAuditLogs.dataset.listenerAttached) {
         btnAuditLogs.dataset.listenerAttached = 'true';
         btnAuditLogs.addEventListener('click', () => {
@@ -1491,9 +1502,9 @@ function wireProfileEditActions(profile) {
 }
 
 export function openProfileFidoDialog() {
-    const modal = document.getElementById('profile-fido-modal');
-    const closeBtn = document.getElementById('close-profile-fido-modal');
-    const backdrop = document.getElementById('profile-fido-backdrop');
+    const modal = byId('profile-fido-modal');
+    const closeBtn = byId('close-profile-fido-modal');
+    const backdrop = byId('profile-fido-backdrop');
     if (!modal) return;
 
     if (closeBtn && !closeBtn.dataset.listenerAttached) {

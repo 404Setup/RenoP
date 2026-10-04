@@ -40,7 +40,8 @@ func normalizePackageDeprecation(format, repository, packageKey string) (string,
 		return format, repository, packageKey, true
 	case config.RepositoryFormatMaven:
 		return format, repository, packageKey, true
-	case config.RepositoryFormatAPK, config.RepositoryFormatAPT, config.RepositoryFormatConan, config.RepositoryFormatConda, "conda-native", config.RepositoryFormatRPM:
+	case config.RepositoryFormatAPK, config.RepositoryFormatAPT, config.RepositoryFormatConan, config.RepositoryFormatConda, "conda-native", config.RepositoryFormatRPM,
+		config.RepositoryFormatGithub, config.RepositoryFormatGitLab:
 		return format, repository, packageKey, true
 	default:
 		return "", "", "", false
@@ -66,6 +67,8 @@ func packageReviewResourceType(format string) string {
 		return core.ReviewResourceMavenArtifact
 	case config.RepositoryFormatAPK, config.RepositoryFormatAPT, config.RepositoryFormatConan, config.RepositoryFormatConda, "conda-native", config.RepositoryFormatRPM:
 		return core.ReviewResourceNativePackage
+	case config.RepositoryFormatGithub, config.RepositoryFormatGitLab:
+		return core.ReviewResourceGitRepo
 	default:
 		return ""
 	}

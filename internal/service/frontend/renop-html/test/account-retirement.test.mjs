@@ -58,7 +58,7 @@ test('retention actions survive asynchronous confirmation and do not run when ca
         event.currentTarget = null;
         await pending;
         assert.equal(button.disabled, false);
-        assert.deepEqual(requests.at(-1), {url: `/api/tokens/alice/retention/${resource}`, method: 'DELETE'});
+        assert.deepEqual(requests.at(-1), {url: `/api/users/alice/retention/${resource}`, method: 'DELETE'});
     }
     assert.deepEqual(closed, [true, true]);
     confirmed = false;

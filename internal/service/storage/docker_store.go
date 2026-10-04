@@ -21,7 +21,7 @@ import (
 	"renop/pkg/hex"
 	"strings"
 
-	"github.com/google/uuid"
+	"renop/pkg/id"
 
 	"renop/internal/core"
 	"renop/internal/repositorycapacity"
@@ -303,7 +303,7 @@ func (s *dockerStore) PutManifest(state *core.AppState, repository, imageName, d
 		return err
 	}
 
-	tempPath := path + ".tmp." + uuid.NewString()
+	tempPath := path + ".tmp." + id.New()
 	if err := os.WriteFile(tempPath, data, 0644); err != nil {
 		return err
 	}

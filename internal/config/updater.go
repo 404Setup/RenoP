@@ -42,7 +42,7 @@ func (u *UpdaterConfig) UnmarshalJSON(data []byte) error {
 	u.setDefaults()
 	type alias UpdaterConfig
 	aux := (*alias)(u)
-	if err := json.Unmarshal(data, aux); err != nil {
+	if err := json.UnmarshalOf(data, aux); err != nil {
 		return err
 	}
 	u.setDefaults()

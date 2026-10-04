@@ -23,7 +23,7 @@ import (
 	xproxy "golang.org/x/net/proxy"
 
 	"renop/internal/config"
-	"renop/internal/service/outboundproxy"
+	"renop/internal/service/proxy/outbound"
 	"renop/internal/utils"
 )
 

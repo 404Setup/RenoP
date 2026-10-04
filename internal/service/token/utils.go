@@ -16,10 +16,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 
 	"renop/internal/core"
+	"renop/pkg/id"
 )
 
 func UpdateTokenSync(opChan chan<- TokenOp, name string, updateFn func(*core.AccessToken)) error {
@@ -60,7 +60,7 @@ func AutoRegisterAdmin(state *core.AppState, opChan chan<- TokenOp) error {
 	if state.Inner.TokensCount.Load() == 0 {
 		defaultPassword := os.Getenv("RENOP_DEFAULT_ADMIN_PASSWORD")
 		if defaultPassword == "" {
-			defaultPassword = uuid.NewString()
+			defaultPassword = id.New()
 			log.Printf("WARNING: RENOP_DEFAULT_ADMIN_PASSWORD is not set. Generated a random password: %s. Please secure your instance immediately.\n", defaultPassword)
 		}
 

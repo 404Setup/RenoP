@@ -18,11 +18,11 @@ import (
 	"net/url"
 	"os"
 	"renop/pkg/hex"
+	"renop/pkg/id"
 	"testing"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -80,7 +80,7 @@ func TestClickHouseNativeAccountMessageAndTransactionLifecycle(t *testing.T) {
 	assert.Equal(t, "alice", storedSession.Username)
 
 	message := &core.UserMessage{
-		ID: uuid.NewString(), Recipient: "alice", Sender: "system", Kind: "test", Severity: "info",
+		ID: id.New(), Recipient: "alice", Sender: "system", Kind: "test", Severity: "info",
 		Title: "ClickHouse", Body: "Native message", DedupeKey: "clickhouse-native-message", CreatedAt: 1000,
 	}
 	inserted, err := db.SaveMessageIfAbsent(message)
@@ -94,7 +94,7 @@ func TestClickHouseNativeAccountMessageAndTransactionLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	_, err = tx.Exec(`INSERT INTO user_profiles
 		(user_id, username, nickname, rename_window_started_at, rename_count, updated_at)
-		VALUES (?, ?, '', 0, 0, 0)`, uuid.NewString(), "rollback-user")
+		VALUES (?, ?, '', 0, 0, 0)`, id.New(), "rollback-user")
 	require.NoError(t, err)
 	require.NoError(t, tx.Rollback())
 	_, err = db.GetUserProfile("rollback-user")
@@ -275,7 +275,7 @@ func TestClickHouseNativeSecurityIdentityAndGPGMatrix(t *testing.T) {
 	const tokenSecret = "native-clickhouse-api-token"
 	digest := sha256.Sum256([]byte(tokenSecret))
 	apiToken := &core.APIToken{
-		ID: uuid.NewString(), Name: "Automation", Scopes: []string{core.APITokenScopeRepositoryRead}, CreatedAt: now,
+		ID: id.New(), Name: "Automation", Scopes: []string{core.APITokenScopeRepositoryRead}, CreatedAt: now,
 	}
 	require.NoError(t, db.CreateAPIToken("alice", apiToken, hex.EncodeToString(digest[:])))
 	credential, err := db.GetAPITokenByHash(hex.EncodeToString(digest[:]), "alice")

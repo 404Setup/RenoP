@@ -1412,6 +1412,21 @@
     animation: profileCardIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+@keyframes profileViewIn {
+    from {
+        opacity: 0;
+        transform: translateY(8px) scale(0.99);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.profile-route-view.is-entering {
+    animation: profileViewIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) both !important;
+}
+
 @keyframes profileViewOut {
     from {
         opacity: 1;

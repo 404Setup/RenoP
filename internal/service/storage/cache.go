@@ -20,6 +20,7 @@ import (
 
 	"renop/internal/core"
 	"renop/internal/service/index"
+	"renop/internal/service/traffic"
 	"renop/internal/utils"
 )
 
@@ -127,6 +128,20 @@ func serveFromCache(c fiber.Ctx, state *core.AppState, pathStr string, contentDi
 	setArtifactContentType(c, pathStr)
 
 	fileSize := uint64(len(cachedData))
+
+	tm := traffic.GetManager(state)
+	if tm != nil {
+		reqSize := int64(fileSize)
+		if reqRange := c.Get(fiber.HeaderRange); reqRange != "" {
+			start, end, ok := utils.ParseRange(reqRange, fileSize)
+			if ok {
+				reqSize = int64(end - start + 1)
+			}
+		}
+		if _, err := tm.CheckAndDeduct(c, reqSize, int64(fileSize), pathStr, false); err != nil {
+			return true, err
+		}
+	}
 
 	reqRange := c.Get(fiber.HeaderRange)
 	if reqRange != "" {

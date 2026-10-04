@@ -337,4 +337,8 @@ export default Object.freeze({
     "profile.apiTokenEditDesc": "更新 API 令牌名称和权限，不会改变其密钥。",
     "profile.apiTokenEdited": "API 令牌已更新",
     "profile.apiTokenEditFailed": "更新 API 令牌失败",
+    "profile.trafficQuotaTitle": "下载流量配额",
+    "profile.trafficQuotaDesc": "查看您的下载流量限制、剩余配额与滚动恢复速率。",
+    "profile.trafficQuotaLoading": "正在加载流量配额…",
+    "profile.trafficQuotaLoadFailed": "加载流量配额失败。",
 });

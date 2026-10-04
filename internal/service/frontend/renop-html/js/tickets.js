@@ -11,6 +11,7 @@
 import {el} from '@renop/ui/dom';
 import {makeCustomSelect} from '@renop/ui/custom-select';
 import {morphElementHeight} from '@renop/ui/height-anim';
+import {createLoadingState} from '@renop/ui/loading';
 import {apiRequest, fetchProto} from './api.js';
 import {FileDetails} from './proto/index.js';
 import {showAlert, showConfirm} from './alert.js';
@@ -57,12 +58,35 @@ function requestReview(url, options = {}) {
 }
 
 /**
- * Parse the routed review center path.
+ * Parse a ticket route and return its details or null.
  * @param {string} [pathname=window.location.pathname] - Candidate path.
- * @returns {boolean} Whether the path belongs to the review center.
+ * @returns {{id: string, root: string}|null}
+ */
+export function parseTicketRoute(pathname = window.location.pathname) {
+    const normalized = String(pathname || '/').replace(/\/+$/, '') || '/';
+    for (const root of [routeRoot, '/account/reviews']) {
+        if (normalized === root) return {id: '', root};
+        if (normalized.startsWith(`${root}/`)) {
+            const segment = normalized.slice(root.length + 1);
+            if (!segment || segment.includes('/')) return null;
+            try {
+                const id = decodeURIComponent(segment).trim();
+                return id ? {id, root} : null;
+            } catch {
+                return null;
+            }
+        }
+    }
+    return null;
+}
+
+/**
+ * Report whether a path belongs to the ticket center.
+ * @param {string} [pathname=window.location.pathname] - Candidate path.
+ * @returns {boolean} Whether the path belongs to the ticket center.
  */
 export function ticketRouteFromPath(pathname = window.location.pathname) {
-    return [routeRoot, '/account/reviews'].includes(String(pathname || '/').replace(/\/+$/, '') || '/');
+    return parseTicketRoute(pathname) !== null;
 }
 
 
@@ -198,9 +222,7 @@ async function replaceContent(...nodes) {
 
 /** @returns {HTMLElement} Review loading surface. */
 function loadingState() {
-    return el('div', {class: 'review-state'},
-        el('div', {class: 'sessions-loading-spinner', 'aria-hidden': 'true'}),
-        el('span', {}, t('common.loading')));
+    return createLoadingState(t('common.loading'), 'review-state');
 }
 
 /** @param {string} status - Stable task status. @returns {string} Localized status. */
@@ -224,9 +246,42 @@ function directionLabel(task) {
         }
         return t('review.publicationVersion', {version: task.resource_version});
     }
-    return task.target_team_prefix
-        ? t('review.directionIn', {team: task.target_team_prefix})
-        : t('review.directionOut', {team: task.source_team_prefix});
+    if (task.kind === 'git_repo_registration') return t('repos.gitApplyRegister');
+    if (task.kind === 'git_repo_quota') return t('repos.gitApplyQuota');
+    if (task.target_team_prefix) {
+        return t('review.directionIn', {team: task.target_team_prefix});
+    }
+    if (task.source_team_prefix) {
+        return t('review.directionOut', {team: task.source_team_prefix});
+    }
+    return t('review.transferOwnership');
+}
+
+/** @param {object} task - Review or ticket task. @returns {string} Informative title. */
+function taskTitle(task) {
+    if (!task) return '';
+    if (task.title) return task.title;
+    const name = task.resource_name || '';
+    if (task.kind === 'git_repo_registration') {
+        return t('ticket.titleCreation', {resource: name});
+    }
+    if (task.kind === 'git_repo_quota') {
+        return t('ticket.titleUpdate', {resource: name});
+    }
+    if (task.kind === 'publication') {
+        if (task.resource_version === '@create') {
+            return t('ticket.titleCreation', {resource: name});
+        }
+        const resWithVer = task.resource_version ? `${name} @ ${task.resource_version}` : name;
+        return t('ticket.titleUpdate', {resource: resWithVer});
+    }
+    if (task.kind === 'super_team_transfer') {
+        return `${t('review.transferOwnership')} · ${name}`;
+    }
+    if (task.kind === 'maven_restore') {
+        return `${t('maven.restorePublication')} · ${name}`;
+    }
+    return name || t('ticket.open');
 }
 
 /**
@@ -246,16 +301,18 @@ async function submitDecision(task, decision, reason = '', reasonCode = '') {
     const result = await response.json();
     const publication = task.kind === 'publication';
     const creation = publication && task.resource_version === '@create';
-    const resultKey = creation && decision === 'approved' && result?.status === 'pending'
-        ? 'review.creationForwarded'
-        : creation
-            ? decision === 'approved' ? 'review.creationApproved' : 'review.creationRejected'
-            : publication
-                ? decision === 'approved' ? 'review.publicationApproved' : 'review.publicationRejected'
-                : decision === 'approved' ? 'review.approved' : 'review.rejected';
-    showAlert(t(task.kind === 'maven_restore'
+    const resultKey = task.kind === 'maven_restore'
         ? decision === 'approved' ? 'maven.restoreApproved' : 'maven.restoreRejected'
-        : resultKey), 'success');
+        : (task.kind === 'git_repo_registration' || task.kind === 'git_repo_quota')
+            ? decision === 'approved' ? 'ticket.event.approved' : 'ticket.event.rejected'
+            : creation && decision === 'approved' && result?.status === 'pending'
+                ? 'review.creationForwarded'
+                : creation
+                    ? decision === 'approved' ? 'review.creationApproved' : 'review.creationRejected'
+                    : publication
+                        ? decision === 'approved' ? 'review.publicationApproved' : 'review.publicationRejected'
+                        : decision === 'approved' ? 'review.approved' : 'review.rejected';
+    showAlert(t(resultKey), 'success');
     await loadTasks();
 }
 
@@ -438,7 +495,8 @@ async function downloadPublicationBundle(task) {
 function resourceLabel(type) {
     const aliases = {
         docker: 'docker_image', npm: 'npm_package', cargo: 'cargo_package',
-        maven: 'maven_artifact', 'maven-domain': 'maven_domain'
+        maven: 'maven_artifact', 'maven-domain': 'maven_domain',
+        git: 'git_repo', github: 'git_repo', gitlab: 'git_repo'
     };
     return ['user', 'superteam', 'support'].includes(type)
         ? t(`ticket.type.${type}`) : t(`review.type.${aliases[type] || type}`);
@@ -631,12 +689,6 @@ function renderTicketConversationView(task, refresh, messages = [], loadOlder = 
         allowed.has('escalate') || allowed.has('process') || allowed.has('complete') ||
         allowed.has('decision') || activeView === 'reviewer';
 
-    const back = el('button', {
-        type: 'button', class: 'pill-btn pill-btn--soft',
-        style: {marginBottom: '1rem'},
-        onclick: () => loadTasks({refreshToolbar: true})
-    }, createIcon('chevronLeft'), el('span', {}, t('ticket.backToList')));
-
     const statusIcons = {
         unprocessed: 'alertCircle',
         pending: 'alertCircle',
@@ -649,7 +701,7 @@ function renderTicketConversationView(task, refresh, messages = [], loadOlder = 
 
     const header = el('header', {class: 'ticket-header'},
         el('div', {class: 'ticket-header-title'},
-            el('h2', {}, task.title || task.resource_name || t('ticket.open')),
+            el('h2', {}, taskTitle(task)),
             el('span', {class: 'ticket-header-id'}, `#${task.id.slice(0, 8)}`)
         ),
         el('div', {class: 'ticket-header-meta'},
@@ -879,14 +931,17 @@ function renderTicketConversationView(task, refresh, messages = [], loadOlder = 
             el('button', {
                 type: 'button', class: 'pill-btn pill-btn--primary pill-btn--sm',
                 onclick: async event => {
+                    const btn = event.currentTarget;
                     const confirmKey = task.kind === 'maven_restore' ? 'maven.restoreApproveConfirm' : task.kind === 'publication'
                         ? task.resource_version === '@create'
                             ? 'review.approveCreationConfirm' : 'review.approvePublicationConfirm'
-                        : 'review.approveConfirm';
+                        : task.kind === 'git_repo_registration'
+                            ? 'review.approveCreationConfirm'
+                            : 'review.approveConfirm';
                     if (!await showConfirm(t(confirmKey, {
                         resource: task.resource_name, version: task.resource_version
                     }))) return;
-                    await runButtonAction(event.currentTarget, async () => {
+                    await runButtonAction(btn, async () => {
                         try {
                             await submitDecision(task, 'approved');
                             await refresh();
@@ -954,11 +1009,16 @@ function renderTicketConversationView(task, refresh, messages = [], loadOlder = 
     const sidebar = el('aside', {class: 'ticket-sidebar'}, ...sidebarSections);
     const layout = el('div', {class: 'ticket-detail-layout'}, timelineColumn, sidebar);
 
-    return el('div', {class: 'ticket-conversation-view'}, back, header, layout);
+    return el('div', {class: 'ticket-conversation-view'}, header, layout);
 }
 
 /** @param {string} id - Ticket ID. @returns {void} Render the ticket detail page. */
 function openTicket(id) {
+    const root = window.location.pathname.startsWith('/account/reviews') ? '/account/reviews' : routeRoot;
+    const path = `${root}/${encodeURIComponent(id)}`;
+    if (window.location.pathname !== path || window.location.search || window.location.hash) {
+        window.history.pushState(null, '', path);
+    }
     void loadTicketDetail(id);
 }
 
@@ -1182,14 +1242,17 @@ function taskCard(task, onChanged = null) {
         actions.append(
             el('button', {
                 type: 'button', class: 'pill-btn pill-btn--primary pill-btn--sm', onclick: async event => {
+                    const btn = event.currentTarget;
                     const confirmKey = task.kind === 'maven_restore' ? 'maven.restoreApproveConfirm' : task.kind === 'publication'
                         ? task.resource_version === '@create'
                             ? 'review.approveCreationConfirm' : 'review.approvePublicationConfirm'
-                        : 'review.approveConfirm';
+                        : task.kind === 'git_repo_registration'
+                            ? 'review.approveCreationConfirm'
+                            : 'review.approveConfirm';
                     if (!await showConfirm(t(confirmKey, {
                         resource: task.resource_name, version: task.resource_version
                     }))) return;
-                    await runButtonAction(event.currentTarget, async () => {
+                    await runButtonAction(btn, async () => {
                         try {
                             await submitDecision(task, 'approved');
                         } catch (error) {
@@ -1214,7 +1277,7 @@ function taskCard(task, onChanged = null) {
         el('div', {class: 'review-card-icon'}, createIcon(task.kind === 'publication' ? 'filePackage' : 'refresh')),
         el('div', {class: 'review-card-main'},
             el('div', {class: 'review-card-heading'},
-                el('strong', {}, task.title || task.resource_name),
+                el('strong', {}, taskTitle(task)),
                 el('span', {class: `review-status is-${task.ticket_status}`}, statusLabel(task.ticket_status))
             ),
             el('span', {class: 'review-card-type'}, resourceLabel(task.resource_type),
@@ -1354,7 +1417,8 @@ async function loadTasks({refreshToolbar = false} = {}) {
 
 /** Render the routed review center. */
 export async function loadTicketCenterPage() {
-    if (!ticketRouteFromPath()) return;
+    const route = parseTicketRoute();
+    if (!route) return;
     const owner = localStorage.getItem('username') || '';
     if (owner !== listOwner) {
         listOwner = owner;
@@ -1363,6 +1427,12 @@ export async function loadTicketCenterPage() {
         activeTypes.clear();
         pageOffset = 0;
     }
-    if (window.location.pathname !== routeRoot) window.history.replaceState(null, '', routeRoot);
-    await loadTasks({refreshToolbar: true});
+    if (route.id) {
+        await loadTicketDetail(route.id);
+    } else {
+        if (window.location.pathname !== route.root && window.location.pathname !== routeRoot) {
+            window.history.replaceState(null, '', routeRoot);
+        }
+        await loadTasks({refreshToolbar: true});
+    }
 }

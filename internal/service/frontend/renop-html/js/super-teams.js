@@ -13,6 +13,7 @@ import {el} from '@renop/ui/dom';
 import {navigateBack} from './back-navigation.js';
 import {makeCustomSelect} from '@renop/ui/custom-select';
 import {morphElementHeight} from '@renop/ui/height-anim';
+import {createLoadingState} from '@renop/ui/loading';
 import {apiRequest, fetchProto} from './api.js';
 import {UserSearchResponse} from './proto/index.js';
 import {cachedIsLoggedIn} from './auth.js';
@@ -184,10 +185,7 @@ function roleOptions(maximum = 4) {
 
 /** @returns {HTMLElement} Loading state. */
 function loadingState() {
-    return el('div', {class: 'super-team-state'},
-        el('div', {class: 'sessions-loading-spinner', 'aria-hidden': 'true'}),
-        el('span', {}, t('common.loading'))
-    );
+    return createLoadingState(t('common.loading'), 'super-team-state');
 }
 
 /** @returns {HTMLElement} Empty team-list state. */

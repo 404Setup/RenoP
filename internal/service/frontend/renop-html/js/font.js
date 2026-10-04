@@ -8,6 +8,8 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
+import {el} from '@renop/ui/dom';
+
 const customFontFamily = 'RenoP Custom';
 const googleFontsStylesheetHost = 'fonts.googleapis.com';
 const fontLoadTimeoutMs = 15000;
@@ -98,7 +100,13 @@ function withFontTimeout(operation) {
 function loadGoogleFontsStylesheet(fontUrl, families) {
     if (!document.fonts || !families.length) return Promise.resolve(false);
     return new Promise(resolve => {
-        const link = document.createElement('link');
+        const link = el('link', {
+            rel: 'stylesheet',
+            href: fontUrl,
+            media: 'print',
+            'data-renop-custom-font': 'google',
+            referrerPolicy: 'no-referrer'
+        });
         let settled = false;
         const finish = value => {
             if (settled) return;

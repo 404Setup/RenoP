@@ -1,0 +1,137 @@
+/*
+ * Copyright (c) 2026 404Setup. All rights reserved.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
+ *
+ * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
+ */
+
+/* Callout component - inline notice banners */
+
+.renop-callout {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    border: 1px solid;
+    background: var(--callout-bg, rgba(248, 250, 252, 0.6));
+    border-color: var(--callout-border, rgba(203, 213, 225, 0.8));
+    color: var(--callout-color, #334155);
+    font-size: 0.9375rem;
+    line-height: 1.5;
+}
+
+.renop-callout-icon {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    margin-top: 2px;
+    color: var(--callout-icon-color, #64748b);
+}
+
+.renop-callout-icon svg {
+    width: 20px;
+    height: 20px;
+    stroke-width: 2;
+}
+
+.renop-callout-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.renop-callout-title {
+    font-weight: 600;
+    margin: 0 0 4px 0;
+    color: var(--callout-title-color, #1e293b);
+}
+
+.renop-callout-message {
+    margin: 0;
+}
+
+/* Variants */
+.renop-callout--info {
+    --callout-bg: rgba(239, 246, 255, 0.6);
+    --callout-border: rgba(147, 197, 253, 0.6);
+    --callout-color: #1e40af;
+    --callout-icon-color: #3b82f6;
+    --callout-title-color: #1e3a8a;
+}
+
+.renop-callout--success {
+    --callout-bg: rgba(240, 253, 244, 0.6);
+    --callout-border: rgba(134, 239, 172, 0.6);
+    --callout-color: #065f46;
+    --callout-icon-color: #10b981;
+    --callout-title-color: #064e3b;
+}
+
+.renop-callout--warning {
+    --callout-bg: rgba(254, 252, 232, 0.6);
+    --callout-border: rgba(253, 224, 71, 0.6);
+    --callout-color: #92400e;
+    --callout-icon-color: #f59e0b;
+    --callout-title-color: #78350f;
+}
+
+.renop-callout--danger {
+    --callout-bg: rgba(254, 242, 242, 0.6);
+    --callout-border: rgba(252, 165, 165, 0.6);
+    --callout-color: #991b1b;
+    --callout-icon-color: #ef4444;
+    --callout-title-color: #7f1d1d;
+}
+
+.renop-callout--neutral {
+    --callout-bg: rgba(248, 250, 252, 0.6);
+    --callout-border: rgba(203, 213, 225, 0.6);
+    --callout-color: #334155;
+    --callout-icon-color: #64748b;
+    --callout-title-color: #1e293b;
+}
+
+/* Dark mode */
+html.dark .renop-callout {
+    --callout-bg: rgba(30, 41, 59, 0.6);
+    --callout-border: rgba(71, 85, 105, 0.6);
+    --callout-color: #cbd5e1;
+}
+
+html.dark .renop-callout--info {
+    --callout-bg: rgba(30, 58, 138, 0.4);
+    --callout-border: rgba(59, 130, 246, 0.4);
+    --callout-color: #bfdbfe;
+    --callout-icon-color: #60a5fa;
+    --callout-title-color: #dbeafe;
+}
+
+html.dark .renop-callout--success {
+    --callout-bg: rgba(20, 83, 45, 0.4);
+    --callout-border: rgba(34, 197, 94, 0.4);
+    --callout-color: #bbf7d0;
+    --callout-icon-color: #4ade80;
+    --callout-title-color: #dcfce7;
+}
+
+html.dark .renop-callout--warning {
+    --callout-bg: rgba(120, 53, 15, 0.4);
+    --callout-border: rgba(251, 191, 36, 0.4);
+    --callout-color: #fef08a;
+    --callout-icon-color: #fbbf24;
+    --callout-title-color: #fef3c7;
+}
+
+html.dark .renop-callout--danger {
+    --callout-bg: rgba(127, 29, 29, 0.4);
+    --callout-border: rgba(248, 113, 113, 0.4);
+    --callout-color: #fecaca;
+    --callout-icon-color: #f87171;
+    --callout-title-color: #fee2e2;
+}

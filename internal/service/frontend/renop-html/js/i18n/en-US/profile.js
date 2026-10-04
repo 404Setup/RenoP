@@ -337,4 +337,8 @@ export default Object.freeze({
     "profile.apiTokenEditDesc": "Update API token name and permissions without changing the secret.",
     "profile.apiTokenEdited": "API token updated",
     "profile.apiTokenEditFailed": "Failed to update API token",
+    "profile.trafficQuotaTitle": "Download Traffic Quota",
+    "profile.trafficQuotaDesc": "View your download traffic limits, remaining quota, and rolling recovery rate.",
+    "profile.trafficQuotaLoading": "Loading traffic quota…",
+    "profile.trafficQuotaLoadFailed": "Failed to load traffic quota.",
 });

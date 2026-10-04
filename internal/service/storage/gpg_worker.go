@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
+	"renop/pkg/id"
 
 	"renop/internal/config"
 	"renop/internal/core"
@@ -279,8 +279,7 @@ func releaseQuarantineDirectory(state *core.AppState, release *core.GPGRelease) 
 	if state == nil || state.Inner == nil || release == nil {
 		return "", errors.New("application state unavailable")
 	}
-	parsedID, err := uuid.Parse(release.ID)
-	if err != nil || !strings.EqualFold(parsedID.String(), release.ID) {
+	if id.Validate(release.ID) != nil {
 		return "", errors.New("invalid GPG release ID")
 	}
 	cfg := state.Inner.Config.Load()
@@ -360,7 +359,7 @@ func cloneQuarantinedFile(state *core.AppState, source, destination string) (str
 	if err := os.MkdirAll(filepath.Dir(destination), 0755); err != nil {
 		return "", err
 	}
-	publishTemp := destination + ".tmp.gpg-publish." + uuid.NewString()
+	publishTemp := destination + ".tmp.gpg-publish." + id.New()
 	src, err := os.Open(source)
 	if err != nil {
 		return "", err

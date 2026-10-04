@@ -25,26 +25,35 @@ test('API links leave general docs and preserve old bookmarks', () => {
 test('navigation during an API render renders the latest URL and cleans up the previous page', async () => {
     const source = readFileSync(new URL('../js/router.js', import.meta.url), 'utf8')
         .replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '');
-    const root = {childNodes: [], offsetWidth: 1};
-    let onClick;
-    const chain = {
-        get: () => root, find: () => ({length: 0}), each() {
-        }, removeClass() {
-            return this;
+    const classes = new Set();
+    const root = {
+        childNodes: [], offsetWidth: 1,
+        classList: {
+            add: name => classes.add(name),
+            remove: name => classes.delete(name),
+            toggle: (name, on) => on ? classes.add(name) : classes.delete(name),
         },
-        addClass() {
-            return this;
-        }, empty() {
-            return this;
+        replaceChildren() {
+            this.childNodes = [];
         },
-        on(event, selector, handler) {
-            if (event === 'click') onClick = handler;
-        }
+        querySelector: () => null,
     };
+    let onClick;
     const context = vm.createContext({
         URL, URLSearchParams, canonicalPageURL, location: new URL('https://example.test/api'),
-        document: {documentElement: {scrollTop: 0}}, window: {scrollY: 0},
-        $: () => chain, wait: async () => {
+        document: {
+            documentElement: {scrollTop: 0},
+            getElementById: id => id === 'page-root' ? root : null,
+            querySelectorAll: () => [],
+        },
+        window: {scrollY: 0, addEventListener() {
+        }},
+        delegate(host, type, selector, handler) {
+            if (type === 'click') onClick = handler;
+        },
+        retriggerClass() {
+        },
+        wait: async () => {
         }, smoothScrollToTop() {
         }, history: {},
     });
@@ -73,9 +82,7 @@ test('navigation during an API render renders the latest URL and cleans up the p
         context.location = new URL(path, context.location);
     };
     context.initRouter();
-    onClick({
-        currentTarget: {getAttribute: () => '/api'}, button: 0, preventDefault() {
-        }
-    });
+    onClick({button: 0, preventDefault() {
+    }}, {getAttribute: () => '/api'});
     assert.equal(context.location.href, 'https://example.test/api');
 });

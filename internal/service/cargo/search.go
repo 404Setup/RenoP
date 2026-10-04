@@ -21,7 +21,7 @@ import (
 	"renop/internal/config"
 	"renop/internal/core"
 	"renop/internal/service/auth"
-	"renop/internal/service/cargodocs"
+	"renop/internal/service/cargo/docs"
 )
 
 func (h Handler) search(c fiber.Ctx, state *core.AppState, repo *config.Repository) error {
@@ -140,7 +140,7 @@ func (h Handler) enrichPackageVersionsFromIndex(state *core.AppState, repo *conf
 	indexEntries := make(map[string]IndexEntry)
 	_ = scanIndex(reader, func(line []byte) error {
 		var entry IndexEntry
-		if json.Unmarshal(line, &entry) == nil && entry.Version != "" {
+		if json.UnmarshalOf(line, &entry) == nil && entry.Version != "" {
 			indexEntries[entry.Version] = entry
 		}
 		return nil

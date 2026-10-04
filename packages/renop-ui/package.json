@@ -19,13 +19,21 @@
     "./response-bytes": "./js/response-bytes.js",
     "./i18n-catalog": "./js/i18n-catalog.js",
     "./i18n-startup": "./js/i18n-startup.js",
-    "./jquery": "./js/jquery.js",
     "./custom-select": "./js/custom-select.js",
     "./toggle": "./js/toggle.js",
     "./button": "./js/button.js",
+    "./loading": "./js/loading.js",
+    "./empty-state": "./js/empty-state.js",
+    "./alert": "./js/alert.js",
+    "./callout": "./js/callout.js",
+    "./stat-card": "./js/stat-card.js",
+    "./section": "./js/section.js",
+    "./sub-header": "./js/sub-header.js",
+    "./card": "./js/card.js",
     "./css/tokens.css": "./css/tokens.css",
     "./css/theme.css": "./css/theme.css",
     "./css/base.css": "./css/base.css",
+    "./nav-controls": "./js/nav-controls.js",
     "./css/layout/nav-controls.css": "./css/layout/nav-controls.css",
     "./css/components/lang-card.css": "./css/components/lang-card.css",
     "./css/components/lang-btn.css": "./css/components/lang-btn.css",
@@ -33,7 +41,14 @@
     "./css/components/pagination.css": "./css/components/pagination.css",
     "./css/components/tabs.css": "./css/components/tabs.css",
     "./css/components/custom-select.css": "./css/components/custom-select.css",
+    "./css/components/empty-state.css": "./css/components/empty-state.css",
+    "./css/components/callout.css": "./css/components/callout.css",
+    "./css/components/stat-card.css": "./css/components/stat-card.css",
+    "./css/components/section.css": "./css/components/section.css",
+    "./css/components/sub-header.css": "./css/components/sub-header.css",
+    "./css/components/card.css": "./css/components/card.css",
     "./field-row": "./js/field-row.js",
+    "./icon": "./js/icon.js",
     "./badge": "./js/badge.js",
     "./skeleton": "./js/skeleton.js",
     "./meta-grid": "./js/meta-grid.js",
@@ -42,6 +57,7 @@
     "./css/components/skeleton.css": "./css/components/skeleton.css",
     "./css/components/code-badge.css": "./css/components/code-badge.css",
     "./css/components/toggle.css": "./css/components/toggle.css",
+    "./css/components/icon.css": "./css/components/icon.css",
     "./css/components/field-row.css": "./css/components/field-row.css"
   },
   "files": [
@@ -49,7 +65,6 @@
     "css"
   ],
   "dependencies": {
-    "jquery": "4.0.0",
     "protobufjs": "^8.8.0"
   },
   "devDependencies": {

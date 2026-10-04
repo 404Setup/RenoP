@@ -1711,11 +1711,11 @@ func (db *DB) ForceAddDockerMembers(repository, imageName, actor string, usernam
 
 		if err := insertAcceptedMembershipMessage(tx, username, actor, "docker_image_invite",
 			"Docker container image membership added",
-			fmt.Sprintf("%s added you to collaborate on %s with L%d permission.", actor, imageName, level), map[string]any{
-				"repository": repository,
-				"image":      imageName,
-				"inviter":    actor,
-				"level":      level,
+			fmt.Sprintf("%s added you to collaborate on %s with L%d permission.", actor, imageName, level), MembershipInvitePayload{
+				Repository: repository,
+				Image:      imageName,
+				Inviter:    actor,
+				Level:      level,
 			}, now); err != nil {
 			return fmt.Errorf("create Docker membership message: %w", err)
 		}

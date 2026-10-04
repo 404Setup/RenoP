@@ -19,8 +19,6 @@ import {MAX_LEGAL_DOCUMENT_BYTES} from '../legal-response.js';
 /** Render all legal documents with the same Markdown editor and safe preview, supporting i18n translations. */
 export function renderLegalSettings(container, data, changed) {
     data.translations = data.translations || {};
-    let selectedLang = 'default';
-    const editors = new Map();
 
     const getDocValue = (lang, key) => {
         if (lang === 'default') return data[key] || '';
@@ -47,6 +45,8 @@ export function renderLegalSettings(container, data, changed) {
             changed();
         }));
 
+    wrap.appendChild(notice);
+
     const available = (typeof getAvailableLanguages === 'function' ? getAvailableLanguages() : []) || [];
     const details = (typeof getLanguageDetails === 'function' ? getLanguageDetails() : {}) || {};
     const langOptions = [
@@ -57,26 +57,11 @@ export function renderLegalSettings(container, data, changed) {
         }))
     ];
 
-    if (langOptions.length > 1) {
-        const langSelect = makeCustomSelect(langOptions, selectedLang, newLang => {
-            selectedLang = newLang;
-            for (const [key, {input, updateByteInfo, setMode}] of editors.entries()) {
-                input.value = getDocValue(selectedLang, key);
-                updateByteInfo();
-                setMode(false);
-            }
-        });
-        noticeFields.appendChild(createFieldRow(
-            t('legal.language') || 'Document language',
-            t('legal.translationNotice') || 'Select which language version to edit. English is the instance default.',
-            langSelect
-        ));
-    }
-    wrap.appendChild(notice);
-
     for (const [key, title] of [['privacy_policy', 'footer.privacyPolicy'], ['terms_of_service', 'legal.termsTitle'], ['legal_notice', 'footer.legalNotice']]) {
         const section = createSection(createIcon('compliance'), t(title), t('legal.documentHint'), {defaultCollapsed: true});
         const fields = section.querySelector('.cfg-fields');
+
+        let selectedLang = 'default';
 
         const input = el('textarea', {
             class: 'legal-editor',
@@ -143,6 +128,20 @@ export function renderLegalSettings(container, data, changed) {
             if (!previewing) input.focus({preventScroll: true});
         };
 
+        if (langOptions.length > 1) {
+            const langSelect = makeCustomSelect(langOptions, selectedLang, newLang => {
+                selectedLang = newLang;
+                input.value = getDocValue(selectedLang, key);
+                updateByteInfo();
+                setMode(false);
+            });
+            fields.appendChild(createFieldRow(
+                t('legal.language') || 'Document language',
+                t('legal.translationNotice') || 'Select which language version to edit. English is the instance default.',
+                langSelect
+            ));
+        }
+
         const toolbar = el('div', {class: 'legal-editor-toolbar'},
             el('div', {class: 'legal-toolbar-left'},
                 el('span', {class: 'legal-format-badge'}, 'Markdown'),
@@ -153,8 +152,6 @@ export function renderLegalSettings(container, data, changed) {
                 previewTab
             )
         );
-
-        editors.set(key, {input, updateByteInfo, setMode});
 
         input.addEventListener('input', () => {
             const valid = new TextEncoder().encode(input.value).byteLength <= MAX_LEGAL_DOCUMENT_BYTES;

@@ -80,12 +80,11 @@ export function createTab(text, {href = '#', active = false, loading = false, on
  * @returns {HTMLElement}
  */
 export function createBreadcrumbSep(index = 0) {
-    const sep = document.createElement('span');
-    sep.className = 'breadcrumb-sep';
-    sep.setAttribute('aria-hidden', 'true');
-    sep.textContent = '/';
-    sep.style.setProperty('--seg-index', String(index));
-    return sep;
+    return el('span', {
+        class: 'breadcrumb-sep',
+        'aria-hidden': 'true',
+        style: `--seg-index: ${index}`
+    }, '/');
 }
 
 /**
@@ -100,14 +99,16 @@ export function createBreadcrumbSep(index = 0) {
  * @returns {HTMLElement}
  */
 export function createBreadcrumbLink({href, text, isCurrent, i18nKey, index = 0, onClick}) {
-    const link = document.createElement('a');
-    link.href = href;
-    link.className = 'breadcrumb-seg' + (isCurrent ? ' is-current' : '');
-    link.textContent = text;
-    if (i18nKey) link.setAttribute('data-i18n', i18nKey);
-    link.title = href;
-    link.style.setProperty('--seg-index', String(index));
-    if (isCurrent) link.setAttribute('aria-current', 'page');
-    if (onClick) link.addEventListener('click', onClick);
-    return link;
+    const linkProps = {
+        href,
+        class: 'breadcrumb-seg' + (isCurrent ? ' is-current' : ''),
+        title: href,
+        style: `--seg-index: ${index}`
+    };
+
+    if (i18nKey) linkProps['data-i18n'] = i18nKey;
+    if (isCurrent) linkProps['aria-current'] = 'page';
+    if (onClick) linkProps.onClick = onClick;
+
+    return el('a', linkProps, text);
 }

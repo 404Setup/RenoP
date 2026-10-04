@@ -28,6 +28,8 @@ import {renderRecovery} from './views/recovery.js';
 import {renderRegistration} from './views/registration.js';
 import {renderRepositories} from './views/repositories.js';
 import {renderSettings} from './views/settings.js';
+import {renderStorage} from './views/storage.js';
+import {renderDatabase} from './views/database.js';
 import {renderSuperTeam} from './views/super-team.js';
 import {renderSuperTeams} from './views/super-teams.js';
 import {renderTickets} from './views/tickets.js';
@@ -48,7 +50,7 @@ export function renderShell(config = {}) {
                     el('p', {'data-i18n': 'common.loading'}, 'Loading...'),
                     el('renop-skeleton', {type: 'table', count: '3', 'aria-hidden': 'true'})), [
                     renderLogin, renderRecovery, renderPasswordRecovery, renderRegistration,
-                    renderOverview, renderDashboard, renderMavenDomains, renderMavenDomain,
+                    renderOverview, renderDashboard, renderStorage, renderDatabase, renderMavenDomains, renderMavenDomain,
                     renderSuperTeams, renderSuperTeam, renderTickets, renderProfile,
                     renderUsers, renderRepositories, renderSettings, renderLegal,
                 ].map(render => render())),

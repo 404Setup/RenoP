@@ -21,10 +21,11 @@ import (
 
 	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
+
+	"renop/pkg/id"
 
 	"renop/internal/config"
 	"renop/internal/core"
@@ -262,7 +263,7 @@ func TestFineGrainedAPITokenRoutesAndAuthorizationBoundaries(t *testing.T) {
 
 func mustJSONMarshal(t *testing.T, value any) []byte {
 	t.Helper()
-	encoded, err := json.Marshal(value)
+	encoded, err := json.MarshalOf(value)
 	require.NoError(t, err)
 	return encoded
 }
@@ -282,7 +283,7 @@ func TestExpiredAPITokenIsRejected(t *testing.T) {
 	createdAt := time.Now().Add(-2 * time.Hour).UnixMilli()
 	expiresAt := time.Now().Add(-time.Hour).UnixMilli()
 	require.NoError(t, db.CreateAPIToken("alice", &core.APIToken{
-		ID: uuid.NewString(), Name: "Expired", Scopes: []string{core.APITokenScopeRepositoryRead},
+		ID: id.New(), Name: "Expired", Scopes: []string{core.APITokenScopeRepositoryRead},
 		CreatedAt: createdAt, ExpiresAt: &expiresAt,
 	}, core.HashAPITokenSecret(secret)))
 	app := fiber.New()
@@ -309,7 +310,7 @@ func TestAPITokenScopesRemainCappedByCurrentAccountPermissions(t *testing.T) {
 	secret, err := core.GenerateAPITokenSecret()
 	require.NoError(t, err)
 	require.NoError(t, db.CreateAPIToken("admin", &core.APIToken{
-		ID: uuid.NewString(), Name: "Settings automation",
+		ID: id.New(), Name: "Settings automation",
 		Scopes: []string{core.APITokenScopeAdminSettings}, CreatedAt: time.Now().UnixMilli(),
 	}, core.HashAPITokenSecret(secret)))
 	app := fiber.New()

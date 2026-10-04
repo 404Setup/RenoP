@@ -337,4 +337,8 @@ export default Object.freeze({
     "profile.apiTokenEditDesc": "Mettre à jour le nom et les autorisations du jeton d'API sans changer le secret.",
     "profile.apiTokenEdited": "Jeton d'API mis à jour",
     "profile.apiTokenEditFailed": "Échec de la mise à jour du jeton d'API",
+    "profile.trafficQuotaTitle": "Quota de trafic de téléchargement",
+    "profile.trafficQuotaDesc": "Consultez vos limites de téléchargement, le quota restant et le taux de récupération.",
+    "profile.trafficQuotaLoading": "Chargement du quota de trafic…",
+    "profile.trafficQuotaLoadFailed": "Échec du chargement du quota de trafic.",
 });

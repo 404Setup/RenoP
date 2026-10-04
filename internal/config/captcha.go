@@ -28,6 +28,7 @@ const (
 	CaptchaSuperTeamCreate = "super_team_create"
 	CaptchaDomainCreate    = "domain_create"
 	CaptchaPackageCreate   = "package_create"
+	CaptchaAntiAbuse       = "anti_abuse"
 )
 
 // CaptchaScopes identifies interactive actions protected by a human challenge.
@@ -38,6 +39,7 @@ type CaptchaScopes struct {
 	SuperTeamCreate bool `json:"super_team_create" yaml:"super_team_create"`
 	DomainCreate    bool `json:"domain_create" yaml:"domain_create"`
 	PackageCreate   bool `json:"package_create" yaml:"package_create"`
+	AntiAbuse       bool `json:"anti_abuse" yaml:"anti_abuse"`
 }
 
 // Enabled reports whether a recognized action is protected.
@@ -55,6 +57,8 @@ func (s CaptchaScopes) Enabled(scope string) bool {
 		return s.DomainCreate
 	case CaptchaPackageCreate:
 		return s.PackageCreate
+	case CaptchaAntiAbuse:
+		return s.AntiAbuse
 	default:
 		return false
 	}
@@ -127,7 +131,7 @@ func (c CaptchaConfig) PolicyHash() string {
 	if c.policyHash != "" {
 		return c.policyHash
 	}
-	data, _ := json.Marshal(c)
+	data, _ := json.MarshalOf(c)
 	digest := sha256.Sum256(data)
 	return hex.EncodeToString(digest[:])
 }

@@ -254,6 +254,9 @@ func handleInit(c fiber.Ctx, state *core.AppState, mgr *Manager) error {
 func handlePutChunk(c fiber.Ctx, mgr *Manager) error {
 	user := auth.GetUser(c)
 	if user == nil || user.Username == "" || user.Username == "guest" {
+		if utils.HasUploadBody(c) {
+			utils.RejectUploadEarly(c)
+		}
 		return jsonErr(c, fiber.StatusUnauthorized, "Unauthorized")
 	}
 
@@ -261,14 +264,23 @@ func handlePutChunk(c fiber.Ctx, mgr *Manager) error {
 	indexStr := c.Params("index")
 	index, err := strconv.Atoi(indexStr)
 	if err != nil || index < 0 {
+		if utils.HasUploadBody(c) {
+			utils.RejectUploadEarly(c)
+		}
 		return jsonErr(c, fiber.StatusBadRequest, "Invalid chunk index")
 	}
 
 	sess, ok := mgr.Get(id)
 	if !ok {
+		if utils.HasUploadBody(c) {
+			utils.RejectUploadEarly(c)
+		}
 		return jsonErr(c, fiber.StatusNotFound, "Upload session not found")
 	}
 	if !sess.OwnedBy(user.Username) {
+		if utils.HasUploadBody(c) {
+			utils.RejectUploadEarly(c)
+		}
 		return jsonErr(c, fiber.StatusForbidden, "Forbidden")
 	}
 

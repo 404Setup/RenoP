@@ -32,6 +32,7 @@ export default Object.freeze({
     "captcha.scope.super_team_create": "글로벌 팀 만들기",
     "captcha.scope.domain_create": "게시 도메인 만들기",
     "captcha.scope.package_create": "패키지 만들기",
+    "captcha.scope.anti_abuse": "어뷰징 방지 및 속도 제한",
     "captcha.loading": "인증을 불러오는 중…",
     "captcha.complete": "보안 인증을 완료해 주세요.",
     "captcha.consent": "Cookie 환경설정에서 외부 인증 서비스를 허용해 주세요.",

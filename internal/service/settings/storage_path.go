@@ -18,7 +18,7 @@ import (
 
 	"renop/internal/core"
 	"renop/internal/service/index"
-	"renop/internal/service/javadocs"
+	"renop/internal/service/maven/javadocs"
 )
 
 func normalizeStoragePath(p string) string {

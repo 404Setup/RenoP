@@ -36,12 +36,12 @@ import (
 	"renop/internal/middleware"
 	"renop/internal/service/audit"
 	"renop/internal/service/auth"
-	"renop/internal/service/cargodocs"
+	"renop/internal/service/cargo/docs"
 	"renop/internal/service/docker"
 	"renop/internal/service/frontend"
 	"renop/internal/service/gpg"
-	"renop/internal/service/javadocs"
 	"renop/internal/service/maven"
+	"renop/internal/service/maven/javadocs"
 	"renop/internal/service/message"
 	"renop/internal/service/npm"
 	"renop/internal/service/publicationquota"
@@ -52,6 +52,7 @@ import (
 	"renop/internal/service/superteam"
 	"renop/internal/service/ticket"
 	"renop/internal/service/token"
+	"renop/internal/service/traffic"
 	"renop/internal/service/updater"
 	"renop/internal/service/upload"
 	"renop/internal/utils"
@@ -104,6 +105,7 @@ func main() {
 			fmt.Println("  renop --install-caddy Configure a Caddy reverse proxy for RenoP")
 			fmt.Println("  renop --demo          Start with read-only demonstration data")
 			fmt.Println("  renop --demo --demo-temp  Allow demonstration settings and repositories to be configured")
+			fmt.Println("  renop --update-uuid   Scan and update existing UUIDs to compact IDs on startup")
 			fmt.Println("  renop --help          Show help information")
 			return
 		}
@@ -159,7 +161,9 @@ func startServer() {
 		ErrorHandler:                 audit.ErrorHandler(state),
 	})
 
-	app.Use(demo.Middleware(state))
+	if state.IsDemo() {
+		app.Use(demo.Middleware(state))
+	}
 	app.Use(middleware.APINoCacheMiddleware())
 	app.Use(middleware.CorsMiddleware(state))
 	app.Use(middleware.AnomalyMiddleware(state))
@@ -198,6 +202,7 @@ func startServer() {
 	superteam.SetupRoutes(apiGroup, state)
 	ticket.SetupRoutes(apiGroup, state)
 	publicationquota.SetupRoutes(apiGroup, state)
+	traffic.SetupRoutes(apiGroup, state)
 	maven.SetupRoutes(apiGroup, state)
 	npm.SetupRoutes(apiGroup, state, storage.NewPackageStore())
 	upload.SetupChunkedUploadRoutes(apiGroup, state)

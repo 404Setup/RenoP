@@ -19,10 +19,10 @@ import (
 	"strings"
 
 	"renop/internal/config"
-	"renop/internal/service/apk"
-	"renop/internal/service/apt"
-	"renop/internal/service/conda"
-	"renop/internal/service/rpm"
+	"renop/internal/service/nativepkg/apk"
+	"renop/internal/service/nativepkg/apt"
+	"renop/internal/service/nativepkg/conda"
+	"renop/internal/service/nativepkg/rpm"
 
 	"github.com/goccy/go-json"
 )
@@ -31,7 +31,7 @@ var ErrNativePackageInvalid = errors.New("native package metadata is invalid")
 
 type nativePackageParser struct {
 	accepts func(string) bool
-	parse   func(io.ReaderAt, int64, string) (any, error)
+	parse   func(io.ReaderAt, int64, string) ([]byte, error)
 }
 
 var nativePackageParsers = map[string]nativePackageParser{
@@ -39,7 +39,7 @@ var nativePackageParsers = map[string]nativePackageParser{
 		accepts: func(name string) bool {
 			return strings.HasSuffix(name, ".conda") || strings.HasSuffix(name, ".tar.bz2")
 		},
-		parse: func(reader io.ReaderAt, size int64, relative string) (any, error) {
+		parse: func(reader io.ReaderAt, size int64, relative string) ([]byte, error) {
 			parts := strings.Split(relative, "/")
 			if len(parts) != 2 {
 				return nil, ErrNativePackageInvalid
@@ -51,25 +51,37 @@ var nativePackageParsers = map[string]nativePackageParser{
 			if _, err := conda.Repodata(parts[0], []*conda.Package{pkg}); err != nil {
 				return nil, err
 			}
-			return pkg, nil
+			return json.MarshalOf(pkg)
 		},
 	},
 	config.RepositoryFormatAPK: {
 		accepts: func(name string) bool { return strings.HasSuffix(name, ".apk") },
-		parse: func(reader io.ReaderAt, size int64, relative string) (any, error) {
-			return apk.ReadPackage(reader, size, path.Base(relative))
+		parse: func(reader io.ReaderAt, size int64, relative string) ([]byte, error) {
+			pkg, err := apk.ReadPackage(reader, size, path.Base(relative))
+			if err != nil {
+				return nil, err
+			}
+			return json.MarshalOf(pkg)
 		},
 	},
 	config.RepositoryFormatAPT: {
 		accepts: func(name string) bool { return strings.HasSuffix(name, ".deb") },
-		parse: func(reader io.ReaderAt, size int64, relative string) (any, error) {
-			return apt.ReadPackage(reader, size, relative)
+		parse: func(reader io.ReaderAt, size int64, relative string) ([]byte, error) {
+			pkg, err := apt.ReadPackage(reader, size, relative)
+			if err != nil {
+				return nil, err
+			}
+			return json.MarshalOf(pkg)
 		},
 	},
 	config.RepositoryFormatRPM: {
 		accepts: func(name string) bool { return strings.HasSuffix(name, ".rpm") },
-		parse: func(reader io.ReaderAt, size int64, relative string) (any, error) {
-			return rpm.ReadPackage(reader, size, relative)
+		parse: func(reader io.ReaderAt, size int64, relative string) ([]byte, error) {
+			pkg, err := rpm.ReadPackage(reader, size, relative)
+			if err != nil {
+				return nil, err
+			}
+			return json.MarshalOf(pkg)
 		},
 	},
 }
@@ -91,11 +103,7 @@ func prepareNativePackage(repo *config.Repository, relativePath, staged string) 
 	if err != nil {
 		return nil, err
 	}
-	record, err := parser.parse(file, info.Size(), relativePath)
-	if err != nil {
-		return nil, ErrNativePackageInvalid
-	}
-	data, err := json.Marshal(record)
+	data, err := parser.parse(file, info.Size(), relativePath)
 	if err != nil || len(data) > 1<<20 {
 		return nil, ErrNativePackageInvalid
 	}

@@ -1,7 +1,10 @@
 /*
  * Copyright (c) 2026 404Setup. All rights reserved.
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
- * If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
+ *
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
@@ -136,12 +139,7 @@ func setResourceLockAPI(c fiber.Ctx, state *core.AppState) error {
 	if user == nil || !user.CheckModeratePermission(repo.Name) || auth.CurrentCredentialKind(c) != "session" || session == "" || c.Cookies("renop_session") != session {
 		return npmManagementError(c, core.ErrResourceLockPermission)
 	}
-	var request struct {
-		Version    string `json:"version"`
-		Mode       string `json:"mode"`
-		Reason     string `json:"reason"`
-		ReasonText string `json:"reason_text"`
-	}
+	var request core.ResourceLockRequest
 	if utils.ReadJSONLimited(c, &request, 4096) != nil || request.Version != "" && (!validNPMVersion(request.Version) || strings.TrimSpace(request.Version) != request.Version) {
 		return npmManagementError(c, core.ErrResourceLockInvalid)
 	}

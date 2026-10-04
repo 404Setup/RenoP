@@ -31,7 +31,7 @@ const registrationColumns = "id_hash, ip_hash, provider_key, email, code_hash, p
 
 func registrationProviderProfile(p *core.PendingRegistration) (*core.RegistrationProfile, error) {
 	profile := &core.RegistrationProfile{}
-	if json.Unmarshal([]byte(p.ProfileJSON), profile) != nil {
+	if json.UnmarshalOf([]byte(p.ProfileJSON), profile) != nil {
 		return nil, core.ErrRegistrationInvalid
 	}
 	if profile.OAuth != nil {

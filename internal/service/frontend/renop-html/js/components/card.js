@@ -26,8 +26,8 @@ export class RenopCard extends HTMLElement {
     }
 }
 
-if (!customElements.get('renop-card')) {
-    customElements.define('renop-card', RenopCard);
+if (!customElements.get('renop-index-card')) {
+    customElements.define('renop-index-card', RenopCard);
 }
 
 /**
@@ -57,7 +57,7 @@ export function createIndexCard({
                                     buttonTitle,
                                     onButtonClick
                                 }) {
-    const card = document.createElement('renop-card');
+    const card = document.createElement('renop-index-card');
     card.className = 'cfg-index-card';
 
     const header = el('div', {class: 'cfg-index-card-header'},

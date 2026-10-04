@@ -560,6 +560,9 @@ func (d *MySQLDialect) InitTables(db *sql.DB) error {
 	if err := initPublicationQuotaTables(db); err != nil {
 		return err
 	}
+	if err := initTrafficQuotaTables(db); err != nil {
+		return err
+	}
 	if err := initNativeResourceTables(db); err != nil {
 		return err
 	}

@@ -48,7 +48,7 @@ func TestMFASetupLoginReplayAndPolicyBoundaries(t *testing.T) {
 	key := state.Inner.Config.Load().MFAEncryptionKey
 	require.NoError(t, EnsureMFAKey(state, keyPath))
 	require.Equal(t, key, state.Inner.Config.Load().MFAEncryptionKey)
-	publicConfig, err := json.Marshal(state.Inner.Config.Load())
+	publicConfig, err := json.MarshalOf(state.Inner.Config.Load())
 	require.NoError(t, err)
 	require.NotContains(t, string(publicConfig), key)
 	password, err := bcrypt.GenerateFromPassword([]byte("test-password"), bcrypt.MinCost)
@@ -60,7 +60,7 @@ func TestMFASetupLoginReplayAndPolicyBoundaries(t *testing.T) {
 	app.Use(AuthMiddleware(state))
 	SetupAuthRoutes(app.Group("/api"), state, nil)
 	request := func(method, path string, body any, cookies ...*http.Cookie) *http.Response {
-		data, err := json.Marshal(body)
+		data, err := json.MarshalOf(body)
 		require.NoError(t, err)
 		contentType := "application/json"
 		if path == "/api/auth/login" {

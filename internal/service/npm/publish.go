@@ -52,6 +52,11 @@ const (
 	tarTypeRegularAlt        = byte(0)
 )
 
+type npmTarballManifest struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+}
+
 var (
 	publishSlots = make(chan struct{}, 2)
 	copyBuffers  = sync.Pool[*[]byte]{New: func() *[]byte {
@@ -77,7 +82,7 @@ func decodePublishDocument(c fiber.Ctx) (*publishDocument, error) {
 	if err := decoder.Decode(document); err != nil {
 		return nil, errors.New("invalid npm publish document")
 	}
-	var extra any
+	var extra json.RawMessage
 	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
 		return nil, errors.New("npm publish document must contain one JSON value")
 	}
@@ -96,7 +101,7 @@ func publishVersion(document *publishDocument, packageName string) (string, map[
 			return "", nil, errors.New("npm package version is invalid")
 		}
 		manifest := make(map[string]any)
-		if err := json.Unmarshal(raw, &manifest); err != nil {
+		if err := json.UnmarshalOf(raw, &manifest); err != nil {
 			return "", nil, errors.New("npm version manifest is invalid")
 		}
 		manifestName, _ := manifest["name"].(string)
@@ -198,11 +203,8 @@ func validateTarball(staged StagedFile, packageName, version string) error {
 		if readErr != nil || int64(len(contents)) != header.Size {
 			return errors.New("npm package.json is invalid")
 		}
-		var manifest struct {
-			Name    string `json:"name"`
-			Version string `json:"version"`
-		}
-		if err := json.Unmarshal(contents, &manifest); err != nil {
+		var manifest npmTarballManifest
+		if err := json.UnmarshalOf(contents, &manifest); err != nil {
 			return errors.New("npm package.json is invalid")
 		}
 		normalizedName, valid := NormalizePackageName(manifest.Name)
@@ -376,7 +378,7 @@ func publish(c fiber.Ctx, state *core.AppState, repo *config.Repository, store S
 	}
 	setCanonicalDist(manifest, "", repo.Name, packageName, version, tarballPath,
 		shasum, integrity, user.Username, size)
-	manifestJSON, err := json.Marshal(manifest)
+	manifestJSON, err := json.MarshalOf(manifest)
 	if err != nil || len(manifestJSON) > maxStoredManifestJSON {
 		return npmError(c, fiber.StatusBadRequest, "manifest too large", "npm version metadata exceeds the server limit")
 	}

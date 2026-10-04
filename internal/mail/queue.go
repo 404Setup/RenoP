@@ -86,7 +86,7 @@ func queueCipher(key string) (cipher.AEAD, error) {
 
 // Seal encrypts durable mail content and binds it to its table row identity.
 func Seal(key, purpose string, value any) (string, error) {
-	data, err := json.Marshal(value)
+	data, err := json.MarshalOf(value)
 	if err != nil {
 		return "", err
 	}
@@ -101,7 +101,7 @@ func Seal(key, purpose string, value any) (string, error) {
 }
 
 // Open verifies and decodes a bounded durable mail payload.
-func Open(key, purpose, encoded string, value any) error {
+func Open[T any](key, purpose, encoded string, value *T) error {
 	if len(encoded) > 4*MaxBodyBytes {
 		return errors.New("mail payload too large")
 	}
@@ -117,5 +117,5 @@ func Open(key, purpose, encoded string, value any) error {
 	if err != nil {
 		return errors.New("invalid mail payload")
 	}
-	return json.Unmarshal(data, value)
+	return json.UnmarshalOf(data, value)
 }

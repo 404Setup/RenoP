@@ -71,3 +71,34 @@ test('Back restores the root tab recorded in that history entry', () => {
         assert.equal(selected, expected);
     }
 });
+
+test('manager entity routes map directly to their application tabs', () => {
+    const source = readFileSync(new URL('../js/main.js', import.meta.url), 'utf8');
+    const parseStart = source.indexOf('export function managerTabFromPath');
+    const routeStart = source.indexOf('export function managerRouteForTab');
+    const block = source.slice(parseStart, source.indexOf("window.addEventListener('languageChanged'", routeStart))
+        .replace(/^export /gm, '');
+    const context = vm.createContext({});
+    vm.runInContext(block + '\nthis.managerTabFromPath = managerTabFromPath; this.managerRouteForTab = managerRouteForTab;', context);
+    for (const [pathname, expectedTab] of [
+        ['/dashboard', 'dashboard'],
+        ['/dashboard/', 'dashboard'],
+        ['/users', 'users'],
+        ['/users/', 'users'],
+        ['/repositories', 'repositories'],
+        ['/repositories/', 'repositories'],
+        ['/settings', 'settings'],
+        ['/settings/', 'settings'],
+        ['/settings/server', 'settings'],
+        ['/', ''],
+        ['/files/demo', ''],
+        ['/other', '']
+    ]) {
+        assert.equal(context.managerTabFromPath(pathname), expectedTab, pathname);
+    }
+    assert.equal(context.managerRouteForTab('dashboard'), '/dashboard');
+    assert.equal(context.managerRouteForTab('users'), '/users');
+    assert.equal(context.managerRouteForTab('repositories'), '/repositories');
+    assert.equal(context.managerRouteForTab('settings'), '/settings');
+    assert.equal(context.managerRouteForTab('overview'), '');
+});

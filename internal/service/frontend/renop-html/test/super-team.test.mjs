@@ -160,10 +160,10 @@ test('package creation includes T2 approval while domain binding remains T3', ()
     }
 });
 
-test('global team settings use their own JSON page', () => {
+test('global team settings use their own protobuf page', () => {
     const settings = source('js', 'settings.js');
     assert.match(settings, /super_teams: \{label: 'superTeam.settingsTitle', render: renderSuperTeamSettings}/);
     assert.match(settings, /fetchDomainSettings/);
     assert.doesNotMatch(settings, /MERGED_SERVICE_DOMAINS/);
-    assert.doesNotMatch(settings.match(/const DOMAIN_MESSAGE_TYPES = \{[\s\S]*?};/)[0], /super_teams:/);
+    assert.match(settings.match(/const DOMAIN_MESSAGE_TYPES = \{[\s\S]*?};/)[0], /super_teams: SuperTeamConfig/);
 });

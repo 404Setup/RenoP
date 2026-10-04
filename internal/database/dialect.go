@@ -266,6 +266,30 @@ func initPublicationQuotaTables(db *sql.DB) error {
 	return nil
 }
 
+func initTrafficQuotaTables(db *sql.DB) error {
+	tables := [...]string{
+		`CREATE TABLE IF NOT EXISTS traffic_quota_user_overrides (
+			username VARCHAR(255) PRIMARY KEY,
+			hourly_limit_bytes BIGINT NOT NULL DEFAULT -1,
+			daily_limit_bytes BIGINT NOT NULL DEFAULT -1,
+			monthly_limit_bytes BIGINT NOT NULL DEFAULT -1,
+			hourly_enabled INT NOT NULL DEFAULT -1,
+			daily_enabled INT NOT NULL DEFAULT -1,
+			monthly_enabled INT NOT NULL DEFAULT -1,
+			recovery_amount_bytes BIGINT NOT NULL DEFAULT -1,
+			recovery_interval_s BIGINT NOT NULL DEFAULT -1,
+			unlimited INT NOT NULL DEFAULT 0,
+			updated_at BIGINT NOT NULL
+		);`,
+	}
+	for _, table := range tables {
+		if _, err := db.Exec(table); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func initNPMTables(db *sql.DB) error {
 	tables := [...]string{
 		`CREATE TABLE IF NOT EXISTS npm_packages (

@@ -39,7 +39,7 @@ func Repodata(subdir string, packages []*Package) ([]byte, error) {
 		}
 		if raw, ok := pkg.Record["subdir"]; ok {
 			var declared string
-			if json.Unmarshal(raw, &declared) != nil || (declared != "" && declared != subdir) {
+			if json.UnmarshalOf(raw, &declared) != nil || (declared != "" && declared != subdir) {
 				return nil, ErrInvalidPackage
 			}
 		}
@@ -49,7 +49,7 @@ func Repodata(subdir string, packages []*Package) ([]byte, error) {
 			legacy[pkg.Filename] = pkg.Record
 		}
 	}
-	return json.Marshal(struct {
+	return json.MarshalOf(struct {
 		Info     map[string]string                     `json:"info"`
 		Packages map[string]map[string]json.RawMessage `json:"packages"`
 		Conda    map[string]map[string]json.RawMessage `json:"packages.conda"`

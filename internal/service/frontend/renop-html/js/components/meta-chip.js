@@ -68,9 +68,7 @@ if (!customElements.get('renop-meta-chip')) {
  * @returns {HTMLElement}
  */
 export function createMetaChip(label, value, tone = '') {
-    const chip = document.createElement('renop-meta-chip');
-    chip.setAttribute('label', label);
-    chip.setAttribute('value', value);
-    if (tone) chip.setAttribute('tone', tone);
-    return chip;
+    const attrs = {label, value};
+    if (tone) attrs.tone = tone;
+    return el('renop-meta-chip', attrs);
 }

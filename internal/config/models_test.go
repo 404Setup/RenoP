@@ -215,7 +215,7 @@ func TestRepositoryFormatVariantsAndLegacyUpgradeDefaults(t *testing.T) {
 	}
 
 	var settings MavenSettings
-	if err := json.Unmarshal([]byte(`{"repositories":{"legacy":{"name":"legacy","visibility":"PUBLIC","mirrors":[]}}}`), &settings); err != nil {
+	if err := json.UnmarshalOf([]byte(`{"repositories":{"legacy":{"name":"legacy","visibility":"PUBLIC","mirrors":[]}}}`), &settings); err != nil {
 		t.Fatal(err)
 	}
 	legacy := settings.Repositories["legacy"]
@@ -246,7 +246,7 @@ func TestRepositoryFormatVariantsAndLegacyUpgradeDefaults(t *testing.T) {
 	if !files.DownloadStatisticsEnabled() {
 		t.Fatal("file repository download statistics opt-in was ignored")
 	}
-	encoded, err := json.Marshal(files)
+	encoded, err := json.MarshalOf(files)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -291,13 +291,13 @@ func TestRepositoryPublicationReviewPolicyValidation(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			var settings MavenSettings
-			if err := json.Unmarshal([]byte(payload), &settings); err == nil {
+			if err := json.UnmarshalOf([]byte(payload), &settings); err == nil {
 				t.Fatal("invalid publication-review configuration was accepted")
 			}
 		})
 	}
 	var npmSettings MavenSettings
-	if err := json.Unmarshal([]byte(`{"repositories":{"npm":{"name":"npm","format":"npm","publication_review":"every_version"}}}`),
+	if err := json.UnmarshalOf([]byte(`{"repositories":{"npm":{"name":"npm","format":"npm","publication_review":"every_version"}}}`),
 		&npmSettings); err != nil {
 		t.Fatalf("valid npm publication-review configuration was rejected: %v", err)
 	}
@@ -305,7 +305,7 @@ func TestRepositoryPublicationReviewPolicyValidation(t *testing.T) {
 		t.Fatalf("npm publication-review policy = %q", got)
 	}
 	var cargoSettings MavenSettings
-	if err := json.Unmarshal([]byte(`{"repositories":{"cargo":{"name":"cargo","format":"cargo","publication_review":"new_packages"}}}`),
+	if err := json.UnmarshalOf([]byte(`{"repositories":{"cargo":{"name":"cargo","format":"cargo","publication_review":"new_packages"}}}`),
 		&cargoSettings); err != nil {
 		t.Fatalf("valid Cargo publication-review configuration was rejected: %v", err)
 	}
@@ -313,7 +313,7 @@ func TestRepositoryPublicationReviewPolicyValidation(t *testing.T) {
 		t.Fatalf("Cargo publication-review policy = %q", got)
 	}
 	var dockerSettings MavenSettings
-	if err := json.Unmarshal([]byte(`{"repositories":{"docker":{"name":"docker","format":"docker","publication_review":"every_version"}}}`),
+	if err := json.UnmarshalOf([]byte(`{"repositories":{"docker":{"name":"docker","format":"docker","publication_review":"every_version"}}}`),
 		&dockerSettings); err != nil {
 		t.Fatalf("valid Docker publication-review configuration was rejected: %v", err)
 	}
@@ -324,7 +324,7 @@ func TestRepositoryPublicationReviewPolicyValidation(t *testing.T) {
 
 func TestMirrorCredentialsUnmarshaling(t *testing.T) {
 	var m MirrorCredentials
-	err := json.Unmarshal([]byte(`{"method":"basic","login":"foo","password":"bar"}`), &m)
+	err := json.UnmarshalOf([]byte(`{"method":"basic","login":"foo","password":"bar"}`), &m)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -473,7 +473,7 @@ func TestFrontendFontConfigNormalizesLegacyAndInvalidValues(t *testing.T) {
 
 func TestGPGConfigMigratesIntoServer(t *testing.T) {
 	var nested Config
-	if err := json.Unmarshal([]byte(`{"gpg":{"key_servers":["https://legacy.example"]},"server":{"gpg":{"key_servers":["https://nested.example"]}}}`), &nested); err != nil {
+	if err := json.UnmarshalOf([]byte(`{"gpg":{"key_servers":["https://legacy.example"]},"server":{"gpg":{"key_servers":["https://nested.example"]}}}`), &nested); err != nil {
 		t.Fatal(err)
 	}
 	if got := nested.Server.GPG.KeyServers; len(got) != 1 || got[0] != "https://nested.example" {
@@ -501,7 +501,7 @@ func TestGPGConfigMigratesIntoServer(t *testing.T) {
 
 func TestMirrorProxySelectorMigration(t *testing.T) {
 	var selected Mirror
-	if err := json.Unmarshal([]byte(`{"proxy":"direct","name":"mirror"}`), &selected); err != nil {
+	if err := json.UnmarshalOf([]byte(`{"proxy":"direct","name":"mirror"}`), &selected); err != nil {
 		t.Fatal(err)
 	}
 	if selected.ProxyMode != "direct" || selected.Proxy != nil {
@@ -515,7 +515,7 @@ func TestMirrorProxySelectorMigration(t *testing.T) {
 	if legacy.Proxy == nil || legacy.Proxy.URL != "socks5://proxy.example:1080" || legacy.ProxyMode != "" {
 		t.Fatalf("legacy mirror proxy was not retained for migration: %#v", legacy)
 	}
-	encoded, err := json.Marshal(&legacy)
+	encoded, err := json.MarshalOf(&legacy)
 	if err != nil {
 		t.Fatal(err)
 	}

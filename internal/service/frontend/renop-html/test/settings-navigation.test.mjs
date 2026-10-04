@@ -77,6 +77,9 @@ test('settings pages preserve drafts and isolate loads, saves, credentials, and 
         ProxyConfig: {},
         UpdaterConfig: {},
         IndexDomainSettings: {},
+        SuperTeamConfig: {},
+        PublicationQuotaConfig: {},
+        MavenDomainConfig: {},
         fetchProto: async url => {
             requests.push({url, method: 'GET'});
             if (url.endsWith('/server') && delayedLoad) return delayedLoad;

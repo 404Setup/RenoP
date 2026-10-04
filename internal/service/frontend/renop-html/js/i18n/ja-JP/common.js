@@ -54,7 +54,7 @@ export default Object.freeze({
     "prompt.copied": "クリップボードにコピーしました",
     "footer.organization": "組織",
     "footer.privacyPolicy": "プライバシーポリシー",
-    "footer.legalNotice": "法的通知",
+    "footer.legalNotice": "DMCAおよび法的通知",
     "footer.allRights": "すべての権利を留保します。",
     "footer.licenseNotice": "ソースコードは Mozilla Public License 2.0 の下で公開されています。",
     "modal.close": "閉じる",

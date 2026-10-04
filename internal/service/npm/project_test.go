@@ -22,7 +22,7 @@ import (
 )
 
 func TestEnrichNPMProjectMetadataNormalizesReadmePeopleAndLinks(t *testing.T) {
-	manifest, err := json.Marshal(map[string]any{
+	manifest, err := json.MarshalOf(map[string]any{
 		"name": "@team/demo", "version": "1.2.3",
 		"readme": "# Demo\n\nSafe **README**.", "readmeFilename": "README.md",
 		"license": "MPL-2.0", "homepage": "javascript:alert(1)",

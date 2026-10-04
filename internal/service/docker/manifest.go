@@ -60,7 +60,7 @@ func ParseManifest(data []byte, headerContentType string) (*ParsedManifest, erro
 	size := int64(len(data))
 
 	var rawMap map[string]any
-	if err := json.Unmarshal(data, &rawMap); err != nil {
+	if err := json.UnmarshalOf(data, &rawMap); err != nil {
 		return nil, errors.New("invalid manifest JSON")
 	}
 
@@ -73,7 +73,7 @@ func ParseManifest(data []byte, headerContentType string) (*ParsedManifest, erro
 		mediaType == MediaTypeDockerManifestList ||
 		mediaType == MediaTypeOCIIndex1 {
 		var index ManifestIndex
-		if err := json.Unmarshal(data, &index); err != nil {
+		if err := json.UnmarshalOf(data, &index); err != nil {
 			return nil, err
 		}
 		if mediaType == "" {
@@ -90,7 +90,7 @@ func ParseManifest(data []byte, headerContentType string) (*ParsedManifest, erro
 	}
 
 	var single ManifestSchema2
-	if err := json.Unmarshal(data, &single); err != nil {
+	if err := json.UnmarshalOf(data, &single); err != nil {
 		return nil, err
 	}
 

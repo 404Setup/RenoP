@@ -9,6 +9,7 @@
  */
 
 import {t} from '../i18n.js';
+import {el} from '@renop/ui/dom';
 import {getRepositoryFormat} from '../repository-formats.js';
 import {decodePathSegment} from './utils.js';
 import {copyWithFeedback} from './copy-feedback.js';
@@ -54,6 +55,10 @@ function snippetTabLabel(type) {
             return t('details.npmInstallTab');
         case 'npm-publish':
             return t('details.npmPublishTab');
+        case 'releases':
+            return t('details.releasesTab');
+        case 'actions':
+            return t('details.actionsTab');
         default:
             return 'Maven';
     }
@@ -157,12 +162,12 @@ function renderSnippetTabs(types) {
     container.innerHTML = '';
     for (let index = 0; index < types.length; index++) {
         const type = types[index];
-        const tab = document.createElement('button');
-        tab.type = 'button';
-        tab.className = `snippet-tab${index === 0 ? ' active' : ''}`;
-        tab.dataset.snippet = type;
-        tab.textContent = snippetTabLabel(type);
-        tab.addEventListener('click', handleSnippetTabClick);
+        const tab = el('button', {
+            type: 'button',
+            class: `snippet-tab${index === 0 ? ' active' : ''}`,
+            'data-snippet': type,
+            onClick: handleSnippetTabClick
+        }, snippetTabLabel(type));
         container.appendChild(tab);
     }
     syncTabIndicator(container);
@@ -260,8 +265,7 @@ function syncTabIndicator(container) {
     if (!(activeTab instanceof HTMLElement)) return;
     let indicator = container.querySelector('.snippet-tab-indicator');
     if (!indicator) {
-        indicator = document.createElement('div');
-        indicator.className = 'snippet-tab-indicator';
+        indicator = el('div', {class: 'snippet-tab-indicator'});
         container.appendChild(indicator);
     }
     indicator.style.left = `${activeTab.offsetLeft}px`;

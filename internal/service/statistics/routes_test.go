@@ -20,9 +20,10 @@ import (
 
 	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"renop/pkg/id"
 
 	"renop/internal/config"
 	"renop/internal/core"
@@ -36,7 +37,7 @@ func statisticsTestToken(t *testing.T, db *database.DB, username string, scopes 
 	secret, err := core.GenerateAPITokenSecret()
 	require.NoError(t, err)
 	require.NoError(t, db.CreateAPIToken(username, &core.APIToken{
-		ID: uuid.NewString(), Name: "Statistics " + uuid.NewString(), Scopes: scopes, CreatedAt: time.Now().UnixMilli(),
+		ID: id.New(), Name: "Statistics " + id.New(), Scopes: scopes, CreatedAt: time.Now().UnixMilli(),
 	}, core.HashAPITokenSecret(secret)))
 	return secret
 }

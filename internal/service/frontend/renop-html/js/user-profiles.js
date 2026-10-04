@@ -10,6 +10,9 @@
 
 import {t} from './i18n.js';
 import {LocalizedResponseError, localizedResponseError} from './response-errors.js';
+import {fetchProto} from './api.js';
+import {UserProfilesResponse} from './proto/index.js';
+import {el} from '@renop/ui/dom';
 
 const PROFILE_CACHE_TTL_MS = 5 * 60 * 1000;
 const PROFILE_CACHE_MAX_ENTRIES = 256;
@@ -64,12 +67,12 @@ async function flushUserProfileBatch() {
         const batch = entries.slice(offset, offset + 50);
         const usernames = batch.map(([username]) => username);
         try {
-            const response = await fetch(`/api/users/profiles?names=${encodeURIComponent(usernames.join(','))}`, {
-                credentials: 'include', cache: 'no-store'
-            });
+            const {response, data: payload} = await fetchProto(
+                `/api/users/profiles?names=${encodeURIComponent(usernames.join(','))}`,
+                UserProfilesResponse
+            );
             if (!response.ok) throw await localizedResponseError(response, 'profile.loadFailed');
-            const payload = await response.json();
-            const profiles = new Map((payload.profiles || []).map(profile => [profile.username, profile]));
+            const profiles = new Map((payload?.profiles || []).map(profile => [profile.username, profile]));
             for (const [username, handlers] of batch) {
                 const profile = profiles.get(username);
                 if (!profile) {
@@ -194,11 +197,12 @@ export function renderProfileAvatar(element, profile, {length = 2} = {}) {
     element.replaceChildren(document.createTextNode(fallback));
     element.classList.toggle('has-profile-avatar', Boolean(avatarURL));
     if (!avatarURL) return;
-    const image = document.createElement('img');
-    image.src = avatarURL;
-    image.alt = '';
-    image.decoding = 'async';
-    image.draggable = false;
+    const image = el('img', {
+        src: avatarURL,
+        alt: '',
+        decoding: 'async',
+        draggable: false
+    });
     image.addEventListener('error', () => {
         if (element.dataset.avatarUrl !== avatarURL || !element.contains(image)) return;
         image.remove();

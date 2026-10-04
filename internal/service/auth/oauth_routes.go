@@ -90,7 +90,7 @@ func setupOAuthRoutes(auth fiber.Router, state *core.AppState) {
 }
 
 func oauthConfigurationHash(p config.OAuthProviderConfig) string {
-	data, _ := json.Marshal(p)
+	data, _ := json.MarshalOf(p)
 	return registrationHash(string(data))
 }
 
@@ -458,4 +458,30 @@ func disconnectOAuth(c fiber.Ctx, state *core.AppState) error {
 	audit.Log(state, &core.AuditLogEntry{Username: username, Operator: operator, Action: audit.ActionProfileUpdate,
 		Details: "Disconnected OAuth provider " + provider, AuthMethod: method, SessionID: sessionID, IP: ip})
 	return c.SendStatus(http.StatusNoContent)
+}
+
+func setupGitLabRoutes(auth fiber.Router, state *core.AppState) {
+	auth.Get("/gitlab/status", func(c fiber.Ctx) error {
+		cfg := state.Inner.Config.Load()
+		c.Set(fiber.HeaderCacheControl, "no-store")
+		return c.JSON(fiber.Map{"enabled": cfg != nil && cfg.Server.IsGitLabOAuthEnabled()})
+	})
+	auth.Get("/gitlab/start", func(c fiber.Ctx) error {
+		cfg := state.Inner.Config.Load()
+		provider, ok := cfg.Server.FirstGitLabProvider()
+		if !ok {
+			return c.SendStatus(fiber.StatusNotFound)
+		}
+		c.Params("provider", provider.ID)
+		return startOAuth(c, state)
+	})
+	auth.Get("/gitlab/callback", func(c fiber.Ctx) error {
+		cfg := state.Inner.Config.Load()
+		provider, ok := cfg.Server.FirstGitLabProvider()
+		if !ok {
+			return c.SendStatus(fiber.StatusNotFound)
+		}
+		c.Params("provider", provider.ID)
+		return finishOAuth(c, state)
+	})
 }

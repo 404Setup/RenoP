@@ -131,6 +131,7 @@ func (p OAuthProviderConfig) Resolved() OAuthProviderConfig {
 		p.RevocationURL = base + "/oauth/revoke"
 		p.AuthorizeURL, p.TokenURL = base+"/oauth/authorize", base+"/oauth/token"
 		p.UserInfoURL, p.JWKSURL, p.Issuer = base+"/oauth/userinfo", base+"/oauth/discovery/keys", base
+		defaultScopes = "openid profile email read_api"
 	case "cloudflare":
 		p.AuthorizeURL, p.TokenURL = "https://dash.cloudflare.com/oauth2/auth", "https://dash.cloudflare.com/oauth2/token"
 		p.UserInfoURL, p.Issuer, p.JWKSURL = "https://dash.cloudflare.com/oauth2/userinfo", "", ""
@@ -249,4 +250,36 @@ func (s ServerConfig) OAuthProvider(id string) (OAuthProviderConfig, bool) {
 		}
 	}
 	return OAuthProviderConfig{}, false
+}
+
+// FirstGitLabProvider returns the first configured GitLab provider, if any.
+func (s ServerConfig) FirstGitLabProvider() (OAuthProviderConfig, bool) {
+	if len(s.OAuthProviders) > 12 {
+		return OAuthProviderConfig{}, false
+	}
+	for _, p := range s.OAuthProviders {
+		if p.Type == "gitlab" && p.Configured() {
+			return p.Resolved(), true
+		}
+	}
+	return OAuthProviderConfig{}, false
+}
+
+// IsGitLabOAuthEnabled reports whether official or custom GitLab OAuth is enabled and configured.
+func (s ServerConfig) IsGitLabOAuthEnabled() bool {
+	_, ok := s.FirstGitLabProvider()
+	return ok
+}
+
+// IsGitHubOAuthEnabled reports whether GitHub OAuth is enabled and configured.
+func (s ServerConfig) IsGitHubOAuthEnabled() bool {
+	if s.GitHubOAuth.Configured() {
+		return true
+	}
+	for _, p := range s.OAuthProviders {
+		if p.Type == "github" && p.Configured() {
+			return true
+		}
+	}
+	return false
 }

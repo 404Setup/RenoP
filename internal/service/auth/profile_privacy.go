@@ -26,6 +26,11 @@ func canReadUserProfile(viewer *config.User, profile *core.UserProfile) bool {
 		(strings.EqualFold(viewer.Username, profile.Username) || viewer.CanViewPrivateProfiles()))
 }
 
+type accountPrivacyRequest struct {
+	UserID  string `json:"user_id"`
+	Private *bool  `json:"private"`
+}
+
 func updateProfilePrivacy(c fiber.Ctx, state *core.AppState) error {
 	setPrivateResponseHeaders(c)
 	user, err := requireAccountSession(c)
@@ -36,10 +41,7 @@ func updateProfilePrivacy(c fiber.Ctx, state *core.AppState) error {
 	if c.Cookies(sessionCookieName) != session {
 		return c.SendStatus(fiber.StatusForbidden)
 	}
-	var request struct {
-		UserID  string `json:"user_id"`
-		Private *bool  `json:"private"`
-	}
+	var request accountPrivacyRequest
 	if err := readMFARequest(c, &request); err != nil {
 		return err
 	}

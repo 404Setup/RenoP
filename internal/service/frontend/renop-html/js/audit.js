@@ -11,8 +11,9 @@
 import {t} from './i18n.js';
 import {apiRequest, fetchProto} from './api.js';
 import {showAlert} from './alert.js';
-import {el} from '@renop/ui/dom';
+import {el, setBusy} from '@renop/ui/dom';
 import {makeCustomSelect} from '@renop/ui/custom-select';
+import {createLoadingState} from '@renop/ui/loading';
 import {createUserIdentity, RenopDialog} from './components.js';
 import {enableDragToScroll} from '@renop/ui/scroll';
 import {AuditLogList} from './proto/index.js';
@@ -20,6 +21,24 @@ import {formatTimestamp} from './time.js';
 import {responseErrorMessage} from './response-errors.js';
 
 let currentAuditModal = null;
+
+/**
+ * Build the centred status panel shown before the first audit page loads.
+ * @param {'error'|'empty'} kind - Panel kind.
+ * @returns {HTMLElement}
+ */
+function auditStatusPanel(kind = 'empty') {
+    const isError = kind === 'error';
+    return el('div', {
+        text: t(isError ? 'common.error' : 'common.none'),
+        style: {
+            padding: isError ? '2rem' : '2.5rem',
+            textAlign: 'center',
+            fontSize: '0.9rem',
+            ...(isError ? {color: '#ef4444'} : {opacity: '0.6'}),
+        },
+    });
+}
 
 /** Render a filterable account identity while preserving masked operators. */
 function renderLogIdentity(username) {
@@ -268,16 +287,14 @@ export async function openAuditLogsDialog(options = {}) {
 
         if (!hasLoadedOnce) {
             contentArea.replaceChildren(
-                el('div', {class: 'sessions-loading'},
-                    el('div', {class: 'sessions-loading-spinner', 'aria-hidden': 'true'}),
-                    el('span', {}, t('audit.loading'))
-                )
+                createLoadingState(t('audit.loading'), 'sessions-loading')
             );
-            paginationArea.innerHTML = '';
+            paginationArea.replaceChildren();
         } else {
-            contentArea.classList.add('is-busy');
-            const btns = paginationArea.querySelectorAll('button');
-            btns.forEach(b => b.disabled = true);
+            setBusy(contentArea);
+            paginationArea.querySelectorAll('button').forEach(b => {
+                b.disabled = true;
+            });
         }
 
         try {
@@ -292,9 +309,9 @@ export async function openAuditLogsDialog(options = {}) {
             const {response: res, data} = await fetchProto(endpoint, AuditLogList);
             if (!res.ok || !data) {
                 showAlert(await responseErrorMessage(res, 'common.error'), 'error');
-                contentArea.classList.remove('is-busy');
+                setBusy(contentArea, false);
                 if (!hasLoadedOnce) {
-                    contentArea.innerHTML = `<div style="padding: 2rem; text-align: center; color: #ef4444; font-size: 0.9rem;">${t('common.error')}</div>`;
+                    contentArea.replaceChildren(auditStatusPanel('error'));
                 } else {
                     showAlert(t('common.error'), 'error');
                 }
@@ -305,12 +322,12 @@ export async function openAuditLogsDialog(options = {}) {
             const total = data.total || 0;
 
             const renderNewContent = () => {
-                contentArea.classList.remove('is-busy');
-                contentArea.innerHTML = '';
+                setBusy(contentArea, false);
+                contentArea.replaceChildren();
 
                 container.style.minHeight = 'auto';
                 if (logs.length === 0) {
-                    contentArea.innerHTML = `<div style="padding: 2.5rem; text-align: center; opacity: 0.6; font-size: 0.9rem;">${t('common.none')}</div>`;
+                    contentArea.replaceChildren(auditStatusPanel('empty'));
                 } else {
                     const table = el('table', {
                             class: 'audit-table',
@@ -439,7 +456,7 @@ export async function openAuditLogsDialog(options = {}) {
                     contentArea.appendChild(table);
                 }
 
-                paginationArea.innerHTML = '';
+                paginationArea.replaceChildren();
                 const totalPages = Math.ceil(total / pageSize) || 1;
                 const recordsLabel = total === 1 ? (t('common.record') || 'record') : (t('common.records') || 'records');
                 const pageInfo = el('span', {style: {opacity: '0.7'}}, `${total} ${recordsLabel}`);
@@ -542,9 +559,9 @@ export async function openAuditLogsDialog(options = {}) {
 
         } catch (err) {
             console.error('Failed to load audit logs:', err);
-            contentArea.classList.remove('is-busy');
+            setBusy(contentArea, false);
             if (!hasLoadedOnce) {
-                contentArea.innerHTML = `<div style="padding: 2rem; text-align: center; color: #ef4444; font-size: 0.9rem;">${t('common.error')}</div>`;
+                contentArea.replaceChildren(auditStatusPanel('error'));
             } else {
                 showAlert(t('common.error'), 'error');
             }

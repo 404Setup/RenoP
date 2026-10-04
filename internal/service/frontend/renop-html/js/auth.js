@@ -46,7 +46,7 @@ const MANAGER_PERMISSION_IDS = new Set([
     'access-token:manager',
     'admin',
 ]);
-const MANAGER_TAB_IDS = new Set(['dashboard', 'users', 'repositories', 'settings']);
+const MANAGER_TAB_IDS = new Set(['dashboard', 'users', 'repositories', 'settings', 'storage', 'database']);
 
 /**
  * Whether an application section requires manager privileges.

@@ -22,7 +22,7 @@ import (
 	syncv2 "sync/v2"
 	"time"
 
-	"github.com/google/uuid"
+	"renop/pkg/id"
 )
 
 const (
@@ -231,7 +231,7 @@ func (m *Manager) CreateSession(
 		}
 	}()
 
-	id := uuid.New().String()
+	id := id.New()
 	var tempPath string
 	var file *os.File
 	var err error

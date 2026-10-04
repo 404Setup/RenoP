@@ -28,11 +28,11 @@ import (
 	"renop/internal/config"
 	"renop/internal/core"
 	"renop/internal/service/audit"
-	"renop/internal/service/cargodocs"
+	"renop/internal/service/cargo/docs"
 	frontendservice "renop/internal/service/frontend"
 	"renop/internal/service/gpg"
-	"renop/internal/service/javadocs"
-	"renop/internal/service/outboundproxy"
+	"renop/internal/service/maven/javadocs"
+	"renop/internal/service/proxy/outbound"
 	"renop/internal/service/storage"
 	"renop/internal/utils"
 	"renop/internal/utils/protohttp"
@@ -67,6 +67,12 @@ func GetDomainSettings(c fiber.Ctx, state *core.AppState) error {
 		return protohttp.Write(c, pb.FromStorageConfig(cfg))
 	case "updater":
 		return protohttp.Write(c, pb.FromUpdaterConfig(cfg.Updater))
+	case "super_teams":
+		return protohttp.Write(c, pb.FromSuperTeamConfig(cfg.SuperTeams))
+	case "publication_quota":
+		return protohttp.Write(c, pb.FromPublicationQuotaConfig(cfg.PublicationQuota))
+	case "maven_domains":
+		return protohttp.Write(c, pb.FromMavenDomainConfig(cfg.MavenDomains))
 	case "index":
 		return protohttp.Write(c, &pb.IndexDomainSettings{})
 	default:
@@ -86,6 +92,9 @@ func UpdateDomainSettings(c fiber.Ctx, state *core.AppState) error {
 	var proxyMsg *pb.ProxyConfig
 	var storageMsg *pb.StorageConfig
 	var updaterMsg *pb.UpdaterConfig
+	var superTeamsMsg *pb.SuperTeamConfig
+	var publicationQuotaMsg *pb.PublicationQuotaConfig
+	var mavenDomainsMsg *pb.MavenDomainConfig
 	readConfig := func(msg proto.Message) error {
 		limit := int64(protohttp.MaxRequestBodySize)
 		if name == "frontend" {
@@ -216,6 +225,39 @@ func UpdateDomainSettings(c fiber.Ctx, state *core.AppState) error {
 		}
 		updaterMsg = msg
 
+	case "super_teams":
+		msg := &pb.SuperTeamConfig{}
+		if err := readConfig(msg); err != nil {
+			return err
+		}
+		if msg.CreateLimit < 1 || msg.JoinLimit < 1 ||
+			msg.CreateLimit > maxConfiguredSuperTeamLimit || msg.JoinLimit > maxConfiguredSuperTeamLimit {
+			return c.Status(fiber.StatusBadRequest).SendString("Global team limits must be between 1 and 1000")
+		}
+		superTeamsMsg = msg
+
+	case "publication_quota":
+		msg := &pb.PublicationQuotaConfig{}
+		if err := readConfig(msg); err != nil {
+			return err
+		}
+		candidate := pb.ToPublicationQuotaConfig(msg)
+		if !validGlobalPublicationQuota(candidate) {
+			return c.Status(fiber.StatusBadRequest).SendString("Invalid publication quota settings")
+		}
+		publicationQuotaMsg = msg
+
+	case "maven_domains":
+		msg := &pb.MavenDomainConfig{}
+		if err := readConfig(msg); err != nil {
+			return err
+		}
+		candidate := pb.ToMavenDomainConfig(msg)
+		if err := candidate.Validate(); err != nil {
+			return c.Status(fiber.StatusBadRequest).SendString("Invalid Maven domain release period")
+		}
+		mavenDomainsMsg = msg
+
 	case "index":
 		return c.Status(fiber.StatusNotFound).SendString("Not found")
 
@@ -273,6 +315,12 @@ func UpdateDomainSettings(c fiber.Ctx, state *core.AppState) error {
 		case "updater":
 			pb.ApplyUpdaterConfig(&newConfig.Updater, updaterMsg)
 			newConfig.Updater = newConfig.Updater.DeepCopy()
+		case "super_teams":
+			newConfig.SuperTeams = pb.ToSuperTeamConfig(superTeamsMsg)
+		case "publication_quota":
+			newConfig.PublicationQuota = pb.ToPublicationQuotaConfig(publicationQuotaMsg)
+		case "maven_domains":
+			newConfig.MavenDomains = pb.ToMavenDomainConfig(mavenDomainsMsg)
 		}
 
 		if err := persistConfigSnapshot(newConfig); err != nil {

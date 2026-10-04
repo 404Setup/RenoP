@@ -13,9 +13,11 @@ package core
 import "errors"
 
 const (
-	ReviewKindSuperTeamTransfer = "super_team_transfer"
-	ReviewKindPublication       = "publication"
-	ReviewKindMavenRestore      = "maven_restore"
+	ReviewKindSuperTeamTransfer   = "super_team_transfer"
+	ReviewKindPublication         = "publication"
+	ReviewKindMavenRestore        = "maven_restore"
+	ReviewKindGitRepoRegistration = "git_repo_registration"
+	ReviewKindGitRepoQuota        = "git_repo_quota"
 
 	ReviewResourceDockerImage   = "docker_image"
 	ReviewResourceNPMPackage    = "npm_package"
@@ -23,6 +25,7 @@ const (
 	ReviewResourceMavenArtifact = "maven_artifact"
 	ReviewResourceMavenDomain   = "maven_domain"
 	ReviewResourceNativePackage = "native_package"
+	ReviewResourceGitRepo       = "git_repo"
 
 	ReviewStatusPending   = "pending"
 	ReviewStatusApproved  = "approved"

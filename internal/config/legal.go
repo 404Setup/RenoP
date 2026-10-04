@@ -262,7 +262,7 @@ func (value LegalConfig) DeepCopy() LegalConfig {
 func (value *LegalConfig) UnmarshalJSON(data []byte) error {
 	*value = DefaultLegalConfig()
 	type alias LegalConfig
-	if err := json.Unmarshal(data, (*alias)(value)); err != nil {
+	if err := json.UnmarshalOf(data, (*alias)(value)); err != nil {
 		return err
 	}
 	return value.Normalize()

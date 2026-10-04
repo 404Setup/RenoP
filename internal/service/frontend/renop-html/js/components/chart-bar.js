@@ -8,6 +8,8 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
+import {el} from '@renop/ui/dom';
+
 /**
  * Single vertical bar for simple charts.
  */
@@ -62,8 +64,7 @@ if (!customElements.get('renop-chart-bar')) {
  * @returns {HTMLElement}
  */
 export function createChartBar(heightPct, title = '') {
-    const bar = document.createElement('renop-chart-bar');
-    bar.setAttribute('height-pct', String(heightPct));
+    const bar = el('renop-chart-bar', {'height-pct': String(heightPct)});
     if (title) bar.setAttribute('title', title);
     return bar;
 }

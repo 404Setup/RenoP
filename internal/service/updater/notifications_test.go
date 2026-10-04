@@ -51,7 +51,7 @@ func TestSystemUpdateNotificationsTargetManagersAndDedupe(t *testing.T) {
 	require.Equal(t, "system_update", messages[0].Kind)
 	require.Equal(t, "warning", messages[0].Severity)
 	var payload updateNotificationPayload
-	require.NoError(t, json.Unmarshal(messages[0].Payload, &payload))
+	require.NoError(t, json.UnmarshalOf(messages[0].Payload, &payload))
 	require.Equal(t, updateNoticeAvailable, payload.Event)
 	require.Equal(t, "v2.0.0", payload.Version)
 	require.True(t, payload.RequiresAction)

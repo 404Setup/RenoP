@@ -30,12 +30,15 @@ import {
     FrontendConfig,
     IndexDomainSettings,
     LegalSettings,
+    MavenDomainConfig,
     OAuthSettings,
     ProxyConfig,
+    PublicationQuotaConfig,
     RebuildIndexRequest,
     ServerConfig,
     SettingsDomainsResponse,
     StorageConfig,
+    SuperTeamConfig,
     UpdaterConfig,
     UpdateState
 } from './proto/index.js';
@@ -64,6 +67,9 @@ const DOMAIN_MESSAGE_TYPES = {
     proxy: ProxyConfig,
     updater: UpdaterConfig,
     index: IndexDomainSettings,
+    super_teams: SuperTeamConfig,
+    publication_quota: PublicationQuotaConfig,
+    maven_domains: MavenDomainConfig,
 };
 
 const SETTINGS_PAGES = Object.freeze({
@@ -165,6 +171,8 @@ function renderDomainNavigation() {
             } else {
                 btn.removeAttribute('aria-current');
             }
+            const label = btn.firstElementChild;
+            if (label && label.textContent !== t(group.label)) label.textContent = t(group.label);
             btn.onclick = () => openGroup(group);
         });
     } else {
@@ -175,36 +183,46 @@ function renderDomainNavigation() {
         }, el('span', {}, t(group.label)), el('span', {class: 'settings-draft-dot', 'aria-hidden': 'true'}))));
     }
     const subnav = document.getElementById('settings-subnav');
-    if (subnav) {
-        subnav.hidden = !active || active.domains.length < 2;
+    const sublist = subnav?.querySelector('.settings-subnav-list') || subnav;
+    if (subnav && sublist) {
         const activeDomains = active?.domains || [];
-        const existingSub = Array.from(subnav.querySelectorAll?.(':scope > .settings-nav-item') || []);
-        // Only reuse subnav buttons when the active group hasn't changed; a group
-        // switch means the domain closures captured in onclick are from a different
-        // group and must be rebuilt.
-        const sameGroup = existingSub.length === activeDomains.length &&
-            existingSub.every((btn, i) => btn.dataset?.settingsDomain === activeDomains[i]);
-        if (sameGroup) {
-            existingSub.forEach((btn, i) => {
-                const domain = activeDomains[i];
-                if (domain === currentDomain) {
-                    btn.setAttribute('aria-current', 'page');
-                } else {
-                    btn.removeAttribute('aria-current');
-                }
-                // Keep onclick fresh for the same reason as the main nav above.
-                btn.onclick = () => { if (domain !== currentDomain) void loadDomainSettings(domain, true); };
-            });
-        } else {
-            subnav.replaceChildren(...activeDomains.map(domain => el('button', {
-                type: 'button', class: 'settings-nav-item', 'data-settings-domain': domain,
-                'aria-current': domain === currentDomain ? 'page' : null,
-                onclick: () => {
-                    if (domain !== currentDomain) void loadDomainSettings(domain, true);
-                }
-            }, el('span', {}, domainLabel(domain)), el('span', {class: 'settings-draft-dot', 'aria-hidden': 'true'}))));
+        const open = activeDomains.length >= 2;
+        subnav.dataset.open = String(open);
+        subnav.setAttribute('aria-hidden', String(!open));
+        subnav.inert = !open;
+        if (open) {
+            const existingSub = Array.from(sublist.querySelectorAll?.(':scope > .settings-nav-item') || []);
+            const sameGroup = existingSub.length === activeDomains.length &&
+                existingSub.every((btn, i) => btn.dataset?.settingsDomain === activeDomains[i]);
+            if (sameGroup) {
+                existingSub.forEach((btn, i) => {
+                    const domain = activeDomains[i];
+                    if (domain === currentDomain) {
+                        btn.setAttribute('aria-current', 'page');
+                    } else {
+                        btn.removeAttribute('aria-current');
+                    }
+                    const label = btn.firstElementChild;
+                    if (label && label.textContent !== domainLabel(domain)) label.textContent = domainLabel(domain);
+                    btn.onclick = () => {
+                        if (domain !== currentDomain) void loadDomainSettings(domain, true);
+                    };
+                });
+            } else {
+                sublist.replaceChildren(...activeDomains.map((domain, index) => el('button', {
+                        type: 'button', class: 'settings-nav-item settings-subnav-item',
+                        'data-settings-domain': domain,
+                        style: `--subnav-index:${index}`,
+                        'aria-current': domain === currentDomain ? 'page' : null,
+                        onclick: () => {
+                            if (domain !== currentDomain) void loadDomainSettings(domain, true);
+                        }
+                    }, el('span', {class: 'settings-subnav-label'}, domainLabel(domain)),
+                    el('span', {class: 'settings-draft-dot', 'aria-hidden': 'true'}))));
+            }
         }
     }
+
     const picker = document.getElementById('settings-page-picker');
     if (picker) {
         const select = makeCustomSelect(groups.map(group => ({value: group.id, label: t(group.label)})),
@@ -239,6 +257,23 @@ function settingsLoadState(message, retry) {
         },
         createIcon('warning'), el('p', {}, message),
         el('button', {type: 'button', class: 'pill-btn pill-btn--soft', onclick: retry}, t('offline.retryBtn'))));
+}
+
+/**
+ * Parse the settings domain from the current route.
+ * @param {string} [pathname=window.location?.pathname] - Candidate path.
+ * @returns {string} Settings domain identifier or an empty string.
+ */
+export function settingsDomainFromPath(pathname = window.location?.pathname) {
+    const normalized = String(pathname || '/').replace(/\/+$/, '') || '/';
+    if (!normalized.startsWith('/settings/')) return '';
+    const segment = normalized.slice('/settings/'.length);
+    if (!segment || segment.includes('/')) return '';
+    try {
+        return decodeURIComponent(segment).trim();
+    } catch {
+        return '';
+    }
 }
 
 /** Discover permitted pages; each page loads only its own configuration. */
@@ -279,7 +314,9 @@ export async function initSettings() {
         domainsList = settingsGroups((data.domains || []).filter(domain => Object.hasOwn(SETTINGS_PAGES, domain)))
             .flatMap(group => group.domains);
         for (const domain of drafts.keys()) if (!domainsList.includes(domain)) drafts.delete(domain);
-        currentDomain = domainsList.includes(currentDomain) ? currentDomain : domainsList[0] || null;
+        const domainFromPath = settingsDomainFromPath();
+        currentDomain = (domainFromPath && domainsList.includes(domainFromPath)) ? domainFromPath
+            : (domainsList.includes(currentDomain) ? currentDomain : domainsList[0] || null);
         renderDomainNavigation();
         if (currentDomain) await loadDomainSettings(currentDomain);
         else settingsLoadState(t('settings.noSections'), () => void initSettings());
@@ -311,6 +348,12 @@ async function loadDomainSettings(domain, focus = false) {
     currentDomain = domain;
     currentConfig = null;
     renderDomainNavigation();
+    if (window.location?.pathname?.startsWith('/settings')) {
+        const path = `/settings/${encodeURIComponent(domain)}`;
+        if (window.location.pathname !== path || window.location.search || window.location.hash) {
+            window.history?.replaceState?.(null, '', path);
+        }
+    }
     const container = document.getElementById('settings-form-container');
     if (!container) return;
     container.setAttribute('aria-busy', 'true');
@@ -1532,6 +1575,9 @@ window.addEventListener('beforeunload', event => {
         event.preventDefault();
         event.returnValue = '';
     }
+});
+window.addEventListener('languageChanged', () => {
+    if (domainsList.length) renderDomainNavigation();
 });
 window.addEventListener('authChanged', event => {
     const user = event.detail;

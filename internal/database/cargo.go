@@ -1123,11 +1123,11 @@ func (db *DB) ForceAddCargoMembers(repository, normalizedName, packageName, acto
 
 		if err := insertAcceptedMembershipMessage(tx, username, actor, "cargo_package_invite",
 			"Cargo crate package membership added",
-			fmt.Sprintf("%s added you to collaborate on %s with L%d permission.", actor, packageName, level), map[string]any{
-				"repository": repository,
-				"package":    packageName,
-				"inviter":    actor,
-				"level":      level,
+			fmt.Sprintf("%s added you to collaborate on %s with L%d permission.", actor, packageName, level), MembershipInvitePayload{
+				Repository: repository,
+				Package:    packageName,
+				Inviter:    actor,
+				Level:      level,
 			}, now); err != nil {
 			return fmt.Errorf("create Cargo membership message: %w", err)
 		}

@@ -8,8 +8,9 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
-import {t} from '../i18n.js';
+import {t, getCurrentLang} from '../i18n.js';
 import {el} from '@renop/ui/dom';
+import {fetchLatestUpdateTimestamp, formatDurationTwoUnits} from '../lib/official.js';
 
 /**
  * Build a feature-card SVG icon from a list of path/circle/rect/line descriptors.
@@ -102,8 +103,39 @@ export async function renderHome({root}) {
         },
     ];
 
+    const badgeText = el('span', {class: 'home-update-text'});
+    const badge = el('div', {class: 'home-update-badge', 'aria-live': 'polite'},
+        el('span', {class: 'home-update-dot', 'aria-hidden': 'true'}),
+        badgeText,
+    );
+    badge.style.display = 'none';
+
+    const updateBadgeTicker = (ts) => {
+        if (!ts) return;
+        const now = Date.now();
+        const diffSeconds = Math.max(0, (now - ts) / 1000);
+        const formatted = formatDurationTwoUnits(diffSeconds, getCurrentLang());
+        badgeText.textContent = t('home.timeSinceUpdate', {time: formatted});
+        badge.style.display = 'inline-flex';
+    };
+
+    fetchLatestUpdateTimestamp().then((ts) => {
+        if (!ts || !badge.isConnected) return;
+        updateBadgeTicker(ts);
+        const timer = setInterval(() => {
+            if (!badge.isConnected) {
+                clearInterval(timer);
+                return;
+            }
+            updateBadgeTicker(ts);
+        }, 1000);
+    }).catch(() => {
+        // Keep hidden if metadata cannot be reached
+    });
+
     const hero = el('section', {class: 'home-hero'},
         el('div', {class: 'home-hero-copy'},
+            badge,
             el('h1', {}, t('home.title')),
             el('p', {class: 'lead'}, t('home.lead')),
             el('div', {class: 'home-hero-actions'},

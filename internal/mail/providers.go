@@ -188,7 +188,7 @@ func (c *Client) Send(ctx context.Context, a Account, m Message) (Result, error)
 	case "tencent":
 		body := map[string]any{"FromEmailAddress": a.From, "Destination": []string{m.To}, "Subject": m.Subject, "TriggerType": 1}
 		if a.TencentTemplateID > 0 {
-			variables, encodeErr := json.Marshal(map[string]string{"subject": html.EscapeString(m.Subject), "text": html.EscapeString(m.Text)})
+			variables, encodeErr := json.MarshalOf(map[string]string{"subject": html.EscapeString(m.Subject), "text": html.EscapeString(m.Text)})
 			if encodeErr != nil || len(variables) > 800 {
 				return Result{}, &SendError{Code: "mail_message_invalid", NotCharged: true}
 			}
@@ -267,7 +267,7 @@ func (c *Client) awsRequest(ctx context.Context, a Account, method, path string,
 	var body []byte
 	var err error
 	if data != nil {
-		body, err = json.Marshal(data)
+		body, err = json.MarshalOf(data)
 		if err != nil {
 			return nil, err
 		}
@@ -301,7 +301,7 @@ func (c *Client) awsRequest(ctx context.Context, a Account, method, path string,
 }
 
 func (c *Client) tencentRequest(ctx context.Context, a Account, service, version, action string, data any) (map[string]any, error) {
-	body, err := json.Marshal(data)
+	body, err := json.MarshalOf(data)
 	if err != nil {
 		return nil, err
 	}

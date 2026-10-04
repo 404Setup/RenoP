@@ -17,11 +17,11 @@ import (
 	"unicode"
 
 	"github.com/gofiber/fiber/v3"
-	"github.com/google/uuid"
 
 	"renop/internal/core"
 	"renop/internal/service/audit"
 	"renop/internal/utils"
+	"renop/pkg/id"
 )
 
 const maxAPITokenLifetime = 5 * 365 * 24 * time.Hour
@@ -61,7 +61,7 @@ func updateProfileAPIToken(c fiber.Ctx, state *core.AppState) error {
 		return accountSessionError(c, err)
 	}
 	tokenID := strings.TrimSpace(c.Params("token_id"))
-	if uuid.Validate(tokenID) != nil {
+	if id.Validate(tokenID) != nil {
 		return c.SendStatus(fiber.StatusNotFound)
 	}
 	var request updateAPITokenRequest
@@ -110,7 +110,7 @@ func rotateProfileAPIToken(c fiber.Ctx, state *core.AppState) error {
 		return accountSessionError(c, err)
 	}
 	tokenID := strings.TrimSpace(c.Params("token_id"))
-	if uuid.Validate(tokenID) != nil {
+	if id.Validate(tokenID) != nil {
 		return c.SendStatus(fiber.StatusNotFound)
 	}
 	newSecret, err := generateAPITokenSecret()
@@ -220,7 +220,7 @@ func createAPITokenForAccount(state *core.AppState, account *core.AccessToken, n
 		return nil, "", err
 	}
 	token := &core.APIToken{
-		ID: uuid.NewString(), Name: name, Scopes: normalizedScopes, Targets: normalizedTargets,
+		ID: id.New(), Name: name, Scopes: normalizedScopes, Targets: normalizedTargets,
 		CreatedAt: now, ExpiresAt: expiresAt,
 	}
 	if err := state.GetDB().CreateAPIToken(account.Name, token, apiTokenSecretHash(secret)); err != nil {

@@ -18,11 +18,11 @@ import (
 
 	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
-	"github.com/google/uuid"
 
 	"renop/internal/config"
 	"renop/internal/core"
 	"renop/internal/service/audit"
+	"renop/pkg/id"
 )
 
 const (
@@ -32,7 +32,7 @@ const (
 
 func resolveCargoMemberReference(db core.StateDB, reference string) (string, error) {
 	reference = strings.TrimSpace(reference)
-	if _, err := uuid.Parse(reference); err != nil {
+	if id.Validate(reference) != nil {
 		return reference, nil
 	}
 	profile, err := db.GetUserProfileByID(reference)
@@ -146,8 +146,8 @@ func (h Handler) inviteOwners(c fiber.Ctx, state *core.AppState, repo *config.Re
 			continue
 		}
 		seen[recipient] = struct{}{}
-		id := uuid.NewString()
-		payload, err := json.Marshal(invitationPayload{
+		id := id.New()
+		payload, err := json.MarshalOf(invitationPayload{
 			Repository: repo.Name, Package: details.Package.Name,
 			Inviter: strings.ToLower(user.Username), Level: request.Level,
 		})
@@ -300,7 +300,7 @@ func (h Handler) respondInvitation(c fiber.Ctx, state *core.AppState, repo *conf
 	if err != nil {
 		return cargoError(c, err)
 	}
-	if uuid.Validate(invitationID) != nil || (decision != "accept" && decision != "reject") {
+	if id.Validate(invitationID) != nil || (decision != "accept" && decision != "reject") {
 		return errorResponse(c, fiber.StatusBadRequest, "Invalid Cargo invitation action")
 	}
 	db := state.GetDB()

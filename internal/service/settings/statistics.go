@@ -20,6 +20,8 @@ import (
 	"renop/internal/service/repositorygate"
 	"renop/internal/service/statistics"
 	"renop/internal/utils"
+	"renop/internal/utils/protohttp"
+	"renop/pkg/pb"
 )
 
 type downloadStatisticsRequest struct {
@@ -36,7 +38,7 @@ func getRepositoryDownloadStatistics(c fiber.Ctx, state *core.AppState) error {
 		result[name] = repository.DownloadStatisticsEnabled()
 	}
 	c.Set(fiber.HeaderCacheControl, "no-store")
-	return c.JSON(fiber.Map{"repositories": result})
+	return protohttp.Write(c, pb.FromRepositoryDownloadStatistics(result))
 }
 
 func putRepositoryDownloadStatistics(c fiber.Ctx, state *core.AppState) error {
@@ -47,9 +49,19 @@ func putRepositoryDownloadStatistics(c fiber.Ctx, state *core.AppState) error {
 	if !utils.IsValidRepositoryName(repository) || len(c.Body()) > 1024 {
 		return c.Status(fiber.StatusBadRequest).SendString("Bad Request")
 	}
-	var request downloadStatisticsRequest
-	if err := c.Bind().Body(&request); err != nil || request.Enabled == nil {
-		return c.Status(fiber.StatusBadRequest).SendString("Bad Request")
+	var enabled bool
+	if strings.Contains(c.Get(fiber.HeaderContentType), "application/json") {
+		var request downloadStatisticsRequest
+		if err := c.Bind().Body(&request); err != nil || request.Enabled == nil {
+			return c.Status(fiber.StatusBadRequest).SendString("Bad Request")
+		}
+		enabled = *request.Enabled
+	} else {
+		var request pb.UpdateRepositoryDownloadStatisticsRequest
+		if err := protohttp.Read(c, &request); err != nil {
+			return c.Status(fiber.StatusBadRequest).SendString("Bad Request")
+		}
+		enabled = request.Enabled
 	}
 	releaseMigration := repositorygate.AcquireMigration(repository)
 	defer releaseMigration()
@@ -60,7 +72,6 @@ func putRepositoryDownloadStatistics(c fiber.Ctx, state *core.AppState) error {
 		return c.Status(fiber.StatusNotFound).SendString("Repository not found")
 	}
 	nextConfig := oldConfig.DeepCopy()
-	enabled := *request.Enabled
 	nextConfig.Maven.Repositories[repository].DownloadStatistics = &enabled
 	if err := saveRepositories(state, nextConfig); err != nil {
 		state.Inner.ConfigWriteLock.Unlock()
@@ -74,7 +85,7 @@ func putRepositoryDownloadStatistics(c fiber.Ctx, state *core.AppState) error {
 		Details: "Updated download statistics for (" + repository + ")", AuthMethod: authMethod,
 		SessionID: sessionID, IP: ip,
 	})
-	return c.JSON(fiber.Map{"repository": repository, "enabled": enabled})
+	return protohttp.Write(c, &pb.RepositoryDownloadStatisticsEntry{Repository: repository, Enabled: enabled})
 }
 
 func resetRepositoryDownloadStatistics(c fiber.Ctx, state *core.AppState) error {

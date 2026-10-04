@@ -29,6 +29,9 @@ import (
 var HTMLFallback func(c fiber.Ctx, state *core.AppState) error
 
 func mavenMutationError(c fiber.Ctx, err error) error {
+	if utils.HasUploadBody(c) {
+		utils.RejectUploadEarly(c)
+	}
 	if errors.Is(err, core.ErrResourceLocked) {
 		c.Set("X-Renop-Error-Code", "resource_locked")
 		return c.Status(fiber.StatusLocked).SendString("Maven resource is locked")
@@ -72,6 +75,9 @@ func HandleRepository(c fiber.Ctx, state *core.AppState) error {
 	cfg := state.Inner.Config.Load()
 	repo, exists := cfg.Maven.Repositories[repoName]
 	if !exists {
+		if utils.HasUploadBody(c) {
+			utils.RejectUploadEarly(c)
+		}
 		if c.Method() == fiber.MethodGet {
 			accept := c.Get(fiber.HeaderAccept)
 			if strings.Contains(accept, "text/html") {
@@ -174,6 +180,9 @@ func HandleRepository(c fiber.Ctx, state *core.AppState) error {
 		return HandleHead(c, state, repo, cfg.StoragePath)
 	case fiber.MethodPut, fiber.MethodPost:
 		if err := RequireMavenUploadCaptcha(c, state, repo, sanitized); err != nil {
+			if utils.HasUploadBody(c) {
+				utils.RejectUploadEarly(c)
+			}
 			return err
 		}
 		return HandlePut(c, state, repo, localFilePath)

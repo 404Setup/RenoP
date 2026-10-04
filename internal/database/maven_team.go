@@ -251,7 +251,7 @@ func (db *DB) ForceAddMavenMembers(domain, actor string, usernames []string, lev
 		if err := insertAcceptedMembershipMessage(tx, username, actor, "maven_domain_invite",
 			"Maven domain membership added",
 			fmt.Sprintf("%s added you to Maven domain %s with L%d permission.", actor, domain, level),
-			map[string]any{"domain": domain, "inviter": actor, "level": level}, now); err != nil {
+			MembershipInvitePayload{Domain: domain, Inviter: actor, Level: level}, now); err != nil {
 			return fmt.Errorf("create Maven membership message: %w", err)
 		}
 	}

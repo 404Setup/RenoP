@@ -42,7 +42,7 @@ export function renderCaptchaSettings(container, data, changed) {
     fields.append(createFieldRow(t('captcha.provider'), '', provider), createSettingsGuide('captcha'), details);
     data.scopes ||= {};
     const scopes = createSection(createIcon('compliance'), t('captcha.scopes'), t('captcha.automationHint'), {defaultCollapsed: true});
-    for (const scope of ['password_login', 'registration', 'manual_mail', 'super_team_create', 'domain_create', 'package_create']) {
+    for (const scope of ['password_login', 'registration', 'manual_mail', 'super_team_create', 'domain_create', 'package_create', 'anti_abuse']) {
         scopes.querySelector('.cfg-fields').append(createToggleRow(t(`captcha.scope.${scope}`), '', data.scopes[scope] === true,
             value => {
                 data.scopes[scope] = value;

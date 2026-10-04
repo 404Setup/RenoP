@@ -33,6 +33,11 @@ type TemplateData struct {
 	Detail   string `json:"detail"`
 }
 
+type emailTemplateView struct {
+	TemplateData
+	Title, Body, SiteName, Style, Locale, OpenLabel, Footer string
+}
+
 type templateCopy struct{ Title, Body string }
 
 var englishTemplates = []templateCopy{
@@ -129,10 +134,7 @@ func (c Config) Render(scene string, data TemplateData) (Message, error) {
 	catalog := templateCatalogs[code]
 	copy := catalog.Messages[index]
 	openLabel, footer := catalog.OpenLabel, catalog.Footer
-	view := struct {
-		TemplateData
-		Title, Body, SiteName, Style, Locale, OpenLabel, Footer string
-	}{data, copy.Title, copy.Body, c.SiteName, c.TemplateStyle, code, openLabel, footer}
+	view := emailTemplateView{data, copy.Title, copy.Body, c.SiteName, c.TemplateStyle, code, openLabel, footer}
 	var html bytes.Buffer
 	if err := emailTemplate.Execute(&html, view); err != nil {
 		return Message{}, err

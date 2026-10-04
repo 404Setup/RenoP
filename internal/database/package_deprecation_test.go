@@ -15,7 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
+	"renop/pkg/id"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -66,6 +67,6 @@ func TestPackageDeprecationIsPermanentAndReviewSafe(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, deprecated)
 
-	require.ErrorIs(t, db.DeprecatePackage("unknown", "repo", uuid.NewString(), now),
+	require.ErrorIs(t, db.DeprecatePackage("unknown", "repo", id.New(), now),
 		core.ErrPackageDeprecationInvalid)
 }

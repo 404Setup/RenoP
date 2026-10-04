@@ -27,7 +27,7 @@ import (
 
 	"renop/internal/config"
 	"renop/internal/core"
-	"renop/internal/service/outboundproxy"
+	"renop/internal/service/proxy/outbound"
 	"renop/internal/utils"
 )
 
@@ -68,7 +68,7 @@ var verificationClient = func(proxyConfig *config.OutboundProxy) (*http.Client, 
 	}, nil
 }
 
-func readVerificationResponse(response *http.Response, destination any) error {
+func readVerificationResponse[T any](response *http.Response, destination *T) error {
 	if response == nil {
 		return errors.New("verification response is missing")
 	}
@@ -89,10 +89,10 @@ func readVerificationResponse(response *http.Response, destination any) error {
 	if len(body) > verificationBodySize {
 		return errors.New("verification response exceeds the size limit")
 	}
-	return json.Unmarshal(body, destination)
+	return json.UnmarshalOf(body, destination)
 }
 
-func getVerificationJSON(ctx context.Context, client *http.Client, endpoint string, destination any) error {
+func getVerificationJSON[T any](ctx context.Context, client *http.Client, endpoint string, destination *T) error {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return err

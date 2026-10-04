@@ -641,7 +641,7 @@ func (idx *FileIndex) Snapshot() FileIndexSnapshot {
 
 func (idx *FileIndex) MarshalJSON() ([]byte, error) {
 	snapshot := idx.Snapshot()
-	return json.Marshal(struct {
+	return json.MarshalOf(struct {
 		Files map[string]FileInfo `json:"files"`
 		Dirs  []string            `json:"dirs"`
 	}{snapshot.Files, snapshot.Dirs})
@@ -656,7 +656,7 @@ type fileIndexWire struct {
 func (idx *FileIndex) UnmarshalJSON(data []byte) error {
 	var raw fileIndexWire
 
-	if err := json.Unmarshal(data, &raw); err != nil {
+	if err := json.UnmarshalOf(data, &raw); err != nil {
 		return err
 	}
 
@@ -674,7 +674,7 @@ func (idx *FileIndex) UnmarshalJSON(data []byte) error {
 	if len(raw.Files) > 0 {
 		if raw.Files[0] == '[' {
 			var fileList []string
-			if err := json.Unmarshal(raw.Files, &fileList); err != nil {
+			if err := json.UnmarshalOf(raw.Files, &fileList); err != nil {
 				return err
 			}
 			for _, file := range fileList {
@@ -689,7 +689,7 @@ func (idx *FileIndex) UnmarshalJSON(data []byte) error {
 			}
 		} else if raw.Files[0] == '{' {
 			var fileMap map[string]FileInfo
-			if err := json.Unmarshal(raw.Files, &fileMap); err != nil {
+			if err := json.UnmarshalOf(raw.Files, &fileMap); err != nil {
 				return err
 			}
 			for file, info := range fileMap {

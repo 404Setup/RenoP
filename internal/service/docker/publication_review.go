@@ -25,7 +25,7 @@ import (
 
 	"renop/internal/config"
 	"renop/internal/core"
-	"renop/internal/service/ticketnotify"
+	"renop/internal/service/ticket/notify"
 )
 
 var dockerTagPattern = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$`)
@@ -95,7 +95,7 @@ func dockerCreationReviewPayload(state *core.AppState,
 		return nil, nil, err
 	}
 	var payload dockerImageCreationReviewPayload
-	if err := json.Unmarshal(raw, &payload); err != nil {
+	if err := json.UnmarshalOf(raw, &payload); err != nil {
 		return nil, nil, core.ErrReviewInvalidRequest
 	}
 	imageName, valid := NormalizeImageName(payload.ImageName)
@@ -126,7 +126,7 @@ func QueueImageCreationReview(state *core.AppState, repo *config.Repository, ima
 	if state == nil || state.GetDB() == nil || repo == nil || createdAt <= 0 {
 		return nil, core.ErrDatabaseUnavailable
 	}
-	payload, err := json.Marshal(&dockerImageCreationReviewPayload{
+	payload, err := json.MarshalOf(&dockerImageCreationReviewPayload{
 		Repository: repo.Name, ImageName: imageName, SuperTeamPrefix: superTeamPrefix,
 		Private: private, CreatedAt: createdAt,
 	})
@@ -161,7 +161,7 @@ func dockerReviewPayload(state *core.AppState, task *core.ReviewTask) (*dockerPu
 		return nil, err
 	}
 	var payload dockerPublicationReviewPayload
-	if err := json.Unmarshal(raw, &payload); err != nil {
+	if err := json.UnmarshalOf(raw, &payload); err != nil {
 		return nil, core.ErrReviewInvalidRequest
 	}
 	imageName, valid := NormalizeImageName(payload.ImageName)
@@ -189,7 +189,7 @@ func QueuePublicationReview(state *core.AppState, repo *config.Repository, image
 	if !valid {
 		return nil, core.ErrReviewInvalidRequest
 	}
-	payload, err := json.Marshal(&dockerPublicationReviewPayload{
+	payload, err := json.MarshalOf(&dockerPublicationReviewPayload{
 		Repository: repo.Name, ImageName: imageName, Reference: reference, Digest: parsed.Digest,
 		MediaType: parsed.MediaType, ConfigDigest: parsed.ConfigDigest,
 		BlobDigests: referencedBlobDigests(parsed), RawJSON: parsed.RawJSON,

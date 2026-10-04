@@ -21,9 +21,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/stretchr/testify/require"
+
+	"renop/pkg/id"
 
 	"renop/internal/config"
 	"renop/internal/core"
@@ -284,7 +285,7 @@ func TestPostgresAccountSecuritySerialization(t *testing.T) {
 	require.NoError(t, err)
 	apiExpiresAt := now + int64((24*time.Hour)/time.Millisecond)
 	apiToken := &core.APIToken{
-		ID: uuid.NewString(), Name: "PostgreSQL automation",
+		ID: id.New(), Name: "PostgreSQL automation",
 		Scopes:    []string{core.APITokenScopeRepositoryRead, core.APITokenScopeRepositoryPublish},
 		Targets:   map[string][]string{core.APITokenScopeRepositoryPublish: {"releases"}},
 		CreatedAt: now + 10, ExpiresAt: &apiExpiresAt,

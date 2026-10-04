@@ -32,6 +32,10 @@ type Repository struct {
 	DownloadStatistics  *bool                 `json:"download_statistics,omitempty" yaml:"download_statistics,omitempty"`
 	S3                  *S3Config             `json:"s3,omitempty" yaml:"s3,omitempty"`
 	MavenRestore        *MavenRestoreSettings `json:"maven_restore,omitempty" yaml:"maven_restore,omitempty"`
+	Proxy               string                `json:"proxy,omitempty" yaml:"proxy,omitempty"`
+	GitHubToken         string                `json:"github_token,omitempty" yaml:"github_token,omitempty"`
+	GitLabToken         string                `json:"gitlab_token,omitempty" yaml:"gitlab_token,omitempty"`
+	GitRepo             *GitRepoPolicy        `json:"git_repo,omitempty" yaml:"git_repo,omitempty"`
 }
 
 // MavenRestoreSettings preserves Maven-only policy while a repository uses the files engine.
@@ -40,6 +44,211 @@ type MavenRestoreSettings struct {
 	AllowRedeployment   bool   `json:"allow_redeployment" yaml:"allow_redeployment"`
 	RequireGPGSignature bool   `json:"require_gpg_signature" yaml:"require_gpg_signature"`
 	PublicationReview   string `json:"publication_review,omitempty" yaml:"publication_review,omitempty"`
+}
+
+const (
+	GitRepoModeLax    = "lax"
+	GitRepoModeStrict = "strict"
+)
+
+type GitRepoQuota struct {
+	MaxVersionSizeBytes      int64 `json:"max_version_size_bytes,omitempty" yaml:"max_version_size_bytes,omitempty"`
+	MaxDailyTrafficBytes     int64 `json:"max_daily_traffic_bytes,omitempty" yaml:"max_daily_traffic_bytes,omitempty"`
+	RetainLatestWorkflowRuns *bool `json:"retain_latest_workflow_runs,omitempty" yaml:"retain_latest_workflow_runs,omitempty"`
+	RetainLatestReleases     *bool `json:"retain_latest_releases,omitempty" yaml:"retain_latest_releases,omitempty"`
+}
+
+func (q *GitRepoQuota) DeepCopy() *GitRepoQuota {
+	if q == nil {
+		return nil
+	}
+	cp := &GitRepoQuota{
+		MaxVersionSizeBytes:  q.MaxVersionSizeBytes,
+		MaxDailyTrafficBytes: q.MaxDailyTrafficBytes,
+	}
+	if q.RetainLatestWorkflowRuns != nil {
+		v := *q.RetainLatestWorkflowRuns
+		cp.RetainLatestWorkflowRuns = &v
+	}
+	if q.RetainLatestReleases != nil {
+		v := *q.RetainLatestReleases
+		cp.RetainLatestReleases = &v
+	}
+	return cp
+}
+
+type GitRepoPolicy struct {
+	Mode                      string                   `json:"mode,omitempty" yaml:"mode,omitempty"`
+	MaxVersionSizeBytes       int64                    `json:"max_version_size_bytes,omitempty" yaml:"max_version_size_bytes,omitempty"`
+	MaxDailyTrafficBytes      int64                    `json:"max_daily_traffic_bytes,omitempty" yaml:"max_daily_traffic_bytes,omitempty"`
+	RetainLatestWorkflowRuns  *bool                    `json:"retain_latest_workflow_runs,omitempty" yaml:"retain_latest_workflow_runs,omitempty"`
+	RetainLatestReleases      *bool                    `json:"retain_latest_releases,omitempty" yaml:"retain_latest_releases,omitempty"`
+	QuotaRequestCooldownHours int                      `json:"quota_request_cooldown_hours,omitempty" yaml:"quota_request_cooldown_hours,omitempty"`
+	SuperTeamPrefix           string                   `json:"super_team_prefix,omitempty" yaml:"super_team_prefix,omitempty"`
+	Owner                     string                   `json:"owner,omitempty" yaml:"owner,omitempty"`
+	RegisteredRepos           []string                 `json:"registered_repos,omitempty" yaml:"registered_repos,omitempty"`
+	RepoQuotas                map[string]*GitRepoQuota `json:"repo_quotas,omitempty" yaml:"repo_quotas,omitempty"`
+}
+
+func DefaultGitRepoPolicy() *GitRepoPolicy {
+	retainWorkflows := true
+	retainReleases := true
+	return &GitRepoPolicy{
+		Mode:                      GitRepoModeLax,
+		MaxVersionSizeBytes:       300 * 1024 * 1024,
+		MaxDailyTrafficBytes:      25 * 1024 * 1024 * 1024,
+		RetainLatestWorkflowRuns:  &retainWorkflows,
+		RetainLatestReleases:      &retainReleases,
+		QuotaRequestCooldownHours: 72,
+		RepoQuotas:                make(map[string]*GitRepoQuota),
+	}
+}
+
+func (p *GitRepoPolicy) DeepCopy() *GitRepoPolicy {
+	if p == nil {
+		return nil
+	}
+	cp := &GitRepoPolicy{
+		Mode:                      strings.Clone(p.Mode),
+		MaxVersionSizeBytes:       p.MaxVersionSizeBytes,
+		MaxDailyTrafficBytes:      p.MaxDailyTrafficBytes,
+		QuotaRequestCooldownHours: p.QuotaRequestCooldownHours,
+		SuperTeamPrefix:           strings.Clone(p.SuperTeamPrefix),
+		Owner:                     strings.Clone(p.Owner),
+	}
+	if p.RetainLatestWorkflowRuns != nil {
+		v := *p.RetainLatestWorkflowRuns
+		cp.RetainLatestWorkflowRuns = &v
+	}
+	if p.RetainLatestReleases != nil {
+		v := *p.RetainLatestReleases
+		cp.RetainLatestReleases = &v
+	}
+	if p.RegisteredRepos != nil {
+		cp.RegisteredRepos = append([]string(nil), p.RegisteredRepos...)
+	}
+	if p.RepoQuotas != nil {
+		cp.RepoQuotas = make(map[string]*GitRepoQuota, len(p.RepoQuotas))
+		for k, v := range p.RepoQuotas {
+			cp.RepoQuotas[k] = v.DeepCopy()
+		}
+	}
+	return cp
+}
+
+func (p *GitRepoPolicy) EffectiveMode() string {
+	if p != nil && strings.EqualFold(strings.TrimSpace(p.Mode), GitRepoModeStrict) {
+		return GitRepoModeStrict
+	}
+	return GitRepoModeLax
+}
+
+func (p *GitRepoPolicy) IsRepoRegistered(repoSlug string) bool {
+	if p == nil {
+		return false
+	}
+	repoSlug = strings.ToLower(strings.Trim(repoSlug, "/"))
+	for _, registered := range p.RegisteredRepos {
+		if strings.ToLower(strings.Trim(registered, "/")) == repoSlug {
+			return true
+		}
+	}
+	return false
+}
+
+// RenameRepo updates a registered repository slug from oldSlug to newSlug and transfers any custom quota.
+func (p *GitRepoPolicy) RenameRepo(oldSlug, newSlug string) bool {
+	if p == nil || oldSlug == "" || newSlug == "" {
+		return false
+	}
+	oldLower := strings.ToLower(strings.Trim(oldSlug, "/"))
+	newLower := strings.ToLower(strings.Trim(newSlug, "/"))
+	if oldLower == newLower {
+		return false
+	}
+	found := false
+	for i, registered := range p.RegisteredRepos {
+		if strings.ToLower(strings.Trim(registered, "/")) == oldLower {
+			p.RegisteredRepos[i] = newSlug
+			found = true
+			break
+		}
+	}
+	if !found {
+		return false
+	}
+	if p.RepoQuotas != nil {
+		if quota, exists := p.RepoQuotas[oldLower]; exists {
+			delete(p.RepoQuotas, oldLower)
+			p.RepoQuotas[newLower] = quota
+		}
+	}
+	return true
+}
+
+func (p *GitRepoPolicy) ShouldRetainLatestWorkflowRuns() bool {
+	if p == nil || p.RetainLatestWorkflowRuns == nil {
+		return true
+	}
+	return *p.RetainLatestWorkflowRuns
+}
+
+func (p *GitRepoPolicy) ShouldRetainLatestReleases() bool {
+	if p == nil || p.RetainLatestReleases == nil {
+		return true
+	}
+	return *p.RetainLatestReleases
+}
+
+func (p *GitRepoPolicy) GetRepoQuota(repoSlug string) *GitRepoQuota {
+	if p == nil || p.RepoQuotas == nil {
+		return nil
+	}
+	return p.RepoQuotas[strings.ToLower(strings.Trim(repoSlug, "/"))]
+}
+
+func (p *GitRepoPolicy) SetRepoQuota(repoSlug string, quota *GitRepoQuota) {
+	if p == nil {
+		return
+	}
+	if p.RepoQuotas == nil {
+		p.RepoQuotas = make(map[string]*GitRepoQuota)
+	}
+	p.RepoQuotas[strings.ToLower(strings.Trim(repoSlug, "/"))] = quota
+}
+
+func (p *GitRepoPolicy) EffectiveMaxVersionSizeBytes(repoSlug string) int64 {
+	if q := p.GetRepoQuota(repoSlug); q != nil && q.MaxVersionSizeBytes > 0 {
+		return q.MaxVersionSizeBytes
+	}
+	if p != nil {
+		return p.MaxVersionSizeBytes
+	}
+	return 300 * 1024 * 1024
+}
+
+func (p *GitRepoPolicy) EffectiveMaxDailyTrafficBytes(repoSlug string) int64 {
+	if q := p.GetRepoQuota(repoSlug); q != nil && q.MaxDailyTrafficBytes > 0 {
+		return q.MaxDailyTrafficBytes
+	}
+	if p != nil {
+		return p.MaxDailyTrafficBytes
+	}
+	return 25 * 1024 * 1024 * 1024
+}
+
+func (p *GitRepoPolicy) EffectiveRetainLatestWorkflowRuns(repoSlug string) bool {
+	if q := p.GetRepoQuota(repoSlug); q != nil && q.RetainLatestWorkflowRuns != nil {
+		return *q.RetainLatestWorkflowRuns
+	}
+	return p.ShouldRetainLatestWorkflowRuns()
+}
+
+func (p *GitRepoPolicy) EffectiveRetainLatestReleases(repoSlug string) bool {
+	if q := p.GetRepoQuota(repoSlug); q != nil && q.RetainLatestReleases != nil {
+		return *q.RetainLatestReleases
+	}
+	return p.ShouldRetainLatestReleases()
 }
 
 type repositorySerialization struct {
@@ -54,6 +263,10 @@ type repositorySerialization struct {
 	DownloadStatistics  *bool                 `json:"download_statistics,omitempty" yaml:"download_statistics,omitempty"`
 	S3                  *S3Config             `json:"s3,omitempty" yaml:"s3,omitempty"`
 	MavenRestore        *MavenRestoreSettings `json:"maven_restore,omitempty" yaml:"maven_restore,omitempty"`
+	Proxy               string                `json:"proxy,omitempty" yaml:"proxy,omitempty"`
+	GitHubToken         string                `json:"github_token,omitempty" yaml:"github_token,omitempty"`
+	GitLabToken         string                `json:"gitlab_token,omitempty" yaml:"gitlab_token,omitempty"`
+	GitRepo             *GitRepoPolicy        `json:"git_repo,omitempty" yaml:"git_repo,omitempty"`
 }
 
 const (
@@ -70,6 +283,8 @@ const (
 	RepositoryFormatAPT          = "apt"
 	RepositoryFormatRPM          = "rpm"
 	RepositoryFormatYUM          = "yum"
+	RepositoryFormatGithub       = "github"
+	RepositoryFormatGitLab       = "gitlab"
 
 	PublicationReviewOff          = "off"
 	PublicationReviewNewPackages  = "new_packages"
@@ -173,6 +388,18 @@ func (r Repository) serialization() repositorySerialization {
 			serialized.Mirrors[i].ArtifactURL = ""
 		}
 	}
+	if r.Proxy != "" {
+		serialized.Proxy = r.Proxy
+	}
+	if r.GitHubToken != "" {
+		serialized.GitHubToken = r.GitHubToken
+	}
+	if r.GitLabToken != "" {
+		serialized.GitLabToken = r.GitLabToken
+	}
+	if r.GitRepo != nil {
+		serialized.GitRepo = r.GitRepo.DeepCopy()
+	}
 
 	return serialized
 }
@@ -199,7 +426,7 @@ func cloneRepositoryBool(value *bool) *bool {
 
 // MarshalJSON emits protocol-specific repository configuration fields.
 func (r Repository) MarshalJSON() ([]byte, error) {
-	return json.Marshal(r.serialization())
+	return json.MarshalOf(r.serialization())
 }
 
 // MarshalYAML emits protocol-specific repository configuration fields.
@@ -241,7 +468,7 @@ func (m *MirroredRepositorySettings) UnmarshalJSON(data []byte) error {
 	m.setDefaults()
 	type alias MirroredRepositorySettings
 	aux := (*alias)(m)
-	return json.Unmarshal(data, aux)
+	return json.UnmarshalOf(data, aux)
 }
 
 func (m *MirroredRepositorySettings) UnmarshalYAML(value *yaml.Node) error {
@@ -266,7 +493,7 @@ func (s *StorageProviderSettings) UnmarshalJSON(data []byte) error {
 	aux := &storageProviderSettingsWire{
 		storageProviderSettingsAlias: (*storageProviderSettingsAlias)(s),
 	}
-	if err := json.Unmarshal(data, &aux); err != nil {
+	if err := json.UnmarshalOf(data, &aux); err != nil {
 		return err
 	}
 	s.Value = data
@@ -304,7 +531,7 @@ func (r *RepositorySettings) UnmarshalJSON(data []byte) error {
 	r.setDefaults()
 	type alias RepositorySettings
 	aux := (*alias)(r)
-	return json.Unmarshal(data, aux)
+	return json.UnmarshalOf(data, aux)
 }
 
 func (r *RepositorySettings) UnmarshalYAML(value *yaml.Node) error {
@@ -387,7 +614,7 @@ func (m *MavenSettings) Normalize() error {
 
 func (m *MavenSettings) UnmarshalJSON(data []byte) error {
 	type alias MavenSettings
-	if err := json.Unmarshal(data, (*alias)(m)); err != nil {
+	if err := json.UnmarshalOf(data, (*alias)(m)); err != nil {
 		return err
 	}
 	return m.Normalize()
@@ -457,6 +684,10 @@ func (r *Repository) DeepCopy() *Repository {
 		DownloadStatistics:  cloneRepositoryBool(r.DownloadStatistics),
 		S3:                  r.S3.DeepCopy(),
 		MavenRestore:        r.MavenRestore.DeepCopy(),
+		Proxy:               strings.Clone(r.Proxy),
+		GitHubToken:         strings.Clone(r.GitHubToken),
+		GitLabToken:         strings.Clone(r.GitLabToken),
+		GitRepo:             r.GitRepo.DeepCopy(),
 	}
 	if r.Mirrors != nil {
 		cloned.Mirrors = make([]Mirror, len(r.Mirrors))
@@ -465,6 +696,58 @@ func (r *Repository) DeepCopy() *Repository {
 		}
 	}
 	return cloned
+}
+
+func (r *Repository) EffectiveProxy() string {
+	if r == nil {
+		return ""
+	}
+	if r.Proxy != "" {
+		return r.Proxy
+	}
+	for _, m := range r.Mirrors {
+		if m.ProxyMode != "" {
+			return m.ProxyMode
+		}
+	}
+	return ""
+}
+
+func (r *Repository) EffectiveGitHubToken() string {
+	if r == nil {
+		return ""
+	}
+	if r.GitHubToken != "" {
+		return r.GitHubToken
+	}
+	for _, m := range r.Mirrors {
+		if m.Authorization != nil && m.Authorization.Password != "" {
+			return m.Authorization.Password
+		}
+	}
+	return ""
+}
+
+func (r *Repository) EffectiveGitLabToken() string {
+	if r == nil {
+		return ""
+	}
+	if r.GitLabToken != "" {
+		return r.GitLabToken
+	}
+	for _, m := range r.Mirrors {
+		if m.Authorization != nil && m.Authorization.Password != "" {
+			return m.Authorization.Password
+		}
+	}
+	return ""
+}
+
+func (r *Repository) EffectiveGitPolicy() *GitRepoPolicy {
+	if r == nil || r.GitRepo == nil {
+		return DefaultGitRepoPolicy()
+	}
+	return r.GitRepo
 }
 
 func (m *MavenSettings) DeepCopy() MavenSettings {

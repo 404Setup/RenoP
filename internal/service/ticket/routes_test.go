@@ -168,7 +168,7 @@ func reviewRequest(t *testing.T, app *fiber.App, current *config.User, method, p
 	var payload []byte
 	if body != nil {
 		var err error
-		payload, err = json.Marshal(body)
+		payload, err = json.MarshalOf(body)
 		require.NoError(t, err)
 	}
 	request := httptest.NewRequest(method, path, bytes.NewReader(payload))
@@ -217,7 +217,7 @@ func TestSupportTicketHTTPBoundariesAndReportPrivacy(t *testing.T) {
 	check(http.MethodPost, "/api/tickets", core.TicketRequest{Kind: core.TicketKindFeedback,
 		Title: "Feedback", Body: "Help", Repository: "missing"}, http.StatusForbidden)
 	var task core.ReviewTask
-	require.NoError(t, json.Unmarshal(check(http.MethodPost, "/api/tickets", request, http.StatusCreated), &task))
+	require.NoError(t, json.UnmarshalOf(check(http.MethodPost, "/api/tickets", request, http.StatusCreated), &task))
 	select {
 	case entry := <-state.Inner.AuditLogChan:
 		require.NotEqual(t, "charlie", entry.Username)
@@ -246,13 +246,13 @@ func TestSupportTicketHTTPBoundariesAndReportPrivacy(t *testing.T) {
 	}
 	*current = config.User{Username: "dana", Roles: []string{"manager"}}
 	var staff core.ReviewTask
-	require.NoError(t, json.Unmarshal(check(http.MethodGet, "/api/tickets/"+task.ID, nil, http.StatusOK), &staff))
+	require.NoError(t, json.UnmarshalOf(check(http.MethodGet, "/api/tickets/"+task.ID, nil, http.StatusOK), &staff))
 	require.Equal(t, "bob", staff.DecidedBy)
 	*current = config.User{Username: "charlie", Roles: []string{"base"}}
 	data := check(http.MethodGet, "/api/tickets/"+task.ID, nil, http.StatusOK)
 	require.NotContains(t, string(data), "bob")
 	check(http.MethodDelete, "/api/tickets/"+task.ID, nil, http.StatusConflict)
-	require.NoError(t, json.Unmarshal(check(http.MethodPost, "/api/tickets", core.TicketRequest{
+	require.NoError(t, json.UnmarshalOf(check(http.MethodPost, "/api/tickets", core.TicketRequest{
 		Kind: core.TicketKindSuggestion, Title: "Suggestion", Body: "Improve search."}, http.StatusCreated), &task))
 	check(http.MethodDelete, "/api/tickets/"+task.ID, nil, http.StatusOK)
 }

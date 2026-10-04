@@ -41,7 +41,7 @@ func TestLegacyBzip2Repodata(t *testing.T) {
 	var document struct {
 		Packages map[string]json.RawMessage `json:"packages"`
 	}
-	if err := json.Unmarshal(data, &document); err != nil {
+	if err := json.UnmarshalOf(data, &document); err != nil {
 		t.Fatal(err)
 	}
 	if len(document.Packages) != 1 || document.Packages[pkg.Filename] == nil {
@@ -97,7 +97,7 @@ func TestNativePackageRepodata(t *testing.T) {
 	var document struct {
 		Packages map[string]json.RawMessage `json:"packages.conda"`
 	}
-	if err := json.Unmarshal(data, &document); err != nil {
+	if err := json.UnmarshalOf(data, &document); err != nil {
 		t.Fatal(err)
 	}
 	var record struct {
@@ -105,7 +105,7 @@ func TestNativePackageRepodata(t *testing.T) {
 		SHA256  string
 		Depends []string
 	}
-	if err := json.Unmarshal(document.Packages[pkg.Filename], &record); err != nil {
+	if err := json.UnmarshalOf(document.Packages[pkg.Filename], &record); err != nil {
 		t.Fatal(err)
 	}
 	sum := sha256.Sum256(body)

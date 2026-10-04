@@ -676,7 +676,7 @@ func requiredAPITokenScope(c fiber.Ctx, state *core.AppState) apiTokenRequiremen
 		}
 	}
 	switch {
-	case strings.HasPrefix(path, "/v2"):
+	case strings.HasPrefix(path, "/v2") || path == "/api/status/instance":
 		return apiTokenRequirement{}
 	case strings.HasPrefix(path, "/api/settings/repositories") ||
 		strings.HasPrefix(path, "/api/settings/maven/repositories") ||
@@ -686,11 +686,14 @@ func requiredAPITokenScope(c fiber.Ctx, state *core.AppState) apiTokenRequiremen
 		return requireAPITokenScope(APITokenScopeAdminSettings)
 	case path == "/api/auth/logs" || (strings.HasPrefix(path, "/api/auth/users/") && strings.Contains(path, "/audit-logs")):
 		return requireAPITokenScope(APITokenScopeAdminAudit)
-	case strings.HasPrefix(path, "/api/tokens") || strings.HasPrefix(path, "/api/auth/users/"):
+	case isUserManagementPath(path) || strings.HasPrefix(path, "/api/auth/users/"):
 		return requireAPITokenScope(APITokenScopeAdminUsers)
 	case strings.HasPrefix(path, "/api/updater"):
 		return requireAPITokenScope(APITokenScopeAdminUpdates)
-	case path == "/api/status/instance" || path == "/api/status/snapshots":
+	case path == "/api/status/snapshots" ||
+		strings.HasPrefix(path, "/api/status/storage") ||
+		strings.HasPrefix(path, "/api/status/database") ||
+		strings.HasPrefix(path, "/api/status/cache"):
 		return requireAPITokenScope(APITokenScopeAdminAudit)
 	case strings.HasPrefix(path, "/api/messages/admin"):
 		return requireAPITokenScope(APITokenScopeAdminNotifications)
@@ -753,32 +756,75 @@ func authorizeCredential(c fiber.Ctx, state *core.AppState, result *authResult) 
 		return true, nil
 	}
 	if result.Kind == credentialKindPassword && !isStandardCredentialRequest(c, state) {
+		if utils.HasUploadBody(c) {
+			utils.RejectUploadEarly(c)
+		}
 		return false, c.Status(fiber.StatusForbidden).SendString("Password credentials are limited to package protocols")
 	}
 	if result.Kind != credentialKindAPIToken {
 		return true, nil
 	}
 	if isSessionOnlyAPIPath(c.Path()) {
+		if utils.HasUploadBody(c) {
+			utils.RejectUploadEarly(c)
+		}
 		return false, c.Status(fiber.StatusForbidden).SendString("A browser session is required")
 	}
 	if (result.Scheme == "basic" || result.Scheme == "cargo") && !isStandardCredentialRequest(c, state) {
+		if utils.HasUploadBody(c) {
+			utils.RejectUploadEarly(c)
+		}
 		return false, c.Status(fiber.StatusForbidden).SendString("Basic credentials are limited to package protocols")
 	}
 	required := requiredAPITokenScope(c, state)
 	if !required.allows(result.Scopes, result.Targets) {
+		if utils.HasUploadBody(c) {
+			utils.RejectUploadEarly(c)
+		}
 		return false, sendInsufficientScope(c, required.Scope)
 	}
 	return true, nil
 }
 
+func isUserManagementPath(path string) bool {
+	if strings.HasPrefix(path, "/api/tokens") {
+		return true
+	}
+	if path == "/api/users" || path == "/api/users/" {
+		return true
+	}
+	if strings.HasPrefix(path, "/api/users/") {
+		if strings.HasPrefix(path, "/api/users/profiles") {
+			return false
+		}
+		parts := strings.Split(strings.Trim(path, "/"), "/")
+		if len(parts) >= 4 {
+			sub := parts[3]
+			switch sub {
+			case "profile", "avatar", "memberships", "super-teams":
+				return false
+			case "ban", "retention", "sessions":
+				return true
+			}
+		}
+		return len(parts) == 3 // /api/users/:name
+	}
+	return false
+}
+
 func authorizeRequest(c fiber.Ctx, user *config.User) error {
 	path := c.Path()
 	restricted := strings.HasPrefix(path, "/api/settings") ||
-		strings.HasPrefix(path, "/api/tokens") ||
+		isUserManagementPath(path) ||
 		strings.HasPrefix(path, "/api/debug") ||
-		path == "/api/status/instance" ||
+		strings.HasPrefix(path, "/api/status/storage") ||
+		strings.HasPrefix(path, "/api/status/database") ||
+		strings.HasPrefix(path, "/api/status/cache") ||
 		path == "/api/status/snapshots"
 	if restricted && !isManager(user) {
+		if utils.HasUploadBody(c) {
+			utils.RejectUploadEarly(c)
+		}
 		if user.Username == "guest" {
 			return c.Status(fiber.StatusUnauthorized).SendString("Unauthorized")
 		}
@@ -855,6 +901,9 @@ func AuthMiddleware(state *core.AppState) fiber.Handler {
 						authenticated.Scheme = "cargo"
 					}
 				} else {
+					if utils.HasUploadBody(c) {
+						utils.RejectUploadEarly(c)
+					}
 					return c.Status(fiber.StatusUnauthorized).SendString("Unauthorized")
 				}
 
@@ -880,11 +929,17 @@ func AuthMiddleware(state *core.AppState) fiber.Handler {
 				}
 			} else if authenticated.User == InvalidCredentialsUser || authenticated.Kind == credentialKindInvalid {
 				if isCargoRequest {
+					if utils.HasUploadBody(c) {
+						utils.RejectUploadEarly(c)
+					}
 					return sendInvalidCargoCredentials(c)
 				}
 				if isDockerRequest(c) {
 					c.Locals("user", GuestUser)
 					return c.Next()
+				}
+				if utils.HasUploadBody(c) {
+					utils.RejectUploadEarly(c)
 				}
 				return c.Status(fiber.StatusUnauthorized).SendString("Unauthorized")
 			}
@@ -893,11 +948,17 @@ func AuthMiddleware(state *core.AppState) fiber.Handler {
 		isLogout := c.Path() == "/api/auth/logout"
 		if authHeader != "" && authenticated == nil && !isLogout {
 			if isCargoRequest {
+				if utils.HasUploadBody(c) {
+					utils.RejectUploadEarly(c)
+				}
 				return sendInvalidCargoCredentials(c)
 			}
 			if isDockerRequest(c) {
 				c.Locals("user", GuestUser)
 				return c.Next()
+			}
+			if utils.HasUploadBody(c) {
+				utils.RejectUploadEarly(c)
 			}
 			return c.Status(fiber.StatusUnauthorized).SendString("Unauthorized")
 		}
@@ -966,6 +1027,9 @@ func GetUser(c fiber.Ctx) *config.User {
 func RequireManager(c fiber.Ctx) error {
 	user := GetUser(c)
 	if !isManager(user) {
+		if utils.HasUploadBody(c) {
+			utils.RejectUploadEarly(c)
+		}
 		if user.Username == "guest" {
 			return c.Status(fiber.StatusUnauthorized).SendString("Unauthorized")
 		}

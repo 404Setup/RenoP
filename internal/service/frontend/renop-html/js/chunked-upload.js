@@ -11,6 +11,7 @@
 import {captchaFetch, captchaHeaders} from './captcha.js';
 import {decodeProtoResponse, getAuthHeaders, PROTO_CONTENT_TYPE} from './api.js';
 import {ChunkedUploadCompleteResponse, ChunkedUploadInitRequest, ChunkedUploadInitResponse,} from './proto/index.js';
+import {el} from '@renop/ui/dom';
 
 /** Files smaller than this use the original single-request upload path (no multi-part). */
 export const CHUNK_THRESHOLD = 8 * 1024 * 1024;
@@ -571,24 +572,22 @@ export function renderChunkProgressStrip(host, chunks) {
         return null;
     }
     if (!strip) {
-        strip = document.createElement('div');
-        strip.className = 'upload-chunk-strip';
-        strip.setAttribute('aria-label', 'Chunk upload progress');
+        strip = el('div', {
+            class: 'upload-chunk-strip',
+            'aria-label': 'Chunk upload progress'
+        });
         host.appendChild(strip);
     }
 
     if (strip.childElementCount !== chunks.length) {
         strip.innerHTML = '';
         for (let i = 0; i < chunks.length; i++) {
-            const cell = document.createElement('div');
-            cell.className = 'upload-chunk-cell';
-            cell.dataset.index = String(i);
-            const fill = document.createElement('div');
-            fill.className = 'upload-chunk-fill';
-            cell.appendChild(fill);
-            const tip = document.createElement('span');
-            tip.className = 'upload-chunk-tip';
-            cell.appendChild(tip);
+            const fill = el('div', {class: 'upload-chunk-fill'});
+            const tip = el('span', {class: 'upload-chunk-tip'});
+            const cell = el('div', {
+                class: 'upload-chunk-cell',
+                'data-index': String(i)
+            }, fill, tip);
             strip.appendChild(cell);
         }
     }

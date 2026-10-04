@@ -20,7 +20,6 @@ import (
 
 	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
-	"github.com/google/uuid"
 
 	"renop/internal/config"
 	"renop/internal/core"
@@ -28,6 +27,7 @@ import (
 	"renop/internal/service/auth"
 	"renop/internal/service/captcha"
 	"renop/internal/utils/protohttp"
+	"renop/pkg/id"
 	"renop/pkg/pb"
 )
 
@@ -424,8 +424,8 @@ func addMembers(c fiber.Ctx, state *core.AppState) error {
 		if state.GetTokenByName(recipient) == nil {
 			return apiError(c, core.ErrUserProfileNotFound)
 		}
-		id := uuid.NewString()
-		payload, marshalErr := json.Marshal(map[string]any{
+		id := id.New()
+		payload, marshalErr := json.MarshalOf(map[string]any{
 			"prefix": prefix, "inviter": user.Username, "level": request.Level,
 		})
 		if marshalErr != nil {
@@ -538,16 +538,16 @@ func respondInvitation(c fiber.Ctx, state *core.AppState) error {
 	if err != nil {
 		return apiError(c, err)
 	}
-	id := strings.TrimSpace(c.Params("id"))
+	invitationID := strings.TrimSpace(c.Params("id"))
 	decision := strings.ToLower(strings.TrimSpace(c.Params("decision")))
-	if uuid.Validate(id) != nil || decision != "accept" && decision != "reject" {
+	if id.Validate(invitationID) != nil || decision != "accept" && decision != "reject" {
 		return apiError(c, fiber.ErrBadRequest)
 	}
-	if err := state.GetDB().RespondSuperTeamInvitation(id, user.Username, decision == "accept",
+	if err := state.GetDB().RespondSuperTeamInvitation(invitationID, user.Username, decision == "accept",
 		teamConfig(state).JoinLimit, time.Now().UnixMilli()); err != nil {
 		return apiError(c, err)
 	}
-	auditAction(c, state, audit.ActionSuperTeamInvitation, "Invitation: "+id+", decision: "+decision)
+	auditAction(c, state, audit.ActionSuperTeamInvitation, "Invitation: "+invitationID+", decision: "+decision)
 	return c.JSON(fiber.Map{"ok": true})
 }
 

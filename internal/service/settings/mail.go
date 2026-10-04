@@ -38,6 +38,11 @@ type mailSettingsRequest struct {
 	ClearSecrets map[string][]string `json:"clear_secrets"`
 }
 
+type testMailSettingsRequest struct {
+	AccountID string `json:"account_id"`
+	To        string `json:"to"`
+}
+
 func mailSecrets(a *mail.Account) map[string]*string {
 	return map[string]*string{"password": &a.Password, "api_key": &a.APIKey, "api_secret": &a.APISecret, "session_token": &a.SessionToken, "client_secret": &a.ClientSecret, "access_token": &a.AccessToken, "refresh_token": &a.RefreshToken}
 }
@@ -62,7 +67,7 @@ func mailSettingsError(c fiber.Ctx, status int, code string) error {
 	return c.Status(status).JSON(fiber.Map{"error": code})
 }
 
-func readMailSettingsRequest(c fiber.Ctx, target any, limit int64) error {
+func readMailSettingsRequest[T any](c fiber.Ctx, target *T, limit int64) error {
 	mediaType, _, err := mime.ParseMediaType(c.Get(fiber.HeaderContentType))
 	if err != nil || mediaType != fiber.MIMEApplicationJSON {
 		return fiber.ErrUnsupportedMediaType
@@ -152,10 +157,7 @@ func testMailSettings(c fiber.Ctx, state *core.AppState) error {
 	if !isManager(c) {
 		return c.SendStatus(403)
 	}
-	var request struct {
-		AccountID string `json:"account_id"`
-		To        string `json:"to"`
-	}
+	var request testMailSettingsRequest
 	if err := readMailSettingsRequest(c, &request, 4096); err != nil {
 		if errors.Is(err, fiber.ErrRequestEntityTooLarge) || errors.Is(err, fiber.ErrUnsupportedMediaType) {
 			return err

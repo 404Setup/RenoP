@@ -15,7 +15,7 @@ export default Object.freeze({
     "superTeam.edit": "チームを編集",
     "superTeam.back": "チーム一覧へ戻る",
     "superTeam.empty": "グローバルチームはありません",
-    "superTeam.emptyHint": "チームを作成し、npm と Docker で共通の名前空間を予約します。",
+    "superTeam.emptyHint": "チームを作成し、パッケージリポジトリ間で共通の名前空間を予約します。",
     "superTeam.prefix": "変更不可のプレフィックス",
     "superTeam.prefixHint": "2～64 文字の小文字、数字、ハイフン、アンダースコアを使用します。作成後は変更できません。",
     "superTeam.name": "チーム名",

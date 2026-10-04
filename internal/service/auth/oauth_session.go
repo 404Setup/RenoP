@@ -41,7 +41,7 @@ func githubRevocationAuthority(clientID, endpoint string) string {
 }
 
 func githubSessionConfigurationHash(value config.GitHubOAuthConfig) string {
-	data, _ := json.Marshal(value)
+	data, _ := json.MarshalOf(value)
 	return registrationHash(string(data))
 }
 
@@ -60,7 +60,7 @@ func sealSessionOAuthGrant(state *core.AppState, proof *oauthSessionProof, publi
 	}
 	value := *proof
 	value.Tokens.IDToken, value.Tokens.Error = "", nil
-	payload, err := json.Marshal(value)
+	payload, err := json.MarshalOf(value)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +91,7 @@ func openSessionOAuthGrant(state *core.AppState, grant *core.SessionOAuthGrant, 
 		return nil, invalid
 	}
 	var proof oauthSessionProof
-	if json.Unmarshal(payload, &proof) != nil || proof.ProviderID != grant.ProviderID || proof.Authority != grant.Authority ||
+	if json.UnmarshalOf(payload, &proof) != nil || proof.ProviderID != grant.ProviderID || proof.Authority != grant.Authority ||
 		proof.Subject != grant.Subject || proof.SessionID != grant.SessionID || proof.AuthorizedAt != grant.AuthorizedAt {
 		return nil, invalid
 	}

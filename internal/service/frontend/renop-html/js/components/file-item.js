@@ -711,22 +711,17 @@ export function createFileItem(file, index, path, {
     onDelete,
     onSignature
 } = {}) {
-    const item = document.createElement('renop-file-item');
-    item.setAttribute('file-name', file.name);
-    item.setAttribute('file-type', file.type);
-    if (formattedSize) {
-        item.setAttribute('file-size', formattedSize);
-    }
-    if (file.signed === true) {
-        item.setAttribute('signed', '');
-    }
-    if (file.format) {
-        item.setAttribute('repository-format', file.format);
-    }
-    if (allowDelete) {
-        item.setAttribute('allow-delete', '');
-    }
-    item.setAttribute('index', String(index));
+    const attrs = {
+        'file-name': file.name,
+        'file-type': file.type,
+        index: String(index)
+    };
+    if (formattedSize) attrs['file-size'] = formattedSize;
+    if (file.signed === true) attrs.signed = '';
+    if (file.format) attrs['repository-format'] = file.format;
+    if (allowDelete) attrs['allow-delete'] = '';
+
+    const item = el('renop-file-item', attrs);
     item.setAttribute('path', path);
 
     if (onNavigate) item.addEventListener('navigate', e => onNavigate(e.detail));

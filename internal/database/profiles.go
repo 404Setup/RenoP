@@ -17,9 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-
 	"renop/internal/core"
+	"renop/pkg/id"
 )
 
 // GetUserProfile returns the public identity and durable rename state for an account.
@@ -39,9 +38,12 @@ func (db *DB) GetUserProfileByID(userID string) (*core.UserProfile, error) {
 	if db == nil || db.SQLDB == nil {
 		return nil, core.ErrDatabaseUnavailable
 	}
-	userID = strings.ToLower(strings.TrimSpace(userID))
-	if _, err := uuid.Parse(userID); err != nil {
+	userID = strings.TrimSpace(userID)
+	if id.Validate(userID) != nil {
 		return nil, core.ErrUserProfileNotFound
+	}
+	if strings.Contains(userID, "-") {
+		userID = strings.ToLower(userID)
 	}
 	return db.getUserProfile(`p.user_id = ?`, userID)
 }
@@ -58,11 +60,15 @@ func (db *DB) GetAccountNamesByIDs(userIDs []string) ([]string, error) {
 		return nil, core.ErrUserProfileNotFound
 	}
 	args := make([]any, len(userIDs))
-	for i, id := range userIDs {
-		if _, err := uuid.Parse(id); err != nil {
+	for i, uid := range userIDs {
+		uid = strings.TrimSpace(uid)
+		if id.Validate(uid) != nil {
 			return nil, core.ErrUserProfileNotFound
 		}
-		args[i] = id
+		if strings.Contains(uid, "-") {
+			uid = strings.ToLower(uid)
+		}
+		args[i] = uid
 	}
 	rows, err := db.Query(`SELECT p.username FROM user_profiles p JOIN tokens t ON t.name = p.username
 		WHERE t.deleted_at = 0 AND p.user_id IN (`+strings.TrimSuffix(strings.Repeat("?,", len(args)), ",")+`) ORDER BY p.username`, args...)
@@ -163,9 +169,12 @@ func (db *DB) ListUserPackageMemberships(userID, format, viewer string, moderate
 	if db == nil || db.SQLDB == nil {
 		return nil, core.ErrDatabaseUnavailable
 	}
-	userID = strings.ToLower(strings.TrimSpace(userID))
-	if _, err := uuid.Parse(userID); err != nil {
+	userID = strings.TrimSpace(userID)
+	if id.Validate(userID) != nil {
 		return nil, core.ErrUserProfileNotFound
+	}
+	if strings.Contains(userID, "-") {
+		userID = strings.ToLower(userID)
 	}
 	format = strings.ToLower(strings.TrimSpace(format))
 	var query string
@@ -383,7 +392,7 @@ func (db *DB) UpdateUserProfile(oldUsername, newUsername, nickname string, token
 		&profile.UserID, &profile.Nickname, &profile.UsernameChangeWindowAt, &profile.UsernameChangeCount,
 	); errors.Is(err, sql.ErrNoRows) {
 		profileExists = false
-		profile.UserID = uuid.NewString()
+		profile.UserID = id.New()
 		profile.Nickname = ""
 		profile.UsernameChangeWindowAt = 0
 		profile.UsernameChangeCount = 0
@@ -535,7 +544,7 @@ func (db *DB) ensureUserProfile(username string) (string, error) {
 	} else if !errors.Is(err, core.ErrUserProfileNotFound) {
 		return "", err
 	}
-	userID := uuid.NewString()
+	userID := id.New()
 	if _, err := db.Exec(`INSERT INTO user_profiles
 		(user_id, username, nickname, rename_window_started_at, rename_count, updated_at)
 		VALUES (?, ?, '', 0, 0, ?)`, userID, strings.ToLower(strings.TrimSpace(username)), time.Now().UnixMilli()); err != nil {
@@ -580,7 +589,7 @@ func (db *DB) initializeUserIdentities() error {
 			continue
 		}
 		if _, err := db.Exec(`UPDATE user_profiles SET user_id = ? WHERE username = ?`,
-			uuid.NewString(), identity.username); err != nil {
+			id.New(), identity.username); err != nil {
 			return fmt.Errorf("backfill immutable ID for user profile %s: %w", identity.username, err)
 		}
 	}

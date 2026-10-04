@@ -94,10 +94,7 @@ if (!customElements.get('renop-file-card')) {
  * @returns {HTMLElement}
  */
 export function createFileCard(filename, filesize, {icon = 'box', onRemove} = {}) {
-    const card = document.createElement('renop-file-card');
-    card.setAttribute('filename', filename);
-    card.setAttribute('filesize', filesize);
-    card.setAttribute('icon', icon);
+    const card = el('renop-file-card', {filename, filesize, icon});
     if (onRemove) card.addEventListener('remove', onRemove);
     return card;
 }

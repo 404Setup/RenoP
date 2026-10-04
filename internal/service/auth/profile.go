@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
-	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 
 	"renop/internal/config"
@@ -25,6 +24,7 @@ import (
 	"renop/internal/service/token"
 	"renop/internal/utils"
 	"renop/internal/utils/protohttp"
+	"renop/pkg/id"
 	"renop/pkg/pb"
 )
 
@@ -96,7 +96,7 @@ func GenerateUploadToken(c fiber.Ctx, state *core.AppState, opChan chan<- token.
 	if account == nil {
 		return c.Status(fiber.StatusNotFound).SendString("Account not found")
 	}
-	name := "Publishing token " + time.Now().UTC().Format("20060102-150405") + "-" + uuid.NewString()[:8]
+	name := "Publishing token " + time.Now().UTC().Format("20060102-150405") + "-" + id.New()[:8]
 	_, newToken, err := createAPITokenForAccount(state, account, name, []string{
 		APITokenScopeRepositoryRead, APITokenScopeRepositoryPublish,
 	}, nil, nil, time.Now().UnixMilli())

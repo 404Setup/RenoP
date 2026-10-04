@@ -43,7 +43,7 @@ func newMavenRouteState(t *testing.T) (*core.AppState, *config.User) {
 			case "data.iana.org":
 				return verificationResponse(http.StatusOK, `{"services":[[["com","org","net"],["https://rdap.example/"]]]}`), nil
 			case "rdap.example":
-				body, err := json.Marshal(map[string]any{"objectClassName": "domain", "ldhName": strings.TrimPrefix(request.URL.Path, "/domain/"), "status": []string{"active"}})
+				body, err := json.MarshalOf(map[string]any{"objectClassName": "domain", "ldhName": strings.TrimPrefix(request.URL.Path, "/domain/"), "status": []string{"active"}})
 				return verificationResponse(http.StatusOK, string(body)), err
 			case "gitlab.com":
 				if request.URL.Path == "/api/v4/groups/owned-group" {

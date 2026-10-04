@@ -15,10 +15,10 @@ import (
 	"fmt"
 	"path/filepath"
 	"renop/pkg/hex"
+	"renop/pkg/id"
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -64,13 +64,13 @@ func TestAPITokenLifecycleAndLegacyMigration(t *testing.T) {
 	now := time.Now().UnixMilli()
 	expiresAt := now + int64((24*time.Hour)/time.Millisecond)
 	created := &core.APIToken{
-		ID: uuid.NewString(), Name: "Automation", Scopes: []string{"repository:read", "repository:publish"},
+		ID: id.New(), Name: "Automation", Scopes: []string{"repository:read", "repository:publish"},
 		Targets: map[string][]string{"repository:publish": {"files"}}, CreatedAt: now, ExpiresAt: &expiresAt,
 	}
 	const secret = "rnp_0123456789abcdefghijklmnopqrstuvwxyzABCDEFG"
 	require.NoError(t, db.CreateAPIToken("alice", created, apiTokenDigest(secret)))
 	duplicate := &core.APIToken{
-		ID: uuid.NewString(), Name: "automation", Scopes: []string{"repository:read"}, CreatedAt: now + 1,
+		ID: id.New(), Name: "automation", Scopes: []string{"repository:read"}, CreatedAt: now + 1,
 	}
 	require.ErrorIs(t, db.CreateAPIToken("alice", duplicate, apiTokenDigest(secret+"x")),
 		core.ErrAPITokenNameExists)
@@ -141,12 +141,12 @@ func TestAPITokenLimitIsEnforced(t *testing.T) {
 	for index := range core.MaxAPITokensPerUser {
 		name := fmt.Sprintf("Automation %02d", index)
 		require.NoError(t, db.CreateAPIToken("alice", &core.APIToken{
-			ID: uuid.NewString(), Name: name, Scopes: []string{core.APITokenScopeRepositoryRead},
+			ID: id.New(), Name: name, Scopes: []string{core.APITokenScopeRepositoryRead},
 			CreatedAt: now + int64(index),
 		}, apiTokenDigest("limit-secret-"+name)))
 	}
 	err = db.CreateAPIToken("alice", &core.APIToken{
-		ID: uuid.NewString(), Name: "One too many", Scopes: []string{core.APITokenScopeRepositoryRead},
+		ID: id.New(), Name: "One too many", Scopes: []string{core.APITokenScopeRepositoryRead},
 		CreatedAt: now + core.MaxAPITokensPerUser,
 	}, apiTokenDigest("limit-secret-overflow"))
 	require.ErrorIs(t, err, core.ErrAPITokenLimit)

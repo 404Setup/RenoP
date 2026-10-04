@@ -18,8 +18,9 @@ import (
 	"time"
 
 	"github.com/go-sql-driver/mysql"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+
+	"renop/pkg/id"
 
 	"renop/internal/config"
 	"renop/internal/core"
@@ -65,7 +66,7 @@ func newMySQLTestDatabase(t *testing.T) (*DB, config.DatabaseConfig) {
 	admin, err := sql.Open("mysql", options.FormatDSN())
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, admin.Close()) })
-	schema := "renop_mysql_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+	schema := "renop_mysql_" + strings.ToLower(id.New())
 	_, err = admin.Exec("CREATE DATABASE " + schema + " CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci")
 	require.NoError(t, err)
 	t.Cleanup(func() {

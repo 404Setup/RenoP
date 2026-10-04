@@ -20,10 +20,9 @@ import (
 
 	"github.com/emmansun/base64"
 
-	"github.com/google/uuid"
-
 	"renop/internal/config"
 	"renop/internal/core"
+	"renop/pkg/id"
 )
 
 const (
@@ -261,7 +260,7 @@ func (db *DB) CreateOrUpdatePublicationReview(request core.PublicationReviewRequ
 		if pendingTotal >= maxPendingPublicationReviews || pendingForActor >= maxPendingPublicationPerAccount {
 			return nil, core.ErrReviewFileLimit
 		}
-		taskID = uuid.NewString()
+		taskID = id.New()
 		if _, err := tx.Exec(`INSERT INTO review_tasks
 			(id, kind, resource_type, repository, resource_key, resource_name, source_team_prefix,
 			target_team_prefix, review_team_prefix, requested_by_id, requested_by_name, status,

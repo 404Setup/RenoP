@@ -25,9 +25,10 @@ import (
 	"testing"
 	"time"
 
+	"renop/pkg/id"
+
 	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -147,7 +148,7 @@ func cargoTestApp(t *testing.T, handler Handler, state *core.AppState, repo *con
 
 func makePublishBody(t *testing.T, metadata PublishMetadata, crate []byte) []byte {
 	t.Helper()
-	metadataJSON, err := json.Marshal(metadata)
+	metadataJSON, err := json.MarshalOf(metadata)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -251,7 +252,7 @@ func TestHandlerPublishesCrateAndRejectsDuplicate(t *testing.T) {
 		t.Fatalf("first publish status = %d", status)
 	}
 	var response map[string]json.RawMessage
-	if err := json.Unmarshal(responseBody, &response); err != nil {
+	if err := json.UnmarshalOf(responseBody, &response); err != nil {
 		t.Fatalf("decode publish response: %v", err)
 	}
 	if _, found := response["warnings"]; !found {
@@ -452,7 +453,7 @@ func TestNewCargoPackageRequiresCreateScope(t *testing.T) {
 			t.Fatal(generateErr)
 		}
 		if createErr := db.CreateAPIToken("publisher", &core.APIToken{
-			ID: uuid.NewString(), Name: name, Scopes: scopes, CreatedAt: time.Now().UnixMilli(),
+			ID: id.New(), Name: name, Scopes: scopes, CreatedAt: time.Now().UnixMilli(),
 		}, core.HashAPITokenSecret(secret)); createErr != nil {
 			t.Fatal(createErr)
 		}

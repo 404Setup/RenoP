@@ -1,0 +1,150 @@
+/*
+ * Copyright (c) 2026 404Setup. All rights reserved.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
+ *
+ * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
+ */
+
+/* Card component - generic card container with icon and action slot */
+
+.renop-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.renop-card:hover {
+    border-color: color-mix(in srgb, var(--link-color) 30%, var(--border-color));
+    box-shadow: 0 8px 24px -4px color-mix(in srgb, var(--link-color) 8%, transparent),
+                0 2px 8px rgba(0, 0, 0, 0.04);
+    transform: translateY(-2px);
+}
+
+.renop-card-link {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+}
+
+.renop-card-content {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 20px;
+}
+
+.renop-card-icon {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: linear-gradient(135deg,
+                color-mix(in srgb, var(--link-color) 10%, transparent),
+                color-mix(in srgb, var(--link-color) 6%, transparent));
+    color: var(--link-color);
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.renop-card:hover .renop-card-icon {
+    background: linear-gradient(135deg,
+                color-mix(in srgb, var(--link-color) 14%, transparent),
+                color-mix(in srgb, var(--link-color) 8%, transparent));
+    transform: scale(1.05) rotate(2deg);
+}
+
+.renop-card-icon svg {
+    width: 24px;
+    height: 24px;
+    stroke-width: 2;
+}
+
+.renop-card-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.renop-card-title {
+    font-size: 1.0625rem;
+    font-weight: 600;
+    color: var(--text-color);
+    margin: 0;
+    line-height: 1.3;
+}
+
+.renop-card-description {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin: 0;
+}
+
+/* Action slot */
+.renop-card-action {
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+/* Grid layout support */
+.renop-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+}
+
+/* Animation states */
+.renop-card--entering {
+    animation: cardEnter 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes cardEnter {
+    0% {
+        opacity: 0;
+        transform: translateY(20px) scale(0.96);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .renop-card-content {
+        padding: 16px;
+        gap: 14px;
+    }
+
+    .renop-card-icon {
+        width: 44px;
+        height: 44px;
+    }
+
+    .renop-card-icon svg {
+        width: 22px;
+        height: 22px;
+    }
+
+    .renop-card-title {
+        font-size: 1rem;
+    }
+
+    .renop-card-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+}

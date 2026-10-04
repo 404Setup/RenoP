@@ -17,6 +17,7 @@ import {loadDirectory} from '../browser.js';
 import {createUploadEntry} from '../components.js';
 import {shouldUseChunkedUpload, uploadFileChunked, uploadFileSinglePut,} from '../chunked-upload.js';
 import {collapseElement, expandElement} from '@renop/ui/height-anim';
+import {byId, css, el, setText, toggleClasses} from '@renop/ui/dom';
 import {decodePathSegment, encodePathSegment, encodeRelativePath, formatBytes} from './utils.js';
 import {InstanceStatus, PomDetails, RepoDetailsResponse} from '../proto/index.js';
 import {getRepositoryFormat} from '../repository-formats.js';
@@ -30,6 +31,38 @@ let repositoryRequiresGPG = false;
 
 const UPLOAD_PANEL_MARGIN = '1.25rem';
 const UPLOAD_CONTROLS_MARGIN = '0.85rem';
+
+const ENTRY_COLLAPSE_TRANSITION =
+    'height 0.3s cubic-bezier(0.4, 0, 0.2, 1),' +
+    'margin 0.3s cubic-bezier(0.4, 0, 0.2, 1),' +
+    'padding 0.3s cubic-bezier(0.4, 0, 0.2, 1),' +
+    'border-width 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+
+/**
+ * Animate one pending-file entry collapsing out of the list.
+ * Locks the current height, then transitions it to zero on the next frame pair.
+ * @param {HTMLElement} entry - Pending-file entry element.
+ * @returns {void}
+ */
+function collapseUploadEntry(entry) {
+    const currentHeight = entry.offsetHeight;
+    entry.style.height = currentHeight + 'px';
+    entry.style.setProperty('--entry-height', currentHeight + 'px');
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            css(entry, {
+                transition: ENTRY_COLLAPSE_TRANSITION,
+                height: '0',
+                marginTop: '0',
+                marginBottom: '-0.65rem',
+                paddingTop: '0',
+                paddingBottom: '0',
+                borderWidth: '0',
+            });
+            entry.classList.add('is-leaving');
+        });
+    });
+}
 
 /**
  * Refresh the current directory while a queued GPG publication is finalized.
@@ -86,11 +119,11 @@ function isGPGDetachedSignature(name) {
  */
 function applyRepositoryGPGPolicy(required, supportsHelpers = true) {
     repositoryRequiresGPG = required === true;
-    const checksumCheckbox = document.getElementById('checksum-checkbox');
+    const checksumCheckbox = byId('checksum-checkbox');
     const checksumOption = checksumCheckbox?.closest('.upload-option');
-    const pomCheckbox = document.getElementById('pom-checkbox');
+    const pomCheckbox = byId('pom-checkbox');
     const pomOption = pomCheckbox?.closest('.upload-option');
-    const pomForm = document.getElementById('pom-form');
+    const pomForm = byId('pom-form');
     if (checksumOption) checksumOption.hidden = !supportsHelpers;
     if (pomOption) pomOption.hidden = !supportsHelpers || repositoryRequiresGPG;
     if (!supportsHelpers && checksumCheckbox) checksumCheckbox.checked = false;
@@ -103,10 +136,10 @@ function applyRepositoryGPGPolicy(required, supportsHelpers = true) {
  * @returns {void}
  */
 function clearUploadControlsContent() {
-    const uploadFileList = document.getElementById('upload-file-list');
-    const fileCount = document.getElementById('upload-file-count');
-    const totalSize = document.getElementById('upload-total-size');
-    const batchProgress = document.getElementById('upload-batch-progress-container');
+    const uploadFileList = byId('upload-file-list');
+    const fileCount = byId('upload-file-count');
+    const totalSize = byId('upload-total-size');
+    const batchProgress = byId('upload-batch-progress-container');
     if (uploadFileList) {
         uploadFileList.innerHTML = '';
         uploadFileList.classList.remove('is-deleting', 'has-multiple-files', 'has-many-files');
@@ -123,7 +156,7 @@ function clearUploadControlsContent() {
  * @returns {Promise<void>}
  */
 async function setUploadControlsOpen(open) {
-    const uploadControls = document.getElementById('upload-controls');
+    const uploadControls = byId('upload-controls');
     if (!uploadControls) return;
 
     const token = ++controlsAnimToken;
@@ -190,17 +223,19 @@ function isPanelVisible(el) {
  */
 function resetUploadControlsState() {
     controlsAnimToken += 1;
-    const uploadControls = document.getElementById('upload-controls');
+    const uploadControls = byId('upload-controls');
     if (uploadControls) {
         uploadControls.classList.remove('is-open', 'is-visible');
         uploadControls.setAttribute('aria-hidden', 'true');
         uploadControls.hidden = true;
-        uploadControls.style.display = 'none';
-        uploadControls.style.height = '';
-        uploadControls.style.overflow = '';
-        uploadControls.style.opacity = '';
-        uploadControls.style.marginTop = '';
-        uploadControls.style.transition = '';
+        css(uploadControls, {
+            display: 'none',
+            height: '',
+            overflow: '',
+            opacity: '',
+            marginTop: '',
+            transition: '',
+        });
     }
     clearUploadControlsContent();
 }
@@ -212,7 +247,7 @@ function resetUploadControlsState() {
  * @returns {Promise<void>}
  */
 async function setUploadPanelOpen(open) {
-    const panel = document.getElementById('upload-zone-container');
+    const panel = byId('upload-zone-container');
     if (!panel) return;
 
     const token = ++zoneAnimToken;
@@ -259,8 +294,8 @@ async function setUploadPanelOpen(open) {
  * @returns {Promise<void>}
  */
 export async function updateUploadZone(path, detailsPromise) {
-    const uploadZoneContainer = document.getElementById('upload-zone-container');
-    const uploadDestination = document.getElementById('upload-destination');
+    const uploadZoneContainer = byId('upload-zone-container');
+    const uploadDestination = byId('upload-destination');
     if (!uploadZoneContainer) return;
 
     const pathParts = path.split('/').filter(p => p.length > 0).map(decodePathSegment);
@@ -308,17 +343,17 @@ export async function updateUploadZone(path, detailsPromise) {
  * @returns {void}
  */
 export function initUpload() {
-    const uploadZone = document.getElementById('upload-zone');
-    const fileInput = document.getElementById('file-upload-input');
-    const uploadBtn = document.getElementById('upload-btn');
-    const uploadDestination = document.getElementById('upload-destination');
-    const checksumCheckbox = document.getElementById('checksum-checkbox');
-    const pomCheckbox = document.getElementById('pom-checkbox');
-    const pomForm = document.getElementById('pom-form');
-    const pomGroupId = document.getElementById('pom-group-id');
-    const pomArtifactId = document.getElementById('pom-artifact-id');
-    const pomVersion = document.getElementById('pom-version');
-    const clearBtn = document.getElementById('upload-clear-btn');
+    const uploadZone = byId('upload-zone');
+    const fileInput = byId('file-upload-input');
+    const uploadBtn = byId('upload-btn');
+    const uploadDestination = byId('upload-destination');
+    const checksumCheckbox = byId('checksum-checkbox');
+    const pomCheckbox = byId('pom-checkbox');
+    const pomForm = byId('pom-form');
+    const pomGroupId = byId('pom-group-id');
+    const pomArtifactId = byId('pom-artifact-id');
+    const pomVersion = byId('pom-version');
+    const clearBtn = byId('upload-clear-btn');
 
     if (!uploadZone) return;
 
@@ -387,7 +422,7 @@ export function initUpload() {
     if (clearBtn) {
         clearBtn.addEventListener('click', () => {
             if (uploading) return;
-            const listEl = document.getElementById('upload-file-list');
+            const listEl = byId('upload-file-list');
             const entries = listEl
                 ? Array.from(listEl.querySelectorAll('.upload-file-entry:not(.is-leaving)'))
                 : [];
@@ -396,25 +431,7 @@ export function initUpload() {
                 entries.forEach((entry, i) => {
                     setTimeout(() => {
                         if (!entry || !entry.isConnected) return;
-                        const currentHeight = entry.offsetHeight;
-                        entry.style.height = currentHeight + 'px';
-                        entry.style.setProperty('--entry-height', currentHeight + 'px');
-                        requestAnimationFrame(() => {
-                            requestAnimationFrame(() => {
-                                entry.style.transition =
-                                    'height 0.3s cubic-bezier(0.4, 0, 0.2, 1),' +
-                                    'margin 0.3s cubic-bezier(0.4, 0, 0.2, 1),' +
-                                    'padding 0.3s cubic-bezier(0.4, 0, 0.2, 1),' +
-                                    'border-width 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
-                                entry.style.height = '0';
-                                entry.style.marginTop = '0';
-                                entry.style.marginBottom = '-0.65rem';
-                                entry.style.paddingTop = '0';
-                                entry.style.paddingBottom = '0';
-                                entry.style.borderWidth = '0';
-                                entry.classList.add('is-leaving');
-                            });
-                        });
+                        collapseUploadEntry(entry);
                     }, i * 30);
                 });
                 const leaveMs = 320 + Math.max(0, entries.length - 1) * 30;
@@ -476,10 +493,10 @@ export function initUpload() {
             let completedFiles = 0;
             let bytesUploadedBefore = 0;
 
-            const batchContainer = document.getElementById('upload-batch-progress-container');
-            const batchText = document.getElementById('upload-batch-progress-text');
-            const batchPercent = document.getElementById('upload-batch-progress-percent');
-            const batchFill = document.getElementById('upload-batch-progress-fill');
+            const batchContainer = byId('upload-batch-progress-container');
+            const batchText = byId('upload-batch-progress-text');
+            const batchPercent = byId('upload-batch-progress-percent');
+            const batchFill = byId('upload-batch-progress-fill');
 
             if (totalFiles > 1 && batchContainer) {
                 batchContainer.style.display = 'block';
@@ -490,7 +507,7 @@ export function initUpload() {
 
             for (const {file, index: i} of uploadQueue) {
                 file._status = 'uploading';
-                const entryDiv = document.getElementById('upload-entry-' + i);
+                const entryDiv = byId('upload-entry-' + i);
                 if (entryDiv) {
                     entryDiv.setAttribute('status', 'uploading');
                 }
@@ -654,17 +671,17 @@ export function initUpload() {
  * @returns {void}
  */
 function setUploadBusy(busy) {
-    const uploadBtn = document.getElementById('upload-btn');
-    const clearBtn = document.getElementById('upload-clear-btn');
-    const uploadZone = document.getElementById('upload-zone');
+    const uploadBtn = byId('upload-btn');
+    const clearBtn = byId('upload-clear-btn');
+    const uploadZone = byId('upload-zone');
     if (uploadBtn) {
         uploadBtn.disabled = busy;
-        uploadBtn.classList.toggle('is-busy', busy);
-        const label = uploadBtn.querySelector('.upload-btn-label');
-        if (label) label.textContent = busy ? t('browser.uploading') : t('browser.uploadFilesBtn');
+        toggleClasses(uploadBtn, {'is-busy': busy});
+        setText(uploadBtn.querySelector('.upload-btn-label'),
+            busy ? t('browser.uploading') : t('browser.uploadFilesBtn'));
     }
     if (clearBtn) clearBtn.disabled = busy;
-    if (uploadZone) uploadZone.classList.toggle('is-busy', busy);
+    toggleClasses(uploadZone, {'is-busy': busy});
 }
 
 /**
@@ -689,9 +706,9 @@ function addPendingFiles(files) {
  * @returns {void}
  */
 function renderPendingFiles() {
-    const uploadFileList = document.getElementById('upload-file-list');
-    const fileCount = document.getElementById('upload-file-count');
-    const totalSizeEl = document.getElementById('upload-total-size');
+    const uploadFileList = byId('upload-file-list');
+    const fileCount = byId('upload-file-count');
+    const totalSizeEl = byId('upload-total-size');
     if (!uploadFileList) return;
 
     if (pendingFiles.length === 0) {
@@ -709,17 +726,10 @@ function renderPendingFiles() {
         totalSizeEl.style.display = 'inline-flex';
     }
 
-    if (pendingFiles.length > 1) {
-        uploadFileList.classList.add('has-multiple-files');
-    } else {
-        uploadFileList.classList.remove('has-multiple-files');
-    }
-
-    if (pendingFiles.length > 4) {
-        uploadFileList.classList.add('has-many-files');
-    } else {
-        uploadFileList.classList.remove('has-many-files');
-    }
+    toggleClasses(uploadFileList, {
+        'has-multiple-files': pendingFiles.length > 1,
+        'has-many-files': pendingFiles.length > 4,
+    });
 
     const currentMap = new Map();
     Array.from(uploadFileList.children).forEach(child => {
@@ -766,28 +776,9 @@ function renderPendingFiles() {
             if (uploading) return;
             const currIdx = pendingFiles.indexOf(file);
             if (currIdx === -1) return;
-            const entryEl = document.getElementById('upload-entry-' + currIdx);
+            const entryEl = byId('upload-entry-' + currIdx);
             if (entryEl) {
-                const currentHeight = entryEl.offsetHeight;
-                entryEl.style.height = currentHeight + 'px';
-                entryEl.style.setProperty('--entry-height', currentHeight + 'px');
-
-                requestAnimationFrame(() => {
-                    requestAnimationFrame(() => {
-                        entryEl.style.transition =
-                            'height 0.3s cubic-bezier(0.4, 0, 0.2, 1),' +
-                            'margin 0.3s cubic-bezier(0.4, 0, 0.2, 1),' +
-                            'padding 0.3s cubic-bezier(0.4, 0, 0.2, 1),' +
-                            'border-width 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
-                        entryEl.style.height = '0';
-                        entryEl.style.marginTop = '0';
-                        entryEl.style.marginBottom = '-0.65rem';
-                        entryEl.style.paddingTop = '0';
-                        entryEl.style.paddingBottom = '0';
-                        entryEl.style.borderWidth = '0';
-                        entryEl.classList.add('is-leaving');
-                    });
-                });
+                collapseUploadEntry(entryEl);
 
                 let cleaned = false;
                 const cleanup = () => {
@@ -897,9 +888,9 @@ function calculatePendingRequiredSpace(files) {
  * @returns {Promise<boolean>} true when there is not enough free space
  */
 async function updateUploadSpaceCheck() {
-    const uploadBtn = document.getElementById('upload-btn');
-    const uploadZone = document.getElementById('upload-zone');
-    let warningEl = document.getElementById('upload-space-warning');
+    const uploadBtn = byId('upload-btn');
+    const uploadZone = byId('upload-zone');
+    let warningEl = byId('upload-space-warning');
 
     if (pendingFiles.length === 0) {
         if (warningEl) warningEl.style.display = 'none';
@@ -918,36 +909,27 @@ async function updateUploadSpaceCheck() {
 
             if (freeSpace < requiredSpace || freeSpace <= 0) {
                 if (!warningEl) {
-                    warningEl = document.createElement('div');
-                    warningEl.id = 'upload-space-warning';
-                    warningEl.className = 'upload-space-warning';
-                    warningEl.style.color = '#ef4444';
-                    warningEl.style.fontSize = '0.85rem';
-                    warningEl.style.marginTop = '8px';
-                    warningEl.style.fontWeight = '500';
-                    const controlsCard = document.querySelector('.upload-controls-card');
-                    if (controlsCard) controlsCard.appendChild(warningEl);
+                    warningEl = el('div', {id: 'upload-space-warning', class: 'upload-space-warning'});
+                    css(warningEl, {
+                        color: '#ef4444',
+                        fontSize: '0.85rem',
+                        marginTop: '8px',
+                        fontWeight: '500',
+                    });
+                    document.querySelector('.upload-controls-card')?.appendChild(warningEl);
                 }
                 warningEl.textContent = t('browser.insufficientDiskSpace');
                 warningEl.style.display = 'block';
 
-                if (uploadBtn) {
-                    uploadBtn.disabled = true;
-                    uploadBtn.classList.add('is-disabled');
-                }
-                if (uploadZone) {
-                    uploadZone.classList.add('is-disabled');
-                }
+                toggleClasses(uploadZone, {'is-disabled': true});
+                toggleClasses(uploadBtn, {'is-disabled': true});
+                if (uploadBtn) uploadBtn.disabled = true;
                 return true;
             } else {
                 if (warningEl) warningEl.style.display = 'none';
-                if (uploadBtn && !uploading) {
-                    uploadBtn.disabled = false;
-                    uploadBtn.classList.remove('is-disabled');
-                }
-                if (uploadZone) {
-                    uploadZone.classList.remove('is-disabled');
-                }
+                toggleClasses(uploadZone, {'is-disabled': false});
+                toggleClasses(uploadBtn, {'is-disabled': false});
+                if (uploadBtn && !uploading) uploadBtn.disabled = false;
             }
         }
     } catch (err) {

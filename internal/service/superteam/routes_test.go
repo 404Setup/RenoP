@@ -67,7 +67,7 @@ func superTeamRequest(t *testing.T, app *fiber.App, method, path, username strin
 	t.Helper()
 	var reader io.Reader
 	if body != nil {
-		encoded, err := json.Marshal(body)
+		encoded, err := json.MarshalOf(body)
 		require.NoError(t, err)
 		reader = bytes.NewReader(encoded)
 	}
@@ -178,7 +178,7 @@ func TestSuperTeamRoutesLifecycleInvitationAndVisibility(t *testing.T) {
 	decodeSuperTeamResponse(t, response, &details)
 	assert.Equal(t, core.SuperTeamRoleWrite, details.Team.RoleLevel)
 	require.Len(t, details.Members, 2)
-	memberJSON, err := json.Marshal(details.Members[0])
+	memberJSON, err := json.MarshalOf(details.Members[0])
 	require.NoError(t, err)
 	assert.NotContains(t, string(memberJSON), "user_id")
 

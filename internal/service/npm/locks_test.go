@@ -1,7 +1,10 @@
 /*
  * Copyright (c) 2026 404Setup. All rights reserved.
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
- * If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
+ *
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
@@ -114,7 +117,7 @@ func TestNPMLocksProtectPackumentsTagsAndTarballs(t *testing.T) {
 		require.Equal(t, 200, status)
 		require.Contains(t, headers.Get("Cache-Control"), "no-store")
 		var document map[string]any
-		require.NoError(t, json.Unmarshal(data, &document))
+		require.NoError(t, json.UnmarshalOf(data, &document))
 		versions := document["versions"].(map[string]any)
 		if user == "guest" || user == "writer" {
 			require.Len(t, versions, 1)
@@ -135,7 +138,7 @@ func TestNPMLocksProtectPackumentsTagsAndTarballs(t *testing.T) {
 	status, data, _ = request("GET", "/api/npm/repositories/npm/packages?package=demo", "guest", "", nil)
 	require.Equal(t, 200, status)
 	var details core.NPMPackageDetails
-	require.NoError(t, json.Unmarshal(data, &details))
+	require.NoError(t, json.UnmarshalOf(data, &details))
 	require.Len(t, details.Versions, 1)
 	require.Equal(t, "1.0.0", details.Package.LatestVersion)
 	status, data, _ = request("GET", "/npm/demo/-/demo-1.0.0.tgz", "guest", "", nil)

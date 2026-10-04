@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
-	"github.com/google/uuid"
 
 	"renop/internal/artifactstore"
 	"renop/internal/config"
@@ -35,6 +34,7 @@ import (
 	"renop/internal/service/repositorygate"
 	"renop/internal/service/status"
 	"renop/internal/utils"
+	"renop/pkg/id"
 )
 
 var (
@@ -195,7 +195,7 @@ func saveToDiskAndS3(state *core.AppState, repo *config.Repository, localFilePat
 	dir := filepath.Dir(localFilePath)
 	_ = os.MkdirAll(dir, 0755)
 
-	uniqueID := uuid.New().String()
+	uniqueID := id.New()
 	tmpPath := localFilePath + ".tmp." + uniqueID
 
 	err := os.WriteFile(tmpPath, data, 0644)

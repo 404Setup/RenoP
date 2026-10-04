@@ -13,12 +13,12 @@ package ttl
 import (
 	"fmt"
 	"hash/maphash"
-	"math/rand/v2"
 	"strings"
 	"sync"
 	"sync/atomic"
 	syncv2 "sync/v2"
 	"time"
+	"unsafe"
 
 	"renop/internal/cache"
 )
@@ -35,6 +35,7 @@ type cacheItem[K comparable, V any] struct {
 	value     cache.Value[V]
 	expiredAt int64
 	slot      int
+	accessed  atomic.Bool
 }
 
 type cacheShard[K comparable, V any] struct {
@@ -126,6 +127,21 @@ func (c *TTLCache[K, V]) Len() int {
 	return total
 }
 
+// ByteSize returns approximate heap memory bytes consumed by cached entries.
+func (c *TTLCache[K, V]) ByteSize() uint64 {
+	if c == nil {
+		return 0
+	}
+	count := c.Len()
+	if count == 0 {
+		return 0
+	}
+	var k K
+	var v V
+	entryBase := max(uint64(unsafe.Sizeof(cacheItem[K, V]{})+unsafe.Sizeof(k)+unsafe.Sizeof(v)), 64)
+	return uint64(count) * (entryBase + 96)
+}
+
 // RangeIndex visits unexpired local projections without remote I/O. Like Get,
 // it is a concurrent view, not a transactional snapshot. Callbacks must not
 // change the cache; external values expose only the projection from UseRemote.
@@ -138,7 +154,7 @@ func (c *TTLCache[K, V]) RangeIndex(visit func(K, V) bool) {
 
 // Get returns one unexpired value and rejects results overlapping an invalidation.
 func (c *TTLCache[K, V]) Get(key K) (V, bool) {
-	stats := &c.stats[rand.Uint64()%numShards]
+	stats := &c.stats[maphash.Comparable(c.hashSeed, key)%numShards]
 	generation := c.generation.Load()
 	item, ok := c.items.Load(key)
 	if !ok {
@@ -169,6 +185,7 @@ func (c *TTLCache[K, V]) Get(key K) (V, bool) {
 		var zero V
 		return zero, false
 	}
+	item.accessed.Store(true)
 	stats.Hits.Add(1)
 	return value, true
 }
@@ -237,9 +254,16 @@ func (c *TTLCache[K, V]) setLocked(shard *cacheShard[K, V], entry *cacheItem[K, 
 		for range min(evictionSampleSize, len(shard.slots)) {
 			candidate := shard.slots[shard.hand]
 			shard.hand = (shard.hand + 1) % len(shard.slots)
+			if candidate.accessed.Swap(false) {
+				continue
+			}
 			if previous == nil || candidate.expiredAt < previous.expiredAt {
 				previous = candidate
 			}
+		}
+		if previous == nil {
+			previous = shard.slots[shard.hand]
+			shard.hand = (shard.hand + 1) % len(shard.slots)
 		}
 		entry.slot = previous.slot
 		c.items.Delete(previous.key)
@@ -272,6 +296,7 @@ func (c *TTLCache[K, V]) GetOrLoad(key K, loader func() (V, time.Duration, error
 		shard.mu.Lock()
 		if item, _ := c.items.Load(key); c.remote == nil && item != nil && time.Now().UnixMilli() < item.expiredAt {
 			value := item.value.Index
+			item.accessed.Store(true)
 			shard.mu.Unlock()
 			return value, nil
 		}

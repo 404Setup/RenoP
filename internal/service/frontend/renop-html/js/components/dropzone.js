@@ -53,9 +53,10 @@ export class RenopDropzone extends HTMLElement {
      * @returns {void}
      */
     setupComponent() {
-        this._fileInput = document.createElement('input');
-        this._fileInput.type = 'file';
-        this._fileInput.style.display = 'none';
+        this._fileInput = el('input', {
+            type: 'file',
+            style: 'display: none'
+        });
 
         this._fileInput.addEventListener('change', () => {
             if (this._fileInput.files && this._fileInput.files.length > 0) {
@@ -178,7 +179,7 @@ if (!customElements.get('renop-dropzone')) {
  * @returns {HTMLElement}
  */
 export function createDropzone({title, hint, accept, onSelect} = {}) {
-    const dz = document.createElement('renop-dropzone');
+    const dz = el('renop-dropzone');
     if (title) dz.setAttribute('title', title);
     if (hint) dz.setAttribute('hint', hint);
     if (accept) dz.setAttribute('accept', accept);

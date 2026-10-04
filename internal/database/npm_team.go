@@ -209,9 +209,9 @@ func (db *DB) CreateNPMInvitations(invitations []*core.NPMInvitation, messages [
 				return err
 			}
 		}
-		var dedupeKey any
+		var dedupeKey *string
 		if message.DedupeKey != "" {
-			dedupeKey = message.DedupeKey
+			dedupeKey = &message.DedupeKey
 		}
 		if _, err := tx.Exec(`INSERT INTO user_messages (`+messageColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			message.ID, message.Recipient, message.Sender, message.Kind, message.Severity,
@@ -401,7 +401,7 @@ func (db *DB) ForceAddNPMMembers(repository, packageName, actor string, username
 			if err := insertAcceptedMembershipMessage(tx, username, actor, "npm_package_invite",
 				"npm package membership added",
 				fmt.Sprintf("%s added you to collaborate on %s with L%d permission.", actor, packageName, level),
-				map[string]any{"repository": repository, "package": packageName, "inviter": actor, "level": level}, now); err != nil {
+				MembershipInvitePayload{Repository: repository, Package: packageName, Inviter: actor, Level: level}, now); err != nil {
 				return fmt.Errorf("create npm membership message: %w", err)
 			}
 		}

@@ -12,8 +12,19 @@ import {t} from './i18n.js';
 import {showAlert} from './alert.js';
 import {apiRequest, fetchProto, getAuthHeaders, putProto, sendProto} from './api.js';
 import {logout} from './auth.js';
-import {MavenRepositoriesResponse, ProxyConfig, Repository, StatusOk} from './proto/index.js';
-import {el} from '@renop/ui/dom';
+import {
+    MavenRepositoriesResponse,
+    ProxyConfig,
+    Repository,
+    RepositoryDownloadStatisticsEntry,
+    RepositoryDownloadStatisticsResponse,
+    RepositoryPublicationReviewEntry,
+    RepositoryPublicationReviewsResponse,
+    StatusOk,
+    UpdateRepositoryDownloadStatisticsRequest,
+    UpdateRepositoryPublicationReviewRequest
+} from './proto/index.js';
+import {el, retriggerClass} from '@renop/ui/dom';
 import {makeCustomSelect} from '@renop/ui/custom-select';
 import {
     createButton,
@@ -84,11 +95,11 @@ function renderRepositoriesSkeleton() {
 export async function initRepositories() {
     renderRepositoriesSkeleton();
     try {
-        const [repositoriesResult, proxyResult, statisticsResponse, reviewResponse] = await Promise.all([
+        const [repositoriesResult, proxyResult, statisticsResult, reviewResult] = await Promise.all([
             fetchProto('/api/settings/repositories', MavenRepositoriesResponse),
             fetchProto('/api/settings/domain/proxy', ProxyConfig),
-            apiRequest('/api/settings/repositories/download-statistics'),
-            apiRequest('/api/settings/repositories/publication-reviews')
+            fetchProto('/api/settings/repositories/download-statistics', RepositoryDownloadStatisticsResponse),
+            fetchProto('/api/settings/repositories/publication-reviews', RepositoryPublicationReviewsResponse)
         ]);
         const {response, data} = repositoriesResult;
         if (proxyResult.response.ok && proxyResult.data) {
@@ -96,16 +107,12 @@ export async function initRepositories() {
         }
         if (response.ok && data) {
             const repos = data.repositories || {};
-            let statistics = {};
-            if (statisticsResponse.ok) {
-                const payload = await statisticsResponse.json();
-                statistics = payload?.repositories || {};
-            }
-            let reviews = {};
-            if (reviewResponse.ok) {
-                const payload = await reviewResponse.json();
-                reviews = payload?.repositories || {};
-            }
+            const statistics = statisticsResult?.response?.ok && statisticsResult?.data?.repositories
+                ? statisticsResult.data.repositories
+                : {};
+            const reviews = reviewResult?.response?.ok && reviewResult?.data?.repositories
+                ? reviewResult.data.repositories
+                : {};
             for (const [name, repository] of Object.entries(repos)) {
                 repository._download_statistics_enabled = typeof statistics[name] === 'boolean'
                     ? statistics[name]
@@ -155,10 +162,8 @@ function renderRepositories(container, data) {
             layout.appendChild(buildRepoSection(container, data, repoKey, repo));
         });
 
-        container.innerHTML = '';
-        container.classList.remove('is-content-entering');
-        void container.offsetWidth;
-        container.classList.add('is-content-entering');
+        container.replaceChildren();
+        retriggerClass(container, 'is-content-entering');
         if (allKeys.length > 0) container.appendChild(buildRepositoryListToolbar(container, data));
         container.appendChild(layout);
         const pagination = buildRepositoryPagination(container, data, page);
@@ -191,12 +196,11 @@ function buildDownloadStatisticsControls(repository, settings) {
             if (toggle) toggle.setAttribute('disabled', '');
             void (async () => {
                 try {
-                    const response = await apiRequest(
-                        `/api/settings/repositories/${encodeURIComponent(repository)}/download-statistics`, {
-                            method: 'PUT',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({enabled: checked})
-                        }
+                    const {response} = await putProto(
+                        `/api/settings/repositories/${encodeURIComponent(repository)}/download-statistics`,
+                        UpdateRepositoryDownloadStatisticsRequest,
+                        {enabled: checked},
+                        RepositoryDownloadStatisticsEntry
                     );
                     if (!response.ok) {
                         showAlert(await responseErrorMessage(response, 'repos.downloadStatisticsUpdateFailed'), 'error');
@@ -420,10 +424,12 @@ function buildRepoSection(container, data, repoKey, repo) {
     titleRow.appendChild(el('p', {class: 'cfg-section-title'}, repoKey));
     meta.appendChild(titleRow);
 
-    const mirrorCount = (repo.mirrors || []).length;
-    meta.appendChild(el('p', {class: 'cfg-section-subtitle'},
-        t('repos.mirrorCount', {count: mirrorCount})
-    ));
+    if (format.supportsMirrors !== false) {
+        const mirrorCount = (repo.mirrors || []).length;
+        meta.appendChild(el('p', {class: 'cfg-section-subtitle'},
+            t('repos.mirrorCount', {count: mirrorCount})
+        ));
+    }
 
     const deleteBtn = el('button', {
         class: 'pill-btn pill-btn--danger pill-btn--sm cfg-repository-delete-btn',
@@ -567,11 +573,11 @@ function buildRepoSection(container, data, repoKey, repo) {
         control.setAttribute('aria-busy', 'true');
         if (button) button.disabled = true;
         try {
-            const response = await apiRequest(
-                `/api/settings/repositories/${encodeURIComponent(repoKey)}/publication-review`, {
-                    method: 'PUT', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({policy})
-                }
+            const {response} = await putProto(
+                `/api/settings/repositories/${encodeURIComponent(repoKey)}/publication-review`,
+                UpdateRepositoryPublicationReviewRequest,
+                {policy},
+                RepositoryPublicationReviewEntry
             );
             if (!response.ok) {
                 showAlert(await responseErrorMessage(response, 'repos.publicationReviewUpdateFailed'), 'error');
@@ -651,12 +657,37 @@ function buildRepoSection(container, data, repoKey, repo) {
         ));
     }
     fields.append(...buildDownloadStatisticsControls(repoKey, repo));
+    if (format.supportsMirrors === false) {
+        const proxySelection = typeof repo.proxy === 'string' ? repo.proxy.trim() : '';
+        const proxySelect = makeCustomSelect(
+            mirrorProxyOptions(proxySelection),
+            proxySelection,
+            value => {
+                if (value) {
+                    repo.proxy = value;
+                } else {
+                    delete repo.proxy;
+                }
+                saveRepoSettings(repoKey, repo);
+            }
+        );
+        fields.appendChild(makeFieldRow(
+            t('repos.proxyMode'),
+            t('repos.proxyModeHint'),
+            proxySelect
+        ));
+    }
     const migrationControl = buildRepositoryMigrationControl(repoKey, format);
     if (migrationControl) fields.appendChild(migrationControl);
 
     bodyInner.appendChild(fields);
     bodyInner.appendChild(buildS3Section(repoKey, repo));
-    bodyInner.appendChild(buildMirrorsSection(container, data, repoKey, repo, meta));
+    if (format.protocol === 'github' || format.protocol === 'gitlab') {
+        bodyInner.appendChild(buildGitRepoSection(repoKey, repo, format));
+    }
+    if (format.supportsMirrors !== false) {
+        bodyInner.appendChild(buildMirrorsSection(container, data, repoKey, repo, meta));
+    }
 
     const bodyContainer = el('div', {class: 'cfg-section-body'}, bodyInner);
     section.appendChild(bodyContainer);
@@ -756,6 +787,116 @@ function buildS3Section(repoKey, repo) {
 
     s3Fields.appendChild(fieldsContainer);
     wrapper.appendChild(s3Fields);
+    return wrapper;
+}
+
+/**
+ * Builds the Git repository mirror policy subsection.
+ * @param {string} repoKey - Repository name/key.
+ * @param {object} repo - Repository settings object.
+ * @param {object} format - Format descriptor.
+ * @returns {HTMLElement} Wrapper element containing Git policy controls.
+ */
+function buildGitRepoSection(repoKey, repo, format) {
+    const gitPolicy = repo.git_repo || {
+        mode: 'lax',
+        max_version_size_bytes: 300 * 1024 * 1024,
+        max_daily_traffic_bytes: 25 * 1024 * 1024 * 1024,
+        retain_latest_workflow_runs: true,
+        retain_latest_releases: true,
+        quota_request_cooldown_hours: 72,
+        owner: '',
+        registered_repos: []
+    };
+    if (!repo.git_repo) repo.git_repo = gitPolicy;
+
+    const wrapper = el('div', {class: 'cfg-git-repo-section'});
+    wrapper.appendChild(createSubHeader('box', t('repos.gitPolicyTitle')));
+
+    const fields = el('div', {class: 'cfg-fields'});
+
+    const modeSelect = makeCustomSelect([
+        {value: 'lax', label: t('repos.gitModeLax')},
+        {value: 'strict', label: t('repos.gitModeStrict')}
+    ], gitPolicy.mode || 'lax', value => {
+        gitPolicy.mode = value;
+        saveRepoSettings(repoKey, repo);
+    });
+    fields.appendChild(makeFieldRow(t('repos.gitMode'), t('repos.gitModeHint'), modeSelect));
+
+    const curSizeMib = Math.max(0, Math.round((Number(gitPolicy.max_version_size_bytes) || 0) / 1048576));
+    const maxVersionInput = el('input', {
+        type: 'number', min: '0', step: 'any', class: 'cfg-input',
+        value: String(curSizeMib),
+        'aria-label': t('repos.gitMaxVersionSize'),
+    });
+    maxVersionInput.addEventListener('change', () => {
+        const mib = Number(maxVersionInput.value);
+        const bytes = mib > 0 ? Math.round(mib * 1048576) : 0;
+        gitPolicy.max_version_size_bytes = bytes;
+        saveRepoSettings(repoKey, repo);
+    });
+    fields.appendChild(makeFieldRow(t('repos.gitMaxVersionSize'), t('repos.gitMaxVersionSizeHint'), maxVersionInput));
+
+    const curTrafficGib = Math.max(0, Math.round((Number(gitPolicy.max_daily_traffic_bytes) || 0) / 1073741824));
+    const dailyTrafficInput = el('input', {
+        type: 'number', min: '0', step: 'any', class: 'cfg-input',
+        value: String(curTrafficGib),
+        'aria-label': t('repos.gitDailyTraffic'),
+    });
+    dailyTrafficInput.addEventListener('change', () => {
+        const gib = Number(dailyTrafficInput.value);
+        const bytes = gib > 0 ? Math.round(gib * 1073741824) : 0;
+        gitPolicy.max_daily_traffic_bytes = bytes;
+        saveRepoSettings(repoKey, repo);
+    });
+    fields.appendChild(makeFieldRow(t('repos.gitDailyTraffic'), t('repos.gitDailyTrafficHint'), dailyTrafficInput));
+
+    fields.appendChild(makeToggleRow(
+        t('repos.gitRetainWorkflows'),
+        t('repos.gitRetainWorkflowsHint'),
+        gitPolicy.retain_latest_workflow_runs !== false,
+        checked => {
+            gitPolicy.retain_latest_workflow_runs = checked;
+            saveRepoSettings(repoKey, repo);
+        }
+    ));
+
+    fields.appendChild(makeToggleRow(
+        t('repos.gitRetainReleases'),
+        t('repos.gitRetainReleasesHint'),
+        gitPolicy.retain_latest_releases !== false,
+        checked => {
+            gitPolicy.retain_latest_releases = checked;
+            saveRepoSettings(repoKey, repo);
+        }
+    ));
+
+    const cooldownInput = el('input', {
+        type: 'number', min: '0', step: '1', class: 'cfg-input',
+        value: String(gitPolicy.quota_request_cooldown_hours ?? 72),
+        'aria-label': t('repos.gitQuotaCooldown'),
+    });
+    cooldownInput.addEventListener('change', () => {
+        const hrs = parseInt(cooldownInput.value, 10);
+        gitPolicy.quota_request_cooldown_hours = Number.isFinite(hrs) && hrs >= 0 ? hrs : 72;
+        saveRepoSettings(repoKey, repo);
+    });
+    fields.appendChild(makeFieldRow(t('repos.gitQuotaCooldown'), t('repos.gitQuotaCooldownHint'), cooldownInput));
+
+    const tokenField = format.protocol === 'github' ? 'github_token' : 'gitlab_token';
+    const tokenLabel = format.protocol === 'github' ? t('repos.gitGitHubToken') : t('repos.gitGitLabToken');
+    const tokenInput = makeCfgInput('', '••••••••', 'password', val => {
+        if (val.trim()) {
+            repo[tokenField] = val.trim();
+        } else {
+            delete repo[tokenField];
+        }
+        saveRepoSettings(repoKey, repo);
+    });
+    fields.appendChild(makeFieldRow(tokenLabel, t('repos.gitTokenHint'), tokenInput));
+
+    wrapper.appendChild(fields);
     return wrapper;
 }
 

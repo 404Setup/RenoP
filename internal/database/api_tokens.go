@@ -21,9 +21,9 @@ import (
 	"time"
 
 	"github.com/goccy/go-json"
-	"github.com/google/uuid"
 
 	"renop/internal/core"
+	"renop/pkg/id"
 )
 
 var legacyAPITokenScopes = []string{
@@ -40,7 +40,7 @@ func validAPITokenHash(value string) bool {
 }
 
 func normalizeStoredAPIToken(token *core.APIToken) error {
-	if token == nil || uuid.Validate(token.ID) != nil || token.CreatedAt <= 0 {
+	if token == nil || id.Validate(token.ID) != nil || token.CreatedAt <= 0 {
 		return errors.New("API token metadata is invalid")
 	}
 	token.Name = strings.TrimSpace(SanitizeInputString(token.Name, core.MaxAPITokenNameLength))
@@ -97,10 +97,10 @@ func decodeStoredAPITokenAuthorization(value string, token *core.APIToken) error
 		return errors.New("API token metadata is unavailable")
 	}
 	if strings.HasPrefix(strings.TrimSpace(value), "[") {
-		return json.Unmarshal([]byte(value), &token.Scopes)
+		return json.UnmarshalOf([]byte(value), &token.Scopes)
 	}
 	var authorization storedAPITokenAuthorization
-	if err := json.Unmarshal([]byte(value), &authorization); err != nil {
+	if err := json.UnmarshalOf([]byte(value), &authorization); err != nil {
 		return err
 	}
 	token.Scopes = authorization.Scopes
@@ -110,9 +110,9 @@ func decodeStoredAPITokenAuthorization(value string, token *core.APIToken) error
 
 func encodeStoredAPITokenAuthorization(token *core.APIToken) ([]byte, error) {
 	if len(token.Targets) == 0 {
-		return json.Marshal(token.Scopes)
+		return json.MarshalOf(token.Scopes)
 	}
-	return json.Marshal(storedAPITokenAuthorization{Scopes: token.Scopes, Targets: token.Targets})
+	return json.MarshalOf(storedAPITokenAuthorization{Scopes: token.Scopes, Targets: token.Targets})
 }
 
 func scanAPIToken(scanner interface{ Scan(...any) error }) (*core.APIToken, error) {
@@ -161,7 +161,7 @@ func (db *DB) ListAPITokens(username string) ([]*core.APIToken, error) {
 // SetAPITokenDisabled changes one owned token's authentication state without rotating its secret.
 func (db *DB) SetAPITokenDisabled(username, tokenID string, disabled bool) error {
 	username = strings.ToLower(strings.TrimSpace(username))
-	if uuid.Validate(tokenID) != nil {
+	if id.Validate(tokenID) != nil {
 		return core.ErrAPITokenNotFound
 	}
 	var current int
@@ -189,6 +189,9 @@ func (db *DB) SetAPITokenDisabled(username, tokenID string, disabled bool) error
 	}
 	if affected != 1 {
 		return core.ErrAPITokenNotFound
+	}
+	if db.apiTokenCache != nil {
+		db.apiTokenCache.Clear()
 	}
 	return nil
 }
@@ -249,13 +252,16 @@ func (db *DB) CreateAPIToken(username string, token *core.APIToken, secretHash s
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit API token creation: %w", err)
 	}
+	if db.apiTokenCache != nil {
+		db.apiTokenCache.Clear()
+	}
 	return nil
 }
 
 // DeleteAPIToken revokes one token owned by username.
 func (db *DB) DeleteAPIToken(username, tokenID string) error {
 	username = strings.ToLower(strings.TrimSpace(username))
-	if uuid.Validate(tokenID) != nil {
+	if id.Validate(tokenID) != nil {
 		return core.ErrAPITokenNotFound
 	}
 	result, err := db.Exec(`DELETE FROM user_api_tokens WHERE id = ? AND user_id = (
@@ -270,13 +276,16 @@ func (db *DB) DeleteAPIToken(username, tokenID string) error {
 	if affected != 1 {
 		return core.ErrAPITokenNotFound
 	}
+	if db.apiTokenCache != nil {
+		db.apiTokenCache.Clear()
+	}
 	return nil
 }
 
 // UpdateAPIToken modifies an existing token's name, scopes, and targets.
 func (db *DB) UpdateAPIToken(username, tokenID, name string, scopes []string, targets map[string][]string) (*core.APIToken, error) {
 	username = strings.ToLower(strings.TrimSpace(username))
-	if uuid.Validate(tokenID) != nil {
+	if id.Validate(tokenID) != nil {
 		return nil, core.ErrAPITokenNotFound
 	}
 	name = strings.TrimSpace(SanitizeInputString(name, core.MaxAPITokenNameLength))
@@ -329,13 +338,16 @@ func (db *DB) UpdateAPIToken(username, tokenID, name string, scopes []string, ta
 	if affected != 1 {
 		return nil, core.ErrAPITokenNotFound
 	}
+	if db.apiTokenCache != nil {
+		db.apiTokenCache.Clear()
+	}
 	return token, nil
 }
 
 // RotateAPIToken replaces an existing token's secret hash.
 func (db *DB) RotateAPIToken(username, tokenID, newSecretHash string) (*core.APIToken, error) {
 	username = strings.ToLower(strings.TrimSpace(username))
-	if uuid.Validate(tokenID) != nil {
+	if id.Validate(tokenID) != nil {
 		return nil, core.ErrAPITokenNotFound
 	}
 	if !validAPITokenHash(newSecretHash) {
@@ -366,6 +378,9 @@ func (db *DB) RotateAPIToken(username, tokenID, newSecretHash string) (*core.API
 	if affected != 1 {
 		return nil, core.ErrAPITokenNotFound
 	}
+	if db.apiTokenCache != nil {
+		db.apiTokenCache.Clear()
+	}
 	return token, nil
 }
 
@@ -375,6 +390,12 @@ func (db *DB) GetAPITokenByHash(secretHash, username string) (*core.APITokenCred
 		return nil, nil
 	}
 	username = strings.ToLower(strings.TrimSpace(username))
+	cacheKey := secretHash + ":" + username
+	if db.apiTokenCache != nil {
+		if cached, ok := db.apiTokenCache.Get(cacheKey); ok {
+			return cached, nil
+		}
+	}
 	query := `SELECT api.id, api.name, api.scopes_json, api.created_at, api.expires_at,
 		account.name, account.type, account.type_value, account.encrypted_secret,
 		account.password_hash, account.tokens_json, account.created_at, account.description,
@@ -418,7 +439,11 @@ func (db *DB) GetAPITokenByHash(secretHash, username string) (*core.APITokenCred
 	if err != nil {
 		return nil, err
 	}
-	return &core.APITokenCredential{Token: token, Account: account}, nil
+	credential := &core.APITokenCredential{Token: token, Account: account}
+	if db.apiTokenCache != nil {
+		db.apiTokenCache.Set(cacheKey, credential, 10*time.Minute)
+	}
+	return credential, nil
 }
 
 // CountAPITokens returns the number of durable API credentials owned by username.
@@ -472,7 +497,7 @@ func (db *DB) migrateLegacyAPITokens() error {
 			_ = rows.Close()
 			return err
 		}
-		if err := json.Unmarshal([]byte(tokensJSON), &account.secrets); err != nil {
+		if err := json.UnmarshalOf([]byte(tokensJSON), &account.secrets); err != nil {
 			_ = rows.Close()
 			return fmt.Errorf("decode legacy API tokens for %s: %w", account.username, err)
 		}
@@ -513,7 +538,7 @@ func (db *DB) migrateLegacyAPITokenAccount(userID, username string, secrets []st
 }
 
 func migrateLegacySecretsTx(tx *Tx, userID, username string, secrets []string, createdAt int64) error {
-	scopesJSON, err := json.Marshal(legacyAPITokenScopes)
+	scopesJSON, err := json.MarshalOf(legacyAPITokenScopes)
 	if err != nil {
 		return err
 	}
@@ -523,7 +548,7 @@ func migrateLegacySecretsTx(tx *Tx, userID, username string, secrets []string, c
 		}
 		digest := sha256.Sum256([]byte(secret))
 		hash := hex.EncodeToString(digest[:])
-		tokenID := uuid.NewString()
+		tokenID := id.New()
 		name := core.LegacyAPITokenNamePrefix + tokenID
 		if _, err := tx.Exec(`INSERT INTO user_api_tokens
 			(id, user_id, name, secret_hash, scopes_json, created_at, expires_at)

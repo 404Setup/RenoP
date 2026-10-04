@@ -18,6 +18,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"google.golang.org/protobuf/proto"
 
+	"renop/internal/config"
 	"renop/internal/core"
 	"renop/pkg/pb"
 )
@@ -27,6 +28,7 @@ func TestGetInstanceStatusIncludesUpdateState(t *testing.T) {
 	state := core.NewAppState()
 
 	app.Get("/api/status/instance", func(c fiber.Ctx) error {
+		c.Locals("user", &config.User{Username: "admin", Roles: []string{"manager"}})
 		return GetInstanceStatus(c, state)
 	})
 
@@ -63,6 +65,44 @@ func TestGetInstanceStatusIncludesUpdateState(t *testing.T) {
 	}
 	if statusResp.GetTotalMemory() < 64*1024*1024 {
 		t.Fatalf("expected total system memory in bytes (>=64MiB), got %d", statusResp.GetTotalMemory())
+	}
+}
+
+func TestGetInstanceStatusGuestReturnsTrimmed(t *testing.T) {
+	app := fiber.New()
+	state := core.NewAppState()
+
+	app.Get("/api/status/instance", func(c fiber.Ctx) error {
+		return GetInstanceStatus(c, state)
+	})
+
+	req := httptest.NewRequest("GET", "/api/status/instance", nil)
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed to read response body: %v", err)
+	}
+
+	var statusResp pb.InstanceStatus
+	if err := proto.Unmarshal(body, &statusResp); err != nil {
+		t.Fatalf("failed to unmarshal protobuf response: %v", err)
+	}
+
+	if statusResp.GetUpdateState() != nil {
+		t.Fatalf("expected update_state to be nil for guest, got %v", statusResp.GetUpdateState())
+	}
+	if statusResp.GetUsedMemory() != 0 {
+		t.Fatalf("expected used_memory to be 0 for guest, got %d", statusResp.GetUsedMemory())
+	}
+	if statusResp.GetDiskTotal() == 0 {
+		t.Fatalf("expected disk_total to be non-zero for guest, got 0")
 	}
 }
 

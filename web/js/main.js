@@ -17,7 +17,7 @@ import {renderAPI} from './pages/api.js';
 import {invalidateDocsCache, renderDocs} from './pages/docs.js';
 import {renderDownload} from './pages/download.js';
 import {renderContributors} from './pages/contributors.js';
-import {$} from '@renop/ui/jquery';
+import {onReady} from '@renop/ui/dom';
 
 initTheme();
 await initI18n();
@@ -50,11 +50,11 @@ registerRoute('/docs/*', renderDocs);
 initRouter();
 updateCopyrightFooter();
 
-$(window).on('languageChanged', async () => {
+window.addEventListener('languageChanged', async () => {
     updateCopyrightFooter();
     updatePageTranslations();
     invalidateDocsCache();
     await renderRoute();
 });
 
-$(renderRoute);
+onReady(renderRoute);

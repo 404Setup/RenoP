@@ -42,8 +42,9 @@ export function createPermissionEditor(permissions = [], changed = () => {
     const id = ++editorSequence;
     let disposed = false;
     const chip = (value, metadata = permissionMeta(value)) => {
-        const control = createRoleChip(value, {...metadata, code: value, checked: selected.has(value)});
-        control.setAttribute('for-id', 'permission-' + id + '-' + encodeURIComponent(value));
+        const forId = 'permission-' + id + '-' + encodeURIComponent(value);
+        const control = createRoleChip(value, {...metadata, code: value, checked: selected.has(value), forId});
+        control.setAttribute('for-id', forId);
         control.addEventListener('change', event => {
             if (!event.detail || disposed) return;
             if (event.detail.checked) selected.add(value);

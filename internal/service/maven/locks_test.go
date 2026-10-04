@@ -135,7 +135,7 @@ func TestMavenLocksSeparateMetadataFromBytesAndRejectFrozenWrites(t *testing.T) 
 		status, body = request(http.MethodGet, detailURL, user, "", true)
 		require.Equal(t, http.StatusOK, status, string(body))
 		var details core.MavenArtifactDetails
-		require.NoError(t, json.Unmarshal(body, &details))
+		require.NoError(t, json.UnmarshalOf(body, &details))
 		inspect := user != "guest" && user != "writer"
 		if inspect {
 			require.Len(t, details.Versions, 2)
@@ -226,7 +226,7 @@ func TestMavenLocksSeparateMetadataFromBytesAndRejectFrozenWrites(t *testing.T) 
 		status, body := request(http.MethodGet, "/api/maven/domains/com.example", "alice", "", true)
 		require.Equal(t, http.StatusOK, status, string(body))
 		var details core.MavenDomainDetails
-		require.NoError(t, json.Unmarshal(body, &details))
+		require.NoError(t, json.UnmarshalOf(body, &details))
 		require.Len(t, details.Domain.Locks, 1)
 		status, _ = request(http.MethodGet, "/api/maven/domains/com.example", "guest", "", false)
 		require.Equal(t, http.StatusNotFound, status)
@@ -261,7 +261,7 @@ func TestMavenLocksSeparateMetadataFromBytesAndRejectFrozenWrites(t *testing.T) 
 			}
 			require.Equal(t, http.StatusOK, status, string(data))
 			var details core.MavenDomainDetails
-			require.NoError(t, json.Unmarshal(data, &details))
+			require.NoError(t, json.UnmarshalOf(data, &details))
 			require.Len(t, details.Domain.Locks, 1)
 			require.Equal(t, viewer == "global" || viewer == "admin", details.Moderator)
 			if viewer == "alice" {

@@ -13,7 +13,6 @@ package storage
 import (
 	"bytes"
 	"crypto/sha256"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -25,11 +24,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/goccy/go-json"
+
 	"renop/internal/config"
 	"renop/internal/core"
 	"renop/internal/database"
 	"renop/internal/service/auth"
 	"renop/internal/service/index"
+	"renop/pkg/id"
 
 	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/ProtonMail/go-crypto/openpgp/armor"
@@ -65,6 +67,16 @@ func nativeClientTestServerWithSigner(t *testing.T, repoName, format string) (*f
 		t.Fatal(err)
 	}
 	if err := db.SaveToken(&core.AccessToken{Name: "writer", EncryptedSecret: string(hash), Permissions: []string{"base", "canupdate:" + repoName}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.CreateAPIToken("writer", &core.APIToken{
+		ID: id.New(), Name: "Conan writer token",
+		Scopes: []string{
+			core.APITokenScopeRepositoryRead, core.APITokenScopeRepositoryPublish,
+			core.APITokenScopeRepositoryDelete, core.APITokenScopePackageManage,
+		},
+		CreatedAt: time.Now().UnixMilli(),
+	}, core.HashAPITokenSecret("conan-test-password")); err != nil {
 		t.Fatal(err)
 	}
 	state.Inner.TokensCount.Store(1)
@@ -130,7 +142,7 @@ func TestConanRevisionUploadDownloadAndDelete(t *testing.T) {
 			sum := sha256.Sum256([]byte(body))
 			entries = append(entries, map[string]string{"file": name, "sha256": fmt.Sprintf("%x", sum)})
 		}
-		manifest, err := json.Marshal(map[string]any{"files": entries})
+		manifest, err := json.MarshalOf(map[string]any{"files": entries})
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -467,7 +467,7 @@ func readPublishHeader(reader io.Reader, contentLength int64) (PublishMetadata, 
 	if err := decoder.Decode(&metadata); err != nil {
 		return metadata, 0, errors.New("invalid Cargo publish metadata")
 	}
-	var extra any
+	var extra json.RawMessage
 	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) || metadataReader.N != 0 {
 		return metadata, 0, errors.New("invalid Cargo publish metadata")
 	}

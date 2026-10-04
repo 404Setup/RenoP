@@ -18,10 +18,9 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/google/uuid"
-
 	"renop/internal/config"
 	"renop/internal/core"
+	"renop/pkg/id"
 )
 
 func supportTicket(task *core.ReviewTask) bool {
@@ -126,11 +125,11 @@ func requireTicketAssigneeTx(tx *Tx, task *core.ReviewTask, actorID string) erro
 }
 
 // TransitionTicket atomically claims, releases, escalates, or resolves a support workflow.
-func (db *DB) TransitionTicket(id, actor, session string, action core.TicketAction, at int64) (*core.ReviewTask, error) {
+func (db *DB) TransitionTicket(ticketID, actor, session string, action core.TicketAction, at int64) (*core.ReviewTask, error) {
 	if db == nil || db.SQLDB == nil {
 		return nil, core.ErrDatabaseUnavailable
 	}
-	if id == "" || at <= 0 {
+	if ticketID == "" || at <= 0 {
 		return nil, core.ErrReviewInvalidRequest
 	}
 	reviewTaskMutationLock.Lock()
@@ -145,10 +144,10 @@ func (db *DB) TransitionTicket(id, actor, session string, action core.TicketActi
 		return nil, core.ErrReviewPermissionDenied
 	}
 	// The workflow row also serializes the first claim of a migrated review.
-	if _, err := tx.Exec(`UPDATE review_tasks SET created_at = created_at WHERE id = ?`, id); err != nil {
+	if _, err := tx.Exec(`UPDATE review_tasks SET created_at = created_at WHERE id = ?`, ticketID); err != nil {
 		return nil, err
 	}
-	task, err := loadReviewTaskTx(tx, id)
+	task, err := loadReviewTaskTx(tx, ticketID)
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +166,7 @@ func (db *DB) TransitionTicket(id, actor, session string, action core.TicketActi
 		}
 	}
 	var existing string
-	if err := tx.QueryRow(`SELECT task_id FROM ticket_state WHERE task_id = ?`, id).Scan(&existing); errors.Is(err, sql.ErrNoRows) {
+	if err := tx.QueryRow(`SELECT task_id FROM ticket_state WHERE task_id = ?`, ticketID).Scan(&existing); errors.Is(err, sql.ErrNoRows) {
 		if err := insertTicketStateTx(tx, task); err != nil {
 			return nil, err
 		}
@@ -204,7 +203,7 @@ func (db *DB) TransitionTicket(id, actor, session string, action core.TicketActi
 		}
 		_, _ = tx.Exec(`INSERT INTO ticket_messages (id, task_id, author_id, author_name, author_role, kind, body, created_at)
 			VALUES (?, ?, ?, ?, ?, 'event', 'claimed', ?)`,
-			uuid.New().String(), task.ID, account.UserID, user.Username, authorRole, at)
+			id.New(), task.ID, account.UserID, user.Username, authorRole, at)
 	case "release", "escalate":
 		if task.AssigneeID != account.UserID {
 			return nil, core.ErrTicketClaimRequired
@@ -226,7 +225,7 @@ func (db *DB) TransitionTicket(id, actor, session string, action core.TicketActi
 		}
 		_, _ = tx.Exec(`INSERT INTO ticket_messages (id, task_id, author_id, author_name, author_role, kind, body, created_at)
 			VALUES (?, ?, ?, ?, ?, 'event', ?, ?)`,
-			uuid.New().String(), task.ID, account.UserID, user.Username, authorRole, ev, at)
+			id.New(), task.ID, account.UserID, user.Username, authorRole, ev, at)
 	case "close":
 		if action.Outcome != core.TicketCloseReasonInvalid &&
 			action.Outcome != core.TicketCloseReasonResolved &&
@@ -240,7 +239,7 @@ func (db *DB) TransitionTicket(id, actor, session string, action core.TicketActi
 		task.Status = core.ReviewStatusCancelled
 		if _, err := tx.Exec(`UPDATE review_tasks SET status = ?, decision_reason = ?, decided_by_id = ?,
 			decided_by_name = ?, decided_at = ?, active_key = NULL WHERE id = ? AND status = ?`,
-			task.Status, task.Outcome, account.UserID, user.Username, at, id, core.ReviewStatusPending); err != nil {
+			task.Status, task.Outcome, account.UserID, user.Username, at, ticketID, core.ReviewStatusPending); err != nil {
 			return nil, err
 		}
 		if _, err := tx.Exec(`DELETE FROM review_task_payloads WHERE task_id = ?`, task.ID); err != nil {
@@ -260,7 +259,7 @@ func (db *DB) TransitionTicket(id, actor, session string, action core.TicketActi
 		}
 		_, _ = tx.Exec(`INSERT INTO ticket_messages (id, task_id, author_id, author_name, author_role, kind, body, created_at)
 			VALUES (?, ?, ?, ?, ?, 'event', ?, ?)`,
-			uuid.New().String(), task.ID, account.UserID, user.Username, authorRole, "closed:"+msgBody, at)
+			id.New(), task.ID, account.UserID, user.Username, authorRole, "closed:"+msgBody, at)
 	case "process", "complete":
 		if !supportTicket(task) {
 			return nil, core.ErrReviewInvalidRequest
@@ -288,7 +287,7 @@ func (db *DB) TransitionTicket(id, actor, session string, action core.TicketActi
 			}
 			if _, err := tx.Exec(`UPDATE review_tasks SET status = ?, decision_reason = ?, decided_by_id = ?,
 				decided_by_name = ?, decided_at = ?, active_key = NULL WHERE id = ? AND status = ?`,
-				task.Status, task.Outcome, account.UserID, user.Username, at, id, core.ReviewStatusPending); err != nil {
+				task.Status, task.Outcome, account.UserID, user.Username, at, ticketID, core.ReviewStatusPending); err != nil {
 				return nil, err
 			}
 		}
@@ -298,14 +297,14 @@ func (db *DB) TransitionTicket(id, actor, session string, action core.TicketActi
 		}
 		_, _ = tx.Exec(`INSERT INTO ticket_messages (id, task_id, author_id, author_name, author_role, kind, body, created_at)
 			VALUES (?, ?, ?, ?, ?, 'comment', ?, ?)`,
-			uuid.New().String(), task.ID, account.UserID, user.Username, authorRole, response, at)
+			id.New(), task.ID, account.UserID, user.Username, authorRole, response, at)
 	default:
 		return nil, core.ErrReviewInvalidRequest
 	}
 	result, err := tx.Exec(`UPDATE ticket_state SET status = ?, assignee_id = ?, assignee_admin = ?,
 		admin_only = ?, escalations = ?, escalated_by_id = ?, outcome = ?, response = ?, changed_at = ?, revision = revision + 1
 		WHERE task_id = ? AND revision = ?`, task.TicketState.Status, task.AssigneeID, boolInt(task.AssigneeAdmin),
-		boolInt(task.AdminOnly), task.Escalations, task.EscalatedByID, task.Outcome, task.Response, at, id, task.Revision)
+		boolInt(task.AdminOnly), task.Escalations, task.EscalatedByID, task.Outcome, task.Response, at, ticketID, task.Revision)
 	if err != nil {
 		return nil, err
 	}
@@ -319,5 +318,5 @@ func (db *DB) TransitionTicket(id, actor, session string, action core.TicketActi
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
-	return db.GetReviewTask(id)
+	return db.GetReviewTask(ticketID)
 }

@@ -15,12 +15,14 @@ import {cachedIsLoggedIn, cachedIsManager, initializeSession, isManagerTab, setS
 import {initI18n, t} from './i18n.js';
 import {installAccountLanguageSync} from './account-language.js';
 import {RenopDialog} from './components.js';
-import {el} from '@renop/ui/dom';
+import {el, onReady, retriggerClass} from '@renop/ui/dom';
 import {topOpenModal, updateModalInertState} from '@renop/ui/modal';
 import {enableDragToScroll, smoothScrollToTop} from '@renop/ui/scroll';
 import {registerTabContainer, scrollTabIntoView, updateTabIndicator} from '@renop/ui/tabs';
 import {closeModalWithAnim} from './app-ui.js';
 import {fetchInstanceStatus, startDashboardRefresh, stopDashboardRefresh} from './dashboard.js';
+import {loadStoragePage} from './storage.js';
+import {loadDatabasePage} from './database.js';
 import {initSettings} from './settings.js';
 import {initRepositories} from './repositories.js';
 import {fetchTokens} from './users.js';
@@ -62,7 +64,6 @@ import {refreshRegistrationAvailability, updateRegistrationPage} from './registr
 import {updateMFALoginPage} from './mfa-login.js';
 import {refreshPasswordRecoveryAvailability, updatePasswordRecoveryPage} from './password-recovery.js';
 import {initConfiguredFont} from './font.js';
-import {$} from '@renop/ui/jquery';
 import {protectedRouteDeniedEvent} from './protected-route.js';
 import {accountPageFromPath, isLoginPath, leaveLoginPage, loginReturnTo, navigateToLogin} from './login-route.js';
 
@@ -101,14 +102,54 @@ function isAccountTab(tabId) {
     return tabId === 'maven-domains' || tabId === 'super-teams' || tabId === 'tickets';
 }
 
-$(window).on('languageChanged', async () => {
+/**
+ * Return the manager tab represented by a pathname.
+ * @param {string} [pathname=window.location.pathname] - Candidate route.
+ * @returns {string} Manager tab identifier or an empty string.
+ */
+export function managerTabFromPath(pathname = window.location.pathname) {
+    const normalized = String(pathname || '/').replace(/\/+$/, '') || '/';
+    if (normalized === '/dashboard') return 'dashboard';
+    if (normalized === '/storage') return 'storage';
+    if (normalized === '/database') return 'database';
+    if (normalized === '/users') return 'users';
+    if (normalized === '/repositories') return 'repositories';
+    if (normalized === '/settings' || normalized.startsWith('/settings/')) return 'settings';
+    return '';
+}
+
+/**
+ * Return the canonical pathname for a manager tab.
+ * @param {string} tabId - Application tab identifier.
+ * @returns {string} Canonical pathname or an empty string.
+ */
+export function managerRouteForTab(tabId) {
+    switch (tabId) {
+        case 'dashboard':
+            return '/dashboard';
+        case 'storage':
+            return '/storage';
+        case 'database':
+            return '/database';
+        case 'users':
+            return '/users';
+        case 'repositories':
+            return '/repositories';
+        case 'settings':
+            return '/settings';
+        default:
+            return '';
+    }
+}
+
+window.addEventListener('languageChanged', async () => {
     updateCopyrightFooter();
 
     const currentTab = legalPageFromPath() ? 'legal' : profileRouteFromPath(window.location.pathname)
         ? 'profile'
         : (publicMavenDomainRouteFromPath() ? 'maven-domain'
             : (publicSuperTeamRouteFromPath() ? 'super-team'
-                : (accountTabFromPath() || (window.location.pathname === '/' && localStorage.getItem('selectedTab')) || 'overview')));
+                : (accountTabFromPath() || (typeof managerTabFromPath === 'function' ? managerTabFromPath(window.location.pathname) : '') || (window.location.pathname === '/' && localStorage.getItem('selectedTab')) || 'overview')));
     await switchTab(currentTab);
 
     if (currentTab === 'dashboard') {
@@ -130,9 +171,7 @@ $(window).on('languageChanged', async () => {
             document.body.style.backgroundAttachment = 'fixed';
 
             try {
-                const canvas = document.createElement('canvas');
-                canvas.width = 32;
-                canvas.height = 32;
+                const canvas = el('canvas', {width: '32', height: '32'});
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, 32, 32);
                 const imageData = ctx.getImageData(0, 0, 32, 32);
@@ -338,6 +377,7 @@ export async function switchTab(tabId) {
     if (accountPage) tabId = accountPage;
     if (legalPageFromPath()) tabId = 'legal';
     const routedAccountTab = accountTabFromPath();
+    const routedManagerTab = typeof managerTabFromPath === 'function' ? managerTabFromPath(window.location.pathname) : '';
     if (!cachedIsLoggedIn && (isAccountTab(tabId) || routedAccountTab)) {
         navigateToLogin(window.location.pathname, {replace: true});
         return;
@@ -346,7 +386,17 @@ export async function switchTab(tabId) {
         navigateToLogin(window.location.pathname, {replace: true});
         return;
     }
-    if (isManagerTab(tabId) && !cachedIsManager) tabId = 'overview';
+    if (!cachedIsLoggedIn && (isManagerTab(tabId) || routedManagerTab)) {
+        navigateToLogin(window.location.pathname, {replace: true});
+        return;
+    }
+    if (isManagerTab(tabId) && !cachedIsManager) {
+        if (routedManagerTab) {
+            void navigateHome({replace: true});
+            return;
+        }
+        tabId = 'overview';
+    }
     if (tabId === 'overview' && profileRouteFromPath(window.location.pathname)) {
         tabId = 'profile';
     }
@@ -358,6 +408,9 @@ export async function switchTab(tabId) {
     }
     if (tabId === 'overview' && accountTabFromPath()) {
         tabId = accountTabFromPath();
+    }
+    if (tabId === 'overview' && routedManagerTab) {
+        tabId = routedManagerTab;
     }
     let activeTabElement = null;
     tabs.forEach(tab => {
@@ -429,8 +482,22 @@ export async function switchTab(tabId) {
 
     if (tabId === 'dashboard') {
         startDashboardRefresh();
+        const content = document.getElementById('tab-content-dashboard');
+        if (content) retriggerClass(content, 'is-content-entering');
     } else {
         stopDashboardRefresh();
+    }
+
+    if (tabId === 'storage') {
+        await loadStoragePage();
+        const content = document.getElementById('tab-content-storage');
+        if (content) retriggerClass(content, 'is-content-entering');
+    }
+
+    if (tabId === 'database') {
+        await loadDatabasePage();
+        const content = document.getElementById('tab-content-database');
+        if (content) retriggerClass(content, 'is-content-entering');
     }
 
     if (tabId === 'settings') {
@@ -476,10 +543,16 @@ tabs.forEach(tab => {
     tab.addEventListener('click', (e) => {
         e.preventDefault();
         if (tab.classList.contains('active')) return;
-        if (accountPageFromPath() || legalPageFromPath() || profileRouteFromPath(window.location.pathname) || accountTabFromPath()) {
+        const targetTab = tab.dataset.tab;
+        const managerPath = typeof managerRouteForTab === 'function' ? managerRouteForTab(targetTab) : '';
+        if (managerPath) {
+            if (window.location.pathname !== managerPath || window.location.search || window.location.hash) {
+                window.history.pushState(null, '', managerPath);
+            }
+        } else if (accountPageFromPath() || legalPageFromPath() || profileRouteFromPath(window.location.pathname) || accountTabFromPath() || (typeof managerTabFromPath === 'function' && managerTabFromPath(window.location.pathname))) {
             window.history.pushState(null, '', '/');
         }
-        switchTab(tab.dataset.tab);
+        switchTab(targetTab);
     });
 });
 
@@ -499,6 +572,11 @@ window.addEventListener('popstate', () => {
     const accountTab = accountTabFromPath();
     if (accountTab) {
         void switchTab(accountTab);
+        return;
+    }
+    const managerTab = typeof managerTabFromPath === 'function' ? managerTabFromPath(window.location.pathname) : '';
+    if (managerTab) {
+        void switchTab(managerTab);
         return;
     }
     const previousTab = window.location.pathname === '/' ? window.history.state?.renopTab : null;
@@ -612,12 +690,12 @@ async function initializeApplication() {
         const accountTab = accountTabFromPath();
         let savedTab = profileRoute
             ? 'profile'
-            : (accountTab || (window.location.pathname === '/' && localStorage.getItem('selectedTab')) || 'overview');
-        if (!profileRoute && !accountTab && (savedTab === 'profile' || isAccountTab(savedTab))) {
+            : (accountTab || (typeof managerTabFromPath === 'function' && managerTabFromPath(window.location.pathname)) || (window.location.pathname === '/' && localStorage.getItem('selectedTab')) || 'overview');
+        if (!profileRoute && !accountTab && !(typeof managerTabFromPath === 'function' && managerTabFromPath(window.location.pathname)) && (savedTab === 'profile' || isAccountTab(savedTab))) {
             localStorage.setItem('selectedTab', 'overview');
             savedTab = 'overview';
         }
-        if ((!profileRoute && !accountTab && !cachedIsLoggedIn) ||
+        if ((!profileRoute && !accountTab && !cachedIsLoggedIn && !(typeof managerTabFromPath === 'function' && managerTabFromPath(window.location.pathname))) ||
             (accountTab && !cachedIsLoggedIn) || (isManagerTab(savedTab) && !cachedIsManager)) {
             savedTab = 'overview';
         }
@@ -672,7 +750,12 @@ async function initializeApplication() {
                     return;
                 }
                 if (!cachedIsManager) return;
-                if (accountPageFromPath() || legalPageFromPath() || profileRouteFromPath(window.location.pathname) || accountTabFromPath()) {
+                const managerPath = typeof managerRouteForTab === 'function' ? managerRouteForTab(targetTab) : '';
+                if (managerPath) {
+                    if (window.location.pathname !== managerPath || window.location.search || window.location.hash) {
+                        window.history.pushState(null, '', managerPath);
+                    }
+                } else if (accountPageFromPath() || legalPageFromPath() || profileRouteFromPath(window.location.pathname) || accountTabFromPath() || (typeof managerTabFromPath === 'function' && managerTabFromPath(window.location.pathname))) {
                     window.history.pushState(null, '', '/');
                 }
                 await switchTab(targetTab);
@@ -757,4 +840,4 @@ async function initializeApplication() {
     }
 }
 
-$(initializeApplication);
+onReady(initializeApplication);

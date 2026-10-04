@@ -40,6 +40,8 @@ var repositoryEngineCatalog = map[string]RepositoryEngine{
 	RepositoryFormatAPT:          nativeFileEngine(RepositoryFormatAPT, RepositoryFormatAPT),
 	RepositoryFormatRPM:          nativeFileEngine(RepositoryFormatRPM, RepositoryFormatRPM),
 	RepositoryFormatYUM:          nativeFileEngine(RepositoryFormatYUM, RepositoryFormatRPM),
+	RepositoryFormatGithub:       {ID: RepositoryFormatGithub, Protocol: RepositoryFormatGithub, DirectUpload: false},
+	RepositoryFormatGitLab:       {ID: RepositoryFormatGitLab, Protocol: RepositoryFormatGitLab, DirectUpload: false},
 }
 
 func nativeFileEngine(id, protocol string) RepositoryEngine {

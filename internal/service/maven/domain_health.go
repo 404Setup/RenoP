@@ -1,7 +1,10 @@
 /*
  * Copyright (c) 2026 404Setup. All rights reserved.
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
- * If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
+ *
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
@@ -23,26 +26,30 @@ import (
 
 	"renop/internal/config"
 	"renop/internal/core"
-	"renop/internal/service/outboundproxy"
+	"renop/internal/service/proxy/outbound"
 	"renop/internal/service/repositorygate"
 )
 
 const domainHealthInterval = 6 * time.Hour
 
-var rdapBootstrap struct {
+type rdapBootstrapState struct {
 	sync.Mutex
 	endpoints map[string]string
 	expires   time.Time
 	err       error
 }
 
+var rdapBootstrap rdapBootstrapState
+
+type rdapDNSDocument struct {
+	Services [][][]string `json:"services"`
+}
+
 func rdapEndpoint(ctx context.Context, client *http.Client, host string) (string, error) {
 	rdapBootstrap.Lock()
 	defer rdapBootstrap.Unlock()
 	if time.Now().After(rdapBootstrap.expires) {
-		var document struct {
-			Services [][][]string `json:"services"`
-		}
+		var document rdapDNSDocument
 		err := getRDAPJSON(ctx, client, "https://data.iana.org/rdap/dns.json", &document)
 		endpoints := make(map[string]string)
 		if err == nil {
@@ -85,7 +92,7 @@ func rdapEndpoint(ctx context.Context, client *http.Client, host string) (string
 	return "", errors.New("domain registry has no RDAP service")
 }
 
-func getRDAPJSON(ctx context.Context, client *http.Client, endpoint string, destination any) error {
+func getRDAPJSON[T any](ctx context.Context, client *http.Client, endpoint string, destination *T) error {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return err
@@ -114,17 +121,19 @@ func getRDAPJSON(ctx context.Context, client *http.Client, endpoint string, dest
 	if len(body) > limit {
 		return errors.New("RDAP response exceeds the size limit")
 	}
-	return json.Unmarshal(body, destination)
+	return json.UnmarshalOf(body, destination)
+}
+
+type rdapEvent struct {
+	Action string `json:"eventAction"`
+	Date   string `json:"eventDate"`
 }
 
 type rdapDomain struct {
-	ObjectClassName string   `json:"objectClassName"`
-	LDHName         string   `json:"ldhName"`
-	Status          []string `json:"status"`
-	Events          []struct {
-		Action string `json:"eventAction"`
-		Date   string `json:"eventDate"`
-	} `json:"events"`
+	ObjectClassName string      `json:"objectClassName"`
+	LDHName         string      `json:"ldhName"`
+	Status          []string    `json:"status"`
+	Events          []rdapEvent `json:"events"`
 }
 
 func rdapDomainHealth(document rdapDomain, host string, now time.Time) (*core.MavenDomainHealth, error) {

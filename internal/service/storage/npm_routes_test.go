@@ -36,7 +36,7 @@ import (
 
 func npmStorageTestTarball(t *testing.T, packageName, version string) []byte {
 	t.Helper()
-	manifest, err := json.Marshal(map[string]string{"name": packageName, "version": version})
+	manifest, err := json.MarshalOf(map[string]string{"name": packageName, "version": version})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -199,7 +199,7 @@ func TestNPMScopedPublishUsesDecodedPathThroughStorageRouter(t *testing.T) {
 			"data": base64.StdEncoding.EncodeToString(tarball),
 		}},
 	}
-	body, err := json.Marshal(document)
+	body, err := json.MarshalOf(document)
 	if err != nil {
 		t.Fatal(err)
 	}

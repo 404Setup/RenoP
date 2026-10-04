@@ -22,6 +22,7 @@ import (
 
 	"renop/internal/core"
 	"renop/internal/service/auth"
+	"renop/internal/utils"
 	"renop/internal/utils/protohttp"
 	"renop/internal/version"
 )
@@ -151,9 +152,6 @@ func SetupUpdaterRoutes(router fiber.Router, state *core.AppState) {
 		res, err := CheckUpdate(c.Context(), channel)
 		if err != nil {
 			log.Printf("[Updater] Manual update check failed: %v", err)
-			if notifyErr := deliverUpdateNotification(state, user.Username, updateNoticeCheckFailed, nil); notifyErr != nil {
-				log.Printf("[Updater] Failed to deliver check failure notification: %v", notifyErr)
-			}
 			return WriteAPIError(c, fiber.StatusInternalServerError, APIErrorCheckFailed, "Update check failed")
 		}
 
@@ -178,15 +176,6 @@ func SetupUpdaterRoutes(router fiber.Router, state *core.AppState) {
 				s.SHA256 = ""
 			}
 		})
-		event := updateNoticeCurrent
-		if res.HasUpdate {
-			event = updateNoticeAvailable
-		}
-		if err := deliverUpdateNotification(state, user.Username, event, res); err != nil {
-			log.Printf("[Updater] Failed to deliver manual update notification: %v", err)
-			return WriteAPIError(c, fiber.StatusInternalServerError, APIErrorNotificationFailed,
-				"Failed to deliver update notification")
-		}
 
 		return c.JSON(res)
 	})
@@ -261,6 +250,9 @@ func SetupUpdaterRoutes(router fiber.Router, state *core.AppState) {
 	api.Post("/upload", func(c fiber.Ctx) error {
 		user := auth.GetUser(c)
 		if !user.IsManager() {
+			if utils.HasUploadBody(c) {
+				utils.RejectUploadEarly(c)
+			}
 			return WriteAPIError(c, fiber.StatusForbidden, APIErrorForbidden, "Updater access is forbidden")
 		}
 
@@ -268,6 +260,9 @@ func SetupUpdaterRoutes(router fiber.Router, state *core.AppState) {
 		if contentLength > 0 {
 			reqSpace := uint64(EstimateUploadedPackageDiskSpace("package.br", int64(contentLength)))
 			if CanAllocateDiskSpace != nil && !CanAllocateDiskSpace(reqSpace) {
+				if utils.HasUploadBody(c) {
+					utils.RejectUploadEarly(c)
+				}
 				updateStateFields(func(s *UpdateState) {
 					s.Status = "error"
 					s.ErrorMessage = "Insufficient disk space to upload update package"

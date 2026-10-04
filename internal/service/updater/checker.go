@@ -146,7 +146,7 @@ func decodeJSONLimited(r io.Reader, contentLength, max int64, dst any) error {
 		}
 		return err
 	}
-	var trailing any
+	var trailing json.RawMessage
 	if err := dec.Decode(&trailing); !errors.Is(err, io.EOF) {
 		if lr.N <= 0 {
 			return utils.ErrResponseTooLarge

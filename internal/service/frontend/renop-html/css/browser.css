@@ -18,5 +18,6 @@
 @import "./browser/docker.css";
 @import "./browser/npm.css";
 @import "./browser/native.css";
+@import "./browser/git-repo.css";
 @import "./browser/upload.css";
 @import "./browser/languages.css";

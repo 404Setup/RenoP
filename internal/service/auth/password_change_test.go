@@ -176,7 +176,7 @@ func TestPasswordChangePasskeyIsBoundToBrowserAndRequiresVerification(t *testing
 		return result.ID, result.Options.PublicKey.Challenge
 	}
 	assertion := func(challenge, origin string, flags byte) []byte {
-		client, err := json.Marshal(map[string]any{"type": "webauthn.get", "challenge": challenge, "origin": origin, "crossOrigin": false})
+		client, err := json.MarshalOf(map[string]any{"type": "webauthn.get", "challenge": challenge, "origin": origin, "crossOrigin": false})
 		require.NoError(t, err)
 		rpHash := sha256.Sum256([]byte("localhost"))
 		authenticator := append(rpHash[:], flags)
@@ -186,7 +186,7 @@ func TestPasswordChangePasskeyIsBoundToBrowserAndRequiresVerification(t *testing
 		signature, err := ecdsa.SignASN1(rand.Reader, key, digest[:])
 		require.NoError(t, err)
 		encoded := base64.RawURLEncoding.EncodeToString
-		payload, err := json.Marshal(map[string]any{"id": encoded([]byte("password-key")), "rawId": encoded([]byte("password-key")), "type": "public-key",
+		payload, err := json.MarshalOf(map[string]any{"id": encoded([]byte("password-key")), "rawId": encoded([]byte("password-key")), "type": "public-key",
 			"response": map[string]any{"authenticatorData": encoded(authenticator), "clientDataJSON": encoded(client), "signature": encoded(signature), "userHandle": encoded([]byte("alice"))}})
 		require.NoError(t, err)
 		return payload

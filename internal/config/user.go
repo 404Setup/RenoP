@@ -73,7 +73,7 @@ func (u *User) UnmarshalJSON(data []byte) error {
 	u.setDefaults()
 	type alias User
 	aux := (*alias)(u)
-	return json.Unmarshal(data, aux)
+	return json.UnmarshalOf(data, aux)
 }
 
 func (u *User) UnmarshalYAML(value *yaml.Node) error {

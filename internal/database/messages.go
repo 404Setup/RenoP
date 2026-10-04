@@ -18,9 +18,9 @@ import (
 	"time"
 
 	"github.com/goccy/go-json"
-	"github.com/google/uuid"
 
 	"renop/internal/core"
+	"renop/pkg/id"
 )
 
 const messageColumns = `id, recipient, sender, kind, severity, title, body, payload_json,
@@ -28,18 +28,28 @@ const messageColumns = `id, recipient, sender, kind, severity, title, body, payl
 
 const scopedMessageColumns = messageColumns + `, session_id`
 
-func insertAcceptedMembershipMessage(tx *Tx, recipient, sender, actionKind, title, body string, payload any, now int64) error {
+type MembershipInvitePayload struct {
+	Repository string `json:"repository,omitempty"`
+	Package    string `json:"package,omitempty"`
+	Domain     string `json:"domain,omitempty"`
+	Image      string `json:"image,omitempty"`
+	Prefix     string `json:"prefix,omitempty"`
+	Inviter    string `json:"inviter,omitempty"`
+	Level      int    `json:"level,omitempty"`
+}
+
+func insertAcceptedMembershipMessage(tx *Tx, recipient, sender, actionKind, title, body string, payload MembershipInvitePayload, now int64) error {
 	if err := lockAccountByUsernameTx(tx, recipient); errors.Is(err, core.ErrAccountDeleted) {
 		return nil
 	} else if err != nil {
 		return err
 	}
-	payloadBytes, err := json.Marshal(payload)
+	payloadBytes, err := json.MarshalOf(payload)
 	if err != nil {
 		return fmt.Errorf("encode membership message payload: %w", err)
 	}
 	_, err = tx.Exec(`INSERT INTO user_messages (`+messageColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		uuid.NewString(), recipient, sender, actionKind, "info", title, body, string(payloadBytes),
+		id.New(), recipient, sender, actionKind, "info", title, body, string(payloadBytes),
 		actionKind, core.MessageActionAccepted, now, 0, now, now+7*24*3600*1000, nil)
 	return err
 }
@@ -50,7 +60,7 @@ func insertTeamRemovalMessage(tx *Tx, recipient, format, repository, resource st
 	} else if err != nil {
 		return err
 	}
-	payloadBytes, err := json.Marshal(map[string]string{
+	payloadBytes, err := json.MarshalOf(map[string]string{
 		"format": format, "repository": repository, "package": resource,
 	})
 	if err != nil {
@@ -61,7 +71,7 @@ func insertTeamRemovalMessage(tx *Tx, recipient, format, repository, resource st
 		target = repository + " - " + resource
 	}
 	_, err = tx.Exec(`INSERT INTO user_messages (`+messageColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		uuid.NewString(), recipient, "", "package_team_removed", "warning", "Team membership removed",
+		id.New(), recipient, "", "package_team_removed", "warning", "Team membership removed",
 		"You were removed from "+target+".", string(payloadBytes), "", "", now, 0, 0, 0, nil)
 	return err
 }
@@ -159,12 +169,12 @@ func (db *DB) SaveMessages(messages []*core.UserMessage) error {
 		} else if err != nil {
 			return err
 		}
-		var dedupeKey any
+		var dedupeKey *string
 		if err := validateMessageSessionTx(tx, message); err != nil {
 			return err
 		}
 		if message.DedupeKey != "" {
-			dedupeKey = message.DedupeKey
+			dedupeKey = &message.DedupeKey
 		}
 		if _, err := tx.Exec(query,
 			message.ID, message.Recipient, message.Sender, message.Kind, message.Severity,
@@ -201,12 +211,12 @@ func (db *DB) SaveMessageIfAbsent(message *core.UserMessage) (bool, error) {
 	} else if err != nil {
 		return false, err
 	}
-	var dedupeKey any
+	var dedupeKey *string
 	if err := validateMessageSessionTx(tx, message); err != nil {
 		return false, err
 	}
 	if message.DedupeKey != "" {
-		dedupeKey = message.DedupeKey
+		dedupeKey = &message.DedupeKey
 	}
 	query := `INSERT INTO user_messages (` + scopedMessageColumns + `) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	arguments := []any{

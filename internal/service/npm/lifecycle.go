@@ -127,7 +127,7 @@ func packumentMetadata(document *publishDocument) (map[string]string, map[string
 			return nil, nil, errors.New("npm packument version is invalid")
 		}
 		var manifest map[string]any
-		if err := json.Unmarshal(raw, &manifest); err != nil {
+		if err := json.UnmarshalOf(raw, &manifest); err != nil {
 			return nil, nil, errors.New("npm packument version is invalid")
 		}
 		deprecated, _ := manifest["deprecated"].(string)

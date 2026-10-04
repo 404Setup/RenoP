@@ -10,9 +10,10 @@
 
 import {t} from './i18n.js';
 import {showAlert} from './alert.js';
-import {el} from '@renop/ui/dom';
+import {el, retriggerClass} from '@renop/ui/dom';
 import {morphElementHeight} from '@renop/ui/height-anim';
-import {fetchProto, PROTO_CONTENT_TYPE, withCredentials} from './api.js';
+import {createLoadingState} from '@renop/ui/loading';
+import {apiRequest, fetchProto, PROTO_CONTENT_TYPE} from './api.js';
 import {SessionList} from './proto/index.js';
 import {RenopDialog} from './components/dialog.js';
 import {createButton} from './components/button.js';
@@ -104,7 +105,7 @@ function getSessionIPs(session) {
  */
 function listUrl(opts) {
     if (opts.mode === 'admin') {
-        return `/api/tokens/${encodeURIComponent(opts.username)}/sessions`;
+        return `/api/users/${encodeURIComponent(opts.username)}/sessions`;
     }
     return '/api/auth/profile/sessions';
 }
@@ -117,7 +118,7 @@ function listUrl(opts) {
  */
 function revokeOneUrl(opts, publicId) {
     if (opts.mode === 'admin') {
-        return `/api/tokens/${encodeURIComponent(opts.username)}/sessions/${encodeURIComponent(publicId)}`;
+        return `/api/users/${encodeURIComponent(opts.username)}/sessions/${encodeURIComponent(publicId)}`;
     }
     return `/api/auth/profile/sessions/${encodeURIComponent(publicId)}`;
 }
@@ -129,7 +130,7 @@ function revokeOneUrl(opts, publicId) {
  */
 function revokeBulkUrl(opts) {
     if (opts.mode === 'admin') {
-        return `/api/tokens/${encodeURIComponent(opts.username)}/sessions/revoke-all`;
+        return `/api/users/${encodeURIComponent(opts.username)}/sessions/revoke-all`;
     }
     return '/api/auth/profile/sessions/revoke-others';
 }
@@ -156,14 +157,14 @@ async function loadSessions(opts) {
  * @returns {Promise<Response>}
  */
 async function mutateSessions(url, method) {
-    return fetch(url, withCredentials({
+    return apiRequest(url, {
         method,
         headers: {
             Accept: PROTO_CONTENT_TYPE,
             'Content-Type': PROTO_CONTENT_TYPE,
         },
         body: method === 'POST' ? new Uint8Array(0) : undefined,
-    }));
+    });
 }
 
 /**
@@ -475,9 +476,7 @@ export function openSessionsDialog(options = {mode: 'self'}) {
                 sessionsView.hidden = true;
                 sessionsView.classList.remove('sessions-view-enter-backward');
                 bannedIpsView.hidden = false;
-                bannedIpsView.classList.remove('sessions-view-enter-forward');
-                void bannedIpsView.offsetWidth;
-                bannedIpsView.classList.add('sessions-view-enter-forward');
+                retriggerClass(bannedIpsView, 'sessions-view-enter-forward');
                 const titleEl = dialogRef?.querySelector?.('.modal-title');
                 if (titleEl) titleEl.textContent = t('sessions.bannedIPsTitle');
                 const subtitleEl = dialogRef?.querySelector?.('.modal-subtitle');
@@ -487,9 +486,7 @@ export function openSessionsDialog(options = {mode: 'self'}) {
                 bannedIpsView.hidden = true;
                 bannedIpsView.classList.remove('sessions-view-enter-forward');
                 sessionsView.hidden = false;
-                sessionsView.classList.remove('sessions-view-enter-backward');
-                void sessionsView.offsetWidth;
-                sessionsView.classList.add('sessions-view-enter-backward');
+                retriggerClass(sessionsView, 'sessions-view-enter-backward');
                 const titleEl = dialogRef?.querySelector?.('.modal-title');
                 if (titleEl) titleEl.textContent = title;
                 const subtitleEl = dialogRef?.querySelector?.('.modal-subtitle');
@@ -505,13 +502,10 @@ export function openSessionsDialog(options = {mode: 'self'}) {
     }
 
     async function loadBannedIPs() {
-        bannedIpsListHost.replaceChildren(el('div', {class: 'sessions-loading'},
-            el('div', {class: 'sessions-loading-spinner', 'aria-hidden': 'true'}),
-            el('span', {}, t('sessions.loading'))
-        ));
+        bannedIpsListHost.replaceChildren(createLoadingState(t('sessions.loading'), 'sessions-loading'));
         try {
             const query = opts.mode === 'admin' && opts.username ? `?username=${encodeURIComponent(opts.username)}` : '';
-            const res = await fetch('/api/auth/profile/ip-bans' + query, withCredentials({method: 'GET'}));
+            const res = await apiRequest('/api/auth/profile/ip-bans' + query, {method: 'GET'});
             if (!res.ok) throw new Error('Failed to load banned IPs');
             const data = await res.json();
             const ips = Array.isArray(data?.ips) ? data.ips : [];
@@ -535,9 +529,9 @@ export function openSessionsDialog(options = {mode: 'self'}) {
                         try {
                             unbanBtn.disabled = true;
                             const delQuery = opts.mode === 'admin' && opts.username ? `?username=${encodeURIComponent(opts.username)}` : '';
-                            const delRes = await fetch(`/api/auth/profile/ip-bans/${encodeURIComponent(ip)}${delQuery}`, withCredentials({
+                            const delRes = await apiRequest(`/api/auth/profile/ip-bans/${encodeURIComponent(ip)}${delQuery}`, {
                                 method: 'DELETE'
-                            }));
+                            });
                             if (!delRes.ok) throw new Error('Failed to unban IP');
                             showAlert(t('sessions.ipUnbanned'), 'success');
                             await loadBannedIPs();
@@ -584,11 +578,11 @@ export function openSessionsDialog(options = {mode: 'self'}) {
                         if (opts.mode === 'admin' && opts.username) {
                             bodyData.username = opts.username;
                         }
-                        const res = await fetch('/api/auth/profile/ip-bans', withCredentials({
+                        const res = await apiRequest('/api/auth/profile/ip-bans', {
                             method: 'POST',
                             headers: {'Content-Type': 'application/json'},
                             body: JSON.stringify(bodyData)
-                        }));
+                        });
                         if (!res.ok) throw new Error('Failed to ban IP');
                         showAlert(t('sessions.ipBanned'), 'success');
                     } catch (err) {
@@ -619,10 +613,7 @@ export function openSessionsDialog(options = {mode: 'self'}) {
      */
     function showInitialLoading() {
         listHost.replaceChildren();
-        listHost.appendChild(el('div', {class: 'sessions-loading'},
-            el('div', {class: 'sessions-loading-spinner', 'aria-hidden': 'true'}),
-            el('span', {}, t('sessions.loading')),
-        ));
+        listHost.appendChild(createLoadingState(t('sessions.loading'), 'sessions-loading'));
     }
 
     /**

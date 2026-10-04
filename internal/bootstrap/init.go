@@ -30,14 +30,14 @@ import (
 	"renop/internal/middleware"
 	"renop/internal/service/audit"
 	"renop/internal/service/auth"
-	"renop/internal/service/cargodocs"
+	"renop/internal/service/cargo/docs"
 	"renop/internal/service/docker"
 	"renop/internal/service/frontend"
 	"renop/internal/service/index"
-	"renop/internal/service/javadocs"
 	"renop/internal/service/mailqueue"
 	"renop/internal/service/maven"
-	"renop/internal/service/nativesign"
+	"renop/internal/service/maven/javadocs"
+	"renop/internal/service/nativepkg/nativesign"
 	"renop/internal/service/statistics"
 	"renop/internal/service/status"
 	"renop/internal/service/storage"
@@ -124,6 +124,15 @@ func Initialize(options ...demo.Options) (*core.AppState, BootstrapContext) {
 		if err != nil {
 			log.Fatalf("Demo initialization failed: %v", err)
 		}
+		if options[0].UpdateUUID {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+			updated, err := state.GetDB().MigrateLegacyUUIDs(ctx)
+			cancel()
+			if err != nil {
+				log.Fatalf("Demo UUID migration failed: %v", err)
+			}
+			log.Printf("Demo UUID migration completed: %d record(s) migrated to compact IDs", updated)
+		}
 		cfg := state.Inner.Config.Load()
 		frontend.RefreshIndexHTMLCache(&cfg.Frontend)
 		return state, BootstrapContext{ConfigPath: cfg.Runtime.SettingsDatabase}
@@ -145,6 +154,28 @@ func Initialize(options ...demo.Options) (*core.AppState, BootstrapContext) {
 	}
 	if dbInstance == nil {
 		log.Fatal("Database initialization returned nil — check your database configuration.")
+	}
+
+	remoteCache, err := cache.Open(cfg.Cache)
+	if err != nil {
+		log.Fatal("Failed to initialize cache: ", err)
+	}
+	dbInstance.UseRemoteCache(remoteCache)
+
+	if len(options) > 0 && options[0].UpdateUUID {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		if remoteCache != nil {
+			log.Print("Flushing external cache prior to UUID migration...")
+			if err := remoteCache.Flush(ctx); err != nil {
+				log.Printf("Warning: failed to flush external cache before UUID migration: %v", err)
+			}
+		}
+		updated, err := dbInstance.MigrateLegacyUUIDs(ctx)
+		cancel()
+		if err != nil {
+			log.Fatalf("UUID migration failed: %v", err)
+		}
+		log.Printf("UUID migration completed: %d record(s) migrated to compact IDs", updated)
 	}
 	cfg.Maven, err = loadRepositorySettings(dbInstance, repositoriesPath)
 	if err != nil {
@@ -224,16 +255,12 @@ func Initialize(options ...demo.Options) (*core.AppState, BootstrapContext) {
 	} else {
 		state.Inner.FileCache = core.NewFileByteCache(0)
 	}
-	remoteCache, err := cache.Open(cfg.Cache)
-	if err != nil {
-		log.Fatal("Failed to initialize cache: ", err)
-	}
 	state.UseRemoteCache(remoteCache)
-	dbInstance.UseRemoteCache(remoteCache)
 	config.UseRemoteCache(remoteCache)
 	docker.UseRemoteCache(remoteCache)
 	frontend.UseRemoteCache(remoteCache)
 	frontend.RefreshIndexHTMLCache(&cfg.Frontend)
+	state.Inner.HTMLCache = frontend.GetIndexHTMLCache()
 
 	bootstrapCtx := BootstrapContext{
 		ConfigPath: configstore.PathForLegacy(configPath),

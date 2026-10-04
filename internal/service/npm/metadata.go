@@ -37,6 +37,15 @@ const (
 	maxPackumentSize        = 16 << 20
 )
 
+type mirroredPackument struct {
+	Name        string                     `json:"name"`
+	Description string                     `json:"description"`
+	Access      string                     `json:"access"`
+	DistTags    map[string]string          `json:"dist-tags"`
+	Time        map[string]string          `json:"time"`
+	Versions    map[string]json.RawMessage `json:"versions"`
+}
+
 var abbreviatedVersionFields = map[string]struct{}{
 	"name": {}, "version": {}, "deprecated": {}, "dependencies": {}, "acceptDependencies": {},
 	"optionalDependencies": {}, "devDependencies": {}, "bundleDependencies": {}, "bundledDependencies": {},
@@ -45,6 +54,9 @@ var abbreviatedVersionFields = map[string]struct{}{
 }
 
 func npmError(c fiber.Ctx, status int, code, reason string) error {
+	if (status == fiber.StatusUnauthorized || status == fiber.StatusForbidden) && utils.HasUploadBody(c) {
+		utils.RejectUploadEarly(c)
+	}
 	c.Set(fiber.HeaderContentType, "application/json; charset=utf-8")
 	return c.Status(status).JSON(registryError{Error: code, Reason: reason})
 }
@@ -85,7 +97,7 @@ func packument(details *core.NPMPackageDetails, baseURL string, abbreviated bool
 			continue
 		}
 		manifest := make(map[string]any)
-		if err := json.Unmarshal([]byte(version.ManifestJSON), &manifest); err != nil {
+		if err := json.UnmarshalOf([]byte(version.ManifestJSON), &manifest); err != nil {
 			return nil, fmt.Errorf("decode npm version %s: %w", version.Version, err)
 		}
 		setCanonicalDist(manifest, baseURL, pkg.Repository, pkg.Name, version.Version,
@@ -243,7 +255,7 @@ func servePackument(c fiber.Ctx, state *core.AppState, repo *config.Repository, 
 	if c.Method() == fiber.MethodHead {
 		return c.SendStatus(fiber.StatusOK)
 	}
-	body, err := json.Marshal(document)
+	body, err := json.MarshalOf(document)
 	if err != nil {
 		return npmError(c, fiber.StatusInternalServerError, "metadata failure", "failed to encode npm package metadata")
 	}
@@ -342,15 +354,8 @@ func refreshMirroredPackument(ctx context.Context, state *core.AppState, repo *c
 func parseMirroredPackument(repository, expectedName string, body []byte, authenticated bool) (
 	*core.NPMPackage, []*core.NPMVersion, map[string]string, error,
 ) {
-	var document struct {
-		Name        string                     `json:"name"`
-		Description string                     `json:"description"`
-		Access      string                     `json:"access"`
-		DistTags    map[string]string          `json:"dist-tags"`
-		Time        map[string]string          `json:"time"`
-		Versions    map[string]json.RawMessage `json:"versions"`
-	}
-	if err := json.Unmarshal(body, &document); err != nil {
+	var document mirroredPackument
+	if err := json.UnmarshalOf(body, &document); err != nil {
 		return nil, nil, nil, errors.New("upstream npm packument is invalid")
 	}
 	packageName, valid := NormalizePackageName(document.Name)
@@ -373,7 +378,7 @@ func parseMirroredPackument(repository, expectedName string, body []byte, authen
 			continue
 		}
 		manifest := make(map[string]any)
-		if err := json.Unmarshal(raw, &manifest); err != nil {
+		if err := json.UnmarshalOf(raw, &manifest); err != nil {
 			continue
 		}
 		manifestName, _ := manifest["name"].(string)
@@ -389,7 +394,7 @@ func parseMirroredPackument(repository, expectedName string, body []byte, authen
 		tarballPath := canonicalTarballPath(packageName, versionName)
 		setCanonicalDist(manifest, "", repository, packageName, versionName, tarballPath,
 			strings.ToLower(shasum), integrity, "mirror", 0)
-		serialized, err := json.Marshal(manifest)
+		serialized, err := json.MarshalOf(manifest)
 		if err != nil || len(serialized) > maxStoredManifestJSON {
 			continue
 		}

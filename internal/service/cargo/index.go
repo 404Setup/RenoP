@@ -68,7 +68,7 @@ func rewriteIndex(reader io.Reader, destination io.Writer, entry IndexEntry) err
 	versionExists := false
 	err := scanIndex(reader, func(line []byte) error {
 		var current cargoIndexValidationEntry
-		if json.Unmarshal(line, &current) != nil || current.Name == "" || current.Version == "" {
+		if json.UnmarshalOf(line, &current) != nil || current.Name == "" || current.Version == "" {
 			return errors.New("invalid Cargo index entry")
 		}
 		if !strings.EqualFold(current.Name, entry.Name) {
@@ -104,7 +104,7 @@ func rewriteYanked(reader io.Reader, destination io.Writer, version string, yank
 			return err
 		}
 		var entry IndexEntry
-		if json.Unmarshal(line, &entry) != nil || entry.Version == "" {
+		if json.UnmarshalOf(line, &entry) != nil || entry.Version == "" {
 			return errors.New("invalid Cargo index entry")
 		}
 		if entry.Version != version {
@@ -125,7 +125,7 @@ func rewriteRemoveVersion(reader io.Reader, destination io.Writer, version strin
 	limitedWriter := &limitedIndexWriter{writer: destination}
 	err = scanIndex(reader, func(line []byte) error {
 		var entry IndexEntry
-		if json.Unmarshal(line, &entry) != nil || entry.Version == "" {
+		if json.UnmarshalOf(line, &entry) != nil || entry.Version == "" {
 			return errors.New("invalid Cargo index entry")
 		}
 		if entry.Version == version {
@@ -147,7 +147,7 @@ func rewritePackageYanked(reader io.Reader, destination io.Writer, desired map[s
 	updated := 0
 	err := scanIndex(reader, func(line []byte) error {
 		var entry IndexEntry
-		if json.Unmarshal(line, &entry) != nil || entry.Version == "" {
+		if json.UnmarshalOf(line, &entry) != nil || entry.Version == "" {
 			return errors.New("invalid Cargo index entry")
 		}
 		yanked, ok := desired[entry.Version]

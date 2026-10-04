@@ -10,7 +10,7 @@
 
 import {docURL} from '../lib/doc-routes.js';
 import {getDocsLocale, t} from '../i18n.js';
-import {clear, el} from '@renop/ui/dom';
+import {clear, el, retriggerClass} from '@renop/ui/dom';
 import {renderMarkdown} from '../lib/markdown.js';
 import {morphElementHeight, prefersReducedMotion} from '@renop/ui/height-anim';
 
@@ -381,9 +381,7 @@ function attachTocObserver(article, tocEl) {
  * @returns {void}
  */
 function flashContent(main) {
-    main.classList.remove('docs-content-enter');
-    void main.offsetWidth;
-    main.classList.add('docs-content-enter');
+    retriggerClass(main, 'docs-content-enter');
 }
 
 /**

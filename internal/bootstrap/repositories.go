@@ -18,12 +18,12 @@ import (
 	"log"
 	"os"
 
-	"github.com/google/uuid"
 	"go.yaml.in/yaml/v3"
 
 	"renop/internal/config"
 	"renop/internal/database"
 	"renop/internal/utils"
+	"renop/pkg/id"
 )
 
 func loadRepositorySettings(db *database.DB, legacyPath string) (config.MavenSettings, error) {
@@ -46,7 +46,7 @@ func loadRepositorySettings(db *database.DB, legacyPath string) (config.MavenSet
 		return config.MavenSettings{}, err
 	}
 	if imported {
-		archive := legacyPath + ".migrated." + uuid.NewString()
+		archive := legacyPath + ".migrated." + id.New()
 		if err := os.Rename(legacyPath, archive); err != nil {
 			log.Printf("Repository settings are committed to the database; could not archive the legacy file: %v", err)
 		} else {
@@ -54,6 +54,10 @@ func loadRepositorySettings(db *database.DB, legacyPath string) (config.MavenSet
 		}
 	}
 	return *stored, nil
+}
+
+type legacyRepositoriesEnvelope struct {
+	Repositories map[string]*config.Repository `yaml:"repositories"`
 }
 
 func readLegacyRepositories(path string) (config.MavenSettings, error) {
@@ -67,9 +71,7 @@ func readLegacyRepositories(path string) (config.MavenSettings, error) {
 		return config.MavenSettings{}, err
 	}
 	// Keep a missing mapping distinct from an intentionally empty repository set.
-	var envelope struct {
-		Repositories map[string]*config.Repository `yaml:"repositories"`
-	}
+	var envelope legacyRepositoriesEnvelope
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	decoder.KnownFields(true)
 	if err := decoder.Decode(&envelope); err != nil {

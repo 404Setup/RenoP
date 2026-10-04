@@ -9,7 +9,6 @@
  */
 
 import {el} from '@renop/ui/dom';
-import {$} from './jquery.js';
 
 /**
  * Short badge label from a locale code (e.g. `zh-CN` → `ZH`).
@@ -47,7 +46,7 @@ function createLangCardCheckSvg() {
  * @returns {void}
  */
 export function fillLangCardBody(host, {code, name, sub}) {
-    $(host).empty();
+    host.replaceChildren();
 
     const shortCode = langShortCode(code);
     const left = el('div', {class: 'lang-card-left'},
@@ -58,7 +57,7 @@ export function fillLangCardBody(host, {code, name, sub}) {
         ),
     );
 
-    $(host).append(left, createLangCardCheckSvg());
+    host.append(left, createLangCardCheckSvg());
 }
 
 /**
@@ -69,9 +68,9 @@ export function fillLangCardBody(host, {code, name, sub}) {
  */
 function bindLangCardActivate(card, onClick) {
     if (!onClick) return;
-    $(card).on('click', onClick);
+    card.addEventListener('click', onClick);
     if (card.tagName !== 'BUTTON') {
-        $(card).on('keydown', (e) => {
+        card.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
                 onClick(e);

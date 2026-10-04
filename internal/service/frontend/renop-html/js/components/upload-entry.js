@@ -128,11 +128,8 @@ export class RenopUploadEntry extends HTMLElement {
         let bar = this.querySelector('.upload-progress-bar');
         if (status === 'uploading' || status === 'done') {
             if (!bar) {
-                bar = document.createElement('div');
-                bar.className = 'upload-progress-bar';
-                const fill = document.createElement('div');
-                fill.className = 'upload-progress-fill';
-                bar.appendChild(fill);
+                const fill = el('div', {class: 'upload-progress-fill'});
+                bar = el('div', {class: 'upload-progress-bar'}, fill);
                 this.appendChild(bar);
             }
             const fill = bar.querySelector('.upload-progress-fill');
@@ -157,19 +154,17 @@ export class RenopUploadEntry extends HTMLElement {
             return;
         }
         if (!strip) {
-            strip = document.createElement('div');
-            strip.className = 'upload-chunk-strip';
-            strip.setAttribute('aria-label', 'Chunk upload progress');
+            strip = el('div', {
+                class: 'upload-chunk-strip',
+                'aria-label': 'Chunk upload progress'
+            });
             this.appendChild(strip);
         }
         if (strip.childElementCount !== chunks.length) {
             strip.innerHTML = '';
             for (let i = 0; i < chunks.length; i++) {
-                const cell = document.createElement('div');
-                cell.className = 'upload-chunk-cell is-pending';
-                const fill = document.createElement('div');
-                fill.className = 'upload-chunk-fill';
-                cell.appendChild(fill);
+                const fill = el('div', {class: 'upload-chunk-fill'});
+                const cell = el('div', {class: 'upload-chunk-cell is-pending'}, fill);
                 strip.appendChild(cell);
             }
         }
@@ -293,13 +288,10 @@ export class RenopUploadEntry extends HTMLElement {
         this.appendChild(removeBtn);
 
         if (status === 'uploading' || status === 'done') {
-            const bar = document.createElement('div');
-            bar.className = 'upload-progress-bar';
-            const fill = document.createElement('div');
-            fill.className = 'upload-progress-fill';
+            const fill = el('div', {class: 'upload-progress-fill'});
             const pct = parseInt(String(progress).replace('%', ''), 10);
             fill.style.width = (status === 'done' ? 100 : (Number.isNaN(pct) ? 0 : pct)) + '%';
-            bar.appendChild(fill);
+            const bar = el('div', {class: 'upload-progress-bar'}, fill);
             this.appendChild(bar);
         }
 
@@ -328,14 +320,14 @@ if (!customElements.get('renop-upload-entry')) {
  * @returns {HTMLElement}
  */
 export function createUploadEntry({filename, filesize, ext, progress = '', index, total, status, onRemove} = {}) {
-    const entry = document.createElement('renop-upload-entry');
-    entry.setAttribute('filename', filename);
-    entry.setAttribute('filesize', filesize);
-    if (ext) entry.setAttribute('ext', ext);
-    if (progress) entry.setAttribute('progress', progress);
-    if (index !== undefined && index !== null) entry.setAttribute('index', String(index));
-    if (total !== undefined && total !== null) entry.setAttribute('total', String(total));
-    if (status) entry.setAttribute('status', status);
+    const attrs = {filename, filesize};
+    if (ext) attrs.ext = ext;
+    if (progress) attrs.progress = progress;
+    if (index !== undefined && index !== null) attrs.index = String(index);
+    if (total !== undefined && total !== null) attrs.total = String(total);
+    if (status) attrs.status = status;
+
+    const entry = el('renop-upload-entry', attrs);
     if (onRemove) entry.addEventListener('remove', onRemove);
     return entry;
 }

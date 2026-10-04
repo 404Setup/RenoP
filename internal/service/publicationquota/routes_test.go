@@ -67,7 +67,7 @@ func quotaRequest(t *testing.T, app *fiber.App, method, path, username string, b
 	var encoded []byte
 	if body != nil {
 		var err error
-		encoded, err = json.Marshal(body)
+		encoded, err = json.MarshalOf(body)
 		require.NoError(t, err)
 	}
 	request := httptest.NewRequest(method, path, bytes.NewReader(encoded))

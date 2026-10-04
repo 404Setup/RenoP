@@ -54,7 +54,7 @@ export default Object.freeze({
     "prompt.copied": "Copiado para a área de transferência",
     "footer.organization": "Organização",
     "footer.privacyPolicy": "Política de privacidade",
-    "footer.legalNotice": "Aviso legal",
+    "footer.legalNotice": "DMCA e aviso legal",
     "footer.allRights": "Todos os direitos reservados.",
     "footer.licenseNotice": "O código-fonte está disponível ao abrigo da Mozilla Public License 2.0.",
     "modal.close": "Fechar janela",

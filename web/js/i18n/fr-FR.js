@@ -29,6 +29,7 @@ export default {
 
     "footer.copyright": "RenoP est un logiciel libre publié sous la licence Mozilla Public License 2.0.",
 
+    "home.timeSinceUpdate": "RenoP n'a pas été mis à jour depuis {time}",
     "home.title": "Dépôt d’artefacts auto-hébergé",
     "home.lead": "Hébergez des dépôts Maven, Cargo, npm, Docker/OCI et de fichiers dans un même service, avec miroirs amont facultatifs et interface d’administration intégrée.",
     "home.download": "Télécharger",

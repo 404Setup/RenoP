@@ -32,6 +32,24 @@ import (
 	"github.com/skip2/go-qrcode"
 )
 
+type mfaVerifyTOTPRequest struct {
+	Code string `json:"code"`
+}
+
+type mfaFinishPasskeyRequest struct {
+	Credential json.RawMessage `json:"credential"`
+}
+
+type mfaConfirmTOTPRequest struct {
+	ID   string `json:"id"`
+	Code string `json:"code"`
+}
+
+type mfaUpdateSettingsRequest struct {
+	Passkey *bool `json:"passkey_second_factor"`
+	TOTP    *bool `json:"totp_enabled"`
+}
+
 func setupMFARoutes(auth fiber.Router, state *core.AppState) {
 	auth.Get("/mfa", func(c fiber.Ctx) error { return getMFAChallenge(c, state) })
 	auth.Delete("/mfa", func(c fiber.Ctx) error {
@@ -46,7 +64,7 @@ func setupMFARoutes(auth fiber.Router, state *core.AppState) {
 	auth.Put("/profile/mfa", func(c fiber.Ctx) error { return updateMFASettings(c, state) })
 }
 
-func readMFARequest(c fiber.Ctx, request any) error {
+func readMFARequest[T any](c fiber.Ctx, request *T) error {
 	err := readPasswordResetRequest(c, request)
 	if err != nil && !errors.Is(err, fiber.ErrRequestEntityTooLarge) && !errors.Is(err, fiber.ErrUnsupportedMediaType) {
 		return fiber.ErrBadRequest
@@ -119,9 +137,7 @@ func verifyMFATOTP(c fiber.Ctx, state *core.AppState) error {
 	if err := legal.RequireConsent(c, state); err != nil {
 		return err
 	}
-	var request struct {
-		Code string `json:"code"`
-	}
+	var request mfaVerifyTOTPRequest
 	if err := readMFARequest(c, &request); err != nil {
 		return err
 	}
@@ -181,9 +197,7 @@ func finishMFAPasskey(c fiber.Ctx, state *core.AppState) error {
 	if err := legal.RequireConsent(c, state); err != nil {
 		return err
 	}
-	var request struct {
-		Credential json.RawMessage `json:"credential"`
-	}
+	var request mfaFinishPasskeyRequest
 	if err := readMFARequest(c, &request); err != nil {
 		return err
 	}
@@ -271,10 +285,7 @@ func beginTOTPSetup(c fiber.Ctx, state *core.AppState) error {
 }
 
 func confirmTOTPSetup(c fiber.Ctx, state *core.AppState) error {
-	var request struct {
-		ID   string `json:"id"`
-		Code string `json:"code"`
-	}
+	var request mfaConfirmTOTPRequest
 	if err := readMFARequest(c, &request); err != nil {
 		return err
 	}
@@ -313,10 +324,7 @@ func confirmTOTPSetup(c fiber.Ctx, state *core.AppState) error {
 }
 
 func updateMFASettings(c fiber.Ctx, state *core.AppState) error {
-	var request struct {
-		Passkey *bool `json:"passkey_second_factor"`
-		TOTP    *bool `json:"totp_enabled"`
-	}
+	var request mfaUpdateSettingsRequest
 	if err := readMFARequest(c, &request); err != nil {
 		return err
 	}

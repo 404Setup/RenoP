@@ -30,7 +30,7 @@ func scanOAuthIdentity(row row) (*core.OAuthIdentity, error) {
 		return nil, nil
 	}
 	if err == nil {
-		err = json.Unmarshal([]byte(namespaces), &i.Namespaces)
+		err = json.UnmarshalOf([]byte(namespaces), &i.Namespaces)
 	}
 	return i, err
 }
@@ -101,7 +101,7 @@ func storeOAuthIdentityTx(tx *Tx, userID string, identity core.OAuthIdentity, no
 	if count >= 12 {
 		return core.ErrOAuthIdentityLinked
 	}
-	namespaces, err := json.Marshal(identity.Namespaces)
+	namespaces, err := json.MarshalOf(identity.Namespaces)
 	if err != nil {
 		return err
 	}
@@ -116,7 +116,7 @@ func storeOAuthIdentityTx(tx *Tx, userID string, identity core.OAuthIdentity, no
 }
 
 func refreshOAuthIdentityTx(tx *Tx, userID string, identity core.OAuthIdentity, now int64) error {
-	namespaces, err := json.Marshal(identity.Namespaces)
+	namespaces, err := json.MarshalOf(identity.Namespaces)
 	if err != nil {
 		return err
 	}

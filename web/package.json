@@ -18,12 +18,12 @@
   },
   "devDependencies": {
     "lightningcss": "^1.33.0",
-    "rolldown": "^1.2.8"
+    "rolldown": "^1.2.12"
   },
   "dependencies": {
     "@renop/ui": "workspace:*",
     "brotli-compress": "^2.2.2",
     "fflate": "^0.8.3",
-    "marked": "^18.0.13"
+    "marked": "^18.1.0"
   }
 }

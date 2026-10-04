@@ -95,7 +95,5 @@ if (!customElements.get('renop-repo-row')) {
  * @returns {HTMLElement}
  */
 export function createRepoRow(repoName) {
-    const row = document.createElement('renop-repo-row');
-    row.setAttribute('repo-name', repoName);
-    return row;
+    return el('renop-repo-row', {'repo-name': repoName});
 }

@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
-	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 
 	"renop/internal/config"
@@ -25,24 +24,27 @@ import (
 	"renop/internal/service/audit"
 	"renop/internal/utils"
 	"renop/internal/utils/protohttp"
+	"renop/pkg/id"
 	"renop/pkg/pb"
 )
 
 func SetupTokenRoutes(app fiber.Router, state *core.AppState, opChan chan<- TokenOp) {
-	api := app.Group("/tokens")
-	api.Get("", func(c fiber.Ctx) error { return FindAllTokens(c, state) })
-	api.Get("/:name", func(c fiber.Ctx) error { return FindToken(c, state) })
-	api.Put("/:name", func(c fiber.Ctx) error { return UpsertToken(c, state, opChan) })
-	api.Put("/:name/ban", func(c fiber.Ctx) error { return BanAccount(c, state) })
-	api.Get("/:name/ban", func(c fiber.Ctx) error { return GetAccountBanStatus(c, state) })
-	api.Delete("/:name/ban", func(c fiber.Ctx) error { return UnbanAccount(c, state) })
-	api.Get("/:name/retention", func(c fiber.Ctx) error { return GetAccountRetention(c, state) })
-	api.Delete("/:name/retention/email", func(c fiber.Ctx) error { return ReleaseAccountEmail(c, state) })
-	api.Delete("/:name/retention/audit", func(c fiber.Ctx) error { return PurgeAccountAudit(c, state) })
-	api.Delete("/:name", func(c fiber.Ctx) error { return DeleteToken(c, state, opChan) })
-	api.Get("/:name/sessions", func(c fiber.Ctx) error { return ListUserSessions(c, state) })
-	api.Post("/:name/sessions/revoke-all", func(c fiber.Ctx) error { return RevokeAllUserSessions(c, state) })
-	api.Delete("/:name/sessions/:session_id", func(c fiber.Ctx) error { return DeleteUserSession(c, state) })
+	for _, prefix := range []string{"/users", "/tokens"} {
+		api := app.Group(prefix)
+		api.Get("", func(c fiber.Ctx) error { return FindAllTokens(c, state) })
+		api.Get("/:name", func(c fiber.Ctx) error { return FindToken(c, state) })
+		api.Put("/:name", func(c fiber.Ctx) error { return UpsertToken(c, state, opChan) })
+		api.Put("/:name/ban", func(c fiber.Ctx) error { return BanAccount(c, state) })
+		api.Get("/:name/ban", func(c fiber.Ctx) error { return GetAccountBanStatus(c, state) })
+		api.Delete("/:name/ban", func(c fiber.Ctx) error { return UnbanAccount(c, state) })
+		api.Get("/:name/retention", func(c fiber.Ctx) error { return GetAccountRetention(c, state) })
+		api.Delete("/:name/retention/email", func(c fiber.Ctx) error { return ReleaseAccountEmail(c, state) })
+		api.Delete("/:name/retention/audit", func(c fiber.Ctx) error { return PurgeAccountAudit(c, state) })
+		api.Delete("/:name", func(c fiber.Ctx) error { return DeleteToken(c, state, opChan) })
+		api.Get("/:name/sessions", func(c fiber.Ctx) error { return ListUserSessions(c, state) })
+		api.Post("/:name/sessions/revoke-all", func(c fiber.Ctx) error { return RevokeAllUserSessions(c, state) })
+		api.Delete("/:name/sessions/:session_id", func(c fiber.Ctx) error { return DeleteUserSession(c, state) })
+	}
 }
 
 type accountBanRequest struct {
@@ -307,7 +309,7 @@ func UpsertToken(c fiber.Ctx, state *core.AppState, opChan chan<- TokenOp) error
 
 	var generatedSecret string
 	if isNew && (createReq.Secret == nil || *createReq.Secret == "") {
-		generatedSecret = uuid.NewString()
+		generatedSecret = id.New()
 	} else if createReq.Secret != nil {
 		generatedSecret = strings.Clone(*createReq.Secret)
 	}

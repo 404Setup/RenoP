@@ -32,6 +32,12 @@ import (
 	"renop/internal/utils"
 )
 
+type dockerAuthTokenResponse struct {
+	Token       string `json:"token"`
+	AccessToken string `json:"access_token"`
+	ExpiresIn   int    `json:"expires_in"`
+}
+
 var upstreamTokenCache dockerTokenCache
 
 // UseRemoteCache offloads upstream token values before the registry starts serving requests.
@@ -529,11 +535,7 @@ func exchangeUpstreamToken(
 		return "", 0, fmt.Errorf("token endpoint returned status %d", resp.StatusCode)
 	}
 
-	var result struct {
-		Token       string `json:"token"`
-		AccessToken string `json:"access_token"`
-		ExpiresIn   int    `json:"expires_in"`
-	}
+	var result dockerAuthTokenResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return "", 0, err
 	}

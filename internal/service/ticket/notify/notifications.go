@@ -127,7 +127,7 @@ func payloadBytes(task *core.ReviewTask, includeDecision bool) ([]byte, error) {
 		payload.DecisionReason = task.DecisionReason
 		payload.Outcome = task.Outcome
 	}
-	return json.Marshal(&payload)
+	return json.MarshalOf(&payload)
 }
 
 // NotifyPendingByID delivers one deduplicated pending-review notice to every eligible reviewer.
@@ -210,7 +210,7 @@ func reportTargetNames(state *core.AppState, task *core.ReviewTask) ([]string, e
 		return nil, nil
 	}
 	var ids []string
-	if len(task.TargetUserIDs) > 4000 || json.Unmarshal([]byte(task.TargetUserIDs), &ids) != nil || len(ids) > 100 {
+	if len(task.TargetUserIDs) > 4000 || json.UnmarshalOf([]byte(task.TargetUserIDs), &ids) != nil || len(ids) > 100 {
 		return nil, core.ErrReviewInvalidRequest
 	}
 	return state.GetDB().GetAccountNamesByIDs(ids)
@@ -225,7 +225,7 @@ func notifyReportTargets(state *core.AppState, task *core.ReviewTask) error {
 		return err
 	}
 	// Target notices omit the ticket capability, reporter, subject, description, and staff reply.
-	payload, err := json.Marshal(&reviewMessagePayload{Kind: core.TicketKindReport,
+	payload, err := json.MarshalOf(&reviewMessagePayload{Kind: core.TicketKindReport,
 		ResourceType: task.ResourceType, Repository: task.Repository, ResourceName: task.ResourceName,
 		ResourceVersion: task.ResourceVersion, Outcome: "upheld"})
 	if err != nil {

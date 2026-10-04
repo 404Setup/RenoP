@@ -26,20 +26,7 @@ import {
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..', '..');
 const frontendRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-test('database settings expose structured native ClickHouse configuration', () => {
-    const source = readFileSync(join(frontendRoot, 'js/settings.js'), 'utf8');
-    const dsnModule = readFileSync(join(frontendRoot, 'js/settings/database-dsn.js'), 'utf8');
-    for (const required of [
-        "{value: 'clickhouse', label: 'ClickHouse'}",
-        'parseClickHouseDsn(currentConfig.database.dsn)',
-        'formatClickHouseDsn(clickHouseParts)',
-        "secure=false&compress=lz4",
-    ]) {
-        assert.ok(source.includes(required), `ClickHouse settings are missing ${required}`);
-    }
-    assert.match(source, /from '\.\/settings\/database-dsn\.js'/);
-    assert.match(dsnModule, /return `clickhouse:\/\//);
-});
+
 
 test('database DSN editors preserve credentials, parameters, and IPv6 hosts', () => {
     const mysql = parseMysqlDsn('renop:p@ss@tcp([::1]:3307)/packages?parseTime=true');

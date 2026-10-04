@@ -27,7 +27,7 @@ export async function openAccountRetentionDialog(token, onUpdated) {
     if (!username) return;
     let status;
     try {
-        const response = await apiRequest(`/api/tokens/${encodeURIComponent(username)}/retention`);
+        const response = await apiRequest(`/api/users/${encodeURIComponent(username)}/retention`);
         if (!response.ok) {
             showAlert(await responseErrorMessage(response, 'users.retentionLoadFailed'), 'error');
             return;
@@ -62,7 +62,7 @@ export async function openAccountRetentionDialog(token, onUpdated) {
             await runButtonAction(event.currentTarget, async () => {
                 if (!(await showConfirm(t('users.releaseEmailConfirm', {username}), {danger: true}))) return;
                 const result = await apiRequest(
-                    `/api/tokens/${encodeURIComponent(username)}/retention/email`, {method: 'DELETE'});
+                    `/api/users/${encodeURIComponent(username)}/retention/email`, {method: 'DELETE'});
                 if (!result.ok) {
                     showAlert(await responseErrorMessage(result, 'users.releaseEmailFailed'), 'error');
                     return;
@@ -79,7 +79,7 @@ export async function openAccountRetentionDialog(token, onUpdated) {
             await runButtonAction(event.currentTarget, async () => {
                 if (!(await showConfirm(t('users.purgeAuditConfirm', {username}), {danger: true}))) return;
                 const result = await apiRequest(
-                    `/api/tokens/${encodeURIComponent(username)}/retention/audit`, {method: 'DELETE'});
+                    `/api/users/${encodeURIComponent(username)}/retention/audit`, {method: 'DELETE'});
                 if (!result.ok) {
                     showAlert(await responseErrorMessage(result, 'users.purgeAuditFailed'), 'error');
                     return;

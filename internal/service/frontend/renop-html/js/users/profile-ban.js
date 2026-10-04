@@ -22,7 +22,7 @@ export function createProfileBanAction(profile) {
         createIcon('warning'), el('span', {}, t('users.manageBan')));
     const refresh = async () => {
         try {
-            const response = await apiRequest(`/api/tokens/${encodeURIComponent(profile.username)}/ban`);
+            const response = await apiRequest(`/api/users/${encodeURIComponent(profile.username)}/ban`);
             if (!response.ok) return;
             const status = await response.json();
             if (!button.isConnected || !cachedIsManager) return;

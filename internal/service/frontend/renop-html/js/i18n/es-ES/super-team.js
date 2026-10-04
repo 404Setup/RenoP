@@ -15,7 +15,7 @@ export default Object.freeze({
     "superTeam.edit": "Editar equipo",
     "superTeam.back": "Volver a los equipos",
     "superTeam.empty": "Aún no hay equipos globales",
-    "superTeam.emptyHint": "Crea un equipo para reservar un espacio de nombres común para npm y Docker.",
+    "superTeam.emptyHint": "Crea un equipo para reservar un espacio de nombres compartido entre repositorios de paquetes.",
     "superTeam.prefix": "Prefijo inmutable",
     "superTeam.prefixHint": "Usa entre 2 y 64 letras minúsculas, números, guiones o guiones bajos. No podrá cambiarse.",
     "superTeam.name": "Nombre del equipo",

@@ -96,7 +96,7 @@ func (f *FrontendConfig) UnmarshalJSON(data []byte) error {
 	f.setDefaults()
 	type alias FrontendConfig
 	aux := (*alias)(f)
-	if err := json.Unmarshal(data, aux); err != nil {
+	if err := json.UnmarshalOf(data, aux); err != nil {
 		return err
 	}
 	f.normalizeFont()

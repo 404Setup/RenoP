@@ -337,4 +337,8 @@ export default Object.freeze({
     "profile.apiTokenEditDesc": "보안 비밀을 변경하지 않고 API 토큰 이름과 권한을 업데이트합니다.",
     "profile.apiTokenEdited": "API 토큰이 업데이트되었습니다",
     "profile.apiTokenEditFailed": "API 토큰 업데이트 실패",
+    "profile.trafficQuotaTitle": "다운로드 트래픽 할당량",
+    "profile.trafficQuotaDesc": "다운로드 트래픽 제한, 남은 할당량 및 롤링 복구 속도를 확인합니다.",
+    "profile.trafficQuotaLoading": "트래픽 할당량 로드 중…",
+    "profile.trafficQuotaLoadFailed": "트래픽 할당량을 로드하지 못했습니다.",
 });

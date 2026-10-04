@@ -19,7 +19,7 @@ import (
 
 	"renop/internal/config"
 	"renop/internal/core"
-	"renop/internal/service/ticketnotify"
+	"renop/internal/service/ticket/notify"
 	"renop/internal/utils"
 )
 

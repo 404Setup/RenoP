@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
-	"github.com/google/uuid"
 
 	"renop/internal/config"
 	"renop/internal/core"
@@ -31,6 +30,8 @@ import (
 	"renop/internal/service/publicationquota"
 	"renop/internal/service/repositorygate"
 	"renop/internal/service/statistics"
+	"renop/internal/service/traffic"
+	"renop/pkg/id"
 )
 
 // Handler handles all /v2 Docker/OCI registry endpoints.
@@ -768,6 +769,14 @@ func (h *Handler) HandleGetBlob(c fiber.Ctx, state *core.AppState) error {
 			if c.Method() == fiber.MethodHead {
 				return c.Status(fiber.StatusOK).Send(nil)
 			}
+			tm := traffic.GetManager(state)
+			if tm != nil {
+				session, err := tm.CheckAndDeduct(c, size, size, digest, false)
+				if err != nil {
+					return err
+				}
+				return c.SendStream(session.WrapReadCloser(reader), int(size))
+			}
 			return c.SendStream(reader, int(size))
 		}
 	}
@@ -796,7 +805,7 @@ func (h *Handler) HandleGetBlob(c fiber.Ctx, state *core.AppState) error {
 			mirrorPersist = mutableErr == nil
 		}
 		if mirrorPersist {
-			uploadUUID := uuid.NewString()
+			uploadUUID := id.New()
 			staged, sErr := h.Store.StageBlob(repoName, uploadUUID)
 			if sErr == nil && staged != nil {
 				defer staged.Discard()
@@ -815,6 +824,14 @@ func (h *Handler) HandleGetBlob(c fiber.Ctx, state *core.AppState) error {
 			}
 		}
 
+		tm := traffic.GetManager(state)
+		if tm != nil {
+			session, err := tm.CheckAndDeduct(c, uSize, uSize, digest, false)
+			if err != nil {
+				return err
+			}
+			return c.SendStream(session.WrapReadCloser(upstreamRc), int(uSize))
+		}
 		return c.SendStream(upstreamRc, int(uSize))
 	}
 
@@ -910,7 +927,7 @@ func (h *Handler) HandlePostUpload(c fiber.Ctx, state *core.AppState) error {
 		}
 	}
 
-	uploadUUID := uuid.NewString()
+	uploadUUID := id.New()
 	staged, err := h.Store.StageBlob(repoName, uploadUUID)
 	if err != nil {
 		return RespondError(c, fiber.StatusInternalServerError, ErrCodeBlobUploadInvalid, "failed to start upload", nil)

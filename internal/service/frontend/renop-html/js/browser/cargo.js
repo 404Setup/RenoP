@@ -9,7 +9,7 @@
  */
 
 import {createTicketReportButton} from '../ticket-report.js';
-import {el} from '@renop/ui/dom';
+import {el, retriggerClass} from '@renop/ui/dom';
 import {makeCustomSelect} from '@renop/ui/custom-select';
 import {morphElementHeight} from '@renop/ui/height-anim';
 import {apiRequest, getAuthHeaders} from '../api.js';
@@ -640,9 +640,7 @@ function buildCargoInspectionSection() {
                 }
             }
             if (animate) {
-                contentWrap.classList.remove('cargo-inspection-anim');
-                void contentWrap.offsetWidth;
-                contentWrap.classList.add('cargo-inspection-anim');
+                retriggerClass(contentWrap, 'cargo-inspection-anim');
             }
         };
 
@@ -1217,9 +1215,7 @@ function buildCargoPackageHero() {
             versionBadge.textContent = `v${curVer.version}`;
             versionBadge.hidden = false;
             if (animate) {
-                versionBadge.classList.remove('cargo-badge-anim');
-                void versionBadge.offsetWidth;
-                versionBadge.classList.add('cargo-badge-anim');
+                retriggerClass(versionBadge, 'cargo-badge-anim');
             }
         } else {
             versionBadge.hidden = true;
@@ -1229,16 +1225,8 @@ function buildCargoPackageHero() {
         updateDownloadBtn(curVer);
         updateDocsButtons(curVer);
         if (animate) {
-            if (downloadBtn && !downloadBtn.hidden) {
-                downloadBtn.classList.remove('cargo-badge-anim');
-                void downloadBtn.offsetWidth;
-                downloadBtn.classList.add('cargo-badge-anim');
-            }
-            if (docBtn && !docBtn.hidden) {
-                docBtn.classList.remove('cargo-badge-anim');
-                void docBtn.offsetWidth;
-                docBtn.classList.add('cargo-badge-anim');
-            }
+            if (downloadBtn && !downloadBtn.hidden) retriggerClass(downloadBtn, 'cargo-badge-anim');
+            if (docBtn && !docBtn.hidden) retriggerClass(docBtn, 'cargo-badge-anim');
         }
     };
 

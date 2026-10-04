@@ -26,11 +26,11 @@ import (
 
 	"renop/internal/config"
 	"renop/internal/core"
-	"renop/internal/service/apk"
-	"renop/internal/service/apt"
 	"renop/internal/service/conan"
-	"renop/internal/service/conda"
-	"renop/internal/service/rpm"
+	"renop/internal/service/nativepkg/apk"
+	"renop/internal/service/nativepkg/apt"
+	"renop/internal/service/nativepkg/conda"
+	"renop/internal/service/nativepkg/rpm"
 	"renop/internal/utils"
 )
 
@@ -96,7 +96,7 @@ func Inspect(format, relative string, reader io.ReaderAt, size int64) (*core.Nat
 		return nil, nil, core.ErrNativeInvalid
 	}
 	artifact := &core.NativeArtifact{Path: relative, Size: size}
-	var record any
+	var record []byte
 	var err error
 	switch format {
 	case config.RepositoryFormatConda:
@@ -106,7 +106,7 @@ func Inspect(format, relative string, reader io.ReaderAt, size int64) (*core.Nat
 			parts := strings.Split(relative, "/")
 			_, err = conda.Repodata(parts[0], []*conda.Package{pkg})
 			var version, build string
-			if json.Unmarshal(pkg.Record["name"], &artifact.Name) != nil || json.Unmarshal(pkg.Record["version"], &version) != nil || json.Unmarshal(pkg.Record["build"], &build) != nil {
+			if json.UnmarshalOf(pkg.Record["name"], &artifact.Name) != nil || json.UnmarshalOf(pkg.Record["version"], &version) != nil || json.UnmarshalOf(pkg.Record["build"], &build) != nil {
 				return nil, nil, core.ErrNativeInvalid
 			}
 			artifact.Version = version + "/" + parts[0] + "/" + build
@@ -114,7 +114,7 @@ func Inspect(format, relative string, reader io.ReaderAt, size int64) (*core.Nat
 			if path.Base(relative) != expected+".conda" && path.Base(relative) != expected+".tar.bz2" {
 				return nil, nil, core.ErrNativeInvalid
 			}
-			record = pkg
+			record, err = json.MarshalOf(pkg)
 		}
 	case config.RepositoryFormatAPK:
 		var pkg *apk.Package
@@ -125,7 +125,7 @@ func Inspect(format, relative string, reader io.ReaderAt, size int64) (*core.Nat
 			if path.Base(relative) != artifact.Name+"-"+pkg.Fields["V"]+".apk" {
 				return nil, nil, core.ErrNativeInvalid
 			}
-			record = pkg
+			record, err = json.MarshalOf(pkg)
 		}
 	case config.RepositoryFormatAPT:
 		var pkg *apt.Package
@@ -140,7 +140,7 @@ func Inspect(format, relative string, reader io.ReaderAt, size int64) (*core.Nat
 			if path.Base(relative) != artifact.Name+"_"+version+"_"+pkg.Fields["Architecture"]+".deb" {
 				return nil, nil, core.ErrNativeInvalid
 			}
-			record = pkg
+			record, err = json.MarshalOf(pkg)
 		}
 	case config.RepositoryFormatRPM:
 		var pkg *rpm.Package
@@ -151,7 +151,7 @@ func Inspect(format, relative string, reader io.ReaderAt, size int64) (*core.Nat
 			if path.Base(relative) != pkg.Name+"-"+pkg.Version+"-"+pkg.Release+"."+pkg.Architecture+".rpm" {
 				return nil, nil, core.ErrNativeInvalid
 			}
-			record = pkg
+			record, err = json.MarshalOf(pkg)
 		}
 	case config.RepositoryFormatConan:
 		var valid bool
@@ -164,14 +164,13 @@ func Inspect(format, relative string, reader io.ReaderAt, size int64) (*core.Nat
 	if err != nil || !core.ValidNativeResourceName(artifact.Name) || len(artifact.Version) == 0 || len(artifact.Version) > 255 {
 		return nil, nil, core.ErrNativeInvalid
 	}
-	if record == nil {
+	if len(record) == 0 {
 		return artifact, nil, nil
 	}
-	data, err := json.Marshal(record)
-	if err != nil || len(data) > 1<<20 {
+	if len(record) > 1<<20 {
 		return nil, nil, core.ErrNativeInvalid
 	}
-	return artifact, data, nil
+	return artifact, record, nil
 }
 
 func validateConanFile(relative string, reader io.ReaderAt, size int64) error {

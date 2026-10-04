@@ -29,6 +29,7 @@ export default {
 
     "footer.copyright": "RenoP 是按 Mozilla Public License 2.0 发布的开源软件。",
 
+    "home.timeSinceUpdate": "RenoP已经 {time} 没有更新了",
     "home.title": "自托管通用制品仓库",
     "home.lead": "单二进制部署，开箱即用。原生支持 Maven、Cargo、npm、Docker/OCI 与通用文件存储，内置直观管理后台与上游镜像代理，让依赖托管与分发更可靠、更自主。",
     "home.download": "立即下载",

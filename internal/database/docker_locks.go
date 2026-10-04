@@ -21,6 +21,16 @@ import (
 	"github.com/goccy/go-json"
 )
 
+type dockerLockDescriptor struct {
+	Digest string `json:"digest"`
+}
+
+type dockerLockManifest struct {
+	Config    dockerLockDescriptor   `json:"config"`
+	Layers    []dockerLockDescriptor `json:"layers"`
+	Manifests []dockerLockDescriptor `json:"manifests"`
+}
+
 func dockerLockTarget(repository, image, digest string) core.ResourceLockTarget {
 	return core.ResourceLockTarget{Format: "docker", Repository: repository, Name: image, Version: digest}
 }
@@ -69,15 +79,8 @@ func setDockerLockVersionsTx(tx *Tx, target core.ResourceLockTarget, source stri
 				_ = rows.Close()
 				return core.ErrResourceLockInvalid
 			}
-			type descriptor struct {
-				Digest string `json:"digest"`
-			}
-			var manifest struct {
-				Config    descriptor   `json:"config"`
-				Layers    []descriptor `json:"layers"`
-				Manifests []descriptor `json:"manifests"`
-			}
-			if err := json.Unmarshal([]byte(raw), &manifest); err != nil {
+			var manifest dockerLockManifest
+			if err := json.UnmarshalOf([]byte(raw), &manifest); err != nil {
 				_ = rows.Close()
 				return core.ErrDockerManifestInvalid
 			}

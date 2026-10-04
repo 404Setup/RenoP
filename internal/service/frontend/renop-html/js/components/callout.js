@@ -8,77 +8,27 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
+import {Callout, createCallout as createCalloutBase} from '@renop/ui/callout';
 import {createIcon} from './icon.js';
 
 /**
  * Inline callout banner custom element with icon and message.
  */
-export class RenopCallout extends HTMLElement {
-    /**
-     * @returns {string[]}
-     */
-    static get observedAttributes() {
-        return ['type', 'icon', 'message'];
-    }
-
-    /**
-     * Render when inserted into the DOM.
-     * @returns {void}
-     */
-    connectedCallback() {
-        this.render();
-    }
-
-    /**
-     * Re-render when observed attributes change.
-     * @returns {void}
-     */
-    attributeChangedCallback() {
-        this.render();
-    }
-
-    /**
-     * Rebuild callout content from attributes.
-     * @returns {void}
-     */
-    render() {
-        const type = this.getAttribute('type') || 'info';
-        const iconName = this.getAttribute('icon') || (type === 'danger' || type === 'warning' ? 'warning' : 'info');
-        const message = this.getAttribute('message') || '';
-
-        this.className = `cfg-callout cfg-callout--${type}`;
-        this.innerHTML = '';
-
-        const iconEl = createIcon(iconName, {class: 'cfg-callout-icon'});
-        this.appendChild(iconEl);
-
-        const textDiv = document.createElement('div');
-        if (message) {
-            textDiv.textContent = message;
-        }
-        this.appendChild(textDiv);
-    }
-}
+export class RenopCallout extends Callout {}
 
 if (!customElements.get('renop-callout')) {
     customElements.define('renop-callout', RenopCallout);
 }
 
 /**
- * Create a callout element for notices and warnings.
+ * Create a callout element for notices and warnings with icon rendering.
  * @param {string} [type='info'] - Visual tone (e.g. info, danger, warning).
  * @param {string|Node} [message=''] - Message text or a DOM node to append.
  * @param {string|null} [iconName=null] - Optional icon name override.
  * @returns {HTMLElement}
  */
 export function createCallout(type = 'info', message = '', iconName = null) {
-    const callout = document.createElement('renop-callout');
-    callout.setAttribute('type', type);
-    if (iconName) callout.setAttribute('icon', iconName);
-    if (typeof message === 'string') {
-        callout.setAttribute('message', message);
-    } else if (message instanceof Node) {
-        callout.appendChild(message);
-    }
-    return callout;
+    const effectiveIconName = iconName || (type === 'danger' || type === 'warning' ? 'warning' : 'info');
+    const iconNode = createIcon(effectiveIconName, {class: 'cfg-callout-icon'});
+    return createCalloutBase(type, message, iconNode);
 }

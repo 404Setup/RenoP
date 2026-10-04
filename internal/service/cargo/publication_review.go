@@ -21,7 +21,7 @@ import (
 
 	"renop/internal/config"
 	"renop/internal/core"
-	"renop/internal/service/ticketnotify"
+	"renop/internal/service/ticket/notify"
 	"renop/internal/utils"
 )
 
@@ -86,7 +86,7 @@ func cargoReviewPayload(state *core.AppState, task *core.ReviewTask) (*cargoPubl
 		return nil, err
 	}
 	var payload cargoPublicationReviewPayload
-	if err := json.Unmarshal(raw, &payload); err != nil || payload.Package == nil || payload.Version == nil {
+	if err := json.UnmarshalOf(raw, &payload); err != nil || payload.Package == nil || payload.Version == nil {
 		return nil, core.ErrReviewInvalidRequest
 	}
 	normalizedName, valid := NormalizeCrateName(payload.Package.Name)
@@ -111,7 +111,7 @@ func QueuePublicationReview(state *core.AppState, repo *config.Repository, pkg *
 	if state == nil || state.GetDB() == nil || repo == nil || pkg == nil || version == nil {
 		return nil, core.ErrDatabaseUnavailable
 	}
-	payload, err := json.Marshal(&cargoPublicationReviewPayload{Package: pkg, Version: version, Entry: entry})
+	payload, err := json.MarshalOf(&cargoPublicationReviewPayload{Package: pkg, Version: version, Entry: entry})
 	if err != nil {
 		return nil, err
 	}

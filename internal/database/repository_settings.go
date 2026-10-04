@@ -35,7 +35,7 @@ func encodeRepositorySettings(settings config.MavenSettings) ([]byte, error) {
 		}
 		names[strings.ToLower(name)] = true
 	}
-	data, err := json.Marshal(settings)
+	data, err := json.MarshalOf(settings)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func (db *DB) GetRepositorySettings() (*config.MavenSettings, error) {
 		return nil, errors.New("repository settings exceed the size limit")
 	}
 	var settings *config.MavenSettings
-	if err := json.Unmarshal([]byte(data), &settings); err != nil {
+	if err := json.UnmarshalOf([]byte(data), &settings); err != nil {
 		return nil, fmt.Errorf("decode repository settings: %w", err)
 	}
 	if settings == nil {

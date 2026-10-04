@@ -59,8 +59,8 @@ test('password controls live inside the account security card', () => {
     assert.match(page.slice(securityStart, securityEnd), /id="profile-password-form"/);
     assert.equal(page.indexOf('id="profile-password-form"'), page.lastIndexOf('id="profile-password-form"'));
     assert.doesNotMatch(page.slice(securityStart - 120, securityStart), /hidden/);
-    assert.match(security, /\$\(section\)\.prop\('hidden', false\)/);
-    assert.doesNotMatch(security, /catch[\s\S]*?\$\(section\)\.prop\('hidden', true\)/);
+    assert.match(security, /section\.hidden = false;/);
+    assert.doesNotMatch(security, /catch[\s\S]*?section\.hidden = true/);
 });
 
 test('authorized private panels render on the profile home instead of the editor', () => {

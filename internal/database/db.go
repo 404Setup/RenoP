@@ -12,6 +12,7 @@
 package database
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -39,6 +40,8 @@ type DB struct {
 	userIDCache      *TTLCache[string, string]
 	profileCache     *TTLCache[string, core.UserProfile]
 	ipBanCache       *TTLCache[string, int64]
+	apiTokenCache    *TTLCache[string, *core.APITokenCredential]
+	remoteCache      *cache.Remote
 	auditWriteMu     sync.Mutex
 	mailWriteMu      sync.Mutex
 }
@@ -47,6 +50,7 @@ type DB struct {
 // Account names remain local so revocation never depends on a remote read.
 // IP suspension decisions remain local for the same reason.
 func (db *DB) UseRemoteCache(remote *cache.Remote) {
+	db.remoteCache = remote
 	projectToken := func(token *core.AccessToken) *core.AccessToken {
 		if token == nil {
 			return nil
@@ -63,6 +67,42 @@ func (db *DB) UseRemoteCache(remote *cache.Remote) {
 	})
 	db.userIDCache.UseRemote(remote, nil)
 	db.profileCache.UseRemote(remote, nil)
+	if db.apiTokenCache != nil {
+		db.apiTokenCache.UseRemote(remote, nil)
+	}
+}
+
+// InvalidateCaches purges in-memory caches and flushes external Redis/Valkey cache if configured.
+func (db *DB) InvalidateCaches() {
+	if db == nil {
+		return
+	}
+	if db.tokenCache != nil {
+		db.tokenCache.Clear()
+	}
+	if db.tokenSecretCache != nil {
+		db.tokenSecretCache.Clear()
+	}
+	if db.sessionCache != nil {
+		db.sessionCache.Clear()
+	}
+	if db.userIDCache != nil {
+		db.userIDCache.Clear()
+	}
+	if db.profileCache != nil {
+		db.profileCache.Clear()
+	}
+	if db.ipBanCache != nil {
+		db.ipBanCache.Clear()
+	}
+	if db.apiTokenCache != nil {
+		db.apiTokenCache.Clear()
+	}
+	if db.remoteCache != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		_ = db.remoteCache.Flush(ctx)
+		cancel()
+	}
 }
 
 type Tx struct {
@@ -246,6 +286,7 @@ func newDatabaseCaches(db *DB) *DB {
 	db.userIDCache = NewTTLCacheWithCapacity[string, string](30*time.Minute, 8192)
 	db.profileCache = NewTTLCacheWithCapacity[string, core.UserProfile](10*time.Minute, 8192)
 	db.ipBanCache = NewTTLCacheWithCapacity[string, int64](30*time.Second, 8192)
+	db.apiTokenCache = NewTTLCacheWithCapacity[string, *core.APITokenCredential](10*time.Minute, 8192)
 	return db
 }
 
@@ -444,4 +485,47 @@ func (db *DB) EvictExpiredCaches() {
 	if db.ipBanCache != nil {
 		db.ipBanCache.EvictExpired()
 	}
+	if db.apiTokenCache != nil {
+		db.apiTokenCache.EvictExpired()
+	}
+}
+
+// GetCacheStats returns the total number of entries and estimated byte size of in-memory intermediate caches.
+func (db *DB) GetCacheStats() (int, uint64) {
+	if db == nil {
+		return 0, 0
+	}
+	var totalEntries int
+	var totalBytes uint64
+
+	if db.tokenCache != nil {
+		totalEntries += db.tokenCache.Len()
+		totalBytes += db.tokenCache.ByteSize()
+	}
+	if db.tokenSecretCache != nil {
+		totalEntries += db.tokenSecretCache.Len()
+		totalBytes += db.tokenSecretCache.ByteSize()
+	}
+	if db.sessionCache != nil {
+		totalEntries += db.sessionCache.Len()
+		totalBytes += db.sessionCache.ByteSize()
+	}
+	if db.userIDCache != nil {
+		totalEntries += db.userIDCache.Len()
+		totalBytes += db.userIDCache.ByteSize()
+	}
+	if db.profileCache != nil {
+		totalEntries += db.profileCache.Len()
+		totalBytes += db.profileCache.ByteSize()
+	}
+	if db.ipBanCache != nil {
+		totalEntries += db.ipBanCache.Len()
+		totalBytes += db.ipBanCache.ByteSize()
+	}
+	if db.apiTokenCache != nil {
+		totalEntries += db.apiTokenCache.Len()
+		totalBytes += db.apiTokenCache.ByteSize()
+	}
+
+	return totalEntries, totalBytes
 }

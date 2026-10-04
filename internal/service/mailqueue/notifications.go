@@ -20,8 +20,7 @@ import (
 	"renop/internal/core"
 	"renop/internal/mail"
 	"renop/internal/service/audit"
-
-	"github.com/google/uuid"
+	"renop/pkg/id"
 )
 
 func ignorableNotification(err error) bool {
@@ -56,7 +55,7 @@ func (w *worker) notifications(control mail.Control, now time.Time) error {
 				details = "Your account permissions have been updated."
 			}
 			_, _ = db.SaveMessageIfAbsent(&core.UserMessage{
-				ID:        uuid.NewString(),
+				ID:        id.New(),
 				Recipient: entry.Username,
 				Kind:      "permission_changed",
 				Severity:  "info",

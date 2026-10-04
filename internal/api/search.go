@@ -73,6 +73,8 @@ func SearchRepository(c fiber.Ctx, state *core.AppState) error {
 		response, err = searchDockerRepository(state, repo, user, query, limit)
 	} else if repo.NormalizedFormat() == config.RepositoryFormatNPM {
 		response, err = searchNPMRepository(state, repo, user, query, limit)
+	} else if repo.NormalizedFormat() == config.RepositoryFormatGithub || repo.NormalizedFormat() == config.RepositoryFormatGitLab {
+		response, err = searchGitRepository(repo, query, limit)
 	} else if repo.Engine().ManagedNative {
 		response, err = searchNativeRepository(state, repo, user, query, limit)
 	} else if repo.UsesModernMavenLayout() {
@@ -272,5 +274,62 @@ func searchModernMavenRepository(state *core.AppState, repo *config.Repository, 
 	total := domainTotal + artifactTotal
 	return &pb.RepositorySearchResponse{
 		Format: repo.ConfiguredFormat(), Results: results, Total: int32(total), HasMore: total > len(results),
+	}, nil
+}
+
+func searchGitRepository(repo *config.Repository, query string, limit int) (*pb.RepositorySearchResponse, error) {
+	if repo == nil || repo.GitRepo == nil {
+		return &pb.RepositorySearchResponse{
+			Format: repo.ConfiguredFormat(),
+		}, nil
+	}
+
+	q := strings.ToLower(strings.TrimSpace(query))
+	seen := make(map[string]bool)
+	var candidates []string
+	for _, r := range repo.GitRepo.RegisteredRepos {
+		if !seen[r] {
+			seen[r] = true
+			candidates = append(candidates, r)
+		}
+	}
+	for r := range repo.GitRepo.RepoQuotas {
+		if !seen[r] {
+			seen[r] = true
+			candidates = append(candidates, r)
+		}
+	}
+	if repo.GitRepo.Mode == "lax" && strings.Contains(q, "/") {
+		parts := strings.Split(query, "/")
+		if len(parts) == 2 && strings.TrimSpace(parts[0]) != "" && strings.TrimSpace(parts[1]) != "" {
+			normalizedSlug := strings.TrimSpace(parts[0]) + "/" + strings.TrimSpace(parts[1])
+			if !seen[normalizedSlug] {
+				candidates = append(candidates, normalizedSlug)
+			}
+		}
+	}
+
+	sort.Strings(candidates)
+
+	var results []*pb.RepositorySearchResult
+	for _, slug := range candidates {
+		if strings.Contains(strings.ToLower(slug), q) {
+			results = append(results, &pb.RepositorySearchResult{
+				Name:        slug,
+				Path:        slug,
+				Type:        "REPOSITORY",
+				Description: repo.ConfiguredFormat() + " mirror: " + slug,
+			})
+			if len(results) >= limit {
+				break
+			}
+		}
+	}
+
+	return &pb.RepositorySearchResponse{
+		Format:  repo.ConfiguredFormat(),
+		Results: results,
+		Total:   int32(len(results)),
+		HasMore: false,
 	}, nil
 }

@@ -359,14 +359,24 @@ func TestAuthorizeRequestProtectsAllRestrictedPrefixes(t *testing.T) {
 	guard := func(c fiber.Ctx) error { return authorizeRequest(c, GuestUser) }
 	app.Get("/api/settings/config", guard)
 	app.Get("/api/tokens", guard)
+	app.Get("/api/status/storage", guard)
+	app.Get("/api/status/database", guard)
+	app.Get("/api/status/cache", guard)
+	app.Get("/api/status/snapshots", guard)
 	app.Get("/api/status/instance", guard)
 
-	for _, path := range []string{"/api/settings/config", "/api/tokens", "/api/status/instance"} {
+	for _, path := range []string{"/api/settings/config", "/api/tokens", "/api/status/storage", "/api/status/database", "/api/status/cache", "/api/status/snapshots"} {
 		resp, err := app.Test(httptest.NewRequest("GET", path, nil))
 		assert.NoError(t, err)
 		assert.Equal(t, fiber.StatusUnauthorized, resp.StatusCode, path)
 		_ = resp.Body.Close()
 	}
+
+	// /api/status/instance is permitted for guests (which returns minimal compact data)
+	resp, err := app.Test(httptest.NewRequest("GET", "/api/status/instance", nil))
+	assert.NoError(t, err)
+	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+	_ = resp.Body.Close()
 }
 
 func TestSessionRevocationIsObservedImmediately(t *testing.T) {

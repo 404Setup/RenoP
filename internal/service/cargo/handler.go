@@ -20,6 +20,7 @@ import (
 	"renop/internal/config"
 	"renop/internal/core"
 	"renop/internal/service/repositorygate"
+	"renop/internal/utils"
 )
 
 // Handler routes Cargo-specific endpoints. Persistence remains behind Store so
@@ -153,6 +154,9 @@ func acquireIndexLock(state *core.AppState, lockPath string) (func(bool), error)
 }
 
 func errorResponse(c fiber.Ctx, statusCode int, detail string) error {
+	if (statusCode == fiber.StatusUnauthorized || statusCode == fiber.StatusForbidden) && utils.HasUploadBody(c) {
+		utils.RejectUploadEarly(c)
+	}
 	c.Set(fiber.HeaderContentType, "application/json; charset=utf-8")
 	return c.Status(statusCode).JSON(ErrorResponse{Errors: []ErrorDetail{{Detail: detail}}})
 }

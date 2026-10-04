@@ -9,6 +9,7 @@
  */
 
 import {showConfirm} from './alert.js';
+import {el, retriggerClass} from '@renop/ui/dom';
 
 export const MIN_PASSWORD_LENGTH = 6;
 export const MAX_PASSWORD_LENGTH = 72;
@@ -136,35 +137,22 @@ export function attachPasswordStrength(input) {
 
     input.maxLength = MAX_PASSWORD_LENGTH;
 
-    const meter = document.createElement('div');
-    meter.className = 'password-strength';
-    meter.setAttribute('data-level', '0');
-    meter.hidden = true;
-    meter.setAttribute('aria-live', 'polite');
+    const segments = el('div', {class: 'password-strength-segments', 'aria-hidden': 'true'},
+        ...Array.from({length: 4}, (_, i) =>
+            el('span', {class: 'password-strength-seg', style: `--seg-i: ${i}`})
+        )
+    );
 
-    const segments = document.createElement('div');
-    segments.className = 'password-strength-segments';
-    segments.setAttribute('aria-hidden', 'true');
-    for (let i = 0; i < 4; i++) {
-        const seg = document.createElement('span');
-        seg.className = 'password-strength-seg';
-        seg.style.setProperty('--seg-i', String(i));
-        segments.appendChild(seg);
-    }
+    const label = el('span', {class: 'password-strength-label'});
+    const hint = el('span', {class: 'password-strength-hint'});
+    const meta = el('div', {class: 'password-strength-meta'}, label, hint);
 
-    const meta = document.createElement('div');
-    meta.className = 'password-strength-meta';
-
-    const label = document.createElement('span');
-    label.className = 'password-strength-label';
-
-    const hint = document.createElement('span');
-    hint.className = 'password-strength-hint';
-
-    meta.appendChild(label);
-    meta.appendChild(hint);
-    meter.appendChild(segments);
-    meter.appendChild(meta);
+    const meter = el('div', {
+        class: 'password-strength',
+        'data-level': '0',
+        hidden: true,
+        'aria-live': 'polite'
+    }, segments, meta);
 
     input.insertAdjacentElement('afterend', meter);
 
@@ -207,9 +195,7 @@ export function attachPasswordStrength(input) {
         meter.hidden = false;
 
         if (wasHidden || wasLeaving) {
-            meter.classList.remove('password-strength--animate');
-            void meter.offsetWidth;
-            meter.classList.add('password-strength--animate');
+            retriggerClass(meter, 'password-strength--animate');
         }
     };
 
@@ -240,9 +226,7 @@ export function attachPasswordStrength(input) {
             showMeter();
 
             if (result.level !== prevLevel) {
-                meter.classList.remove('password-strength--level-change');
-                void meter.offsetWidth;
-                meter.classList.add('password-strength--level-change');
+                retriggerClass(meter, 'password-strength--level-change');
             }
         } else {
             hideMeter(true);

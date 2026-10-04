@@ -21,11 +21,12 @@ import (
 
 	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/protobuf/proto"
+
+	"renop/pkg/id"
 
 	"renop/internal/config"
 	"renop/internal/core"
@@ -62,14 +63,14 @@ func TestAccountBanRevokesEveryCredentialAndCanBeLifted(t *testing.T) {
 	apiSecret, err := core.GenerateAPITokenSecret()
 	require.NoError(t, err)
 	apiToken := &core.APIToken{
-		ID: uuid.NewString(), Name: "Automation", Scopes: []string{core.APITokenScopeRepositoryRead},
+		ID: id.New(), Name: "Automation", Scopes: []string{core.APITokenScopeRepositoryRead},
 		CreatedAt: time.Now().UnixMilli(),
 	}
 	require.NoError(t, db.CreateAPIToken("alice", apiToken, core.HashAPITokenSecret(apiSecret)))
 
 	newSession := func(username, token string) {
 		t.Helper()
-		session := &core.Session{PublicID: uuid.NewString(), Username: username, IP: "192.0.2.23", CreatedAt: time.Now().UnixMilli()}
+		session := &core.Session{PublicID: id.New(), Username: username, IP: "192.0.2.23", CreatedAt: time.Now().UnixMilli()}
 		session.LastActive.Store(time.Now().UnixMilli())
 		require.NoError(t, state.SaveSession(session, token))
 	}

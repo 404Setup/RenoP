@@ -28,12 +28,12 @@ func TestNativeRepositoryFormatsAreConfigurable(t *testing.T) {
 		if err := settings.Normalize(); err != nil {
 			t.Fatalf("format %s: %v", format, err)
 		}
-		data, err := json.Marshal(repo)
+		data, err := json.MarshalOf(repo)
 		if err != nil {
 			t.Fatal(err)
 		}
 		var restored Repository
-		if err := json.Unmarshal(data, &restored); err != nil {
+		if err := json.UnmarshalOf(data, &restored); err != nil {
 			t.Fatal(err)
 		}
 		if restored.ConfiguredFormat() != format || !restored.AllowRedeployment {
@@ -101,7 +101,7 @@ func TestDefaultPublicationQuotaConfigAndDeepCopy(t *testing.T) {
 	if cfg.PublicationQuota.FileLimit != 600 {
 		t.Fatal("publication quota config was not copied independently")
 	}
-	if err := json.Unmarshal([]byte(`{"publication_quota":{"period":"lifetime"}}`), &cfg); err != nil {
+	if err := json.UnmarshalOf([]byte(`{"publication_quota":{"period":"lifetime"}}`), &cfg); err != nil {
 		t.Fatal(err)
 	}
 	if cfg.PublicationQuota.Period != "lifetime" {
@@ -111,7 +111,7 @@ func TestDefaultPublicationQuotaConfigAndDeepCopy(t *testing.T) {
 
 func TestMirrorDefaultsJson(t *testing.T) {
 	var m Mirror
-	err := json.Unmarshal([]byte(`{}`), &m)
+	err := json.UnmarshalOf([]byte(`{}`), &m)
 	if err != nil {
 		t.Fatal(err)
 	}

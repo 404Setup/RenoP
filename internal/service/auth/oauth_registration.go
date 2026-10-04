@@ -40,7 +40,7 @@ func beginOAuthRegistration(c fiber.Ctx, state *core.AppState, record core.Trans
 	if oauthAvatarUsesToken(p, info.AvatarURL) {
 		profile.AvatarToken = sealOAuthAvatarToken(state, &profile, accessToken)
 	}
-	payload, err := json.Marshal(profile)
+	payload, err := json.MarshalOf(profile)
 	if err != nil {
 		return result("identity_failed")
 	}

@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
 
 	"renop/internal/config"
@@ -34,7 +35,7 @@ import (
 	"renop/internal/service/npm"
 	"renop/internal/service/repositorygate"
 	"renop/internal/service/storage"
-	"renop/internal/service/ticketnotify"
+	"renop/internal/service/ticket/notify"
 	"renop/internal/utils"
 )
 
@@ -43,9 +44,13 @@ const maxReviewRequestBytes = 16 << 10
 var ticketMutationLock sync.Mutex
 
 type decisionRequest struct {
-	Decision   string `json:"decision"`
-	ReasonCode string `json:"reason_code"`
-	Reason     string `json:"reason"`
+	Decision                         string `json:"decision"`
+	ReasonCode                       string `json:"reason_code"`
+	Reason                           string `json:"reason"`
+	AdjustedMaxVersionSizeBytes      *int64 `json:"adjusted_max_version_size_bytes,omitempty"`
+	AdjustedMaxDailyTrafficBytes     *int64 `json:"adjusted_max_daily_traffic_bytes,omitempty"`
+	AdjustedRetainLatestWorkflowRuns *bool  `json:"adjusted_retain_latest_workflow_runs,omitempty"`
+	AdjustedRetainLatestReleases     *bool  `json:"adjusted_retain_latest_releases,omitempty"`
 }
 
 func reviewError(c fiber.Ctx, err error) error {
@@ -580,6 +585,93 @@ func decidePublicationTask(c fiber.Ctx, state *core.AppState, username string,
 	return decided, nil
 }
 
+type gitRepoQuotaPayload struct {
+	TargetRepo               string `json:"target_repo,omitempty"`
+	MaxVersionSizeBytes      int64  `json:"max_version_size_bytes"`
+	MaxDailyTrafficBytes     int64  `json:"max_daily_traffic_bytes"`
+	RetainLatestWorkflowRuns bool   `json:"retain_latest_workflow_runs"`
+	RetainLatestReleases     bool   `json:"retain_latest_releases"`
+	Reason                   string `json:"reason"`
+}
+
+func decideGitRepoTask(_ fiber.Ctx, state *core.AppState, username string, existing *core.ReviewTask, request decisionRequest) (*core.ReviewTask, error) {
+	now := time.Now().UnixMilli()
+	if request.Decision == core.ReviewStatusApproved {
+		state.Inner.ConfigWriteLock.Lock()
+		defer state.Inner.ConfigWriteLock.Unlock()
+
+		cfg := state.Inner.Config.Load()
+		if cfg == nil {
+			return nil, core.ErrDatabaseUnavailable
+		}
+		repo, exists := cfg.Maven.Repositories[existing.Repository]
+		if !exists || repo == nil {
+			return nil, core.ErrReviewInvalidRequest
+		}
+		if repo.GitRepo == nil {
+			repo.GitRepo = config.DefaultGitRepoPolicy()
+		}
+
+		if existing.Kind == core.ReviewKindGitRepoRegistration {
+			targetRepo := strings.TrimSpace(existing.ResourceKey)
+			if !repo.GitRepo.IsRepoRegistered(targetRepo) {
+				repo.GitRepo.RegisteredRepos = append(repo.GitRepo.RegisteredRepos, targetRepo)
+			}
+		} else if existing.Kind == core.ReviewKindGitRepoQuota {
+			payloadBytes, err := state.GetDB().GetReviewTaskPayload(existing.ID)
+			if err != nil && !errors.Is(err, core.ErrReviewTaskNotFound) {
+				return nil, err
+			}
+			var qp gitRepoQuotaPayload
+			if len(payloadBytes) > 0 {
+				_ = json.UnmarshalOf(payloadBytes, &qp)
+			}
+			targetRepo := strings.TrimSpace(qp.TargetRepo)
+			if targetRepo == "" {
+				targetRepo = strings.TrimSpace(existing.ResourceKey)
+			}
+
+			var maxVer = qp.MaxVersionSizeBytes
+			if request.AdjustedMaxVersionSizeBytes != nil {
+				maxVer = *request.AdjustedMaxVersionSizeBytes
+			}
+			var maxDaily = qp.MaxDailyTrafficBytes
+			if request.AdjustedMaxDailyTrafficBytes != nil {
+				maxDaily = *request.AdjustedMaxDailyTrafficBytes
+			}
+			var retainRuns = qp.RetainLatestWorkflowRuns
+			if request.AdjustedRetainLatestWorkflowRuns != nil {
+				retainRuns = *request.AdjustedRetainLatestWorkflowRuns
+			}
+			var retainRels = qp.RetainLatestReleases
+			if request.AdjustedRetainLatestReleases != nil {
+				retainRels = *request.AdjustedRetainLatestReleases
+			}
+
+			if targetRepo != "" {
+				repo.GitRepo.SetRepoQuota(targetRepo, &config.GitRepoQuota{
+					MaxVersionSizeBytes:      maxVer,
+					MaxDailyTrafficBytes:     maxDaily,
+					RetainLatestWorkflowRuns: &retainRuns,
+					RetainLatestReleases:     &retainRels,
+				})
+			} else {
+				repo.GitRepo.MaxVersionSizeBytes = maxVer
+				repo.GitRepo.MaxDailyTrafficBytes = maxDaily
+				repo.GitRepo.RetainLatestWorkflowRuns = &retainRuns
+				repo.GitRepo.RetainLatestReleases = &retainRels
+			}
+		}
+
+		if err := state.GetDB().SaveRepositorySettings(cfg.Maven); err != nil {
+			return nil, err
+		}
+		state.Inner.Config.Store(cfg)
+	}
+
+	return state.GetDB().DecideReviewTask(existing.ID, username, request.Decision, request.Reason, now)
+}
+
 func decideTask(c fiber.Ctx, state *core.AppState) error {
 	username, _, err := currentUser(c)
 	if err != nil {
@@ -615,6 +707,8 @@ func decideTask(c fiber.Ctx, state *core.AppState) error {
 		release := repositorygate.AcquireAllMigrations()
 		task, err = state.GetDB().DecideReviewTask(existing.ID, username, request.Decision, request.Reason, time.Now().UnixMilli())
 		release()
+	} else if existing.Kind == core.ReviewKindGitRepoRegistration || existing.Kind == core.ReviewKindGitRepoQuota {
+		task, err = decideGitRepoTask(c, state, username, existing, request)
 	} else {
 		task, err = state.GetDB().DecideReviewTask(
 			existing.ID, username, request.Decision, request.Reason, time.Now().UnixMilli())

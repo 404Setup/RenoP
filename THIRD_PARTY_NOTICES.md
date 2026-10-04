@@ -157,7 +157,6 @@ marketing site and documentation, not the server binary.
 | `protobufjs`                                             | 8.7.2   | BSD-3-Clause       | Frontend protobuf runtime / codegen                                                                       |
 | `long`                                                   | 5.3.2   | Apache-2.0         | Transitive protobufjs runtime dependency                                                                  |
 | `protobufjs-cli`                                         | 2.6.2   | BSD-3-Clause       | Frontend protobuf codegen (dev)                                                                           |
-| `jquery`                                                 | 4.0.0   | MIT                | Shared frontend DOM utility; OpenJS Foundation and contributors                                           |
 | `marked`                                                 | 18.0.10 | MIT                | Markdown rendering (frontend docs & website)                                                              |
 | `brotli-compress`                                        | 2.2.2   | Apache-2.0 AND MIT | Pure-JavaScript Brotli decompression in the website conversion worker; decoder copyright 2017 Google Inc. |
 | `fflate`                                                 | 0.8.3   | MIT                | Browser-side legacy ZIP generation; copyright (c) 2026 Arjun Barrett                                      |

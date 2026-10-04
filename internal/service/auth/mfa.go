@@ -95,10 +95,12 @@ type mfaChallenge struct {
 	attempts                                              int
 }
 
-var mfaChallenges = struct {
+type mfaChallengeStore struct {
 	sync.Mutex
 	entries map[string]*mfaChallenge
-}{entries: make(map[string]*mfaChallenge)}
+}
+
+var mfaChallenges = mfaChallengeStore{entries: make(map[string]*mfaChallenge)}
 
 // EnsureMFAKey persists the server-owned authenticator encryption key before accepting requests.
 func EnsureMFAKey(state *core.AppState, path string) error {

@@ -20,7 +20,6 @@ import (
 
 	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
-	"github.com/google/uuid"
 
 	"renop/internal/config"
 	"renop/internal/core"
@@ -30,6 +29,7 @@ import (
 	"renop/internal/service/docker"
 	"renop/internal/utils"
 	"renop/internal/utils/protohttp"
+	"renop/pkg/id"
 	"renop/pkg/pb"
 )
 
@@ -844,8 +844,8 @@ func InviteDockerOwnersAPI(c fiber.Ctx, state *core.AppState) error {
 			return dockerAPIError(c, fiber.StatusBadRequest, "user_not_found", fmt.Sprintf("User %s does not exist", recipient))
 		}
 
-		invID := uuid.NewString()
-		payloadBytes, _ := json.Marshal(fiber.Map{
+		invID := id.New()
+		payloadBytes, _ := json.MarshalOf(fiber.Map{
 			"repository": repoName,
 			"image":      imageName,
 			"inviter":    user.Username,
@@ -909,7 +909,7 @@ type dockerLevelRequest struct {
 
 func resolveDockerMemberReference(db core.StateDB, reference string) (string, error) {
 	reference = strings.TrimSpace(reference)
-	if _, err := uuid.Parse(reference); err != nil {
+	if id.Validate(reference) != nil {
 		return reference, nil
 	}
 	profile, err := db.GetUserProfileByID(reference)

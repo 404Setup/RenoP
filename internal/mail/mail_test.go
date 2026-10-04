@@ -536,7 +536,7 @@ func TestMailTemplatesCoverEveryAccountLanguage(t *testing.T) {
 			require.Equal(t, catalog.Messages[index].Title, message.Subject)
 		}
 	}
-	require.NoError(t, json.Unmarshal([]byte(`{"locale":"zh-CN"}`), &cfg))
+	require.NoError(t, json.UnmarshalOf([]byte(`{"locale":"zh-CN"}`), &cfg))
 	message, err := cfg.Render("test", TemplateData{Locale: "unknown"})
 	require.NoError(t, err)
 	require.Contains(t, message.HTML, `lang="en-US"`)
@@ -679,7 +679,7 @@ func TestTencentApprovedTemplateAndVariableLimit(t *testing.T) {
 		variables := textAt(body, "Template", "TemplateData")
 		require.LessOrEqual(t, len(variables), 800)
 		var values map[string]string
-		require.NoError(t, json.Unmarshal([]byte(variables), &values))
+		require.NoError(t, json.UnmarshalOf([]byte(variables), &values))
 		require.Equal(t, "Code: 12345678\n&lt;untrusted&gt;", values["text"])
 		require.Equal(t, "Test", values["subject"])
 		return &http.Response{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(`{"Response":{"MessageId":"provider-id"}}`))}, nil

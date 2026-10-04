@@ -28,7 +28,7 @@ import (
 	"renop/internal/service/audit"
 	"renop/internal/service/auth"
 	"renop/internal/service/gpg"
-	"renop/internal/service/javadocs"
+	"renop/internal/service/maven/javadocs"
 	"renop/internal/service/nativepkg"
 	"renop/internal/service/repositorygate"
 	"renop/internal/service/status"

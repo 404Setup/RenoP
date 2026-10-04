@@ -15,9 +15,9 @@ import (
 
 	"renop/internal/config"
 	"renop/internal/core"
-	"renop/internal/service/apk"
 	"renop/internal/service/gpg"
-	"renop/internal/service/rpm"
+	"renop/internal/service/nativepkg/apk"
+	"renop/internal/service/nativepkg/rpm"
 )
 
 func ValidateSigningKey(format, key string) error {

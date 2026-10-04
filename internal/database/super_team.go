@@ -18,9 +18,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
-
 	"renop/internal/core"
+	"renop/pkg/id"
 )
 
 const (
@@ -336,9 +335,12 @@ func (db *DB) ListVisibleUserSuperTeams(userID, viewer string, administrator, mo
 	if db == nil || db.SQLDB == nil {
 		return nil, 0, core.ErrDatabaseUnavailable
 	}
-	userID = strings.ToLower(strings.TrimSpace(userID))
-	if _, err := uuid.Parse(userID); err != nil || limit < 1 || limit > 100 || offset < 0 {
+	userID = strings.TrimSpace(userID)
+	if id.Validate(userID) != nil || limit < 1 || limit > 100 || offset < 0 {
 		return nil, 0, errors.New("user global team page is invalid")
+	}
+	if strings.Contains(userID, "-") {
+		userID = strings.ToLower(userID)
 	}
 	viewerID := ""
 	if viewer = strings.TrimSpace(viewer); viewer != "" && !strings.EqualFold(viewer, "guest") {
@@ -881,9 +883,9 @@ func (db *DB) CreateSuperTeamInvitations(invitations []*core.SuperTeamInvitation
 			}
 		}
 		message := messages[index]
-		var dedupeKey any
+		var dedupeKey *string
 		if message.DedupeKey != "" {
-			dedupeKey = message.DedupeKey
+			dedupeKey = &message.DedupeKey
 		}
 		if _, err := tx.Exec(`INSERT INTO user_messages (`+messageColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			message.ID, message.Recipient, message.Sender, message.Kind, message.Severity,
@@ -988,7 +990,7 @@ func (db *DB) ForceAddSuperTeamMembers(prefix, actor string, usernames []string,
 			if err := insertAcceptedMembershipMessage(tx, target.username, actor, "super_team_invite",
 				"Global team membership added",
 				fmt.Sprintf("You were added to global team %s with T%d permission.", teamName, level),
-				map[string]any{"prefix": prefix, "inviter": actor, "level": level}, actedAt); err != nil {
+				MembershipInvitePayload{Prefix: prefix, Inviter: actor, Level: level}, actedAt); err != nil {
 				return fmt.Errorf("create global team membership message: %w", err)
 			}
 		}

@@ -15,6 +15,12 @@ export function renderProfile() {
     return el("div", {"class": "tab-content", "id": "tab-content-profile", "style": "display: none;"},
         el("div", {"class": "profile-route-view", "id": "profile-public-view"}),
         el("div", {"class": "profile-route-view", "hidden": true, "id": "profile-edit-view"},
+            el("button", {"class": "profile-route-back", "id": "profile-edit-back-btn", "type": "button"},
+                svg("svg", {"fill": "none", "stroke": "currentColor", "stroke-linecap": "round", "stroke-linejoin": "round", "stroke-width": "2", "viewBox": "0 0 24 24"},
+                    svg("path", {"d": "m15 18-6-6 6-6"})
+                ),
+                el("span", {"data-i18n": "profile.back"}, "Back")
+            ),
             el("div", {"class": "profile-hero"},
                 el("div", {"class": "profile-avatar-ring"},
                     el("div", {"class": "profile-avatar-inner", "id": "profile-avatar-initials"}, "?")
@@ -394,6 +400,48 @@ export function renderProfile() {
                             "id": "btn-manage-api-tokens",
                             "type": "button"
                         }, "Manage API Tokens ")
+                    )
+                ),
+                el("div", {"class": "profile-settings-section", "id": "profile-traffic-quota-section"},
+                    el("div", {"class": "profile-section-card-header"},
+                        el("div", {
+                                "aria-hidden": "true",
+                                "class": "profile-section-icon profile-section-icon--traffic",
+                                "style": "background: rgba(14, 165, 233, 0.1); color: #0ea5e9;"
+                            },
+                            svg("svg", {
+                                    "fill": "none",
+                                    "height": "20",
+                                    "stroke": "currentColor",
+                                    "stroke-linecap": "round",
+                                    "stroke-linejoin": "round",
+                                    "stroke-width": "2",
+                                    "viewBox": "0 0 24 24",
+                                    "width": "20",
+                                    "xmlns": "http://www.w3.org/2000/svg"
+                                },
+                                svg("path", {"d": "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"}),
+                                svg("polyline", {"points": "7 10 12 15 17 10"}),
+                                svg("line", {"x1": "12", "x2": "12", "y1": "15", "y2": "3"})
+                            )
+                        ),
+                        el("div", {"class": "profile-section-meta"},
+                            el("h3", {
+                                "class": "profile-section-title",
+                                "data-i18n": "profile.trafficQuotaTitle"
+                            }, "Download Traffic Quota"),
+                            el("p", {
+                                "class": "profile-section-desc",
+                                "data-i18n": "profile.trafficQuotaDesc"
+                            }, "View your download traffic limits, remaining quota, and rolling recovery rate.")
+                        )
+                    ),
+                    el("div", {"class": "profile-section-body", "id": "profile-traffic-quota-body"},
+                        el("p", {
+                            "class": "profile-security-hint",
+                            "data-i18n": "profile.trafficQuotaLoading",
+                            "id": "profile-traffic-quota-status"
+                        }, "Loading traffic quota…")
                     )
                 ),
                 el("div", {"class": "profile-settings-section"},

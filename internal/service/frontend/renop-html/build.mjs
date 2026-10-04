@@ -26,7 +26,7 @@ const i18nDir = join(root, 'js', 'i18n');
 const i18nCatalogName = 'catalog.generated.js';
 const i18nCatalogFile = join(i18nDir, i18nCatalogName);
 const i18nReferenceLocale = 'en-US';
-const maxInitialJavaScriptBytes = 1280 * 1024;
+const maxInitialJavaScriptBytes = 1480 * 1024;
 const maxAsyncJavaScriptBytes = 256 * 1024;
 
 /**

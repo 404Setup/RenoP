@@ -110,7 +110,7 @@ func runAssemble(args []string) error {
 			return fmt.Errorf("Expected exactly %d packages and target descriptors.", len(targets))
 		}
 		var desc TargetDescriptor
-		if err := json.Unmarshal(jsonData, &desc); err != nil {
+		if err := json.UnmarshalOf(jsonData, &desc); err != nil {
 			return fmt.Errorf("Invalid package descriptor for %s/%s", goos, goarch)
 		}
 

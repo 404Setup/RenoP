@@ -1,0 +1,184 @@
+/*
+ * Copyright (c) 2026 404Setup. All rights reserved.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * If it is not possible or desirable to put the notice in a particular file, then You may include the notice in a location (such as a LICENSE file in a relevant directory) where a recipient would be likely to look for such a notice.
+ *
+ * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
+ */
+
+/* Section component - collapsible settings section with icon header */
+
+.renop-section {
+    position: relative;
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 0.875rem;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.03);
+    transition: border-color 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    transform-origin: center top;
+}
+
+.renop-section:hover {
+    border-color: color-mix(in srgb, var(--link-hover-color) 32%, var(--border-color));
+    box-shadow: 0 6px 20px -4px color-mix(in srgb, var(--link-hover-color) 12%, transparent),
+                0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.renop-section-header {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 18px 20px;
+    cursor: pointer;
+    background: transparent;
+    transition: background-color 0.2s ease;
+    user-select: none;
+}
+
+.renop-section-header:hover {
+    background-color: color-mix(in srgb, var(--link-hover-color) 4%, transparent);
+}
+
+.renop-section-icon {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--link-color) 8%, transparent);
+    color: var(--link-color);
+    transition: background-color 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+                transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.renop-section-header:hover .renop-section-icon {
+    background: color-mix(in srgb, var(--link-color) 12%, transparent);
+    transform: scale(1.05);
+}
+
+.renop-section-icon svg {
+    width: 20px;
+    height: 20px;
+    stroke-width: 2;
+}
+
+.renop-section-meta {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.renop-section-title {
+    font-size: 1.0625rem;
+    font-weight: 600;
+    color: var(--text-color);
+    margin: 0;
+}
+
+.renop-section-subtitle {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin: 0;
+    line-height: 1.4;
+}
+
+.renop-section-chevron {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    color: var(--text-secondary);
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+                color 0.2s ease;
+}
+
+.renop-section-chevron svg {
+    width: 18px;
+    height: 18px;
+    stroke-width: 2.5;
+}
+
+.renop-section[open] .renop-section-chevron {
+    transform: rotate(180deg);
+}
+
+.renop-section-fields {
+    padding: 0 20px 20px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* Animation states */
+.renop-section--entering {
+    animation: sectionEnter 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.renop-section--leaving {
+    animation: sectionLeave 0.32s cubic-bezier(0.25, 1, 0.5, 1) both;
+    pointer-events: none;
+}
+
+@keyframes sectionEnter {
+    0% {
+        opacity: 0;
+        transform: translateY(-10px) scale(0.98);
+        box-shadow: 0 0 0 transparent;
+    }
+    55% {
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--link-hover-color) 28%, transparent),
+                    0 8px 24px color-mix(in srgb, var(--link-hover-color) 10%, transparent);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes sectionLeave {
+    0% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(-8px) scale(0.96);
+    }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .renop-section-header {
+        padding: 16px;
+        gap: 12px;
+    }
+
+    .renop-section-icon {
+        width: 32px;
+        height: 32px;
+    }
+
+    .renop-section-icon svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .renop-section-title {
+        font-size: 1rem;
+    }
+
+    .renop-section-fields {
+        padding: 0 16px 16px 16px;
+    }
+}

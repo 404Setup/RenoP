@@ -32,6 +32,7 @@ export default Object.freeze({
     "captcha.scope.super_team_create": "创建全局团队",
     "captcha.scope.domain_create": "创建发布域",
     "captcha.scope.package_create": "创建包",
+    "captcha.scope.anti_abuse": "防刷与高频访问验证",
     "captcha.loading": "正在加载验证…",
     "captcha.complete": "请完成安全验证后继续。",
     "captcha.consent": "请在 Cookie 偏好中允许第三方验证后继续。",

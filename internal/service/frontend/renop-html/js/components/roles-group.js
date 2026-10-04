@@ -70,8 +70,8 @@ if (!customElements.get('renop-roles-group')) {
  * @returns {HTMLElement}
  */
 export function createRolesGroup(title, subtitle) {
-    const group = document.createElement('renop-roles-group');
-    if (title) group.setAttribute('title', title);
-    if (subtitle) group.setAttribute('subtitle', subtitle);
-    return group;
+    const attrs = {};
+    if (title) attrs.title = title;
+    if (subtitle) attrs.subtitle = subtitle;
+    return el('renop-roles-group', attrs);
 }

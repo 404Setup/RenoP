@@ -431,7 +431,7 @@ func TestMailNotificationEventsAndRetirement(t *testing.T) {
 	require.True(t, differentNetwork("192.0.2.1", "198.51.100.2"))
 	require.False(t, differentNetwork("192.0.2.1", "192.0.2.254"))
 	require.False(t, differentNetwork("", "192.0.2.1"))
-	encoded, err := json.Marshal(cfg.Mail)
+	encoded, err := json.MarshalOf(cfg.Mail)
 	require.NoError(t, err)
 	require.NotContains(t, string(encoded), key)
 }

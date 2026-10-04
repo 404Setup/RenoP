@@ -98,14 +98,14 @@ type SessionDBDto struct {
 
 // MarshalJSON snapshots atomic activity state for external cache serialization.
 func (s *Session) MarshalJSON() ([]byte, error) {
-	return json.Marshal(SessionDBDto{PublicID: s.PublicID, Username: s.Username, IP: s.IP,
+	return json.MarshalOf(SessionDBDto{PublicID: s.PublicID, Username: s.Username, IP: s.IP,
 		UserAgent: s.UserAgent, CreatedAt: s.CreatedAt, LastActive: s.LastActive.Load(), LoginMethod: s.LoginMethod})
 }
 
 // UnmarshalJSON restores a session snapshot without copying atomic values.
 func (s *Session) UnmarshalJSON(data []byte) error {
 	var dto SessionDBDto
-	if err := json.Unmarshal(data, &dto); err != nil {
+	if err := json.UnmarshalOf(data, &dto); err != nil {
 		return err
 	}
 	s.PublicID, s.Username, s.IP, s.UserAgent = dto.PublicID, dto.Username, dto.IP, dto.UserAgent

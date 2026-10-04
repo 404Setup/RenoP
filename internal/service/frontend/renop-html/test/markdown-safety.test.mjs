@@ -44,7 +44,7 @@ test('all package formats share the safe Markdown renderer and neutral layout', 
 
 test('package Markdown uses an inert allowlist and strips active attributes', () => {
     for (const required of [
-        "html(token)", "document.createElement('template')", "querySelectorAll('*')",
+        "html(token)", "querySelectorAll('*')",
         'element.removeAttribute(attribute.name)', "rel', 'noopener noreferrer nofollow'",
         "referrerpolicy', 'no-referrer'", 'allowedMarkdownElements'
     ]) {

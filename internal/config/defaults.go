@@ -183,6 +183,7 @@ func DefaultConfig() *Config {
 		SuperTeams:            DefaultSuperTeamConfig(),
 		PublicationQuota:      DefaultPublicationQuotaConfig(),
 		Cache:                 DefaultCacheConfig(),
+		TrafficLimit:          DefaultTrafficLimitConfig(),
 		Mail:                  mail.DefaultConfig(),
 		Registration:          DefaultRegistrationConfig(),
 		MavenDomains:          DefaultMavenDomainConfig(),

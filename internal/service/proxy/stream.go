@@ -19,12 +19,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
-
 	"renop/internal/artifactstore"
 	"renop/internal/core"
 	"renop/internal/service/index"
 	"renop/internal/utils"
+	"renop/pkg/id"
 )
 
 var errInsufficientProxyDiskSpace = errors.New("insufficient disk space for proxy cache")
@@ -232,7 +231,7 @@ func CreateProxyStream(
 	dir := filepath.Dir(localFilePath)
 	_ = os.MkdirAll(dir, 0755)
 
-	uniqueID := uuid.New().String()
+	uniqueID := id.New()
 	tmpPath := localFilePath + ".tmp." + uniqueID
 
 	file, err := os.Create(tmpPath)

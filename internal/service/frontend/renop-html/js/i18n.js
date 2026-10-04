@@ -438,6 +438,19 @@ const ERROR_KEY_MAP = {
     'URL points to an internal or private IP': 'error.urlInternalIp',
     'Users cannot clear their own activity logs': 'error.cannotClearOwnAuditLogs',
     'WebAuthn initialization failed': 'error.webauthnInitFailed',
+    'Repository is already registered': 'repos.gitAlreadyRegistered',
+    'Registration review is already pending for this repository': 'repos.gitRegistrationPending',
+    'You are not an owner or member of this repository organization': 'repos.gitNotOwner',
+    'You must link your GitHub account before registering a repository': 'repos.gitIdentityNotLinked',
+    'You must link your GitLab account before registering a repository': 'repos.gitIdentityNotLinked',
+    'GitHub OAuth is not configured on this server': 'repos.gitOauthDisabled',
+    'GitLab OAuth is not configured on this server': 'repos.gitOauthDisabled',
+    'Invalid repository format, expected owner/repository': 'repos.gitInvalidFormat',
+    'Registration cooldown active': 'repos.gitRegistrationCooldown',
+    'target_repo is required': 'repos.gitTargetRequired',
+    'A quota review request is already pending for this repository': 'repos.gitQuotaPendingError',
+    'Quota request cooldown active': 'repos.gitQuotaCooldownError',
+    'Not authorized to request quota adjustments for this repository': 'repos.gitQuotaNotAuthorized',
 };
 
 /**
@@ -595,14 +608,12 @@ export async function setLanguage(lang, source = 'user-set', signal) {
  * @returns {{current: string, source: string, available: string[], revision: number}} Status snapshot.
  */
 export function getLanguage() {
-    const status = {
+    return {
         current: currentLang,
         source: currentSource,
         revision: languageRequestID,
         available: getAvailableLanguages()
     };
-    console.log('[i18n] Current language status:', status);
-    return status;
 }
 
 /**

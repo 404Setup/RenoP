@@ -18,8 +18,8 @@ import (
 
 	"renop/internal/config"
 	"renop/internal/core"
-	"renop/internal/service/apt"
-	"renop/internal/service/nativesign"
+	"renop/internal/service/nativepkg/apt"
+	"renop/internal/service/nativepkg/nativesign"
 
 	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
@@ -90,13 +90,13 @@ func handleAPTIndex(c fiber.Ctx, state *core.AppState, repo *config.Repository, 
 			if err != nil {
 				return nil, err
 			}
-			return json.Marshal(pkg)
+			return json.MarshalOf(pkg)
 		},
 		render: func(records [][]byte) ([]byte, error) {
 			packages := make([]*apt.Package, 0, len(records))
 			for _, record := range records {
 				var pkg apt.Package
-				if err := json.Unmarshal(record, &pkg); err != nil {
+				if err := json.UnmarshalOf(record, &pkg); err != nil {
 					return nil, err
 				}
 				packages = append(packages, &pkg)

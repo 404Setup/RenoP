@@ -273,18 +273,20 @@ func logNativeMutation(c fiber.Ctx, state *core.AppState, details string) {
 	audit.Log(state, &core.AuditLogEntry{Username: username, Operator: operator, AuthMethod: method, SessionID: session, IP: ip, Action: audit.ActionNativeResourceUpdate, Details: details})
 }
 
+type mutateNativeResourceRequest struct {
+	Name        string `json:"name"`
+	Version     string `json:"version"`
+	Description string `json:"description"`
+	SigningKey  string `json:"signing_key"`
+	Archived    *bool  `json:"archived"`
+}
+
 func mutateNativeResource(c fiber.Ctx, state *core.AppState) error {
 	repo, db, user, err := nativeAPIContext(c, state, true)
 	if err != nil {
 		return storage.NativeErrorResponse(c, err)
 	}
-	var request struct {
-		Name        string `json:"name"`
-		Version     string `json:"version"`
-		Description string `json:"description"`
-		SigningKey  string `json:"signing_key"`
-		Archived    *bool  `json:"archived"`
-	}
+	var request mutateNativeResourceRequest
 	if err := utils.ReadJSONLimited(c, &request, 72<<10); err != nil {
 		return storage.NativeErrorResponse(c, core.ErrNativeInvalid)
 	}
@@ -385,9 +387,10 @@ func deprecateNativeResource(c fiber.Ctx, state *core.AppState) error {
 	}
 	name := c.Query("name")
 	if name == "" {
-		var body struct {
+		type deprecatePackageBody struct {
 			Name string `json:"name"`
 		}
+		var body deprecatePackageBody
 		if utils.ReadJSONLimited(c, &body, 4096) == nil {
 			name = body.Name
 		}
@@ -431,13 +434,7 @@ func setNativeResourceLock(c fiber.Ctx, state *core.AppState) error {
 	if user == nil || !user.CheckModeratePermission(repo.Name) || auth.CurrentCredentialKind(c) != "session" || session == "" || c.Cookies("renop_session") != session {
 		return storage.NativeErrorResponse(c, core.ErrResourceLockPermission)
 	}
-	var request struct {
-		Name       string `json:"name"`
-		Version    string `json:"version"`
-		Mode       string `json:"mode"`
-		Reason     string `json:"reason"`
-		ReasonText string `json:"reason_text"`
-	}
+	var request core.ResourceLockRequest
 	if err := utils.ReadJSONLimited(c, &request, 4096); err != nil {
 		return storage.NativeErrorResponse(c, core.ErrResourceLockInvalid)
 	}
@@ -483,16 +480,18 @@ func setNativeResourceLock(c fiber.Ctx, state *core.AppState) error {
 	return c.JSON(fiber.Map{"ok": true})
 }
 
+type mutateNativeMemberRequest struct {
+	Name     string `json:"name"`
+	Username string `json:"username"`
+	Level    *int   `json:"level"`
+}
+
 func mutateNativeMember(c fiber.Ctx, state *core.AppState) error {
 	repo, db, user, err := nativeAPIContext(c, state, true)
 	if err != nil {
 		return storage.NativeErrorResponse(c, err)
 	}
-	var request struct {
-		Name     string `json:"name"`
-		Username string `json:"username"`
-		Level    *int   `json:"level"`
-	}
+	var request mutateNativeMemberRequest
 	if err := utils.ReadJSONLimited(c, &request, 2048); err != nil || request.Level == nil {
 		return storage.NativeErrorResponse(c, core.ErrNativeInvalid)
 	}

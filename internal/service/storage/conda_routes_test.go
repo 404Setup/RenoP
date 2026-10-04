@@ -52,7 +52,7 @@ func condaStoragePackage(t *testing.T) []byte {
 	}
 	payload := []byte("example\n")
 	sum := sha256.Sum256(payload)
-	paths, err := json.Marshal(map[string]any{"paths_version": 1, "paths": []map[string]any{{"_path": "share/example.txt", "path_type": "hardlink", "sha256": hex.EncodeToString(sum[:]), "size_in_bytes": len(payload)}}})
+	paths, err := json.MarshalOf(map[string]any{"paths_version": 1, "paths": []map[string]any{{"_path": "share/example.txt", "path_type": "hardlink", "sha256": hex.EncodeToString(sum[:]), "size_in_bytes": len(payload)}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +185,7 @@ func TestCondaNativeIndexUploadDownloadAndDelete(t *testing.T) {
 	var document struct {
 		Packages map[string]json.RawMessage `json:"packages.conda"`
 	}
-	if code != 200 || json.Unmarshal(body, &document) != nil || len(document.Packages) != 1 {
+	if code != 200 || json.UnmarshalOf(body, &document) != nil || len(document.Packages) != 1 {
 		t.Fatalf("generated index: %d %s", code, body)
 	}
 	if headers.Get("ETag") == "" {

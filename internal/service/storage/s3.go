@@ -36,10 +36,10 @@ import (
 	"renop/internal/config"
 	"renop/internal/core"
 	"renop/internal/repositorycapacity"
-	"renop/internal/service/cargodocs"
+	"renop/internal/service/cargo/docs"
 	"renop/internal/service/gpg"
 	"renop/internal/service/index"
-	"renop/internal/service/javadocs"
+	"renop/internal/service/maven/javadocs"
 	"renop/internal/service/proxy"
 	"renop/internal/utils"
 )

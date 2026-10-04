@@ -20,9 +20,10 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
+
+	"renop/pkg/id"
 
 	"renop/internal/config"
 	"renop/internal/core"
@@ -104,7 +105,7 @@ func TestSessionNotificationIsolation(t *testing.T) {
 	apiSecret, err := core.GenerateAPITokenSecret()
 	require.NoError(t, err)
 	require.NoError(t, db.CreateAPIToken("alice", &core.APIToken{
-		ID: uuid.NewString(), Name: "Message client", Scopes: []string{core.APITokenScopeMessagesRead}, CreatedAt: now,
+		ID: id.New(), Name: "Message client", Scopes: []string{core.APITokenScopeMessagesRead}, CreatedAt: now,
 	}, core.HashAPITokenSecret(apiSecret)))
 	for _, name := range []string{"target", "other"} {
 		session := &core.Session{PublicID: name, Username: "alice", CreatedAt: now}

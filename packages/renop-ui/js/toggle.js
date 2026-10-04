@@ -9,7 +9,6 @@
  */
 
 import {el} from './dom.js';
-import {$} from './jquery.js';
 
 /**
  * Boolean toggle switch custom element.
@@ -27,7 +26,7 @@ export class RenopToggle extends HTMLElement {
      * @returns {boolean}
      */
     get checked() {
-        const input = $(this).find('input[type="checkbox"]').get(0);
+        const input = this.querySelector('input[type="checkbox"]');
         return input ? input.checked : this.hasAttribute('checked');
     }
 
@@ -38,8 +37,8 @@ export class RenopToggle extends HTMLElement {
     set checked(val) {
         if (val) this.setAttribute('checked', '');
         else this.removeAttribute('checked');
-        const input = $(this).find('input[type="checkbox"]').get(0);
-        if (input) $(input).prop('checked', !!val);
+        const input = this.querySelector('input[type="checkbox"]');
+        if (input) input.checked = !!val;
     }
 
     /**
@@ -64,32 +63,30 @@ export class RenopToggle extends HTMLElement {
      */
     render() {
         if (this._rendered) {
-            const input = $(this).find('input[type="checkbox"]').get(0);
+            const input = this.querySelector('input[type="checkbox"]');
             if (input) {
-                $(input).prop({
-                    checked: this.hasAttribute('checked'),
-                    disabled: this.hasAttribute('disabled'),
-                });
+                input.checked = this.hasAttribute('checked');
+                input.disabled = this.hasAttribute('disabled');
             }
             return;
         }
         this._rendered = true;
-        $(this).empty();
+        this.replaceChildren();
         const label = el('label', {class: 'cfg-toggle'});
         const input = el('input', {
             type: 'checkbox',
             checked: this.hasAttribute('checked'),
             disabled: this.hasAttribute('disabled'),
         });
-        $(input).on('change', (e) => {
+        input.addEventListener('change', (e) => {
             e.stopPropagation();
             if (input.checked) this.setAttribute('checked', '');
             else this.removeAttribute('checked');
             this.dispatchEvent(new CustomEvent('change', {bubbles: true, detail: {checked: input.checked}}));
         });
         const track = el('span', {class: 'cfg-toggle-track'}, el('span', {class: 'cfg-toggle-thumb'}));
-        $(label).append(input, track);
-        $(this).append(label);
+        label.append(input, track);
+        this.append(label);
     }
 }
 
@@ -104,11 +101,11 @@ if (typeof customElements !== 'undefined' && !customElements.get('renop-toggle')
  * @returns {HTMLElement}
  */
 export function createToggle(checked = false, onChange = null) {
-    const toggle = $('<renop-toggle>').get(0);
-    if (checked) $(toggle).attr('checked', '');
+    const toggle = document.createElement('renop-toggle');
+    if (checked) toggle.setAttribute('checked', '');
     if (onChange) {
-        $(toggle).on('change', (e) => {
-            const detail = e.originalEvent?.detail || e.detail;
+        toggle.addEventListener('change', (e) => {
+            const detail = e.detail;
             if (detail && typeof detail.checked === 'boolean') {
                 onChange(detail.checked);
             }

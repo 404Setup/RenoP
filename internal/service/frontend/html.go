@@ -38,6 +38,11 @@ var (
 	indexHTMLCache = core.NewFileByteCache(1 << 20)
 )
 
+// GetIndexHTMLCache returns the in-memory cache for rendered HTML assets.
+func GetIndexHTMLCache() *core.FileByteCache {
+	return indexHTMLCache
+}
+
 const assetRoot = "renop-html"
 
 // resolveAssetPath maps public URL paths to embed.FS paths.

@@ -33,7 +33,7 @@ func NewValue[V any](remote *Remote, value V, ttl time.Duration, project func(V)
 	if project != nil {
 		entry.Index = project(value)
 	}
-	if data, err := json.Marshal(value); err == nil {
+	if data, err := json.MarshalOf(value); err == nil {
 		entry.Blob, _ = remote.Put(data, ttl)
 	}
 	return entry
@@ -49,7 +49,7 @@ func (v Value[V]) Read() (V, bool) {
 	if err != nil {
 		return value, false
 	}
-	if err := json.Unmarshal(data, &value); err != nil {
+	if err := json.UnmarshalOf(data, &value); err != nil {
 		return value, false
 	}
 	return value, true

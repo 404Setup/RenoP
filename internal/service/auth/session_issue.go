@@ -15,13 +15,13 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
-	"github.com/google/uuid"
 
 	"renop/internal/config"
 	"renop/internal/core"
 	"renop/internal/service/audit"
 	"renop/internal/service/legal"
 	"renop/internal/utils"
+	"renop/pkg/id"
 )
 
 func issueBrowserSession(c fiber.Ctx, state *core.AppState, user *config.User, method string) error {
@@ -50,8 +50,8 @@ func issueBrowserSession(c fiber.Ctx, state *core.AppState, user *config.User, m
 	if err != nil {
 		return err
 	}
-	sessionToken := uuid.NewString()
-	publicID := uuid.NewString()
+	sessionToken := id.New()
+	publicID := id.New()
 	now := time.Now().UnixMilli()
 	credentialID, _ := c.Locals("verified_fido_credential").([]byte)
 	session := &core.Session{

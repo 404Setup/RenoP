@@ -21,9 +21,9 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	chdriver "github.com/ClickHouse/clickhouse-go/v2/lib/driver"
-	"github.com/google/uuid"
 
 	"renop/internal/config"
+	"renop/pkg/id"
 )
 
 type clickHouseBackend struct {
@@ -208,7 +208,7 @@ func (backend *clickHouseBackend) queryRow(query string, args ...any) row {
 func (backend *clickHouseBackend) begin() (*clickHouseTransaction, error) {
 	backend.lock.Lock()
 	return &clickHouseTransaction{
-		backend: backend, id: strings.ReplaceAll(uuid.NewString(), "-", ""), snapshots: make(map[string]string),
+		backend: backend, id: id.New(), snapshots: make(map[string]string),
 	}, nil
 }
 

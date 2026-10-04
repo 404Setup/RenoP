@@ -50,10 +50,10 @@
     overflow-wrap: anywhere;
     cursor: pointer;
     transition: background-color 0.22s cubic-bezier(0.2, 0, 0, 1),
-                border-color 0.22s cubic-bezier(0.2, 0, 0, 1),
-                color 0.22s cubic-bezier(0.2, 0, 0, 1),
-                transform 0.22s cubic-bezier(0.2, 0, 0, 1),
-                box-shadow 0.22s cubic-bezier(0.2, 0, 0, 1);
+    border-color 0.22s cubic-bezier(0.2, 0, 0, 1),
+    color 0.22s cubic-bezier(0.2, 0, 0, 1),
+    transform 0.22s cubic-bezier(0.2, 0, 0, 1),
+    box-shadow 0.22s cubic-bezier(0.2, 0, 0, 1);
     position: relative;
 }
 
@@ -112,15 +112,103 @@
     display: none;
 }
 
-#settings-subnav:not([hidden]) {
+#settings-subnav {
+    display: grid;
+    grid-template-rows: 0fr;
+    margin-bottom: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: grid-template-rows 0.34s cubic-bezier(0.2, 0, 0, 1),
+    margin-bottom 0.34s cubic-bezier(0.2, 0, 0, 1),
+    opacity 0.22s ease;
+}
+
+#settings-subnav[data-open="true"] {
+    grid-template-rows: 1fr;
+    margin-bottom: 1rem;
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.settings-subnav-track {
+    min-height: 0;
+    overflow: hidden;
+}
+
+.settings-subnav-list {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.25rem;
-    margin-bottom: 1rem;
+    gap: 0.35rem;
+    width: fit-content;
+    max-width: 100%;
+    padding: 0.3rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.95rem;
+    background: color-mix(in srgb, var(--text-color) 4%, var(--card-bg));
 }
 
 #settings-subnav .settings-nav-item {
-    border-color: var(--border-color);
+    justify-content: center;
+    padding: 0.5rem 1.1rem;
+    border-color: transparent;
+    border-radius: 0.7rem;
+    font-size: 0.82rem;
+    font-weight: 500;
+    line-height: 1.25;
+    text-align: center;
+    white-space: nowrap;
+    overflow-wrap: normal;
+    color: color-mix(in srgb, var(--text-color) 72%, transparent);
+}
+
+#settings-subnav[data-open="true"] .settings-subnav-item {
+    animation: settings-subnav-item-in 0.34s cubic-bezier(0.2, 0, 0, 1) backwards;
+    animation-delay: calc(var(--subnav-index, 0) * 40ms);
+}
+
+#settings-subnav .settings-nav-item:hover {
+    color: var(--link-hover-color);
+    background: color-mix(in srgb, var(--accent-color) 10%, transparent);
+}
+
+#settings-subnav .settings-nav-item[aria-current="page"] {
+    color: var(--link-hover-color);
+    background: var(--card-bg);
+    border-color: color-mix(in srgb, var(--accent-color) 28%, transparent);
+    font-weight: 600;
+    transform: none;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+#settings-subnav .settings-nav-item:active,
+#settings-subnav .settings-nav-item[aria-current="page"]:active {
+    transform: scale(0.97);
+}
+
+/* Draft marker overlays the corner so the label stays optically centered. */
+#settings-subnav .settings-draft-dot {
+    position: absolute;
+    top: 0.3rem;
+    right: 0.4rem;
+}
+
+@keyframes settings-subnav-item-in {
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #settings-subnav,
+    #settings-subnav[data-open="true"] .settings-subnav-item {
+        transition: none;
+        animation: none;
+    }
 }
 
 .settings-page-header {

@@ -19,8 +19,9 @@ import (
 )
 
 type Options struct {
-	Enabled   bool
-	Temporary bool
+	Enabled    bool
+	Temporary  bool
+	UpdateUUID bool
 }
 
 // ParseOptions parses server-mode flags without touching data or starting services.
@@ -30,6 +31,7 @@ func ParseOptions(args []string) (Options, error) {
 	flags.SetOutput(io.Discard)
 	flags.BoolVar(&options.Enabled, "demo", false, "serve read-only preset data")
 	flags.BoolVar(&options.Temporary, "demo-temp", false, "allow demo settings and repository definitions to be saved")
+	flags.BoolVar(&options.UpdateUUID, "update-uuid", false, "scan and update legacy UUIDs across all tables to compact IDs")
 	if err := flags.Parse(args); err != nil {
 		return options, err
 	}

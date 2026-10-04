@@ -60,7 +60,7 @@ func GenerateDockerToken(signingSecret []byte, subject, audience string, access 
 		Access:    access,
 	}
 
-	claimsJSON, err := json.Marshal(claims)
+	claimsJSON, err := json.MarshalOf(claims)
 	if err != nil {
 		return "", err
 	}
@@ -103,7 +103,7 @@ func ValidateDockerToken(signingSecret []byte, tokenStr string) (*TokenClaims, e
 	}
 
 	var claims TokenClaims
-	if err := json.Unmarshal(claimsBytes, &claims); err != nil {
+	if err := json.UnmarshalOf(claimsBytes, &claims); err != nil {
 		return nil, errors.New("invalid claims JSON")
 	}
 

@@ -22,8 +22,10 @@ import (
 	"github.com/llxisdsh/pb"
 	"golang.org/x/time/rate"
 
+	"renop/internal/config"
 	"renop/internal/core"
 	"renop/internal/service/auth"
+	"renop/internal/service/captcha"
 	"renop/internal/utils"
 	"renop/internal/utils/ratelimit"
 )
@@ -248,7 +250,13 @@ func anomalyMiddleware(state *core.AppState, downloads *ratelimit.Gate) fiber.Ha
 		isDownload := repositoryRead(c.Method(), c.Path(), cfg)
 		if isDownload {
 			if delay := downloads.Allow(ratelimit.NetworkKey(ip)); delay > 0 {
-				return downloadRateResponse(c, delay)
+				if cfg.Captcha.EffectiveScope(config.CaptchaAntiAbuse) != "" {
+					if err := captcha.Require(c, state, config.CaptchaAntiAbuse); err != nil {
+						return err
+					}
+				} else {
+					return downloadRateResponse(c, delay)
+				}
 			}
 		}
 		if db := state.GetDB(); db != nil {
@@ -267,16 +275,28 @@ func anomalyMiddleware(state *core.AppState, downloads *ratelimit.Gate) fiber.Ha
 		}
 
 		if state.Inner.AnomalyFailures != nil && state.Inner.AnomalyFailures.Count(ip) >= MaxAuthenticationFailures {
-			c.Set(fiber.HeaderConnection, "close")
-			return c.SendStatus(fiber.StatusForbidden)
+			if cfg.Captcha.EffectiveScope(config.CaptchaAntiAbuse) != "" {
+				if err := captcha.Require(c, state, config.CaptchaAntiAbuse); err != nil {
+					return err
+				}
+			} else {
+				c.Set(fiber.HeaderConnection, "close")
+				return c.SendStatus(fiber.StatusForbidden)
+			}
 		}
 
 		verifiedAuthentication := isVerifiedAuthenticatedRequest(c, state)
 		if !verifiedAuthentication && !isDownload {
 			limiter := GlobalIPLimiter.GetLimiter(ratelimit.NetworkKey(ip))
 			if !limiter.Allow() {
-				c.Set(fiber.HeaderConnection, "close")
-				return c.SendStatus(fiber.StatusTooManyRequests)
+				if cfg.Captcha.EffectiveScope(config.CaptchaAntiAbuse) != "" {
+					if err := captcha.Require(c, state, config.CaptchaAntiAbuse); err != nil {
+						return err
+					}
+				} else {
+					c.Set(fiber.HeaderConnection, "close")
+					return c.SendStatus(fiber.StatusTooManyRequests)
+				}
 			}
 		}
 

@@ -81,7 +81,8 @@ test('ticket details use server actions and refresh only after successful claims
         ['ticket.action.process', 'ticket.action.complete', 'ticket.action.close']);
     assert.equal(context.ticketRouteFromPath('/account/reviews/'), true);
     assert.equal(context.ticketRouteFromPath('/account/tickets'), true);
-    assert.equal(context.ticketRouteFromPath('/account/tickets/unrelated'), false);
+    assert.equal(context.ticketRouteFromPath('/account/tickets/one'), true);
+    assert.equal(context.ticketRouteFromPath('/account/tickets/one/unrelated'), false);
 });
 
 test('ticket entry resets stale filters and account changes reset the requester perspective', async () => {

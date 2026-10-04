@@ -328,12 +328,30 @@ html.dark .review-status.is-pending {
     color: var(--accent-color);
 }
 
+@keyframes ticketViewFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 /* --- Ticket Conversation View (GitHub Issues style) --- */
 .ticket-conversation-view {
     display: grid;
     gap: 1.25rem;
     min-width: 0;
     width: 100%;
+    animation: ticketViewFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ticket-conversation-view {
+        animation: none;
+    }
 }
 
 .ticket-header {

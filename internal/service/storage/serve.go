@@ -21,6 +21,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 
 	"renop/internal/core"
+	"renop/internal/service/traffic"
 	"renop/internal/utils"
 )
 
@@ -68,10 +69,51 @@ func serveLocalFile(c fiber.Ctx, state *core.AppState, localFilePath, pathStr, c
 		c.Set(fiber.HeaderLastModified, *lastModifiedHeader)
 	}
 
+	if fileSize <= 0 && !IsS3Enabled(localFilePath) {
+		if st, stErr := os.Stat(localFilePath); stErr == nil {
+			fileSize = st.Size()
+		}
+	}
+
+	tm := traffic.GetManager(state)
+	subject, _ := tm.ExtractSubject(c)
+	if reqRange := c.Get(fiber.HeaderRange); reqRange != "" && fileSize > 0 {
+		start, _, ok := utils.ParseRange(reqRange, uint64(fileSize))
+		if ok && start > 0 && tm.IsBreakpointRevoked(subject, pathStr) {
+			c.Set(fiber.HeaderContentRange, "bytes */"+strconv.FormatInt(fileSize, 10))
+			return c.Status(fiber.StatusRequestedRangeNotSatisfiable).SendString("Breakpoint resumption not permitted. Please restart download from the beginning.")
+		}
+		if ok && start == 0 {
+			tm.ClearBreakpointRevocation(subject, pathStr)
+		}
+	} else {
+		tm.ClearBreakpointRevocation(subject, pathStr)
+	}
+
+	requestedSize := fileSize
+	if reqRange := c.Get(fiber.HeaderRange); reqRange != "" && fileSize > 0 {
+		start, end, ok := utils.ParseRange(reqRange, uint64(fileSize))
+		if ok {
+			requestedSize = int64(end - start + 1)
+		}
+	}
+
+	isS3Redirect := false
 	if IsS3Enabled(localFilePath) {
-		s3Key := utils.GetS3Key(localFilePath)
 		s3Cfg := GetS3ConfigForPath(localFilePath)
 		if s3Cfg != nil && s3Cfg.RedirectDownloads {
+			isS3Redirect = true
+		}
+	}
+
+	session, err := tm.CheckAndDeduct(c, requestedSize, fileSize, pathStr, isS3Redirect)
+	if err != nil {
+		return err
+	}
+
+	if IsS3Enabled(localFilePath) {
+		s3Key := utils.GetS3Key(localFilePath)
+		if isS3Redirect {
 			presignedURL, err := GetS3PresignedURL(s3Key, 15*time.Minute, contentDisposition)
 			if err == nil {
 				return c.Redirect().To(presignedURL)
@@ -90,7 +132,7 @@ func serveLocalFile(c fiber.Ctx, state *core.AppState, localFilePath, pathStr, c
 			c.Set(fiber.HeaderContentRange, "bytes "+strconv.FormatUint(start, 10)+"-"+strconv.FormatUint(end, 10)+"/"+strconv.FormatInt(fileSize, 10))
 			c.Set(fiber.HeaderAcceptRanges, "bytes")
 			c.Status(fiber.StatusPartialContent)
-			return c.SendStream(rc, int(end-start+1))
+			return c.SendStream(session.WrapReadCloser(rc), int(end-start+1))
 		}
 		if state.Inner.FileCache != nil && fileSize > 0 && fileSize <= maxCachedMetadataSize && isCacheableMetadata(pathStr) {
 			rc, _, err := DownloadFromS3(s3Key)
@@ -113,9 +155,9 @@ func serveLocalFile(c fiber.Ctx, state *core.AppState, localFilePath, pathStr, c
 		rc, _, err := DownloadFromS3(s3Key)
 		if err == nil {
 			if fileSize > 0 {
-				return c.SendStream(rc, int(fileSize))
+				return c.SendStream(session.WrapReadCloser(rc), int(fileSize))
 			}
-			return c.SendStream(rc)
+			return c.SendStream(session.WrapReadCloser(rc))
 		}
 	}
 
@@ -158,21 +200,29 @@ func serveLocalFile(c fiber.Ctx, state *core.AppState, localFilePath, pathStr, c
 		c.Set(fiber.HeaderAcceptRanges, "bytes")
 		c.Status(fiber.StatusPartialContent)
 		length := int64(end - start + 1)
-		return c.SendStream(&rangeReadCloser{
+		rrc := &rangeReadCloser{
 			Reader: io.NewSectionReader(f, int64(start), length),
 			Closer: f,
-		}, int(length))
+		}
+		return c.SendStream(session.WrapReadCloser(rrc), int(length))
 	}
 	if fileSize > 0 {
-		return c.SendStream(f, int(fileSize))
+		return c.SendStream(session.WrapReadCloser(f), int(fileSize))
 	}
-	return c.SendStream(f)
+	return c.SendStream(session.WrapReadCloser(f))
 }
 
 // rangeReadCloser pairs a SectionReader with the underlying *os.File closer.
 type rangeReadCloser struct {
 	io.Reader
 	io.Closer
+}
+
+func (r *rangeReadCloser) Close() error {
+	if r.Closer != nil {
+		return r.Closer.Close()
+	}
+	return nil
 }
 
 func isCacheableMetadata(pathStr string) bool {

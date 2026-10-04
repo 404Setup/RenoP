@@ -18,9 +18,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
-
 	"renop/internal/core"
+	"renop/pkg/id"
 )
 
 const publicationQuotaUsageRetention = 45 * 24 * time.Hour
@@ -63,7 +62,7 @@ func normalizePublicationQuotaSubjectTx(tx *Tx, subject core.PublicationQuotaSub
 	case core.PublicationQuotaOwnerUser:
 		userID, err := userIDForUsernameTx(tx, subject.OwnerKey)
 		if errors.Is(err, core.ErrUserProfileNotFound) && createMissingUser {
-			userID = uuid.NewString()
+			userID = id.New()
 			if _, insertErr := tx.Exec(`INSERT INTO user_profiles
 				(user_id, username, nickname, rename_window_started_at, rename_count, updated_at)
 				VALUES (?, ?, '', 0, 0, ?)`, userID, subject.OwnerKey, time.Now().UnixMilli()); insertErr != nil {
@@ -334,7 +333,7 @@ func (db *DB) ReservePublicationQuota(subject core.PublicationQuotaSubject, defa
 	case publicationQuotaExceeded(usage.publications, reserved.publications, delta.Publications, limits.PublicationLimit):
 		return nil, core.ErrPublicationCountLimit
 	}
-	id := uuid.NewString()
+	id := id.New()
 	if _, err := tx.Exec(`INSERT INTO publication_quota_reservations
 		(id, owner_type, owner_key, period_start, files_reserved, bytes_reserved, publications_reserved, expires_at, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, resolved.OwnerType, resolved.OwnerKey, startMillis,

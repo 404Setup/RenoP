@@ -8,7 +8,43 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
  */
 
-import {$} from './jquery.js';
+import {css, el} from './dom.js';
+
+const THEME_COLOR_META = 'theme-color';
+
+/**
+ * Resolve the theme background that is currently in effect.
+ * Reads the computed root background so custom-property overrides are honored.
+ * @returns {string} CSS color, or an empty string when unavailable.
+ */
+function resolveThemeColor() {
+    const root = document.documentElement;
+    const computed = typeof getComputedStyle === 'function' ? getComputedStyle(root) : null;
+    const background = computed?.backgroundColor || '';
+    if (background && background !== 'transparent' && background !== 'rgba(0, 0, 0, 0)') {
+        return background;
+    }
+    return root.classList.contains('dark') ? '#000000' : '#f3f4f6';
+}
+
+/**
+ * Keep the browser/OS chrome in step with the applied theme.
+ * A single managed `theme-color` meta pins the mobile system bar and the
+ * desktop title bar to the target scheme, so they stop re-sampling the page
+ * while the theme transition overlay animates.
+ * @param {string} [color] - Explicit bar color; defaults to the current root background.
+ * @returns {void}
+ */
+function syncThemeColorMeta(color = resolveThemeColor()) {
+    if (typeof document === 'undefined') return;
+    let meta = document.head?.querySelector(`meta[name="${THEME_COLOR_META}"]`);
+    if (!meta) {
+        if (!document.head) return;
+        meta = el('meta', {name: THEME_COLOR_META});
+        document.head.prepend(meta);
+    }
+    meta.setAttribute('content', color);
+}
 
 /**
  * Apply light or dark theme classes on `<html>`.
@@ -17,7 +53,10 @@ import {$} from './jquery.js';
  */
 export function applyTheme(mode) {
     const dark = mode === 'dark';
-    $('html').toggleClass('dark', dark).toggleClass('light', !dark);
+    const root = document.documentElement;
+    root.classList.toggle('dark', dark);
+    root.classList.toggle('light', !dark);
+    syncThemeColorMeta();
 }
 
 /**
@@ -37,7 +76,7 @@ export function initTheme({
     applyTheme(initialMode);
 
     if (bindToggle) {
-        bindThemeToggle($(toggleSelector).get(0));
+        bindThemeToggle(document.querySelector(toggleSelector) ?? undefined);
     }
 }
 
@@ -53,8 +92,8 @@ export function bindThemeToggle(btn = document.getElementById('theme-toggle')) {
     if (!btn || themeToggleBound) return;
     themeToggleBound = true;
 
-    $(btn).on('click', () => {
-        const isDark = $('html').hasClass('dark');
+    btn.addEventListener('click', () => {
+        const isDark = document.documentElement.classList.contains('dark');
         const newMode = isDark ? 'light' : 'dark';
         localStorage.setItem('theme-mode', newMode);
         playThemeTransition(newMode, btn);
@@ -69,26 +108,28 @@ export function bindThemeToggle(btn = document.getElementById('theme-toggle')) {
  */
 export function playThemeTransition(newMode, btn) {
     if (btn) {
-        $(btn).addClass('theme-btn--switching').one('animationend', () => {
-            $(btn).removeClass('theme-btn--switching');
-        });
+        btn.classList.add('theme-btn--switching');
+        btn.addEventListener('animationend', () => {
+            btn.classList.remove('theme-btn--switching');
+        }, {once: true});
     }
 
-    const $overlay = $('<div>', {class: 'theme-transition-overlay'}).css(
-        '--theme-transition-color',
-        newMode === 'dark' ? '#000000' : '#f3f4f6',
-    );
+    const targetColor = newMode === 'dark' ? '#000000' : '#f3f4f6';
+    syncThemeColorMeta(targetColor);
+    const overlay = css(el('div', {class: 'theme-transition-overlay'}), {
+        '--theme-transition-color': targetColor,
+    });
 
     if (btn) {
         const rect = btn.getBoundingClientRect();
-        $overlay.css({
+        css(overlay, {
             '--ripple-x': `${rect.left + rect.width / 2}px`,
             '--ripple-y': `${rect.top + rect.height / 2}px`,
         });
     }
 
-    $('body').append($overlay);
+    document.body.append(overlay);
     const animDuration = 380;
     setTimeout(() => applyTheme(newMode), animDuration * 0.4);
-    setTimeout(() => $overlay.remove(), animDuration + 50);
+    setTimeout(() => overlay.remove(), animDuration + 50);
 }

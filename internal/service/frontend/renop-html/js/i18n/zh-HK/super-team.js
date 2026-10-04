@@ -15,7 +15,7 @@ export default Object.freeze({
     "superTeam.edit": "編輯團隊",
     "superTeam.back": "返回團隊列表",
     "superTeam.empty": "尚未有超級團隊",
-    "superTeam.emptyHint": "建立團隊以保留 npm 及 Docker 共用的命名空間。",
+    "superTeam.emptyHint": "建立團隊以保留跨倉庫共用的命名空間。",
     "superTeam.prefix": "團隊標識前綴",
     "superTeam.prefixHint": "2–64 位小寫字母、數字、連字號或底線，建立後不可修改。",
     "superTeam.name": "團隊名稱",

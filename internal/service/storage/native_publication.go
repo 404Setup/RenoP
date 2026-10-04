@@ -26,9 +26,10 @@ import (
 	"renop/internal/service/conan"
 	"renop/internal/service/index"
 	"renop/internal/service/nativepkg"
-	"renop/internal/service/nativesign"
+	"renop/internal/service/nativepkg/nativesign"
 	"renop/internal/service/publicationquota"
-	"renop/internal/service/ticketnotify"
+	"renop/internal/service/ticket/notify"
+	"renop/internal/utils"
 	"renop/pkg/hex"
 
 	"github.com/gofiber/fiber/v3"
@@ -121,6 +122,9 @@ func managedNativeEngine() repositoryEngine {
 			return false, nil
 		}
 		if err := AuthorizeNativeUpload(state, user, repo, relative); err != nil {
+			if utils.HasUploadBody(c) {
+				utils.RejectUploadEarly(c)
+			}
 			return true, NativeErrorResponse(c, err)
 		}
 		return false, nil

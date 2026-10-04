@@ -157,7 +157,7 @@ test('ticket notifications are localized and requester views hide staff identiti
     const main = frontendSource('js', 'main.js');
     const renderer = frontendSource('js', 'ticket-messages.js');
     const access = repositorySource('internal', 'database', 'ticket_access.go');
-    const notifications = repositorySource('internal', 'service', 'ticketnotify', 'notifications.go');
+    const notifications = repositorySource('internal', 'service', 'ticket', 'notify', 'notifications.go');
     assert.match(main, /import '\.\/ticket-messages\.js'/);
     assert.match(renderer, /registerMessageRenderer\('review_pending'/);
     assert.match(renderer, /registerMessageRenderer\('review_result'/);

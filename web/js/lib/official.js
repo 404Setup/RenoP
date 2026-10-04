@@ -444,3 +444,225 @@ export function triggerBrowserDownload(blobOrUrl, filename) {
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 30_000);
 }
+
+let cachedLatestUpdateTimestamp = null;
+
+/**
+ * Fetch the latest release or build timestamp in ms from official update channel.
+ * @returns {Promise<number|null>}
+ */
+export async function fetchLatestUpdateTimestamp() {
+    if (cachedLatestUpdateTimestamp) return cachedLatestUpdateTimestamp;
+    try {
+        const info = await fetchChannelInfo('nightly');
+        if (info?.publishedAt) {
+            const time = new Date(info.publishedAt).getTime();
+            if (!Number.isNaN(time) && time > 0) {
+                cachedLatestUpdateTimestamp = time;
+                return time;
+            }
+        }
+    } catch {
+        // Fallback below
+    }
+    try {
+        const info = await fetchChannelInfo('stable');
+        if (info?.publishedAt) {
+            const time = new Date(info.publishedAt).getTime();
+            if (!Number.isNaN(time) && time > 0) {
+                cachedLatestUpdateTimestamp = time;
+                return time;
+            }
+        }
+    } catch {
+        // Fallback below
+    }
+    try {
+        const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/commits?per_page=1`, {
+            headers: GH_HEADERS,
+        });
+        if (res.ok) {
+            const commits = await res.json();
+            const dateStr = commits?.[0]?.commit?.committer?.date || commits?.[0]?.commit?.author?.date;
+            if (dateStr) {
+                const time = new Date(dateStr).getTime();
+                if (!Number.isNaN(time) && time > 0) {
+                    cachedLatestUpdateTimestamp = time;
+                    return time;
+                }
+            }
+        }
+    } catch {
+        // Ignore
+    }
+    return null;
+}
+
+/**
+ * Format a duration in seconds into exactly two units starting from the largest unit.
+ * Examples:
+ *   - 16 days 11 hours -> "16天11时" (zh) / "16 days 11 hours" (en)
+ *   - 18 minutes 36 seconds -> "18分钟36秒" (zh) / "18 minutes 36 seconds" (en)
+ *   - 2 hours 15 minutes -> "2小时15分" (zh) / "2 hours 15 minutes" (en)
+ *   - 1 year 2 months -> "1年2个月" (zh) / "1 year 2 months" (en)
+ *   - 45 seconds -> "45秒" (zh) / "45 seconds" (en)
+ *
+ * @param {number} diffSeconds
+ * @param {string} [lang]
+ * @returns {string}
+ */
+export function formatDurationTwoUnits(diffSeconds, lang = 'zh-CN') {
+    const s = Math.max(0, Math.floor(diffSeconds));
+    const isZh = lang.startsWith('zh');
+    const isJa = lang.startsWith('ja');
+    const isFr = lang.startsWith('fr');
+    const isRu = lang.startsWith('ru');
+
+    const YEAR = 365 * 86400;
+    const MONTH = 30 * 86400;
+    const DAY = 86400;
+    const HOUR = 3600;
+    const MINUTE = 60;
+
+    let u1 = { value: 0, type: '' };
+    let u2 = { value: 0, type: '' };
+
+    if (s >= YEAR) {
+        const years = Math.floor(s / YEAR);
+        const rem = s % YEAR;
+        const months = Math.floor(rem / MONTH);
+        u1 = { value: years, type: 'year' };
+        if (months > 0) {
+            u2 = { value: months, type: 'month' };
+        } else {
+            const days = Math.floor(rem / DAY);
+            if (days > 0) u2 = { value: days, type: 'day' };
+        }
+    } else if (s >= MONTH) {
+        const months = Math.floor(s / MONTH);
+        const rem = s % MONTH;
+        const days = Math.floor(rem / DAY);
+        u1 = { value: months, type: 'month' };
+        if (days > 0) {
+            u2 = { value: days, type: 'day' };
+        } else {
+            const hours = Math.floor(rem / HOUR);
+            if (hours > 0) u2 = { value: hours, type: 'hour_short' };
+        }
+    } else if (s >= DAY) {
+        const days = Math.floor(s / DAY);
+        const rem = s % DAY;
+        const hours = Math.floor(rem / HOUR);
+        u1 = { value: days, type: 'day' };
+        if (hours > 0) {
+            u2 = { value: hours, type: 'hour_short' };
+        } else {
+            const mins = Math.floor(rem / MINUTE);
+            if (mins > 0) u2 = { value: mins, type: 'minute_short' };
+        }
+    } else if (s >= HOUR) {
+        const hours = Math.floor(s / HOUR);
+        const rem = s % HOUR;
+        const mins = Math.floor(rem / MINUTE);
+        u1 = { value: hours, type: 'hour' };
+        if (mins > 0) {
+            u2 = { value: mins, type: 'minute_short' };
+        } else {
+            const secs = rem % MINUTE;
+            if (secs > 0) u2 = { value: secs, type: 'second' };
+        }
+    } else if (s >= MINUTE) {
+        const mins = Math.floor(s / MINUTE);
+        const secs = s % MINUTE;
+        u1 = { value: mins, type: 'minute' };
+        if (secs > 0) u2 = { value: secs, type: 'second' };
+    } else {
+        u1 = { value: s, type: 'second' };
+    }
+
+    const formatZh = (val, type) => {
+        switch (type) {
+            case 'year': return `${val}年`;
+            case 'month': return `${val}个月`;
+            case 'day': return `${val}天`;
+            case 'hour_short': return `${val}时`;
+            case 'hour': return `${val}小时`;
+            case 'minute_short': return `${val}分`;
+            case 'minute': return `${val}分钟`;
+            case 'second': return `${val}秒`;
+            default: return `${val}`;
+        }
+    };
+
+    const formatJa = (val, type) => {
+        switch (type) {
+            case 'year': return `${val}年`;
+            case 'month': return `${val}ヶ月`;
+            case 'day': return `${val}日`;
+            case 'hour_short':
+            case 'hour': return `${val}時間`;
+            case 'minute_short':
+            case 'minute': return `${val}分`;
+            case 'second': return `${val}秒`;
+            default: return `${val}`;
+        }
+    };
+
+    const formatEn = (val, type) => {
+        const p = (singular, plural) => val === 1 ? `${val} ${singular}` : `${val} ${plural}`;
+        switch (type) {
+            case 'year': return p('year', 'years');
+            case 'month': return p('month', 'months');
+            case 'day': return p('day', 'days');
+            case 'hour_short':
+            case 'hour': return p('hour', 'hours');
+            case 'minute_short':
+            case 'minute': return p('minute', 'minutes');
+            case 'second': return p('second', 'seconds');
+            default: return `${val}`;
+        }
+    };
+
+    const formatFr = (val, type) => {
+        const p = (singular, plural) => val <= 1 ? `${val} ${singular}` : `${val} ${plural}`;
+        switch (type) {
+            case 'year': return p('an', 'ans');
+            case 'month': return `${val} mois`;
+            case 'day': return p('jour', 'jours');
+            case 'hour_short':
+            case 'hour': return p('heure', 'heures');
+            case 'minute_short':
+            case 'minute': return p('minute', 'minutes');
+            case 'second': return p('seconde', 'secondes');
+            default: return `${val}`;
+        }
+    };
+
+    const formatRu = (val, type) => {
+        switch (type) {
+            case 'year': return `${val} г.`;
+            case 'month': return `${val} мес.`;
+            case 'day': return `${val} дн.`;
+            case 'hour_short':
+            case 'hour': return `${val} ч.`;
+            case 'minute_short':
+            case 'minute': return `${val} мин.`;
+            case 'second': return `${val} сек.`;
+            default: return `${val}`;
+        }
+    };
+
+    if (isZh) {
+        return u2.value > 0 ? `${formatZh(u1.value, u1.type)}${formatZh(u2.value, u2.type)}` : formatZh(u1.value, u1.type);
+    }
+    if (isJa) {
+        return u2.value > 0 ? `${formatJa(u1.value, u1.type)} ${formatJa(u2.value, u2.type)}` : formatJa(u1.value, u1.type);
+    }
+    if (isFr) {
+        return u2.value > 0 ? `${formatFr(u1.value, u1.type)} ${formatFr(u2.value, u2.type)}` : formatFr(u1.value, u1.type);
+    }
+    if (isRu) {
+        return u2.value > 0 ? `${formatRu(u1.value, u1.type)} ${formatRu(u2.value, u2.type)}` : formatRu(u1.value, u1.type);
+    }
+    return u2.value > 0 ? `${formatEn(u1.value, u1.type)} ${formatEn(u2.value, u2.type)}` : formatEn(u1.value, u1.type);
+}

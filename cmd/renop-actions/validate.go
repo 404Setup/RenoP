@@ -93,7 +93,7 @@ func runValidatePayload(args []string) error {
 	}
 
 	var manifest Manifest
-	if err := json.Unmarshal(manifestData, &manifest); err != nil {
+	if err := json.UnmarshalOf(manifestData, &manifest); err != nil {
 		return fmt.Errorf("failed to parse manifest: %w", err)
 	}
 

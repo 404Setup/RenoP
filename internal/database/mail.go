@@ -182,7 +182,7 @@ func scanMailJob(scanner messageScanner, key string) (*mail.Job, error) {
 	job.Message = private.Message
 	job.Reservation = private.Reservation
 	job.TicketHash = private.TicketHash
-	if err := json.Unmarshal([]byte(result), &job.Result); err != nil {
+	if err := json.UnmarshalOf([]byte(result), &job.Result); err != nil {
 		return nil, err
 	}
 	// Older submissions without a status API were already terminal despite this label.
@@ -303,7 +303,7 @@ func (db *DB) SaveMailAttempt(owner, key string, job *mail.Job, state *mail.Acco
 	if err != nil {
 		return err
 	}
-	result, err := json.Marshal(job.Result)
+	result, err := json.MarshalOf(job.Result)
 	if err != nil {
 		return err
 	}

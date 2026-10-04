@@ -17,8 +17,8 @@ import (
 
 	"renop/internal/config"
 	"renop/internal/core"
-	"renop/internal/service/nativesign"
-	"renop/internal/service/rpm"
+	"renop/internal/service/nativepkg/nativesign"
+	"renop/internal/service/nativepkg/rpm"
 
 	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
@@ -64,13 +64,13 @@ func rpmEngine() repositoryEngine {
 				if err != nil {
 					return nil, err
 				}
-				return json.Marshal(pkg)
+				return json.MarshalOf(pkg)
 			},
 			render: func(records [][]byte) ([]byte, error) {
 				packages := make([]*rpm.Package, 0, len(records))
 				for _, record := range records {
 					var pkg rpm.Package
-					if err := json.Unmarshal(record, &pkg); err != nil {
+					if err := json.UnmarshalOf(record, &pkg); err != nil {
 						return nil, err
 					}
 					packages = append(packages, &pkg)

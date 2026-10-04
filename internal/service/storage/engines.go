@@ -13,6 +13,7 @@ package storage
 import (
 	"renop/internal/config"
 	"renop/internal/core"
+	"renop/internal/utils"
 	"strings"
 
 	"github.com/gofiber/fiber/v3"
@@ -42,6 +43,8 @@ var repositoryEngines = map[string]repositoryEngine{
 	config.RepositoryFormatAPT:         aptEngine(),
 	config.RepositoryFormatRPM:         rpmEngine(),
 	config.RepositoryFormatYUM:         rpmEngine(),
+	config.RepositoryFormatGithub:      gitRepoEngine(config.RepositoryFormatGithub),
+	config.RepositoryFormatGitLab:      gitRepoEngine(config.RepositoryFormatGitLab),
 }
 
 func filesEngine() repositoryEngine {
@@ -49,6 +52,9 @@ func filesEngine() repositoryEngine {
 		read: readRepositoryFiles,
 		authorizeWrite: func(c fiber.Ctx, _ *core.AppState, user *config.User, repo *config.Repository, _ string) (bool, error) {
 			if user == nil || !user.CheckUpdatePermission(repo.Name) {
+				if utils.HasUploadBody(c) {
+					utils.RejectUploadEarly(c)
+				}
 				return true, c.Status(fiber.StatusForbidden).SendString("Forbidden")
 			}
 			return false, nil

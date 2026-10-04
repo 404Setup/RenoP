@@ -28,11 +28,7 @@ func setResourceLock(c fiber.Ctx, state *core.AppState) error {
 		session == "" || c.Cookies("renop_session") != session {
 		return apiError(c, core.ErrResourceLockPermission)
 	}
-	var request struct {
-		Mode       string `json:"mode"`
-		Reason     string `json:"reason"`
-		ReasonText string `json:"reason_text"`
-	}
+	var request core.ResourceLockRequest
 	if utils.ReadJSONLimited(c, &request, 4096) != nil {
 		return apiError(c, core.ErrResourceLockInvalid)
 	}

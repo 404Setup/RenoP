@@ -17,13 +17,13 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/google/uuid"
+	"renop/pkg/id"
 
 	"renop/internal/core"
 	"renop/internal/repositorycapacity"
 	"renop/internal/service/index"
-	"renop/internal/service/packagestore"
 	"renop/internal/service/status"
+	"renop/internal/service/storage/packagestore"
 )
 
 // packageStore adapts package protocols to the existing atomic storage pipeline.
@@ -59,7 +59,7 @@ func (packageStore) Stage(path string) (packagestore.StagedFile, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return nil, err
 	}
-	tempPath := path + ".tmp.package." + uuid.NewString()
+	tempPath := path + ".tmp.package." + id.New()
 	file, err := os.OpenFile(tempPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err != nil {
 		return nil, err

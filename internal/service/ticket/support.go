@@ -20,7 +20,7 @@ import (
 	"renop/internal/service/audit"
 	"renop/internal/service/auth"
 	"renop/internal/service/repositorygate"
-	"renop/internal/service/ticketnotify"
+	"renop/internal/service/ticket/notify"
 	"renop/internal/utils"
 
 	"github.com/gofiber/fiber/v3"

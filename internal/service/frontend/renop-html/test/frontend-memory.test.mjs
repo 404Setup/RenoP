@@ -33,11 +33,17 @@ test('profile invalidation rejects stale cache fills without stranding a queued 
                 release = resolve;
             });
             return {
-                ok: true, json: async () => url.includes('names=')
-                    ? {profiles: [{username: 'bobby', nickname: 'Current'}]}
-                    : {username: 'alice', nickname: attempt === 1 ? 'Old' : 'Current'}
+                ok: true, json: async () => ({username: 'alice', nickname: attempt === 1 ? 'Old' : 'Current'})
             };
-        }
+        },
+        fetchProto: async () => {
+            ++requests;
+            return {
+                response: {ok: true},
+                data: {profiles: [{username: 'bobby', nickname: 'Current'}]}
+            };
+        },
+        UserProfilesResponse: class {},
     });
     const source = readFileSync(join(frontendRoot, 'js/user-profiles.js'), 'utf8');
     vm.runInContext(source.replace(/^import .*;\r?\n/gm, '').replaceAll('export ', ''), context);

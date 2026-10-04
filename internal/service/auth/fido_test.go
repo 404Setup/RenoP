@@ -45,7 +45,7 @@ func TestFidoBeginEndpoints(t *testing.T) {
 	SetupAuthRoutes(app, state, opChan)
 
 	t.Run("PostFidoLoginBegin", func(t *testing.T) {
-		reqBody, _ := json.Marshal(map[string]string{"username": "admin"})
+		reqBody, _ := json.MarshalOf(map[string]string{"username": "admin"})
 		req := httptest.NewRequest(http.MethodPost, "/auth/fido/login/begin", bytes.NewReader(reqBody))
 		req.Header.Set("Content-Type", "application/json")
 
@@ -154,7 +154,7 @@ func TestFidoLoginBeginRejectsOversizedUsername(t *testing.T) {
 	app := fiber.New()
 	SetupAuthRoutes(app, state, opChan)
 
-	body, err := json.Marshal(map[string]string{
+	body, err := json.MarshalOf(map[string]string{
 		"username": strings.Repeat("a", maxFidoUsernameLength+1),
 	})
 	require.NoError(t, err)
